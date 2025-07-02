@@ -2,14 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, TrendingUp, BarChart } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type PortfolioSummaryProps = {
-  balance: number;
-  totalPnl: number;
-  dailyVolume: number;
+  balance?: number;
+  totalPnl?: number;
+  dailyVolume?: number;
+  isLoading?: boolean;
 };
 
-export function PortfolioSummary({ balance, totalPnl, dailyVolume }: PortfolioSummaryProps) {
+export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, isLoading }: PortfolioSummaryProps) {
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -26,8 +28,17 @@ export function PortfolioSummary({ balance, totalPnl, dailyVolume }: PortfolioSu
           <DollarSign className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
-          <p className="text-xs text-muted-foreground">+2.1% from last month</p>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
+              <p className="text-xs text-muted-foreground">+2.1% from last month</p>
+            </>
+          )}
         </CardContent>
       </Card>
       <Card>
@@ -36,8 +47,17 @@ export function PortfolioSummary({ balance, totalPnl, dailyVolume }: PortfolioSu
           <TrendingUp className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className={`text-2xl font-bold ${pnlColor}`}>{formatCurrency(totalPnl)}</div>
-          <p className="text-xs text-muted-foreground">Lifetime performance</p>
+           {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className={`text-2xl font-bold ${pnlColor}`}>{formatCurrency(totalPnl)}</div>
+              <p className="text-xs text-muted-foreground">Lifetime performance</p>
+            </>
+           )}
         </CardContent>
       </Card>
       <Card>
@@ -46,8 +66,17 @@ export function PortfolioSummary({ balance, totalPnl, dailyVolume }: PortfolioSu
           <BarChart className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(dailyVolume)}</div>
-          <p className="text-xs text-muted-foreground">+15% from yesterday</p>
+           {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ) : (
+            <>
+              <div className="text-2xl font-bold">{formatCurrency(dailyVolume)}</div>
+              <p className="text-xs text-muted-foreground">+15% from yesterday</p>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

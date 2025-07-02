@@ -1,6 +1,6 @@
-import type { Position, Trade, HistoricalData } from './types';
+import type { Position, Trade, HistoricalData, Portfolio } from './types';
 
-export const portfolio = {
+export const portfolio: Portfolio = {
   balance: 10450.75,
   totalPnl: 152.3,
   dailyVolume: 76340.21,

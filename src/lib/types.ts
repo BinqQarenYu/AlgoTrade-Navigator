@@ -27,3 +27,9 @@ export type HistoricalData = {
   buySignal?: number;
   sellSignal?: number;
 };
+
+export type Portfolio = {
+  balance: number;
+  totalPnl: number;
+  dailyVolume: number;
+};
