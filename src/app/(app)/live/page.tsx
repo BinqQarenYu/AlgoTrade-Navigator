@@ -128,8 +128,6 @@ export default function LiveTradingPage() {
           wakeLockRef.current = null;
         });
       } catch (err: any) {
-        // The Wake Lock API can fail for various reasons (e.g., permissions policy).
-        // This is not a critical error, so we'll just log a warning to the bot UI.
         addLog(`Warning: Could not acquire screen wake lock. The app may not prevent your device from sleeping.`);
       }
     } else {
@@ -313,7 +311,7 @@ export default function LiveTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || isBotRunning}>
+                  <Select onValueChange={setSymbol} value={symbol} disabled={isBotRunning}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -425,7 +423,7 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={!isConnected || isFetchingData} variant={isBotRunning ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleBotToggle} disabled={isFetchingData || (!isConnected && !isBotRunning)} variant={isBotRunning ? "destructive" : "default"}>
               {isBotRunning ? <StopCircle /> : <Play />}
               {isBotRunning ? "Stop Bot" : "Start Bot"}
             </Button>
