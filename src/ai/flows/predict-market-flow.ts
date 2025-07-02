@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const PredictMarketInputSchema = z.object({
+const PredictMarketInputSchema = z.object({
   symbol: z.string().describe('The trading symbol, e.g., BTCUSDT.'),
   recentData: z
     .string()
@@ -21,7 +21,7 @@ export const PredictMarketInputSchema = z.object({
 });
 export type PredictMarketInput = z.infer<typeof PredictMarketInputSchema>;
 
-export const PredictMarketOutputSchema = z.object({
+const PredictMarketOutputSchema = z.object({
   prediction: z
     .enum(['UP', 'DOWN', 'NEUTRAL'])
     .describe('The predicted market direction.'),
