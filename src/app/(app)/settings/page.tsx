@@ -1,11 +1,13 @@
 "use client"
 
-import React, { useRef } from "react"
+import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import jsQR from "jsqr"
 import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+
 import {
   Card,
   CardContent,
@@ -17,8 +19,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { KeyRound, Save, QrCode } from "lucide-react"
+import { KeyRound, Save, QrCode, Power, PowerOff, Loader2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
+import { Progress } from "@/components/ui/progress"
 
 const settingsSchema = z.object({
   apiKey: z.string().min(1, "API Key is required."),
@@ -28,6 +31,10 @@ const settingsSchema = z.object({
 export default function SettingsPage() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isConnected, setIsConnected] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
+  // Placeholder. In a real app, this would be fetched from the API.
+  const [apiLimit, setApiLimit] = useState({ used: 128, limit: 1200 })
 
   const form = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
@@ -122,15 +129,98 @@ export default function SettingsPage() {
   }
 
   function onSubmit(values: z.infer<typeof settingsSchema>) {
+    // In a real app, keys would be sent to a secure backend.
     console.log("Saving settings:", values)
     toast({
       title: "Settings Saved",
-      description: "Your Binance API keys have been securely saved.",
+      description: "Your Binance API keys have been saved.",
     })
   }
 
+  const handleConnectToggle = async () => {
+    setIsConnecting(true)
+    // Simulate API call to check credentials
+    await new Promise(resolve => setTimeout(resolve, 1500))
+
+    if (!isConnected) {
+      // In a real app, you'd use the saved keys to ping the Binance API
+      const { apiKey, secretKey } = form.getValues()
+      if (apiKey.length > 5 && secretKey.length > 5) { // Simple validation
+        setIsConnected(true)
+        toast({
+          title: "Connection Successful",
+          description: "Successfully connected to Binance API.",
+        })
+        // You could fetch real API limits here
+        setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: "Please provide valid API keys before connecting.",
+          variant: "destructive",
+        })
+      }
+    } else {
+      setIsConnected(false)
+      toast({
+        title: "Disconnected",
+        description: "You have been disconnected from the Binance API.",
+      })
+    }
+    setIsConnecting(false)
+  }
+
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto space-y-6">
+       <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-3">
+            <span className={cn(
+              "h-2.5 w-2.5 rounded-full",
+              isConnecting ? "bg-yellow-500 animate-pulse" : isConnected ? "bg-green-500" : "bg-red-500"
+            )} />
+            API Connection
+          </CardTitle>
+          <CardDescription>
+            Manage your connection to the Binance API. Your keys must be saved first.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Status: <span className={cn(
+                "font-semibold", 
+                isConnecting ? "text-yellow-500" : isConnected ? "text-green-500" : "text-red-500"
+              )}>
+                {isConnecting ? "Connecting..." : isConnected ? "Connected" : "Disconnected"}
+              </span>
+            </div>
+            <Button onClick={handleConnectToggle} disabled={isConnecting} variant={isConnected ? "destructive" : "default"}>
+              {isConnecting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : isConnected ? (
+                <PowerOff className="mr-2 h-4 w-4" />
+              ) : (
+                <Power className="mr-2 h-4 w-4" />
+              )}
+              {isConnecting ? "Please wait" : isConnected ? "Disconnect" : "Connect"}
+            </Button>
+          </div>
+        </CardContent>
+        {isConnected && (
+          <CardFooter className="flex-col items-start gap-4 border-t pt-6">
+            <div className="w-full">
+              <h3 className="text-sm font-medium mb-2">API Rate Limits (Requests per Minute)</h3>
+              <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                <span>Used: {apiLimit.used}</span>
+                <span>Limit: {apiLimit.limit}</span>
+              </div>
+              <Progress value={(apiLimit.used / apiLimit.limit) * 100} />
+            </div>
+          </CardFooter>
+        )}
+      </Card>
+      
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><KeyRound/> API Settings</CardTitle>
