@@ -61,7 +61,7 @@ export default function BacktestPage() {
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
 
   const [initialCapital, setInitialCapital] = useState<number>(10000);
-  const [lotSize, setLotSize] = useState<number>(0.01);
+  const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
 
@@ -219,6 +219,7 @@ export default function BacktestPage() {
       let entryTime = 0;
       let stopLossPrice = 0;
       let takeProfitPrice = 0;
+      let tradeQuantity = 0;
 
       for (const d of dataWithSignals) {
           if (inPosition) {
@@ -240,7 +241,7 @@ export default function BacktestPage() {
 
               if (exitPrice !== null && closeReason !== null) {
                   inPosition = false;
-                  const pnl = (exitPrice - entryPrice) * (lotSize || 0);
+                  const pnl = (exitPrice - entryPrice) * tradeQuantity;
                   const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
                   trades.push({
                       entryTime,
@@ -252,6 +253,7 @@ export default function BacktestPage() {
                       closeReason,
                   });
                   entryPrice = 0;
+                  tradeQuantity = 0;
               }
           }
 
@@ -261,13 +263,16 @@ export default function BacktestPage() {
               entryTime = d.time;
               stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
               takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+
+              const positionValue = (initialCapital || 1) * (leverage || 1);
+              tradeQuantity = positionValue / entryPrice;
           }
       }
       
       if (inPosition && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
-        const pnl = (exitPrice - entryPrice) * (lotSize || 0);
+        const pnl = (exitPrice - entryPrice) * tradeQuantity;
         const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
         trades.push({
           entryTime,
@@ -419,14 +424,14 @@ export default function BacktestPage() {
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="lot-size">Lot Size (Units)</Label>
+                    <Label htmlFor="leverage">Leverage (x)</Label>
                     <Input 
-                        id="lot-size" 
+                        id="leverage" 
                         type="number" 
-                        value={lotSize}
-                        onChange={(e) => setLotSize(parseFloat(e.target.value) || 0)}
-                        placeholder="0.01"
-                        step="0.001"
+                        value={leverage}
+                        onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                        placeholder="10"
+                        min="1"
                         disabled={anyLoading}
                     />
                 </div>
