@@ -48,7 +48,7 @@ export default function LiveTradingPage() {
   const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
   
-  const [lotSize, setLotSize] = useState<number>(0.01);
+  const [initialCapital, setInitialCapital] = useState<number>(10000);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
@@ -142,7 +142,7 @@ export default function LiveTradingPage() {
         setIsBotRunning(true);
         setBotLogs([]);
         setPrediction(null);
-        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Size: ${lotSize}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
+        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
         
         // Initial prediction
         runPrediction();
@@ -225,19 +225,18 @@ export default function LiveTradingPage() {
                 </div>
             </div>
              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="lot-size">Lot Size (Units)</Label>
+                <div className="space-y-2">
+                    <Label htmlFor="initial-capital">Initial Capital ($)</Label>
                     <Input 
-                        id="lot-size" 
+                        id="initial-capital" 
                         type="number" 
-                        value={lotSize}
-                        onChange={(e) => setLotSize(parseFloat(e.target.value) || 0)}
-                        placeholder="0.01"
-                        step="0.001"
+                        value={initialCapital}
+                        onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                        placeholder="10000"
                         disabled={isBotRunning}
                     />
                 </div>
-                 <div className="space-y-2">
+                <div className="space-y-2">
                   <Label htmlFor="leverage">Leverage (x)</Label>
                   <Input
                     id="leverage"
