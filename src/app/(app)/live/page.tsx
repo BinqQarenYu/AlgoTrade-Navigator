@@ -61,6 +61,7 @@ export default function LiveTradingPage() {
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
+  const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
   
   const [initialCapital, setInitialCapital] = useState<number>(100);
@@ -89,11 +90,11 @@ export default function LiveTradingPage() {
 
     const fetchData = async () => {
         setIsFetchingData(true);
-        toast({ title: "Fetching Market Data...", description: `Loading initial 1-minute data for ${symbol}.`});
+        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const from = addDays(new Date(), -1).getTime();
             const to = new Date().getTime();
-            const klines = await getHistoricalKlines(symbol, "1m", from, to);
+            const klines = await getHistoricalKlines(symbol, interval, from, to);
             setChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
         } catch (error: any) {
@@ -110,7 +111,7 @@ export default function LiveTradingPage() {
     };
 
     fetchData();
-  }, [symbol, isConnected, isClient, toast]);
+  }, [symbol, isConnected, isClient, toast, interval]);
   
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -222,6 +223,13 @@ export default function LiveTradingPage() {
       });
     } else {
         addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. AI validation is disabled.`);
+        // When AI is disabled, we could still show a mock prediction based on the signal
+        const mockPrediction: PredictMarketOutput = {
+            prediction: strategySignal === 'BUY' ? 'UP' : strategySignal === 'SELL' ? 'DOWN' : 'NEUTRAL',
+            confidence: 0.99,
+            reasoning: `AI is disabled. The prediction is based directly on the '${selectedStrategy}' signal.`
+        };
+        setPrediction(mockPrediction);
     }
   }
 
@@ -244,7 +252,7 @@ export default function LiveTradingPage() {
         setIsBotRunning(true);
         setBotLogs([]);
         setPrediction(null);
-        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Margin: ${marginType}, Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
+        addLog(`Bot started for ${symbol} on ${interval} interval. Margin: ${marginType}, Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
         
         await requestWakeLock();
 
@@ -301,7 +309,7 @@ export default function LiveTradingPage() {
             <CardDescription>Configure and manage your live trading bot.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
                   <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || isBotRunning}>
@@ -328,6 +336,22 @@ export default function LiveTradingPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interval">Interval</Label>
+                  <Select onValueChange={setInterval} value={interval} disabled={isBotRunning}>
+                    <SelectTrigger id="interval">
+                      <SelectValue placeholder="Select interval" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1m">1 Minute</SelectItem>
+                      <SelectItem value="5m">5 Minutes</SelectItem>
+                      <SelectItem value="15m">15 Minutes</SelectItem>
+                      <SelectItem value="1h">1 Hour</SelectItem>
+                      <SelectItem value="4h">4 Hours</SelectItem>
+                      <SelectItem value="1d">1 Day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
             </div>
              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -337,7 +361,7 @@ export default function LiveTradingPage() {
                         type="number" 
                         value={initialCapital}
                         onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                        placeholder="10000"
+                        placeholder="100"
                         disabled={isBotRunning}
                     />
                 </div>
