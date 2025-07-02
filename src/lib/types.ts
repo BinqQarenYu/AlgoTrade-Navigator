@@ -42,6 +42,7 @@ export type Portfolio = {
 };
 
 export type StreamedDataPoint = {
+  id: number; // Aggregate trade ID
   time: number;
   price: number;
   volume: number;

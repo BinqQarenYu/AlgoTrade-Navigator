@@ -38,9 +38,10 @@ export default function DataPage() {
 
             ws.onmessage = (event) => {
                 const message = JSON.parse(event.data);
-                // The aggTrade stream provides 'p' for price and 'q' for quantity.
-                if (message.e === 'aggTrade' && message.p && message.q) {
+                // The aggTrade stream provides 'a' for aggregate trade ID, 'p' for price and 'q' for quantity.
+                if (message.e === 'aggTrade' && message.p && message.q && message.a) {
                     const newPoint: StreamedDataPoint = {
+                        id: message.a, // Aggregate trade ID
                         time: message.T, // Trade time
                         price: parseFloat(message.p),
                         volume: parseFloat(message.q),
@@ -204,7 +205,7 @@ export default function DataPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
-                                         <TableRow key={d.time + d.price}>
+                                         <TableRow key={d.id}>
                                             <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss.SSS')}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
@@ -245,7 +246,7 @@ export default function DataPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
-                                         <TableRow key={d.time + d.price}>
+                                         <TableRow key={d.id}>
                                             <TableCell className="font-mono text-xs">{format(new Date(d.time), 'yyyy-MM-dd HH:mm:ss')}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
