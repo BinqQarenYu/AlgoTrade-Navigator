@@ -1,0 +1,92 @@
+"use client"
+
+import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { BarChart2, BrainCircuit, Home, LayoutDashboard, Settings, Bot } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { Button } from "./ui/button"
+
+const menuItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/backtest", label: "Backtest", icon: BarChart2 },
+  { href: "/optimize", label: "Optimize", icon: BrainCircuit },
+  { href: "/settings", label: "Settings", icon: Settings },
+]
+
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+
+  return (
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarContent>
+          <SidebarHeader className="p-4">
+            <div className="flex items-center gap-2">
+               <div className="p-2 bg-primary/20 rounded-lg">
+                <Bot className="text-primary" />
+              </div>
+              <h1 className="text-xl font-semibold text-primary">AlgoTrade Nav</h1>
+            </div>
+          </SidebarHeader>
+          <SidebarMenu>
+            {menuItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <Link href={item.href} legacyBehavior passHref>
+                  <SidebarMenuButton
+                    isActive={pathname === item.href}
+                    tooltip={{
+                      children: item.label,
+                    }}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter className="p-4">
+           <div className="flex items-center gap-3">
+              <Avatar>
+                <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" />
+                <AvatarFallback>AN</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Alex Nomad</span>
+                <span className="text-xs text-muted-foreground">alex.nomad@example.com</span>
+              </div>
+            </div>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-10 flex items-center h-14 px-4 border-b bg-background/80 backdrop-blur-sm">
+          <SidebarTrigger className="md:hidden" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold capitalize">
+              {pathname.substring(1) || 'Dashboard'}
+            </h2>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
+}
