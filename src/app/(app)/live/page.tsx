@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -46,6 +47,7 @@ export default function LiveTradingPage() {
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
   const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
+  const [leverage, setLeverage] = useState<number>(10);
   const [botLogs, setBotLogs] = useState<string[]>([]);
   const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isPredicting, startTransition] = useTransition();
@@ -135,7 +137,7 @@ export default function LiveTradingPage() {
         setIsBotRunning(true);
         setBotLogs([]);
         setPrediction(null);
-        addLog(`Bot started for ${symbol} with ${selectedStrategy} strategy.`);
+        addLog(`Bot started for ${symbol} with ${selectedStrategy} at ${leverage}x leverage.`);
         
         // Initial prediction
         runPrediction();
@@ -189,7 +191,7 @@ export default function LiveTradingPage() {
             <CardDescription>Configure and manage your live trading bot.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
                   <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || isBotRunning}>
@@ -215,6 +217,18 @@ export default function LiveTradingPage() {
                       <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="leverage">Leverage (x)</Label>
+                  <Input
+                    id="leverage"
+                    type="number"
+                    min="1"
+                    value={leverage}
+                    onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                    placeholder="10"
+                    disabled={!isConnected || isBotRunning}
+                  />
                 </div>
             </div>
           </CardContent>
