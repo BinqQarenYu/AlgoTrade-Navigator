@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useTransition } from "react"
+import React, { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { generateHistoricalData, mockAssetPrices } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
@@ -25,16 +25,13 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Loader2, BrainCircuit } from "lucide-react"
+import { CalendarIcon, Loader2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 import { BacktestResults } from "@/components/backtest-results"
-import { analyzePineScript, AnalyzePineScriptOutput } from "@/ai/flows/analyze-pine-script"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 
 interface DateRange {
   from?: Date;
@@ -92,9 +89,6 @@ export default function BacktestPage() {
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
 
-  const [isAnalyzing, startTransition] = useTransition();
-  const [analysisResult, setAnalysisResult] = useState<AnalyzePineScriptOutput | null>(null);
-
 
   useEffect(() => {
     setIsClient(true)
@@ -121,11 +115,12 @@ export default function BacktestPage() {
     setChartData(resampled);
 }, [baseChartData, interval]);
 
-  const handleRunBacktest = () => {
-    if (!selectedStrategy) {
+  const handleRunBacktest = (strategyOverride?: string) => {
+    const strategyToRun = strategyOverride || selectedStrategy;
+    if (!strategyToRun) {
       toast({
         title: "No Strategy Selected",
-        description: "Please select a strategy before running a backtest.",
+        description: "Please select a strategy or load a script before running a backtest.",
         variant: "destructive",
       });
       return;
@@ -136,7 +131,7 @@ export default function BacktestPage() {
     setSummaryStats(null);
     toast({
       title: "Backtest Started",
-      description: `Running ${selectedStrategy} on ${interval} interval.`,
+      description: `Running ${strategyToRun} on ${interval} interval.`,
     })
 
     setTimeout(() => {
@@ -153,7 +148,7 @@ export default function BacktestPage() {
         return rest;
       });
 
-      switch (selectedStrategy) {
+      switch (strategyToRun) {
         case "sma-crossover": {
           const shortPeriod = 20;
           const longPeriod = 50;
@@ -315,30 +310,32 @@ export default function BacktestPage() {
     }, 1500)
   }
 
-  const handleAnalyzeScript = (script: string) => {
-    setAnalysisResult(null);
-    toast({
-      title: "AI Analysis Started",
-      description: "Your Pine Script is being analyzed.",
-    });
+  const handleLoadScript = (script: string) => {
+    const lowerScript = script.toLowerCase();
+    let detectedStrategy: string | null = null;
 
-    startTransition(async () => {
-      try {
-        const result = await analyzePineScript({ pineScript: script });
-        setAnalysisResult(result);
+    if (lowerScript.includes('ta.sma') && (lowerScript.includes('ta.crossover') || lowerScript.includes('ta.crossunder'))) {
+        detectedStrategy = 'sma-crossover';
+    } else if (lowerScript.includes('ta.ema') && (lowerScript.includes('ta.crossover') || lowerScript.includes('ta.crossunder'))) {
+        detectedStrategy = 'ema-crossover';
+    } else if (lowerScript.includes('ta.rsi')) {
+        detectedStrategy = 'rsi-divergence';
+    }
+
+    if (detectedStrategy) {
+        setSelectedStrategy(detectedStrategy);
         toast({
-          title: "AI Analysis Complete",
-          description: "Feedback is now available below the editor.",
+            title: "Strategy Detected",
+            description: `Pine Script identified as a ${detectedStrategy} strategy. Running backtest...`,
         });
-      } catch (error) {
-        console.error("Error analyzing script:", error);
+        handleRunBacktest(detectedStrategy);
+    } else {
         toast({
-          title: "Analysis Failed",
-          description: "An error occurred while analyzing the script.",
-          variant: "destructive",
+            title: "Cannot Load Script",
+            description: "This script is not supported for automatic backtesting. Please select a strategy from the dropdown.",
+            variant: "destructive",
         });
-      }
-    });
+    }
   };
   
 
@@ -515,49 +512,14 @@ export default function BacktestPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktest} disabled={isBacktesting}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={isBacktesting}>
               {isBacktesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isBacktesting ? "Running..." : "Run Backtest"}
             </Button>
           </CardFooter>
         </Card>
         <BacktestResults results={backtestResults} summary={summaryStats} />
-        <PineScriptEditor onAnalyze={handleAnalyzeScript} isLoading={isAnalyzing} />
-        
-        {isAnalyzing && (
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <BrainCircuit /> AI Analysis
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <Skeleton className="h-4 w-1/4" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-3/4" />
-                </CardContent>
-            </Card>
-        )}
-
-        {analysisResult && (
-            <Card className="bg-primary/5 border-primary/20">
-                <CardHeader>
-                    <CardTitle className="text-primary flex items-center gap-2">
-                        <BrainCircuit />
-                        AI Analysis Feedback
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ScrollArea className="max-h-[40vh] rounded-md p-1">
-                        <div
-                            className="prose prose-sm dark:prose-invert max-w-none"
-                            dangerouslySetInnerHTML={{ __html: analysisResult.feedback.replace(/\n/g, '<br />') }}
-                        />
-                    </ScrollArea>
-                </CardContent>
-            </Card>
-        )}
+        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={isBacktesting} />
       </div>
     </div>
   )

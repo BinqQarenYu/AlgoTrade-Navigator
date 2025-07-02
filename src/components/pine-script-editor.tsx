@@ -4,14 +4,14 @@ import * as React from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { BrainCircuit } from "lucide-react"
+import { Upload } from "lucide-react"
 
 type PineScriptEditorProps = {
-  onAnalyze: (script: string) => void;
+  onLoadScript: (script: string) => void;
   isLoading: boolean;
 };
 
-export function PineScriptEditor({ onAnalyze, isLoading }: PineScriptEditorProps) {
+export function PineScriptEditor({ onLoadScript, isLoading }: PineScriptEditorProps) {
   const [script, setScript] = React.useState(`// Paste your Pine Script here
 // Example: Simple Moving Average Crossover
 //@version=5
@@ -29,8 +29,8 @@ if (short_condition)
     strategy.entry("Short", strategy.short)
 `);
 
-  const handleAnalyze = () => {
-    onAnalyze(script);
+  const handleLoad = () => {
+    onLoadScript(script);
   }
 
   return (
@@ -38,7 +38,7 @@ if (short_condition)
       <CardHeader>
         <CardTitle>Pine Script Editor</CardTitle>
         <CardDescription>
-          Import your TradingView strategy. Our AI can analyze it for optimization.
+          Paste a supported script below and load it to run a backtest.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -50,9 +50,9 @@ if (short_condition)
         />
       </CardContent>
       <CardFooter>
-        <Button onClick={handleAnalyze} disabled={isLoading}>
-          <BrainCircuit className="mr-2 h-4 w-4" />
-          {isLoading ? 'Analyzing...' : 'Analyze with AI'}
+        <Button onClick={handleLoad} disabled={isLoading}>
+          <Upload className="mr-2 h-4 w-4" />
+          {isLoading ? 'Running...' : 'Load Script to Graph'}
         </Button>
       </CardFooter>
     </Card>
