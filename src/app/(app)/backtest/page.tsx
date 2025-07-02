@@ -49,10 +49,7 @@ const assetList = [
 export default function BacktestPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: addDays(new Date(), -7),
-    to: new Date(),
-  })
+  const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -70,6 +67,10 @@ export default function BacktestPage() {
 
   useEffect(() => {
     setIsClient(true)
+    setDate({
+      from: addDays(new Date(), -7),
+      to: new Date(),
+    })
   }, [])
   
   useEffect(() => {
@@ -319,7 +320,10 @@ export default function BacktestPage() {
 
     if (detectedStrategy) {
         setSelectedStrategy(detectedStrategy);
-        handleRunBacktest(detectedStrategy);
+        toast({
+            title: "Strategy Loaded",
+            description: "The strategy from the script has been selected. Click 'Run Backtest' to start.",
+        });
     } else {
         toast({
             title: "Cannot Load Script",
@@ -521,5 +525,3 @@ export default function BacktestPage() {
     </>
   )
 }
-
-    
