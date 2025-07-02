@@ -21,9 +21,24 @@ export default function DataPage() {
     const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
     const [symbol, setSymbol] = useState("btcusdt"); // lowercase for websocket
     const wsRef = useRef<WebSocket | null>(null);
+    const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
+    
+    // Batch UI updates to prevent freezing from high-frequency messages
+    useEffect(() => {
+        if (!isStreaming) return;
 
-    // Effect for handling the real-time data stream
+        const intervalId = setInterval(() => {
+            if (dataBufferRef.current.length > 0) {
+                setStreamedData(prevData => [...dataBufferRef.current, ...prevData].slice(0, 100));
+                dataBufferRef.current = [];
+            }
+        }, 500); // Update UI every 500ms
+
+        return () => clearInterval(intervalId);
+    }, [isStreaming]);
+
+    // Effect for handling the real-time data stream connection
     useEffect(() => {
         if (isStreaming) {
             setStatus('connecting');
@@ -47,7 +62,7 @@ export default function DataPage() {
                         volume: parseFloat(message.q),
                     };
 
-                    setStreamedData(prevData => [newPoint, ...prevData].slice(0, 100));
+                    dataBufferRef.current.unshift(newPoint); // Add to buffer, don't set state directly
 
                     try {
                         saveDataPoint(newPoint);
@@ -109,6 +124,7 @@ export default function DataPage() {
     const handleStreamToggle = () => {
         if (!isStreaming) {
             setStreamedData([]); // Clear previous session view on start
+            dataBufferRef.current = [];
         } else {
             // When stopping, refresh the saved data view
             fetchSavedData();
