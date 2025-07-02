@@ -128,11 +128,12 @@ export default function LiveTradingPage() {
           wakeLockRef.current = null;
         });
       } catch (err: any) {
-        console.error(`${err.name}, ${err.message}`);
-        addLog(`Warning: Could not acquire screen wake lock: ${err.message}`);
+        // The Wake Lock API can fail for various reasons (e.g., permissions policy).
+        // This is not a critical error, so we'll just log a warning to the bot UI.
+        addLog(`Warning: Could not acquire screen wake lock. The app may not prevent your device from sleeping.`);
       }
     } else {
-      addLog("Warning: Wake Lock API not supported in this browser.");
+      addLog("Warning: Wake Lock API not supported. The app may not prevent your device from sleeping.");
     }
   };
 
