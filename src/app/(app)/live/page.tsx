@@ -52,6 +52,7 @@ export default function LiveTradingPage() {
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
+  const [marginType, setMarginType] = useState<string>("isolated");
 
   const [botLogs, setBotLogs] = useState<string[]>([]);
   const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -142,7 +143,7 @@ export default function LiveTradingPage() {
         setIsBotRunning(true);
         setBotLogs([]);
         setPrediction(null);
-        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
+        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Margin: ${marginType}, Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
         
         // Initial prediction
         runPrediction();
@@ -269,6 +270,18 @@ export default function LiveTradingPage() {
                         placeholder="2"
                         disabled={isBotRunning}
                     />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="margin-type">Margin Type</Label>
+                  <Select onValueChange={setMarginType} value={marginType} disabled={isBotRunning}>
+                    <SelectTrigger id="margin-type">
+                      <SelectValue placeholder="Select margin type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="isolated">Isolated</SelectItem>
+                      <SelectItem value="cross">Cross</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
             </div>
           </CardContent>
