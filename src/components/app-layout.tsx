@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Home, LayoutDashboard, Settings, Bot } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -25,6 +25,7 @@ const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
+  { href: "/data", label: "Data", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
@@ -48,7 +49,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname === item.href}
+                  isActive={pathname.startsWith(item.href)}
                   tooltip={{
                     children: item.label,
                   }}
@@ -80,7 +81,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="md:hidden" />
           <div className="flex-1">
             <h2 className="text-lg font-semibold capitalize">
-              {pathname.substring(1) || 'Dashboard'}
+              {pathname.substring(1).split('/')[0] || 'Dashboard'}
             </h2>
           </div>
         </header>
