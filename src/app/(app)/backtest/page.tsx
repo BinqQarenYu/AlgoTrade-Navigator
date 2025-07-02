@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { historicalData } from "@/lib/mock-data"
+import { historicalData as mockHistoricalData } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
 import {
@@ -27,6 +27,8 @@ import { CalendarIcon } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import { loadSavedData } from "@/lib/data-service"
+import type { HistoricalData } from "@/lib/types"
 
 interface DateRange {
   from: Date;
@@ -40,10 +42,35 @@ export default function BacktestPage() {
     to: new Date(2024, 4, 28),
   })
   const [isClient, setIsClient] = useState(false)
+  const [chartData, setChartData] = useState<HistoricalData[]>(mockHistoricalData)
 
   useEffect(() => {
     setIsClient(true)
-  }, [])
+    const fetchChartData = async () => {
+      try {
+        const savedData = await loadSavedData()
+        if (savedData && savedData.length > 0) {
+          const transformedData: HistoricalData[] = savedData.map((point) => ({
+            time: point.time,
+            open: point.price,
+            high: point.price,
+            low: point.price,
+            close: point.price,
+            volume: point.volume,
+          }))
+          setChartData(transformedData)
+        }
+      } catch (error) {
+        console.error("Failed to load saved data for chart:", error)
+        toast({
+          title: "Chart Data Error",
+          description: "Could not load latest data, displaying default historical data instead.",
+          variant: "destructive",
+        })
+      }
+    }
+    fetchChartData()
+  }, [toast])
 
   // This is a placeholder for the actual AI analysis logic
   const handleAnalyzeScript = (script: string) => {
@@ -66,7 +93,7 @@ export default function BacktestPage() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
       <div className="xl:col-span-2 flex flex-col h-[600px] xl:h-auto">
-        <TradingChart data={historicalData} />
+        <TradingChart data={chartData} />
       </div>
       <div className="space-y-6">
         <Card>
