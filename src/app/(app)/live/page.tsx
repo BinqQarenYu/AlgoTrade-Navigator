@@ -311,7 +311,7 @@ export default function LiveTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || isBotRunning}>
+                  <Select onValueChange={setSymbol} value={symbol} disabled={isBotRunning}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -324,7 +324,7 @@ export default function LiveTradingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={!isConnected || isBotRunning}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isBotRunning}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
@@ -337,7 +337,7 @@ export default function LiveTradingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval} disabled={!isConnected || isBotRunning}>
+                  <Select onValueChange={setInterval} value={interval} disabled={isBotRunning}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -361,7 +361,7 @@ export default function LiveTradingPage() {
                         value={initialCapital}
                         onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
                         placeholder="100"
-                        disabled={!isConnected || isBotRunning}
+                        disabled={isBotRunning}
                     />
                 </div>
                 <div className="space-y-2">
@@ -373,7 +373,7 @@ export default function LiveTradingPage() {
                     value={leverage}
                     onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
                     placeholder="10"
-                    disabled={!isConnected || isBotRunning}
+                    disabled={isBotRunning}
                   />
                 </div>
                 <div className="space-y-2">
@@ -384,7 +384,7 @@ export default function LiveTradingPage() {
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                         placeholder="5"
-                        disabled={!isConnected || isBotRunning}
+                        disabled={isBotRunning}
                     />
                 </div>
                  <div className="space-y-2">
@@ -395,12 +395,12 @@ export default function LiveTradingPage() {
                         value={stopLoss}
                         onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                         placeholder="2"
-                        disabled={!isConnected || isBotRunning}
+                        disabled={isBotRunning}
                     />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="margin-type">Margin Type</Label>
-                  <Select onValueChange={setMarginType} value={marginType} disabled={!isConnected || isBotRunning}>
+                  <Select onValueChange={setMarginType} value={marginType} disabled={isBotRunning}>
                     <SelectTrigger id="margin-type">
                       <SelectValue placeholder="Select margin type" />
                     </SelectTrigger>
@@ -414,7 +414,7 @@ export default function LiveTradingPage() {
             <div className="space-y-2">
               <Label>AI-Powered Analysis</Label>
               <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={!isConnected || isBotRunning} />
+                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isBotRunning} />
                 <div className="flex flex-col">
                     <Label htmlFor="ai-prediction">Enable AI Prediction</Label>
                     <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
@@ -423,7 +423,7 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={isFetchingData || (!isConnected && !isBotRunning)} variant={isBotRunning ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleBotToggle} disabled={isBotRunning ? false : isFetchingData || !isConnected} variant={isBotRunning ? "destructive" : "default"}>
               {isBotRunning ? <StopCircle /> : <Play />}
               {isBotRunning ? "Stop Bot" : "Start Bot"}
             </Button>
