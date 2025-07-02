@@ -268,9 +268,15 @@ export default function BacktestPage() {
                             if (prediction.prediction !== 'DOWN') {
                                 closePosition = false; // AI disagrees, hold position
                             }
-                        } catch (e) {
+                        } catch (e: any) {
                            console.error("AI validation failed for sell signal", e);
-                           closePosition = false; // Fail safe, don't close if AI fails
+                           toast({
+                                title: "AI Validation Failed",
+                                description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.",
+                                variant: "destructive"
+                           });
+                           setIsBacktesting(false);
+                           return;
                         }
                     } else {
                         closePosition = false; // Not enough data to ask AI, hold
@@ -316,9 +322,15 @@ export default function BacktestPage() {
                         if (prediction.prediction !== 'UP') {
                             openPosition = false; // AI disagrees, do not enter
                         }
-                    } catch (e) {
+                    } catch (e: any) {
                         console.error("AI validation failed for buy signal", e);
-                        openPosition = false; // Fail safe, don't open if AI fails
+                        toast({
+                            title: "AI Validation Failed",
+                            description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.",
+                            variant: "destructive"
+                        });
+                        setIsBacktesting(false);
+                        return;
                     }
                  } else {
                      openPosition = false; // Not enough data for AI
