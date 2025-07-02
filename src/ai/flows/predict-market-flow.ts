@@ -18,6 +18,12 @@ const PredictMarketInputSchema = z.object({
     .describe(
       'A JSON string representing an array of recent k-line/candlestick data.'
     ),
+  strategySignal: z
+    .enum(['BUY', 'SELL', 'HOLD'])
+    .optional()
+    .describe(
+      'A signal from a classic technical indicator. The AI should validate this signal.'
+    ),
 });
 export type PredictMarketInput = z.infer<typeof PredictMarketInputSchema>;
 
@@ -33,7 +39,7 @@ const PredictMarketOutputSchema = z.object({
   reasoning: z
     .string()
     .describe(
-      'A brief explanation for the prediction based on the provided data.'
+      'A brief explanation for the prediction based on the provided data and strategy signal.'
     ),
 });
 export type PredictMarketOutput = z.infer<typeof PredictMarketOutputSchema>;
@@ -46,7 +52,13 @@ const prompt = ai.definePrompt({
   name: 'predictMarketPrompt',
   input: {schema: PredictMarketInputSchema},
   output: {schema: PredictMarketOutputSchema},
-  prompt: `You are a quantitative analyst AI. Your task is to predict the short-term price movement of a crypto asset based on its recent k-line data.
+  prompt: `You are a quantitative analyst AI. Your task is to predict the short-term price movement of a crypto asset.
+{{#if strategySignal}}
+A classic technical indicator has just generated a '{{{strategySignal}}}' signal.
+Your primary job is to evaluate if this signal is valid based on the recent price action. Use the indicator signal as your main guide, but analyze the market data to confirm or deny it.
+{{else}}
+Your task is to predict the short-term price movement of a crypto asset based on its recent k-line data.
+{{/if}}
 
 Asset: {{{symbol}}}
 

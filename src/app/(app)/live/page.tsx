@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { addDays, format } from "date-fns"
 import type { HistoricalData } from "@/lib/types"
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
+import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
 import { Badge } from "@/components/ui/badge"
 
 const assetList = [
@@ -78,13 +79,12 @@ export default function LiveTradingPage() {
   
   // Effect to fetch initial chart data
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || !isConnected) {
+        setChartData([]);
+        return;
+    }
 
     const fetchData = async () => {
-        if (!isConnected) {
-            setChartData([]);
-            return;
-        }
         setIsFetchingData(true);
         toast({ title: "Fetching Market Data...", description: `Loading initial 1-minute data for ${symbol}.`});
         try {
@@ -141,21 +141,76 @@ export default function LiveTradingPage() {
   };
 
   const runPrediction = async () => {
-    if (chartData.length < 10) {
-        toast({ title: "Not enough data for prediction", variant: "destructive" });
+    if (chartData.length < 50) { // Need enough data for indicators
+        toast({ title: "Not enough data for prediction", description: "Waiting for more market data to accumulate.", variant: "destructive" });
         return;
     }
     
     setPrediction(null);
+    
+    // 1. Generate signal from the selected classic strategy
+    let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    const closePrices = chartData.map(d => d.close);
+
+    switch (selectedStrategy) {
+        case 'sma-crossover': {
+            const shortPeriod = 20;
+            const longPeriod = 50;
+            const sma_short = calculateSMA(closePrices, shortPeriod);
+            const sma_long = calculateSMA(closePrices, longPeriod);
+            const last_sma_short = sma_short[sma_short.length - 1];
+            const prev_sma_short = sma_short[sma_short.length - 2];
+            const last_sma_long = sma_long[sma_long.length - 1];
+            const prev_sma_long = sma_long[sma_long.length - 2];
+            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
+                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
+                else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
+            }
+            break;
+        }
+        case 'ema-crossover': {
+            const shortPeriod = 12;
+            const longPeriod = 26;
+            const ema_short = calculateEMA(closePrices, shortPeriod);
+            const ema_long = calculateEMA(closePrices, longPeriod);
+            const last_ema_short = ema_short[ema_short.length - 1];
+            const prev_ema_short = ema_short[ema_short.length - 2];
+            const last_ema_long = ema_long[ema_long.length - 1];
+            const prev_ema_long = ema_long[ema_long.length - 2];
+            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
+                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
+                else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
+            }
+            break;
+        }
+        case 'rsi-divergence': {
+            const period = 14;
+            const rsi = calculateRSI(closePrices, period);
+            const last_rsi = rsi[rsi.length - 1];
+            const prev_rsi = rsi[rsi.length - 2];
+            const oversold = 30;
+            const overbought = 70;
+            if (prev_rsi && last_rsi) {
+                if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
+                else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
+            }
+            break;
+        }
+    }
+    
+    addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Asking AI for validation...`);
+
+    // 2. Pass the signal to the AI for validation
     startTransition(async () => {
       try {
-        const recentData = chartData.slice(-20); // Use last 20 data points
+        const recentData = chartData.slice(-50); // Use last 50 data points for context
         const result = await predictMarket({
             symbol,
             recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
+            strategySignal
         });
         setPrediction(result);
-        addLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%)`);
+        addLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
       } catch (error) {
          console.error("Prediction failed", error);
          toast({ title: "AI Prediction Failed", variant: "destructive" });
@@ -192,7 +247,7 @@ export default function LiveTradingPage() {
 
         // Set interval for subsequent actions
         botIntervalRef.current = setInterval(() => {
-            addLog("Running cycle: Fetching new data and making prediction...");
+            addLog("Running new cycle...");
             runPrediction();
             // In a real scenario, you'd fetch new k-lines and execute trades here.
         }, 30000); // Run every 30 seconds
@@ -339,7 +394,7 @@ export default function LiveTradingPage() {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Market Prediction</CardTitle>
-                 <CardDescription>AI-powered forecast of the next market movement.</CardDescription>
+                 <CardDescription>AI-powered validation of the strategy's signal.</CardDescription>
             </CardHeader>
             <CardContent>
                 {isPredicting ? (
