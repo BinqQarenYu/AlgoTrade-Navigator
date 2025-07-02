@@ -26,6 +26,11 @@ export type HistoricalData = {
   volume: number;
   buySignal?: number;
   sellSignal?: number;
+  sma_short?: number | null;
+  sma_long?: number | null;
+  ema_short?: number | null;
+  ema_long?: number | null;
+  rsi?: number | null;
 };
 
 export type Portfolio = {

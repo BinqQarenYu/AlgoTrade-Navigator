@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import { loadSavedData } from "@/lib/data-service"
 import type { HistoricalData } from "@/lib/types"
+import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 
 interface DateRange {
   from?: Date;
@@ -93,44 +94,95 @@ export default function BacktestPage() {
 
     // Simulate backtesting logic based on strategy
     setTimeout(() => {
-      let buyThreshold = 0.95;
-      let sellThreshold = 0.95;
-      switch (selectedStrategy) {
-        case "sma-crossover":
-          buyThreshold = 0.9;
-          sellThreshold = 0.9;
-          break;
-        case "ema-crossover":
-          buyThreshold = 0.93;
-          sellThreshold = 0.93;
-          break;
-        case "rsi-divergence":
-          buyThreshold = 0.97;
-          sellThreshold = 0.97;
-          break;
-      }
+      const closePrices = chartData.map(d => d.close);
       
-      const dataWithSignals = chartData.map(d => {
-        // Clear old signals
-        const { buySignal, sellSignal, ...rest } = d
-        const newPoint = { ...rest }
-        
-        // Simple mock logic: random signals based on strategy
-        if (Math.random() > buyThreshold) {
-          return { ...newPoint, buySignal: newPoint.low }
-        }
-        if (Math.random() > sellThreshold) {
-          return { ...newPoint, sellSignal: newPoint.high }
-        }
-        return newPoint
-      })
+      // Clear old signals before running a new backtest
+      let dataWithSignals: HistoricalData[] = chartData.map(d => {
+        const { 
+          buySignal, sellSignal, 
+          sma_short, sma_long, 
+          ema_short, ema_long, 
+          rsi, 
+          ...rest 
+        } = d as any; // Use 'as any' to allow deleting optional props
+        return rest;
+      });
 
-      setChartData(dataWithSignals)
+      switch (selectedStrategy) {
+        case "sma-crossover": {
+          const shortPeriod = 20;
+          const longPeriod = 50;
+          const sma_short = calculateSMA(closePrices, shortPeriod);
+          const sma_long = calculateSMA(closePrices, longPeriod);
+          
+          dataWithSignals = dataWithSignals.map((d, i) => {
+            const point: HistoricalData = { ...d, sma_short: sma_short[i], sma_long: sma_long[i] };
+            if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
+              // Crossover (buy)
+              if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) {
+                point.buySignal = d.low;
+              }
+              // Crossunder (sell)
+              if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) {
+                point.sellSignal = d.high;
+              }
+            }
+            return point;
+          });
+          break;
+        }
+        case "ema-crossover": {
+          const shortPeriod = 12;
+          const longPeriod = 26;
+          const ema_short = calculateEMA(closePrices, shortPeriod);
+          const ema_long = calculateEMA(closePrices, longPeriod);
+          
+          dataWithSignals = dataWithSignals.map((d, i) => {
+            const point: HistoricalData = { ...d, ema_short: ema_short[i], ema_long: ema_long[i] };
+             if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
+              // Crossover (buy)
+              if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) {
+                point.buySignal = d.low;
+              }
+              // Crossunder (sell)
+              if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) {
+                point.sellSignal = d.high;
+              }
+            }
+            return point;
+          });
+          break;
+        }
+        case "rsi-divergence": { // Simplified to RSI overbought/oversold
+          const period = 14;
+          const rsi = calculateRSI(closePrices, period);
+          const oversold = 30;
+          const overbought = 70;
+
+          dataWithSignals = dataWithSignals.map((d, i) => {
+            const point: HistoricalData = { ...d, rsi: rsi[i] };
+             if (i > 0 && rsi[i-1] && rsi[i]) {
+              // Cross above oversold (buy)
+              if (rsi[i-1] <= oversold && rsi[i] > oversold) {
+                point.buySignal = d.low;
+              }
+              // Cross below overbought (sell)
+              if (rsi[i-1] >= overbought && rsi[i] < overbought) {
+                point.sellSignal = d.high;
+              }
+            }
+            return point;
+          });
+          break;
+        }
+      }
+
+      setChartData(dataWithSignals);
 
       setIsBacktesting(false)
       toast({
         title: "Backtest Complete",
-        description: "Buy and sell signals have been plotted on the chart.",
+        description: "Strategy signals have been plotted on the chart.",
       })
     }, 1500)
   }
