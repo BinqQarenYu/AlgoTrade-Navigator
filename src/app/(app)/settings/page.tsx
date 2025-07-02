@@ -1,12 +1,13 @@
 "use client"
 
-import React, { useRef, useState } from "react"
+import React, { useRef, useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import jsQR from "jsqr"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { useApi } from "@/context/api-context"
 
 import {
   Card,
@@ -31,18 +32,33 @@ const settingsSchema = z.object({
 export default function SettingsPage() {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isConnected, setIsConnected] = useState(false)
+  const {
+    apiKey,
+    setApiKey,
+    secretKey,
+    setSecretKey,
+    isConnected,
+    setIsConnected,
+    apiLimit,
+    setApiLimit,
+  } = useApi()
   const [isConnecting, setIsConnecting] = useState(false)
-  // Placeholder. In a real app, this would be fetched from the API.
-  const [apiLimit, setApiLimit] = useState({ used: 128, limit: 1200 })
 
   const form = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
-      apiKey: "",
-      secretKey: "",
+      apiKey: apiKey || "",
+      secretKey: secretKey || "",
     },
   })
+
+  useEffect(() => {
+    form.reset({
+      apiKey: apiKey || '',
+      secretKey: secretKey || '',
+    });
+  }, [apiKey, secretKey, form]);
+
 
   const processQrCodeFile = (file: File) => {
     if (!file) return
@@ -130,8 +146,8 @@ export default function SettingsPage() {
   }
 
   function onSubmit(values: z.infer<typeof settingsSchema>) {
-    // In a real app, keys would be sent to a secure backend.
-    console.log("Saving settings:", values)
+    setApiKey(values.apiKey)
+    setSecretKey(values.secretKey)
     toast({
       title: "Settings Saved",
       description: "Your Binance API keys have been saved.",
@@ -140,24 +156,20 @@ export default function SettingsPage() {
 
   const handleConnectToggle = async () => {
     setIsConnecting(true)
-    // Simulate API call to check credentials
     await new Promise(resolve => setTimeout(resolve, 1500))
 
     if (!isConnected) {
-      // In a real app, you'd use the saved keys to ping the Binance API
-      const { apiKey, secretKey } = form.getValues()
-      if (apiKey.length > 5 && secretKey.length > 5) { // Simple validation
+      if (apiKey && apiKey.length > 5 && secretKey && secretKey.length > 5) {
         setIsConnected(true)
         toast({
           title: "Connection Successful",
           description: "Successfully connected to Binance API.",
         })
-        // You could fetch real API limits here
         setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
       } else {
         toast({
           title: "Connection Failed",
-          description: "Please provide valid API keys before connecting.",
+          description: "Please provide and save valid API keys before connecting.",
           variant: "destructive",
         })
       }
