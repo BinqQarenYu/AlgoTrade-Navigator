@@ -24,6 +24,7 @@ import { Button } from "./ui/button"
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
+  { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
   { href: "/data", label: "Data", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -66,7 +67,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4">
            <div className="flex items-center gap-3">
               <Avatar>
-                <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" />
+                <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" data-ai-hint="profile avatar" />
                 <AvatarFallback>AN</AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
