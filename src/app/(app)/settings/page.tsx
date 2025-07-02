@@ -122,6 +122,7 @@ export default function SettingsPage() {
   const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     event.stopPropagation()
+    if (isConnected) return;
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
       processQrCodeFile(event.dataTransfer.files[0])
       event.dataTransfer.clearData()
@@ -238,7 +239,12 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Binance API Key</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter your API Key" {...field} />
+                      <Input
+                        type={isConnected ? "password" : "text"}
+                        placeholder="Enter your API Key"
+                        {...field}
+                        disabled={isConnected}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -251,7 +257,12 @@ export default function SettingsPage() {
                   <FormItem>
                     <FormLabel>Binance Secret Key</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Enter your Secret Key" {...field} />
+                      <Input
+                        type="password"
+                        placeholder="Enter your Secret Key"
+                        {...field}
+                        disabled={isConnected}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -268,8 +279,13 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <FormLabel>Load from QR Code</FormLabel>
                 <div
-                  className="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer text-center hover:border-primary/80 hover:bg-muted/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg text-center transition-colors",
+                    !isConnected ? "cursor-pointer hover:border-primary/80 hover:bg-muted/50" : "bg-muted/50 opacity-50"
+                  )}
+                  onClick={() => {
+                    if (!isConnected) fileInputRef.current?.click()
+                  }}
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onDragEnter={(e) => e.preventDefault()}
@@ -282,12 +298,13 @@ export default function SettingsPage() {
                     onChange={handleFileChange}
                     className="hidden"
                     accept="image/*"
+                    disabled={isConnected}
                   />
                 </div>
               </div>
             </CardContent>
             <CardFooter>
-              <Button type="submit">
+              <Button type="submit" disabled={isConnected}>
                 <Save className="mr-2 h-4 w-4" />
                 Save Settings
               </Button>
