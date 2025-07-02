@@ -47,7 +47,12 @@ export default function LiveTradingPage() {
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
   const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
+  
+  const [lotSize, setLotSize] = useState<number>(0.01);
   const [leverage, setLeverage] = useState<number>(10);
+  const [takeProfit, setTakeProfit] = useState<number>(5);
+  const [stopLoss, setStopLoss] = useState<number>(2);
+
   const [botLogs, setBotLogs] = useState<string[]>([]);
   const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isPredicting, startTransition] = useTransition();
@@ -137,7 +142,7 @@ export default function LiveTradingPage() {
         setIsBotRunning(true);
         setBotLogs([]);
         setPrediction(null);
-        addLog(`Bot started for ${symbol} with ${selectedStrategy} at ${leverage}x leverage.`);
+        addLog(`Bot started for ${symbol} with ${selectedStrategy}. Size: ${lotSize}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
         
         // Initial prediction
         runPrediction();
@@ -191,7 +196,7 @@ export default function LiveTradingPage() {
             <CardDescription>Configure and manage your live trading bot.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
                   <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || isBotRunning}>
@@ -218,7 +223,21 @@ export default function LiveTradingPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+            </div>
+             <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label htmlFor="lot-size">Lot Size (Units)</Label>
+                    <Input 
+                        id="lot-size" 
+                        type="number" 
+                        value={lotSize}
+                        onChange={(e) => setLotSize(parseFloat(e.target.value) || 0)}
+                        placeholder="0.01"
+                        step="0.001"
+                        disabled={isBotRunning}
+                    />
+                </div>
+                 <div className="space-y-2">
                   <Label htmlFor="leverage">Leverage (x)</Label>
                   <Input
                     id="leverage"
@@ -227,8 +246,30 @@ export default function LiveTradingPage() {
                     value={leverage}
                     onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
                     placeholder="10"
-                    disabled={!isConnected || isBotRunning}
+                    disabled={isBotRunning}
                   />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="take-profit">Take Profit (%)</Label>
+                    <Input 
+                        id="take-profit" 
+                        type="number" 
+                        value={takeProfit}
+                        onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
+                        placeholder="5"
+                        disabled={isBotRunning}
+                    />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                    <Input 
+                        id="stop-loss" 
+                        type="number" 
+                        value={stopLoss}
+                        onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
+                        placeholder="2"
+                        disabled={isBotRunning}
+                    />
                 </div>
             </div>
           </CardContent>
