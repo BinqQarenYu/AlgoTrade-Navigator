@@ -326,9 +326,8 @@ export default function BacktestPage() {
         setSelectedStrategy(detectedStrategy);
         toast({
             title: "Strategy Detected",
-            description: `Pine Script identified as a ${detectedStrategy} strategy. Running backtest...`,
+            description: `Pine Script identified as a ${detectedStrategy} strategy. You can now run the backtest.`,
         });
-        handleRunBacktest(detectedStrategy);
     } else {
         toast({
             title: "Cannot Load Script",
