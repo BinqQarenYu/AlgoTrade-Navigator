@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useTransition } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { generateHistoricalData, mockAssetPrices } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
@@ -25,13 +25,16 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import { CalendarIcon, Loader2, BrainCircuit } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 import { BacktestResults } from "@/components/backtest-results"
+import { analyzePineScript, AnalyzePineScriptOutput } from "@/ai/flows/analyze-pine-script"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface DateRange {
   from?: Date;
@@ -85,10 +88,12 @@ export default function BacktestPage() {
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
 
-  // New state for advanced parameters
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
+
+  const [isAnalyzing, startTransition] = useTransition();
+  const [analysisResult, setAnalysisResult] = useState<AnalyzePineScriptOutput | null>(null);
 
 
   useEffect(() => {
@@ -96,13 +101,9 @@ export default function BacktestPage() {
   }, [])
   
   useEffect(() => {
-    // When symbol changes, generate new mock data for it.
-    // This simulates fetching data for the new asset.
-    const startPrice = mockAssetPrices[symbol] || 69000; // Default to a BTC-like price if not found
+    const startPrice = mockAssetPrices[symbol] || 69000;
     const newMockData = generateHistoricalData(startPrice);
     setBaseChartData(newMockData);
-    
-    // Also reset any existing backtest results to avoid confusion
     setBacktestResults([]);
     setSummaryStats(null);
   }, [symbol]);
@@ -138,11 +139,9 @@ export default function BacktestPage() {
       description: `Running ${selectedStrategy} on ${interval} interval.`,
     })
 
-    // Simulate backtesting logic based on strategy
     setTimeout(() => {
       const closePrices = chartData.map(d => d.close);
       
-      // Clear old signals before running a new backtest
       let dataWithSignals: HistoricalData[] = chartData.map(d => {
         const { 
           buySignal, sellSignal, 
@@ -150,7 +149,7 @@ export default function BacktestPage() {
           ema_short, ema_long, 
           rsi, 
           ...rest 
-        } = d as any; // Use 'as any' to allow deleting optional props
+        } = d as any;
         return rest;
       });
 
@@ -164,11 +163,9 @@ export default function BacktestPage() {
           dataWithSignals = dataWithSignals.map((d, i) => {
             const point: HistoricalData = { ...d, sma_short: sma_short[i], sma_long: sma_long[i] };
             if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
-              // Crossover (buy)
               if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) {
                 point.buySignal = d.low;
               }
-              // Crossunder (sell)
               if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) {
                 point.sellSignal = d.high;
               }
@@ -186,11 +183,9 @@ export default function BacktestPage() {
           dataWithSignals = dataWithSignals.map((d, i) => {
             const point: HistoricalData = { ...d, ema_short: ema_short[i], ema_long: ema_long[i] };
              if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
-              // Crossover (buy)
               if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) {
                 point.buySignal = d.low;
               }
-              // Crossunder (sell)
               if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) {
                 point.sellSignal = d.high;
               }
@@ -199,7 +194,7 @@ export default function BacktestPage() {
           });
           break;
         }
-        case "rsi-divergence": { // Simplified to RSI overbought/oversold
+        case "rsi-divergence": {
           const period = 14;
           const rsi = calculateRSI(closePrices, period);
           const oversold = 30;
@@ -208,11 +203,9 @@ export default function BacktestPage() {
           dataWithSignals = dataWithSignals.map((d, i) => {
             const point: HistoricalData = { ...d, rsi: rsi[i] };
              if (i > 0 && rsi[i-1] && rsi[i]) {
-              // Cross above oversold (buy)
               if (rsi[i-1] <= oversold && rsi[i] > oversold) {
                 point.buySignal = d.low;
               }
-              // Cross below overbought (sell)
               if (rsi[i-1] >= overbought && rsi[i] < overbought) {
                 point.sellSignal = d.high;
               }
@@ -223,7 +216,6 @@ export default function BacktestPage() {
         }
       }
 
-      // --- Start of trade simulation logic ---
       const trades: BacktestResult[] = [];
       let inPosition = false;
       let entryPrice = 0;
@@ -236,19 +228,16 @@ export default function BacktestPage() {
               let exitPrice: number | null = null;
               let closeReason: BacktestResult['closeReason'] | null = null;
 
-              // 1. Check for Stop Loss
               if (d.low <= stopLossPrice) {
                   exitPrice = stopLossPrice;
                   closeReason = 'stop-loss';
               }
-              // 2. Check for Take Profit
               else if (d.high >= takeProfitPrice) {
                   exitPrice = takeProfitPrice;
                   closeReason = 'take-profit';
               }
-              // 3. Check for Sell Signal
               else if (d.sellSignal) {
-                  exitPrice = d.high; // Assume exit at high of signal candle
+                  exitPrice = d.high;
                   closeReason = 'signal';
               }
 
@@ -271,14 +260,13 @@ export default function BacktestPage() {
 
           if (!inPosition && d.buySignal) {
               inPosition = true;
-              entryPrice = d.low; // Assume entry at low of signal candle
+              entryPrice = d.low;
               entryTime = d.time;
               stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
               takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
           }
       }
       
-      // If still in a position at the end of the data, close it with the last close price
       if (inPosition && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
@@ -291,11 +279,10 @@ export default function BacktestPage() {
           exitPrice,
           pnl,
           pnlPercent,
-          closeReason: 'signal' // End of data is like a signal to close
+          closeReason: 'signal'
         });
       }
 
-      // --- Start of summary calculation ---
       const wins = trades.filter(t => t.pnl > 0);
       const losses = trades.filter(t => t.pnl <= 0);
       const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
@@ -303,7 +290,6 @@ export default function BacktestPage() {
       const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
       const endingBalance = (initialCapital || 0) + totalPnl;
       const totalReturnPercent = totalPnl / (initialCapital || 1) * 100;
-
 
       const summary: BacktestSummary = {
         totalTrades: trades.length,
@@ -329,21 +315,30 @@ export default function BacktestPage() {
     }, 1500)
   }
 
-  // This is a placeholder for the actual AI analysis logic
   const handleAnalyzeScript = (script: string) => {
-    console.log("Analyzing script:", script);
+    setAnalysisResult(null);
     toast({
       title: "AI Analysis Started",
-      description: "Your Pine Script is being analyzed for optimization.",
+      description: "Your Pine Script is being analyzed.",
     });
-    // In a real app, you would call the AI flow here.
-    setTimeout(() => {
+
+    startTransition(async () => {
+      try {
+        const result = await analyzePineScript({ pineScript: script });
+        setAnalysisResult(result);
         toast({
-            title: "AI Analysis Complete",
-            description: "Suggestions are available on the Optimize page.",
-            variant: "default",
-        })
-    }, 2000)
+          title: "AI Analysis Complete",
+          description: "Feedback is now available below the editor.",
+        });
+      } catch (error) {
+        console.error("Error analyzing script:", error);
+        toast({
+          title: "Analysis Failed",
+          description: "An error occurred while analyzing the script.",
+          variant: "destructive",
+        });
+      }
+    });
   };
   
 
@@ -527,7 +522,42 @@ export default function BacktestPage() {
           </CardFooter>
         </Card>
         <BacktestResults results={backtestResults} summary={summaryStats} />
-        <PineScriptEditor onAnalyze={handleAnalyzeScript} isLoading={false} />
+        <PineScriptEditor onAnalyze={handleAnalyzeScript} isLoading={isAnalyzing} />
+        
+        {isAnalyzing && (
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <BrainCircuit /> AI Analysis
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <Skeleton className="h-4 w-1/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                </CardContent>
+            </Card>
+        )}
+
+        {analysisResult && (
+            <Card className="bg-primary/5 border-primary/20">
+                <CardHeader>
+                    <CardTitle className="text-primary flex items-center gap-2">
+                        <BrainCircuit />
+                        AI Analysis Feedback
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ScrollArea className="max-h-[40vh] rounded-md p-1">
+                        <div
+                            className="prose prose-sm dark:prose-invert max-w-none"
+                            dangerouslySetInnerHTML={{ __html: analysisResult.feedback.replace(/\n/g, '<br />') }}
+                        />
+                    </ScrollArea>
+                </CardContent>
+            </Card>
+        )}
       </div>
     </div>
   )
