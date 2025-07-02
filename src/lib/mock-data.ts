@@ -1,3 +1,4 @@
+
 import type { Position, Trade, HistoricalData, Portfolio } from './types';
 
 export const portfolio: Portfolio = {
@@ -20,10 +21,27 @@ export const tradeHistory: Trade[] = [
   { id: '5', symbol: 'SOL/USDT', side: 'BUY', size: 50, price: 168, time: '2024-05-27 22:30:00' },
 ];
 
-export const generateHistoricalData = (): HistoricalData[] => {
+export const mockAssetPrices: { [key: string]: number } = {
+  "BTC/USDT": 69230.50,
+  "ETH/USDT": 3550.20,
+  "SOL/USDT": 162.75,
+  "BNB/USDT": 590.10,
+  "XRP/USDT": 0.52,
+  "ADA/USDT": 0.45,
+  "DOGE/USDT": 0.16,
+  "AVAX/USDT": 36.80,
+  "LINK/USDT": 17.25,
+  "DOT/USDT": 7.15,
+  "MATIC/USDT": 0.72,
+  "SHIB/USDT": 0.000025,
+  "LTC/USDT": 84.50,
+};
+
+
+export const generateHistoricalData = (startPrice: number): HistoricalData[] => {
   const data: HistoricalData[] = [];
-  let price = 68000;
-  // Use a fixed date to ensure consistency. This generates 100 data points at a 1-minute interval.
+  let price = startPrice;
+  // Use a fixed date to ensure consistency. This generates 1000 data points at a 1-minute interval.
   const baseTime = new Date('2024-05-28T12:00:00Z').getTime();
   const startTime = baseTime - 1000 * 60 * 1000;
 
@@ -39,12 +57,14 @@ export const generateHistoricalData = (): HistoricalData[] => {
     const low = Math.min(open, close) - Math.random() * (price * 0.0002);
     const volume = Math.random() * 10 + 5;
 
+    const precision = startPrice < 1 ? 6 : 2;
+
     const record: HistoricalData = {
       time: timestamp,
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
+      open: parseFloat(open.toFixed(precision)),
+      high: parseFloat(high.toFixed(precision)),
+      low: parseFloat(low.toFixed(precision)),
+      close: parseFloat(close.toFixed(precision)),
       volume: parseFloat(volume.toFixed(2)),
     };
 
@@ -53,4 +73,4 @@ export const generateHistoricalData = (): HistoricalData[] => {
   return data;
 };
 
-export const historicalData: HistoricalData[] = generateHistoricalData();
+export const historicalData: HistoricalData[] = generateHistoricalData(mockAssetPrices["BTC/USDT"]);

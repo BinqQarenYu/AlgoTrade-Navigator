@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { historicalData as mockHistoricalData } from "@/lib/mock-data"
+import { generateHistoricalData, mockAssetPrices } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
 import {
@@ -29,8 +29,7 @@ import { CalendarIcon, Loader2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import { loadSavedData } from "@/lib/data-service"
-import type { HistoricalData, StreamedDataPoint, BacktestResult, BacktestSummary } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 import { BacktestResults } from "@/components/backtest-results"
 
@@ -77,10 +76,10 @@ export default function BacktestPage() {
     to: new Date(2024, 4, 28),
   })
   const [isClient, setIsClient] = useState(false)
-  const [baseChartData, setBaseChartData] = useState<HistoricalData[]>(mockHistoricalData);
+  const [symbol, setSymbol] = useState<string>("BTC/USDT");
+  const [baseChartData, setBaseChartData] = useState<HistoricalData[]>([]);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
-  const [symbol, setSymbol] = useState<string>("BTC/USDT");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
@@ -94,34 +93,19 @@ export default function BacktestPage() {
 
   useEffect(() => {
     setIsClient(true)
-    const fetchChartData = async () => {
-      try {
-        const savedData: StreamedDataPoint[] = await loadSavedData()
-        if (savedData && savedData.length > 0) {
-          const transformedData: HistoricalData[] = savedData.map((point) => ({
-            time: point.time,
-            open: point.price,
-            high: point.price,
-            low: point.price,
-            close: point.price,
-            volume: point.volume,
-          }))
-          setBaseChartData(transformedData)
-        } else {
-          setBaseChartData(mockHistoricalData);
-        }
-      } catch (error) {
-        console.error("Failed to load saved data for chart:", error)
-        setBaseChartData(mockHistoricalData);
-        toast({
-          title: "Chart Data Error",
-          description: "Could not load latest data, displaying default historical data instead.",
-          variant: "destructive",
-        })
-      }
-    }
-    fetchChartData()
-  }, [toast])
+  }, [])
+  
+  useEffect(() => {
+    // When symbol changes, generate new mock data for it.
+    // This simulates fetching data for the new asset.
+    const startPrice = mockAssetPrices[symbol] || 69000; // Default to a BTC-like price if not found
+    const newMockData = generateHistoricalData(startPrice);
+    setBaseChartData(newMockData);
+    
+    // Also reset any existing backtest results to avoid confusion
+    setBacktestResults([]);
+    setSummaryStats(null);
+  }, [symbol]);
 
   useEffect(() => {
     const intervalMap: { [key: string]: number } = {
