@@ -2,10 +2,12 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { generateHistoricalData, mockAssetPrices } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
+import { getHistoricalKlines } from "@/lib/binance-service"
+import { useApi } from "@/context/api-context"
 import {
   Card,
   CardContent,
@@ -25,7 +27,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Loader2 } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { CalendarIcon, Loader2, Terminal } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -38,47 +41,22 @@ interface DateRange {
   to?: Date;
 }
 
-const resampleData = (data: HistoricalData[], intervalMinutes: number): HistoricalData[] => {
-    if (!data || data.length === 0 || !intervalMinutes) return [];
-
-    const intervalMillis = intervalMinutes * 60 * 1000;
-    const resampled: { [key: number]: HistoricalData[] } = {};
-
-    data.forEach(p => {
-        const bucketTimestamp = Math.floor(p.time / intervalMillis) * intervalMillis;
-        if (!resampled[bucketTimestamp]) {
-            resampled[bucketTimestamp] = [];
-        }
-        resampled[bucketTimestamp].push(p);
-    });
-
-    return Object.keys(resampled).map(key => {
-        const bucket = resampled[Number(key)];
-        const first = bucket[0];
-        const last = bucket[bucket.length - 1];
-
-        return {
-            time: Number(key),
-            open: first.open,
-            high: Math.max(...bucket.map(p => p.high)),
-            low: Math.min(...bucket.map(p => p.low)),
-            close: last.close,
-            volume: parseFloat(bucket.reduce((sum, p) => sum + p.volume, 0).toFixed(2))
-        };
-    }).sort((a, b) => a.time - b.time);
-};
-
+const assetList = [
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", 
+    "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT", "MATICUSDT", "SHIBUSDT", "LTCUSDT"
+];
 
 export default function BacktestPage() {
   const { toast } = useToast()
+  const { isConnected } = useApi();
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date(),
   })
   const [isClient, setIsClient] = useState(false)
-  const [symbol, setSymbol] = useState<string>("BTC/USDT");
-  const [baseChartData, setBaseChartData] = useState<HistoricalData[]>([]);
+  const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
   const [interval, setInterval] = useState<string>("1h");
@@ -95,27 +73,44 @@ export default function BacktestPage() {
   }, [])
   
   useEffect(() => {
-    const startPrice = mockAssetPrices[symbol] || 61500;
-    const newMockData = generateHistoricalData(startPrice, date?.from, date?.to);
-    setBaseChartData(newMockData);
-    setBacktestResults([]);
-    setSummaryStats(null);
-  }, [symbol, date]);
-
-  useEffect(() => {
-    const intervalMap: { [key: string]: number } = {
-        "5m": 5,
-        "15m": 15,
-        "1h": 60,
-        "4h": 240,
-        "1d": 1440,
+    const fetchData = async () => {
+        if (!isConnected || !date?.from || !date?.to) {
+            setChartData([]); // Clear chart if not connected or no date
+            return;
+        }
+        setIsFetchingData(true);
+        setBacktestResults([]);
+        setSummaryStats(null);
+        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
+        try {
+            const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
+            setChartData(klines);
+            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready for backtesting.` });
+        } catch (error: any) {
+            console.error("Failed to fetch historical data:", error);
+            toast({
+                title: "Failed to Load Data",
+                description: error.message || "Could not retrieve historical data from Binance.",
+                variant: "destructive"
+            });
+            setChartData([]);
+        } finally {
+            setIsFetchingData(false);
+        }
     };
-    const intervalMinutes = intervalMap[interval];
-    const resampled = resampleData(baseChartData, intervalMinutes);
-    setChartData(resampled);
-}, [baseChartData, interval]);
+    fetchData();
+  }, [symbol, date, interval, isConnected, toast]);
 
   const handleRunBacktest = (strategyOverride?: string) => {
+    if (chartData.length === 0) {
+       toast({
+        title: "No Data",
+        description: "Cannot run backtest without market data. Please connect your API and select a date range.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const strategyToRun = strategyOverride || selectedStrategy;
     if (!strategyToRun) {
       toast({
@@ -324,10 +319,7 @@ export default function BacktestPage() {
 
     if (detectedStrategy) {
         setSelectedStrategy(detectedStrategy);
-        toast({
-            title: "Strategy Detected",
-            description: `Pine Script identified as a ${detectedStrategy} strategy. You can now run the backtest.`,
-        });
+        handleRunBacktest(detectedStrategy);
     } else {
         toast({
             title: "Cannot Load Script",
@@ -337,8 +329,19 @@ export default function BacktestPage() {
     }
   };
   
+  const anyLoading = isBacktesting || isFetchingData;
 
   return (
+    <>
+    {!isConnected && (
+        <Alert variant="destructive" className="mb-4">
+            <Terminal className="h-4 w-4" />
+            <AlertTitle>API Disconnected</AlertTitle>
+            <AlertDescription>
+                Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> in the Settings page to load historical market data for backtesting.
+            </AlertDescription>
+        </Alert>
+    )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
         <TradingChart data={chartData} symbol={symbol} />
@@ -353,30 +356,20 @@ export default function BacktestPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol}>
+                  <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || anyLoading}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
-                      <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
-                      <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
-                      <SelectItem value="BNB/USDT">BNB/USDT</SelectItem>
-                      <SelectItem value="XRP/USDT">XRP/USDT</SelectItem>
-                      <SelectItem value="ADA/USDT">ADA/USDT</SelectItem>
-                      <SelectItem value="DOGE/USDT">DOGE/USDT</SelectItem>
-                      <SelectItem value="AVAX/USDT">AVAX/USDT</SelectItem>
-                      <SelectItem value="LINK/USDT">LINK/USDT</SelectItem>
-                      <SelectItem value="DOT/USDT">DOT/USDT</SelectItem>
-                      <SelectItem value="MATIC/USDT">MATIC/USDT</SelectItem>
-                      <SelectItem value="SHIB/USDT">SHIB/USDT</SelectItem>
-                      <SelectItem value="LTC/USDT">LTC/USDT</SelectItem>
+                      {assetList.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
@@ -389,7 +382,7 @@ export default function BacktestPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval}>
+                  <Select onValueChange={setInterval} value={interval} disabled={anyLoading}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -411,6 +404,7 @@ export default function BacktestPage() {
                     value={initialCapital}
                     onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
                     placeholder="100"
+                    disabled={anyLoading}
                 />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -422,6 +416,7 @@ export default function BacktestPage() {
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(parseFloat(e.target.value))}
                         placeholder="5"
+                        disabled={anyLoading}
                     />
                 </div>
                  <div className="space-y-2">
@@ -432,6 +427,7 @@ export default function BacktestPage() {
                         value={stopLoss}
                         onChange={(e) => setStopLoss(parseFloat(e.target.value))}
                         placeholder="2"
+                        disabled={anyLoading}
                     />
                 </div>
             </div>
@@ -446,6 +442,7 @@ export default function BacktestPage() {
                         "w-full justify-start text-left font-normal",
                         !date && "text-muted-foreground"
                       )}
+                      disabled={!isConnected || anyLoading}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {isClient && date?.from ? (
@@ -511,15 +508,18 @@ export default function BacktestPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={isBacktesting}>
-              {isBacktesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isBacktesting ? "Running..." : "Run Backtest"}
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0}>
+              {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
             </Button>
           </CardFooter>
         </Card>
         <BacktestResults results={backtestResults} summary={summaryStats} />
-        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={isBacktesting} />
+        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
       </div>
     </div>
+    </>
   )
 }
+
+    

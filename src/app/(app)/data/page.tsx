@@ -19,48 +19,72 @@ export default function DataPage() {
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
     const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
     const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
-    const intervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastPriceRef = useRef<number>(61500.50);
+    const [symbol, setSymbol] = useState("btcusdt"); // lowercase for websocket
+    const wsRef = useRef<WebSocket | null>(null);
     const { toast } = useToast();
 
-    // Effect for handling the data stream simulation
+    // Effect for handling the real-time data stream
     useEffect(() => {
         if (isStreaming) {
-            setStatus('connected');
-            intervalRef.current = setInterval(async () => {
-                const newPrice = lastPriceRef.current + (Math.random() - 0.5) * 10;
-                lastPriceRef.current = newPrice;
-                const newPoint: StreamedDataPoint = {
-                    time: new Date().getTime(),
-                    price: parseFloat(newPrice.toFixed(2)),
-                    volume: parseFloat((Math.random() * 5).toFixed(2)),
-                };
-                
-                // Update the live view
-                setStreamedData(prevData => [newPoint, ...prevData].slice(0, 100)); // Keep last 100 points in view
+            setStatus('connecting');
+            const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol}@aggTrade`);
+            wsRef.current = ws;
 
-                // Save the data point to our "persistent" storage
-                try {
-                    await saveDataPoint(newPoint);
-                } catch (error) {
-                    console.error("Failed to save data point:", error);
+            ws.onopen = () => {
+                console.log("WebSocket connected");
+                setStatus('connected');
+                toast({ title: "Stream Connected", description: `Live data stream for ${symbol.toUpperCase()} is active.`});
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                // The aggTrade stream provides 'p' for price and 'q' for quantity.
+                if (message.e === 'aggTrade' && message.p && message.q) {
+                    const newPoint: StreamedDataPoint = {
+                        time: message.T, // Trade time
+                        price: parseFloat(message.p),
+                        volume: parseFloat(message.q),
+                    };
+
+                    setStreamedData(prevData => [newPoint, ...prevData].slice(0, 100));
+
+                    try {
+                        saveDataPoint(newPoint);
+                    } catch (error) {
+                        console.error("Failed to save data point:", error);
+                    }
                 }
+            };
 
-            }, 1000); // Add a new point every second
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                setStatus('disconnected');
+                toast({ title: "WebSocket Error", description: "Connection failed.", variant: "destructive" });
+            };
+
+            ws.onclose = () => {
+                console.log("WebSocket disconnected");
+                setStatus('disconnected');
+                 if (wsRef.current) {
+                   toast({ title: "Stream Disconnected", description: "The data stream has been closed."});
+                }
+                wsRef.current = null;
+            };
+
         } else {
-            setStatus('disconnected');
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
-                intervalRef.current = null;
+            if (wsRef.current) {
+                wsRef.current.close();
             }
         }
-
+        
+        // Cleanup function to close the WebSocket connection
         return () => {
-            if (intervalRef.current) {
-                clearInterval(intervalRef.current);
+            if (wsRef.current) {
+                wsRef.current.close();
+                wsRef.current = null;
             }
         };
-    }, [isStreaming]);
+    }, [isStreaming, symbol, toast]);
     
     const fetchSavedData = async () => {
         try {
@@ -122,34 +146,32 @@ export default function DataPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <Card>
                     <CardHeader>
-                        <CardTitle>Historical Data Stream</CardTitle>
-                        <CardDescription>Connect to a real-time data feed via WebSocket.</CardDescription>
+                        <CardTitle>Real-time Data Stream</CardTitle>
+                        <CardDescription>Connect to a live Binance data feed via WebSocket.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="symbol">Symbol</Label>
-                                <Select defaultValue="BTC/USDT" disabled={isStreaming}>
+                                <Select defaultValue="btcusdt" onValueChange={setSymbol} disabled={isStreaming}>
                                     <SelectTrigger id="symbol">
                                         <SelectValue placeholder="Select symbol" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
-                                        <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
-                                        <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
+                                        <SelectItem value="btcusdt">BTC/USDT</SelectItem>
+                                        <SelectItem value="ethusdt">ETH/USDT</SelectItem>
+                                        <SelectItem value="solusdt">SOL/USDT</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
                              <div className="space-y-2">
-                                <Label htmlFor="interval">Interval</Label>
-                                <Select defaultValue="1s" disabled={isStreaming}>
+                                <Label htmlFor="interval">Stream Type</Label>
+                                <Select defaultValue="aggTrade" disabled={isStreaming}>
                                     <SelectTrigger id="interval">
-                                        <SelectValue placeholder="Select interval" />
+                                        <SelectValue placeholder="Select stream" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="1s">1 Second</SelectItem>
-                                        <SelectItem value="1m">1 Minute</SelectItem>
-                                        <SelectItem value="5m">5 Minutes</SelectItem>
+                                        <SelectItem value="aggTrade">Aggregate Trade</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -183,7 +205,7 @@ export default function DataPage() {
                                 <TableBody>
                                     {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
                                          <TableRow key={d.time + d.price}>
-                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss')}</TableCell>
+                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss.SSS')}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
                                         </TableRow>
@@ -250,3 +272,5 @@ export default function DataPage() {
         </div>
     );
 }
+
+    

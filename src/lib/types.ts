@@ -1,3 +1,4 @@
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -14,7 +15,8 @@ export type Trade = {
   side: 'BUY' | 'SELL';
   size: number;
   price: number;
-  time: string;
+  time: string; // Formatted for display
+  timestamp: number; // Raw for sorting
 };
 
 export type HistoricalData = {
@@ -67,3 +69,5 @@ export type BacktestSummary = {
   endingBalance: number;
   totalReturnPercent: number;
 };
+
+    
