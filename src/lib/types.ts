@@ -44,3 +44,21 @@ export type StreamedDataPoint = {
   price: number;
   volume: number;
 };
+
+export type BacktestResult = {
+  entryTime: number;
+  entryPrice: number;
+  exitTime: number;
+  exitPrice: number;
+  pnl: number;
+  pnlPercent: number;
+};
+
+export type BacktestSummary = {
+  totalTrades: number;
+  winRate: number;
+  totalPnl: number;
+  averageWin: number;
+  averageLoss: number;
+  profitFactor: number;
+};

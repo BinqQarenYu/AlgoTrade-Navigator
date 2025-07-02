@@ -29,8 +29,9 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import { loadSavedData } from "@/lib/data-service"
-import type { HistoricalData, StreamedDataPoint } from "@/lib/types"
+import type { HistoricalData, StreamedDataPoint, BacktestResult, BacktestSummary } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
+import { BacktestResults } from "@/components/backtest-results"
 
 interface DateRange {
   from?: Date;
@@ -80,6 +81,8 @@ export default function BacktestPage() {
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [interval, setInterval] = useState<string>("1h");
+  const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
+  const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
 
   useEffect(() => {
     setIsClient(true)
@@ -136,6 +139,8 @@ export default function BacktestPage() {
     }
 
     setIsBacktesting(true)
+    setBacktestResults([]);
+    setSummaryStats(null);
     toast({
       title: "Backtest Started",
       description: `Running ${selectedStrategy} on ${interval} interval.`,
@@ -226,12 +231,74 @@ export default function BacktestPage() {
         }
       }
 
+      // --- Start of trade simulation logic ---
+      const trades: BacktestResult[] = [];
+      let inPosition = false;
+      let entryPrice = 0;
+      let entryTime = 0;
+
+      dataWithSignals.forEach(d => {
+        if (d.buySignal && !inPosition) {
+            inPosition = true;
+            entryPrice = d.low; // Assume entry at the low of the signal candle
+            entryTime = d.time;
+        } else if (d.sellSignal && inPosition) {
+            inPosition = false;
+            const exitPrice = d.high; // Assume exit at the high of the signal candle
+            const pnl = exitPrice - entryPrice;
+            const pnlPercent = (pnl / entryPrice) * 100;
+            trades.push({
+                entryTime,
+                entryPrice,
+                exitTime: d.time,
+                exitPrice,
+                pnl,
+                pnlPercent,
+            });
+            entryPrice = 0; // Reset entry price
+        }
+      });
+      
+      // If still in a position at the end of the data, close it with the last close price
+      if (inPosition && dataWithSignals.length > 0) {
+        const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
+        const exitPrice = lastDataPoint.close;
+        const pnl = exitPrice - entryPrice;
+        const pnlPercent = (pnl / entryPrice) * 100;
+        trades.push({
+          entryTime,
+          entryPrice,
+          exitTime: lastDataPoint.time,
+          exitPrice,
+          pnl,
+          pnlPercent,
+        });
+      }
+
+      // --- Start of summary calculation ---
+      const wins = trades.filter(t => t.pnl > 0);
+      const losses = trades.filter(t => t.pnl <= 0);
+      const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+      const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
+      const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
+
+      const summary: BacktestSummary = {
+        totalTrades: trades.length,
+        winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
+        totalPnl: totalPnl,
+        averageWin: wins.length > 0 ? totalWins / wins.length : 0,
+        averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
+        profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+      };
+
       setChartData(dataWithSignals);
+      setBacktestResults(trades);
+      setSummaryStats(summary);
 
       setIsBacktesting(false)
       toast({
         title: "Backtest Complete",
-        description: "Strategy signals have been plotted on the chart.",
+        description: "Strategy signals and results are now available.",
       })
     }, 1500)
   }
@@ -255,11 +322,11 @@ export default function BacktestPage() {
   
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
-      <div className="xl:col-span-2 flex flex-col h-[600px] xl:h-auto">
+    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 h-full">
+      <div className="xl:col-span-3 flex flex-col h-[600px] xl:h-auto">
         <TradingChart data={chartData} />
       </div>
-      <div className="space-y-6">
+      <div className="xl:col-span-2 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Backtest Controls</CardTitle>
@@ -377,6 +444,7 @@ export default function BacktestPage() {
             </Button>
           </CardFooter>
         </Card>
+        <BacktestResults results={backtestResults} summary={summaryStats} />
         <PineScriptEditor onAnalyze={handleAnalyzeScript} isLoading={false} />
       </div>
     </div>
