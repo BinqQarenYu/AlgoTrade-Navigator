@@ -27,12 +27,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Loader2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
-import { format } from "date-fns"
+import { format, addDays } from "date-fns"
 import { loadSavedData } from "@/lib/data-service"
 import type { HistoricalData } from "@/lib/types"
 
 interface DateRange {
-  from: Date;
+  from?: Date;
   to?: Date;
 }
 
@@ -177,7 +177,42 @@ export default function BacktestPage() {
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
+                  <PopoverContent className="w-auto flex p-0" align="start">
+                    <div className="flex flex-col space-y-1 border-r p-3">
+                        <div className="px-1 pb-1">
+                            <h4 className="font-medium text-sm text-muted-foreground">Presets</h4>
+                        </div>
+                        <div className="flex flex-col items-start space-y-1">
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start font-normal h-8 px-2"
+                                onClick={() => setDate({ from: new Date(), to: new Date() })}
+                            >
+                                Today
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start font-normal h-8 px-2"
+                                onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
+                            >
+                                Last 7 Days
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start font-normal h-8 px-2"
+                                onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
+                            >
+                                Last 30 Days
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                className="w-full justify-start font-normal h-8 px-2"
+                                onClick={() => setDate({ from: date?.from, to: new Date() })}
+                            >
+                                Until Today
+                            </Button>
+                        </div>
+                    </div>
                     <Calendar
                       initialFocus
                       mode="range"
