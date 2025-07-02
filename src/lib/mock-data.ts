@@ -1,5 +1,6 @@
 
 import type { Position, Trade, HistoricalData, Portfolio } from './types';
+import { differenceInMinutes, addDays } from 'date-fns';
 
 export const portfolio: Portfolio = {
   balance: 10450.75,
@@ -38,16 +39,22 @@ export const mockAssetPrices: { [key: string]: number } = {
 };
 
 
-export const generateHistoricalData = (startPrice: number): HistoricalData[] => {
+export const generateHistoricalData = (startPrice: number, startDate?: Date, endDate?: Date): HistoricalData[] => {
   const data: HistoricalData[] = [];
   let price = startPrice;
-  // Use a fixed date to ensure consistency. This generates 1000 data points at a 1-minute interval.
-  const baseTime = new Date('2024-05-28T12:00:00Z').getTime();
-  const startTime = baseTime - 1000 * 60 * 1000;
 
-  for (let i = 0; i < 1000; i++) {
-    const timestamp = startTime + i * 60 * 1000; // 1 minute interval
+  const end = endDate || new Date();
+  const start = startDate || addDays(new Date(), -7);
 
+  // Cap the number of data points for performance
+  const totalMinutes = Math.abs(differenceInMinutes(end, start));
+  const maxPoints = 2000; // Limit to 2000 data points
+  const interval = Math.max(1, Math.ceil(totalMinutes / maxPoints)); // Generate at least 1-minute intervals
+
+  let currentTime = start.getTime();
+  const endTime = end.getTime();
+
+  while(currentTime <= endTime) {
     const change = (Math.random() - 0.48) * (price * 0.0005);
     const open = price;
     const close = price + change;
@@ -60,7 +67,7 @@ export const generateHistoricalData = (startPrice: number): HistoricalData[] => 
     const precision = startPrice < 1 ? 6 : 2;
 
     const record: HistoricalData = {
-      time: timestamp,
+      time: currentTime,
       open: parseFloat(open.toFixed(precision)),
       high: parseFloat(high.toFixed(precision)),
       low: parseFloat(low.toFixed(precision)),
@@ -69,6 +76,7 @@ export const generateHistoricalData = (startPrice: number): HistoricalData[] => 
     };
 
     data.push(record);
+    currentTime += interval * 60 * 1000; // Move to the next interval
   }
   return data;
 };

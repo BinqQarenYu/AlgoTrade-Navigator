@@ -96,11 +96,11 @@ export default function BacktestPage() {
   
   useEffect(() => {
     const startPrice = mockAssetPrices[symbol] || 69000;
-    const newMockData = generateHistoricalData(startPrice);
+    const newMockData = generateHistoricalData(startPrice, date?.from, date?.to);
     setBaseChartData(newMockData);
     setBacktestResults([]);
     setSummaryStats(null);
-  }, [symbol]);
+  }, [symbol, date]);
 
   useEffect(() => {
     const intervalMap: { [key: string]: number } = {
