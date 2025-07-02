@@ -59,7 +59,6 @@ export default function LiveTradingPage() {
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
-  const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
   
   const [initialCapital, setInitialCapital] = useState<number>(100);
@@ -108,7 +107,7 @@ export default function LiveTradingPage() {
     };
 
     fetchData();
-  }, [symbol, interval, isConnected, isClient, toast]);
+  }, [symbol, isConnected, isClient, toast]);
   
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
