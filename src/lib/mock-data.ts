@@ -23,11 +23,13 @@ export const tradeHistory: Trade[] = [
 export const generateHistoricalData = (): HistoricalData[] => {
   const data: HistoricalData[] = [];
   let price = 68000;
-  const startTime = new Date().getTime() - 100 * 60 * 60 * 1000; // 100 hours ago
+  // Use a fixed date to ensure consistency between server and client rendering
+  const baseTime = new Date('2024-05-28T00:00:00Z');
+  const startTime = baseTime.getTime() - 100 * 60 * 60 * 1000;
 
   for (let i = 0; i < 100; i++) {
     const timestamp = new Date(startTime + i * 60 * 60 * 1000);
-    const time = `${timestamp.getHours()}:00`;
+    const time = `${timestamp.getUTCHours().toString().padStart(2, '0')}:00`;
 
     const change = (Math.random() - 0.48) * (price * 0.01);
     const open = price;

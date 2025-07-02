@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { historicalData } from "@/lib/mock-data"
 import { TradingChart } from "@/components/trading-chart"
@@ -28,12 +28,22 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
+interface DateRange {
+  from: Date;
+  to?: Date;
+}
+
 export default function BacktestPage() {
   const { toast } = useToast()
-  const [date, setDate] = React.useState<DateRange | undefined>({
+  const [date, setDate] = useState<DateRange | undefined>({
     from: new Date(2024, 0, 20),
     to: new Date(2024, 4, 28),
   })
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // This is a placeholder for the actual AI analysis logic
   const handleAnalyzeScript = (script: string) => {
@@ -52,10 +62,6 @@ export default function BacktestPage() {
     }, 2000)
   };
   
-  interface DateRange {
-    from: Date;
-    to?: Date;
-  }
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 h-full">
@@ -94,7 +100,7 @@ export default function BacktestPage() {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date?.from ? (
+                      {isClient && date?.from ? (
                         date.to ? (
                           <>
                             {format(date.from, "LLL dd, y")} -{" "}
