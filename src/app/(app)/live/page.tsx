@@ -76,14 +76,28 @@ export default function LiveTradingPage() {
   const wakeLockRef = useRef<any>(null);
   const [isPredicting, startTransition] = useTransition();
   const [prediction, setPrediction] = useState<PredictMarketOutput | null>(null);
+  const [ipAddress, setIpAddress] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true)
+    const fetchIp = async () => {
+        try {
+        const response = await fetch('/api/ip');
+        const data = await response.json();
+        setIpAddress(data.ip);
+        } catch (error) {
+        console.error("Could not fetch IP address:", error);
+        setIpAddress("Unavailable");
+        }
+    };
+    fetchIp();
   }, [])
   
   // Effect to fetch initial chart data
   useEffect(() => {
-    if (!isClient || !isConnected) {
+    if (!isClient) return;
+
+    if (!isConnected) {
         setChartData([]);
         return;
     }
@@ -304,7 +318,16 @@ export default function LiveTradingPage() {
       <div className="xl:col-span-2 space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Bot/> Live Bot Controls</CardTitle>
+             <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2"><Bot/> Live Bot Controls</div>
+                <div className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+                    <span className={cn(
+                      "h-2.5 w-2.5 rounded-full",
+                      isConnected ? "bg-green-500" : "bg-red-500"
+                    )} />
+                    <span>IP: {ipAddress || "Loading..."}</span>
+                </div>
+            </CardTitle>
             <CardDescription>Configure and manage your live trading bot.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -423,7 +446,7 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={isBotRunning ? false : isFetchingData || !isConnected} variant={isBotRunning ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleBotToggle} disabled={isBotRunning ? false : anyLoading || !isConnected} variant={isBotRunning ? "destructive" : "default"}>
               {isBotRunning ? <StopCircle /> : <Play />}
               {isBotRunning ? "Stop Bot" : "Start Bot"}
             </Button>
