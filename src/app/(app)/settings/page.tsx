@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useRef, useState, useEffect } from "react"
@@ -44,6 +45,7 @@ export default function SettingsPage() {
     setApiLimit,
   } = useApi()
   const [isConnecting, setIsConnecting] = useState(false)
+  const [ipAddress, setIpAddress] = useState<string | null>(null)
 
   const form = useForm<z.infer<typeof settingsSchema>>({
     resolver: zodResolver(settingsSchema),
@@ -59,6 +61,20 @@ export default function SettingsPage() {
       secretKey: secretKey || '',
     });
   }, [apiKey, secretKey, form]);
+
+  useEffect(() => {
+    const fetchIp = async () => {
+        try {
+        const response = await fetch('/api/ip');
+        const data = await response.json();
+        setIpAddress(data.ip);
+        } catch (error) {
+        console.error("Could not fetch IP address:", error);
+        setIpAddress("Unavailable");
+        }
+    };
+    fetchIp();
+  }, []);
 
 
   const processQrCodeFile = (file: File) => {
@@ -199,12 +215,17 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto space-y-6">
        <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-3">
-            <span className={cn(
-              "h-2.5 w-2.5 rounded-full",
-              isConnecting ? "bg-yellow-500 animate-pulse" : isConnected ? "bg-green-500" : "bg-red-500"
-            )} />
-            API Connection
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className={cn(
+                "h-2.5 w-2.5 rounded-full",
+                isConnecting ? "bg-yellow-500 animate-pulse" : isConnected ? "bg-green-500" : "bg-red-500"
+              )} />
+              API Connection
+            </div>
+            <span className="text-xs font-normal text-muted-foreground">
+                IP: {ipAddress || 'Loading...'}
+            </span>
           </CardTitle>
           <CardDescription>
             Manage your connection to the Binance API. Your keys must be saved first.
