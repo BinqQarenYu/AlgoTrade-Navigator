@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect, useRef, useTransition } from "react"
@@ -32,6 +33,7 @@ import type { HistoricalData } from "@/lib/types"
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 
 const assetList = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "TRXUSDT",
@@ -66,6 +68,7 @@ export default function LiveTradingPage() {
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
   const [marginType, setMarginType] = useState<string>("isolated");
+  const [useAIPrediction, setUseAIPrediction] = useState(true);
 
   const [botLogs, setBotLogs] = useState<string[]>([]);
   const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -198,25 +201,28 @@ export default function LiveTradingPage() {
         }
     }
     
-    addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Asking AI for validation...`);
-
-    // 2. Pass the signal to the AI for validation
-    startTransition(async () => {
-      try {
-        const recentData = chartData.slice(-50); // Use last 50 data points for context
-        const result = await predictMarket({
-            symbol,
-            recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
-            strategySignal
-        });
-        setPrediction(result);
-        addLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
-      } catch (error) {
-         console.error("Prediction failed", error);
-         toast({ title: "AI Prediction Failed", variant: "destructive" });
-         addLog("Error: AI prediction failed.");
-      }
-    })
+    if (useAIPrediction) {
+      addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Asking AI for validation...`);
+      // Pass the signal to the AI for validation
+      startTransition(async () => {
+        try {
+          const recentData = chartData.slice(-50); // Use last 50 data points for context
+          const result = await predictMarket({
+              symbol,
+              recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
+              strategySignal
+          });
+          setPrediction(result);
+          addLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
+        } catch (error) {
+           console.error("Prediction failed", error);
+           toast({ title: "AI Prediction Failed", variant: "destructive" });
+           addLog("Error: AI prediction failed.");
+        }
+      });
+    } else {
+        addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. AI validation is disabled.`);
+    }
   }
 
   const handleBotToggle = async () => {
@@ -382,6 +388,16 @@ export default function LiveTradingPage() {
                   </Select>
                 </div>
             </div>
+            <div className="space-y-2">
+              <Label>AI-Powered Analysis</Label>
+              <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
+                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isBotRunning} />
+                <div className="flex flex-col">
+                    <Label htmlFor="ai-prediction">Enable AI Prediction</Label>
+                    <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
+                </div>
+              </div>
+            </div>
           </CardContent>
           <CardFooter>
             <Button className="w-full" onClick={handleBotToggle} disabled={!isConnected || isFetchingData} variant={isBotRunning ? "destructive" : "default"}>
@@ -397,7 +413,11 @@ export default function LiveTradingPage() {
                  <CardDescription>AI-powered validation of the strategy's signal.</CardDescription>
             </CardHeader>
             <CardContent>
-                {isPredicting ? (
+                {!useAIPrediction ? (
+                     <div className="flex items-center justify-center h-24 text-muted-foreground">
+                        <p>AI Prediction is disabled.</p>
+                    </div>
+                ) : isPredicting ? (
                     <div className="flex items-center justify-center h-24 text-muted-foreground">
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                         <span>Analyzing market data...</span>
