@@ -230,7 +230,7 @@ export default function BacktestPage() {
         break;
       }
       case "peak-formation-fib": {
-        dataWithSignals = calculatePeakFormationFibSignals(dataWithSignals);
+        dataWithSignals = await calculatePeakFormationFibSignals(dataWithSignals);
         break;
       }
     }

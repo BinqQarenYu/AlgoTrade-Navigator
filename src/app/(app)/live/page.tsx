@@ -213,7 +213,7 @@ export default function LiveTradingPage() {
             break;
         }
         case 'peak-formation-fib': {
-            const dataWithSignals = calculatePeakFormationFibSignals(chartData);
+            const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
             const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal); // Check last 5 candles for a signal
             if (lastSignal?.buySignal) strategySignal = 'BUY';
             else if (lastSignal?.sellSignal) strategySignal = 'SELL';

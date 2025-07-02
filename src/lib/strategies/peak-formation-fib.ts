@@ -1,5 +1,5 @@
 
-'use server';
+'use client';
 
 import type { HistoricalData } from '../types';
 import { calculateEMA } from '../indicators';
@@ -53,7 +53,7 @@ function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
 }
 
 
-export const calculatePeakFormationFibSignals = (data: HistoricalData[]): HistoricalData[] => {
+export const calculatePeakFormationFibSignals = async (data: HistoricalData[]): Promise<HistoricalData[]> => {
     const dataWithSignals = JSON.parse(JSON.stringify(data)); // Deep copy to avoid mutation
     if (data.length < EMA_LONG_PERIOD) return dataWithSignals;
 
