@@ -1,108 +1,142 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
+import React, { useEffect, useRef } from 'react';
+import { createChart, ColorType } from 'lightweight-charts';
 import type { HistoricalData } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { format } from 'date-fns';
 
-interface TradingChartProps {
-  data: HistoricalData[];
-  symbol: string;
-}
+// Lightweight Charts expects time as a UTC timestamp in seconds.
+const toTimestamp = (time: number) => time / 1000;
 
-const formatXAxis = (tickItem: number) => {
-    // Show date if it's the first tick or midnight, otherwise show time
-    const date = new Date(tickItem);
-    if (date.getHours() === 0 && date.getMinutes() === 0) {
-        return format(date, 'MMM dd');
-    }
-    return format(date, 'HH:mm');
-}
+export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol: string; }) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const timeLabel = format(new Date(label), "PPpp");
-    return (
-      <div className="p-2 bg-background/80 border rounded-lg shadow-lg text-sm">
-        <p className="label font-bold">{timeLabel}</p>
-        <p className="text-primary">{`Close: ${data.close?.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`}</p>
-        <p className="text-muted-foreground">{`Volume: ${data.volume?.toLocaleString()}`}</p>
-        
-        {data.sma_short != null && <p style={{color: "hsl(var(--chart-4))"}}>{`SMA Short: ${data.sma_short?.toFixed(2)}`}</p>}
-        {data.sma_long != null && <p style={{color: "hsl(var(--chart-5))"}}>{`SMA Long: ${data.sma_long?.toFixed(2)}`}</p>}
+  useEffect(() => {
+    if (!chartContainerRef.current || data.length === 0) return;
 
-        {data.ema_short != null && <p style={{color: "hsl(var(--chart-4))"}}>{`EMA Short: ${data.ema_short?.toFixed(2)}`}</p>}
-        {data.ema_long != null && <p style={{color: "hsl(var(--chart-5))"}}>{`EMA Long: ${data.ema_long?.toFixed(2)}`}</p>}
+    const handleResize = () => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    };
 
-        {data.rsi != null && <p style={{color: "hsl(var(--chart-2))"}}>{`RSI: ${data.rsi?.toFixed(2)}`}</p>}
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const chartColors = {
+        background: isDarkMode ? '#222222' : '#FFFFFF',
+        textColor: isDarkMode ? '#D1D5DB' : '#1F2937',
+        gridColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#E5E7EB',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+        barUpColor: '#26a69a',
+        barDownColor: '#ef5350',
+        volumeUpColor: 'rgba(38, 166, 154, 0.4)',
+        volumeDownColor: 'rgba(239, 83, 80, 0.4)',
+        smaShortColor: '#f59e0b',
+        smaLongColor: '#8b5cf6',
+        buySignalColor: '#22c55e',
+        sellSignalColor: '#ef4444',
+    };
+    
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: chartColors.background },
+        textColor: chartColors.textColor,
+      },
+      grid: {
+        vertLines: { color: chartColors.gridColor },
+        horzLines: { color: chartColors.gridColor },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: chartContainerRef.current.clientHeight,
+      timeScale: {
+        borderColor: chartColors.gridColor,
+        timeVisible: true,
+      },
+      rightPriceScale: {
+        borderColor: chartColors.gridColor,
+      },
+      crosshair: {
+        mode: 1, // Magnet
+      },
+    });
 
-        {data.buySignal && <p className="text-green-500 font-bold mt-2">Buy Signal at ${data.buySignal.toFixed(2)}</p>}
-        {data.sellSignal && <p className="text-red-500 font-bold mt-2">Sell Signal at ${data.sellSignal.toFixed(2)}</p>}
-      </div>
-    );
-  }
-  return null;
-};
+    // Volume series on a separate pane-like area
+    const volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', // Set to empty string to prevent it from affecting the price scale
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    volumeSeries.priceScale().applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 }, // Top 80% for price, bottom 20% for volume
+    });
+    volumeSeries.setData(data.map(d => ({
+        time: toTimestamp(d.time),
+        value: d.volume,
+        color: d.close >= d.open ? chartColors.volumeUpColor : chartColors.volumeDownColor,
+    })));
 
+    // Main candlestick series
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: chartColors.barUpColor,
+      downColor: chartColors.barDownColor,
+      wickUpColor: chartColors.wickUpColor,
+      wickDownColor: chartColors.wickDownColor,
+      borderVisible: false,
+    });
+    candlestickSeries.setData(data.map(d => ({
+      time: toTimestamp(d.time), open: d.open, high: d.high, low: d.low, close: d.close
+    })));
 
-export function TradingChart({ data, symbol }: TradingChartProps) {
-  const showSma = data.length > 0 && data.some(p => p.sma_short != null);
-  const showEma = data.length > 0 && data.some(p => p.ema_short != null);
-  const showRsi = data.length > 0 && data.some(p => p.rsi != null);
-  
+    // Buy/Sell Markers
+    const markers = data
+      .map(d => {
+        if (d.buySignal) {
+          return { time: toTimestamp(d.time), position: 'belowBar', color: chartColors.buySignalColor, shape: 'arrowUp', text: 'Buy' };
+        }
+        if (d.sellSignal) {
+          return { time: toTimestamp(d.time), position: 'aboveBar', color: chartColors.sellSignalColor, shape: 'arrowDown', text: 'Sell' };
+        }
+        return null;
+      })
+      .filter(m => m !== null);
+    
+    candlestickSeries.setMarkers(markers as any);
+    
+    // Indicator Lines
+    const addLineSeries = (dataKey: keyof HistoricalData, color: string) => {
+      if (data.some(d => d[dataKey] != null)) {
+        const lineSeries = chart.addLineSeries({ color: color, lineWidth: 2, lastValueVisible: false, priceLineVisible: false });
+        lineSeries.setData(
+          data
+            .filter(d => d[dataKey] != null)
+            .map(d => ({ time: toTimestamp(d.time), value: d[dataKey] as number }))
+        );
+      }
+    };
+    
+    addLineSeries('sma_short', chartColors.smaShortColor);
+    addLineSeries('sma_long', chartColors.smaLongColor);
+    addLineSeries('ema_short', chartColors.smaShortColor);
+    addLineSeries('ema_long', chartColors.smaLongColor);
+    
+    chart.timeScale().fitContent();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [data, symbol]);
+
   return (
     <Card className="h-full flex flex-col">
-        <CardHeader>
-            <CardTitle>{symbol} Price Chart</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-grow">
-            <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart 
-              data={data} 
-              margin={{ top: 5, right: showRsi ? 40 : 20, left: -10, bottom: 5 }}
-            >
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="time" 
-                  stroke="hsl(var(--muted-foreground))" 
-                  tickFormatter={formatXAxis}
-                  type="number"
-                  scale="time"
-                  domain={['dataMin', 'dataMax']}
-                 />
-                <YAxis 
-                    yAxisId="left" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    orientation="left" 
-                    domain={['dataMin - 100', 'dataMax + 100']} 
-                    allowDataOverflow 
-                    tickFormatter={(value) => `$${value.toLocaleString()}`}
-                />
-                <YAxis yAxisId="right" stroke="hsl(var(--muted-foreground))" orientation="right" />
-                {showRsi && <YAxis yAxisId="rsi" stroke="hsl(var(--muted-foreground))" orientation="right" domain={[0, 100]} tick={{ dx: 5 }} />}
-
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                <Bar yAxisId="right" dataKey="volume" barSize={20} fill="hsl(var(--primary) / 0.2)" name="Volume" />
-                <Line yAxisId="left" type="monotone" dataKey="close" strokeWidth={2} stroke="hsl(var(--primary))" name="Price" dot={false} />
-
-                {/* SMA Lines */}
-                {showSma && <Line yAxisId="left" type="monotone" dataKey="sma_short" stroke="hsl(var(--chart-4))" strokeWidth={1.5} name="SMA Short" dot={false} />}
-                {showSma && <Line yAxisId="left" type="monotone" dataKey="sma_long" stroke="hsl(var(--chart-5))" strokeWidth={1.5} name="SMA Long" dot={false} />}
-
-                {/* EMA Lines */}
-                {showEma && <Line yAxisId="left" type="monotone" dataKey="ema_short" stroke="hsl(var(--chart-4))" strokeWidth={1.5} name="EMA Short" dot={false} />}
-                {showEma && <Line yAxisId="left" type="monotone" dataKey="ema_long" stroke="hsl(var(--chart-5))" strokeWidth={1.5} name="EMA Long" dot={false} />}
-
-                {/* RSI Line */}
-                {showRsi && <Line yAxisId="rsi" type="monotone" dataKey="rsi" stroke="hsl(var(--chart-2))" strokeWidth={1.5} name="RSI" dot={false} />}
-                
-                <Scatter yAxisId="left" dataKey="buySignal" fill="hsl(var(--chart-2))" shape="triangle" name="Buy" />
-                <Scatter yAxisId="left" dataKey="sellSignal" fill="hsl(var(--destructive))" shape="cross" name="Sell" />
-            </ComposedChart>
-            </ResponsiveContainer>
-        </CardContent>
+      <CardHeader>
+        <CardTitle>{symbol} Price Chart</CardTitle>
+      </CardHeader>
+      <CardContent className="flex-grow p-0">
+        <div ref={chartContainerRef} className="w-full h-full" />
+      </CardContent>
     </Card>
   );
 }
