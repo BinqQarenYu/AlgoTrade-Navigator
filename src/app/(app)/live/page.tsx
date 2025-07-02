@@ -62,7 +62,7 @@ export default function LiveTradingPage() {
   const [interval, setInterval] = useState<string>("1m");
   const [isBotRunning, setIsBotRunning] = useState(false);
   
-  const [initialCapital, setInitialCapital] = useState<number>(10000);
+  const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
