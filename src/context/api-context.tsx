@@ -16,25 +16,29 @@ interface ApiContextType {
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export const ApiProvider = ({ children }: { children: ReactNode }) => {
-  const [apiKey, setApiKey] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('binance-apiKey');
-    }
-    return null;
-  });
-  const [secretKey, setSecretKey] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('binance-secretKey');
-    }
-    return null;
-  });
-  const [isConnected, setIsConnected] = useState<boolean>(() => {
-     if (typeof window !== 'undefined') {
-      return localStorage.getItem('binance-isConnected') === 'true';
-    }
-    return false;
-  });
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [secretKey, setSecretKey] = useState<string | null>(null);
+  const [isConnected, setIsConnected] = useState<boolean>(false);
   const [apiLimit, setApiLimit] = useState({ used: 0, limit: 1200 });
+
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('binance-apiKey');
+    const storedSecretKey = localStorage.getItem('binance-secretKey');
+    const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
+
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+    }
+    if (storedSecretKey) {
+      setSecretKey(storedSecretKey);
+    }
+    // Only set connected if both keys are also present
+    if (storedIsConnected && storedApiKey && storedSecretKey) {
+      setIsConnected(true);
+    } else {
+      setIsConnected(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (apiKey) {
