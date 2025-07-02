@@ -1,35 +1,109 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, StopCircle, FileText, Database } from 'lucide-react';
+import { Play, StopCircle, Database, Trash2, FolderClock } from 'lucide-react';
 import { cn } from "@/lib/utils";
-
-// This is a placeholder for data that would come from a WebSocket
-const sampleStreamData = [
-    { time: '10:30:01', price: 69231.50, volume: 2.1 },
-    { time: '10:30:02', price: 69230.80, volume: 1.5 },
-    { time: '10:30:03', price: 69232.20, volume: 3.2 },
-    { time: '10:30:04', price: 69231.90, volume: 0.8 },
-    { time: '10:30:05', price: 69233.10, volume: 4.1 },
-];
+import { useToast } from '@/hooks/use-toast';
+import type { StreamedDataPoint } from '@/lib/types';
+import { saveDataPoint, loadSavedData, clearSavedData } from '@/lib/data-service';
 
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
+    const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
+    const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const lastPriceRef = useRef<number>(69231.50);
+    const { toast } = useToast();
+
+    // Effect for handling the data stream simulation
+    useEffect(() => {
+        if (isStreaming) {
+            setStatus('connected');
+            intervalRef.current = setInterval(async () => {
+                const newPrice = lastPriceRef.current + (Math.random() - 0.5) * 10;
+                lastPriceRef.current = newPrice;
+                const newPoint: StreamedDataPoint = {
+                    time: new Date().toLocaleTimeString(),
+                    price: parseFloat(newPrice.toFixed(2)),
+                    volume: parseFloat((Math.random() * 5).toFixed(2)),
+                };
+                
+                // Update the live view
+                setStreamedData(prevData => [newPoint, ...prevData].slice(0, 100)); // Keep last 100 points in view
+
+                // Save the data point to our "persistent" storage
+                try {
+                    await saveDataPoint(newPoint);
+                } catch (error) {
+                    console.error("Failed to save data point:", error);
+                }
+
+            }, 1000); // Add a new point every second
+        } else {
+            setStatus('disconnected');
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
+            }
+        }
+
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+            }
+        };
+    }, [isStreaming]);
+    
+    const fetchSavedData = async () => {
+        try {
+            const data = await loadSavedData();
+            setSavedData(data.reverse()); // Show newest first
+        } catch (error) {
+            console.error("Failed to load saved data:", error);
+            toast({
+                title: "Error",
+                description: "Could not load saved data.",
+                variant: "destructive"
+            });
+        }
+    };
+    
+    // Fetch saved data on component mount
+    useEffect(() => {
+        fetchSavedData();
+    }, []);
 
     const handleStreamToggle = () => {
-        // In a real implementation, you would manage WebSocket connection logic here.
-        if (isStreaming) {
-            setIsStreaming(false);
-            setStatus('disconnected');
+        if (!isStreaming) {
+            setStreamedData([]); // Clear previous session view on start
         } else {
-            setIsStreaming(true);
-            setStatus('connected');
+            // When stopping, refresh the saved data view
+            fetchSavedData();
+        }
+        setIsStreaming(!isStreaming);
+    };
+    
+    const handleClearData = async () => {
+        try {
+            await clearSavedData();
+            setSavedData([]);
+            toast({
+                title: "Success",
+                description: "All saved historical data has been cleared.",
+            });
+        } catch (error) {
+            console.error("Failed to clear data:", error);
+            toast({
+                title: "Error",
+                description: "Could not clear saved data.",
+                variant: "destructive"
+            });
         }
     };
 
@@ -40,7 +114,7 @@ export default function DataPage() {
                     <Database size={32}/> Data Management
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                    Manage historical data streams and view AI-generated reports.
+                    Manage real-time data streams and persisted historical data.
                 </p>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
@@ -105,8 +179,8 @@ export default function DataPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {isStreaming ? sampleStreamData.map(d => (
-                                         <TableRow key={d.time}>
+                                    {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
+                                         <TableRow key={d.time + d.price}>
                                             <TableCell className="font-mono text-xs">{d.time}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
@@ -114,7 +188,7 @@ export default function DataPage() {
                                     )) : (
                                          <TableRow>
                                             <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
-                                                Start stream to see live data.
+                                                {isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -125,11 +199,49 @@ export default function DataPage() {
                 </Card>
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><FileText/> AI Reports</CardTitle>
-                        <CardDescription>Review and manage reports generated by the AI optimizer.</CardDescription>
+                        <CardTitle className="flex items-center justify-between">
+                            <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
+                            <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0}>
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Clear
+                            </Button>
+                        </CardTitle>
+                        <CardDescription>Review data saved from your streams and view AI-generated reports.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex items-center justify-center h-full min-h-[200px] text-muted-foreground">
-                        <p>AI-generated reports will be displayed here.</p>
+                    <CardContent className="space-y-4">
+                        <h3 className="text-sm font-medium text-muted-foreground">Saved Stream Data ({savedData.length} points)</h3>
+                         <div className="h-64 overflow-y-auto border rounded-md">
+                            <Table>
+                                <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                                    <TableRow>
+                                        <TableHead>Time</TableHead>
+                                        <TableHead>Price (USD)</TableHead>
+                                        <TableHead className="text-right">Volume</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
+                                         <TableRow key={d.time + d.price}>
+                                            <TableCell className="font-mono text-xs">{d.time}</TableCell>
+                                            <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                                            <TableCell className="text-right">{d.volume}</TableCell>
+                                        </TableRow>
+                                    )) : (
+                                         <TableRow>
+                                            <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                                                No data saved yet. Start a stream to collect data.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <div className="border-t pt-4">
+                             <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports</h3>
+                             <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
+                                 <p>AI-generated reports will be displayed here.</p>
+                             </div>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

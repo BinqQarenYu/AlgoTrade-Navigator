@@ -33,3 +33,9 @@ export type Portfolio = {
   totalPnl: number;
   dailyVolume: number;
 };
+
+export type StreamedDataPoint = {
+  time: string;
+  price: number;
+  volume: number;
+};
