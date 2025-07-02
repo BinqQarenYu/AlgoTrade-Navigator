@@ -32,6 +32,7 @@ import { addDays, format } from "date-fns"
 import type { HistoricalData } from "@/lib/types"
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
+import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 
@@ -95,9 +96,7 @@ export default function LiveTradingPage() {
   
   // Effect to fetch initial chart data
   useEffect(() => {
-    if (!isClient) return;
-
-    if (!isConnected) {
+    if (!isClient || !isConnected) {
         setChartData([]);
         return;
     }
@@ -211,6 +210,13 @@ export default function LiveTradingPage() {
                 if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
                 else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
             }
+            break;
+        }
+        case 'peak-formation-fib': {
+            const dataWithSignals = calculatePeakFormationFibSignals(chartData);
+            const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal); // Check last 5 candles for a signal
+            if (lastSignal?.buySignal) strategySignal = 'BUY';
+            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
             break;
         }
     }
@@ -355,6 +361,7 @@ export default function LiveTradingPage() {
                       <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
                       <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
                       <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
+                      <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -446,7 +453,7 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={isBotRunning ? false : anyLoading || !isConnected} variant={isBotRunning ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || isBotRunning} variant={isBotRunning ? "destructive" : "default"}>
               {isBotRunning ? <StopCircle /> : <Play />}
               {isBotRunning ? "Stop Bot" : "Start Bot"}
             </Button>

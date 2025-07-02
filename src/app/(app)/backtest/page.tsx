@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
+import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib";
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
@@ -228,6 +229,10 @@ export default function BacktestPage() {
         });
         break;
       }
+      case "peak-formation-fib": {
+        dataWithSignals = calculatePeakFormationFibSignals(dataWithSignals);
+        break;
+      }
     }
 
     const trades: BacktestResult[] = [];
@@ -326,7 +331,7 @@ export default function BacktestPage() {
                         console.error("AI validation failed for buy signal", e);
                         toast({
                             title: "AI Validation Failed",
-                            description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.",
+                            description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.",
                             variant: "destructive"
                         });
                         setIsBacktesting(false);
@@ -472,6 +477,7 @@ export default function BacktestPage() {
                       <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
                       <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
                       <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
+                      <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
