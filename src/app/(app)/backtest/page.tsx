@@ -86,7 +86,7 @@ export default function BacktestPage() {
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
 
   // New state for advanced parameters
-  const [initialCapital, setInitialCapital] = useState<number>(10000);
+  const [initialCapital, setInitialCapital] = useState<number>(100);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
 
@@ -419,7 +419,7 @@ export default function BacktestPage() {
                     type="number" 
                     value={initialCapital}
                     onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
-                    placeholder="10000"
+                    placeholder="100"
                 />
             </div>
             <div className="grid grid-cols-2 gap-4">
