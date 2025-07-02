@@ -99,8 +99,11 @@ export default function BacktestPage() {
             setIsFetchingData(false);
         }
     };
-    fetchData();
-  }, [symbol, date, interval, isConnected, toast]);
+
+    if (isClient) {
+      fetchData();
+    }
+  }, [symbol, date, interval, isConnected, isClient]);
 
   const handleRunBacktest = (strategyOverride?: string) => {
     if (chartData.length === 0) {
