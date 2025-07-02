@@ -5,10 +5,10 @@ import Link from "next/link";
 import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
 import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeHistory } from "@/components/dashboard/trade-history";
-import { portfolio as mockPortfolio, openPositions as mockOpenPositions, tradeHistory } from "@/lib/mock-data";
+import { portfolio as mockPortfolio, openPositions as mockOpenPositions, tradeHistory as mockTradeHistory } from "@/lib/mock-data";
 import { getAccountBalance, getOpenPositions } from "@/lib/binance-service";
 import { useApi } from "@/context/api-context";
-import type { Portfolio, Position } from "@/lib/types";
+import type { Portfolio, Position, Trade } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const { isConnected, apiKey, secretKey } = useApi();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>(mockOpenPositions);
+  const [history, setHistory] = useState<Trade[]>(mockTradeHistory);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -50,12 +51,21 @@ export default function DashboardPage() {
         // If not connected, show mock data.
         setPortfolio(mockPortfolio);
         setPositions(mockOpenPositions);
+        setHistory(mockTradeHistory);
       }
       setIsLoading(false);
     };
 
     fetchData();
   }, [isConnected, apiKey, secretKey, toast]);
+
+  const handleClearHistory = () => {
+    setHistory([]);
+    toast({
+        title: "Trade History Cleared",
+        description: "Your mock trade history has been removed from view."
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -90,7 +100,7 @@ export default function DashboardPage() {
             <OpenPositions positions={positions} isLoading={isLoading && isConnected} />
         </div>
         <div className="lg:col-span-2">
-            <TradeHistory trades={tradeHistory} />
+            <TradeHistory trades={history} onClear={handleClearHistory} />
         </div>
       </div>
     </div>
