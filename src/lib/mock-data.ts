@@ -9,33 +9,33 @@ export const portfolio: Portfolio = {
 };
 
 export const openPositions: Position[] = [
-  { symbol: 'BTC/USDT', side: 'LONG', size: 0.5, entryPrice: 68500, markPrice: 69230, pnl: 365, leverage: '10x' },
-  { symbol: 'ETH/USDT', side: 'SHORT', size: 10, entryPrice: 3600, markPrice: 3550, pnl: 500, leverage: '20x' },
-  { symbol: 'SOL/USDT', side: 'LONG', size: 100, entryPrice: 165, markPrice: 162, pnl: -300, leverage: '10x' },
+  { symbol: 'BTC/USDT', side: 'LONG', size: 0.5, entryPrice: 61200, markPrice: 61500, pnl: 150, leverage: '10x' },
+  { symbol: 'ETH/USDT', side: 'SHORT', size: 10, entryPrice: 3450, markPrice: 3420, pnl: 300, leverage: '20x' },
+  { symbol: 'SOL/USDT', side: 'LONG', size: 100, entryPrice: 138, markPrice: 135.75, pnl: -225, leverage: '10x' },
 ];
 
 export const tradeHistory: Trade[] = [
-  { id: '1', symbol: 'BTC/USDT', side: 'BUY', size: 0.1, price: 68450, time: '2024-05-28 10:30:15' },
-  { id: '2', symbol: 'ETH/USDT', side: 'SELL', size: 5, price: 3610, time: '2024-05-28 09:15:45' },
-  { id: '3', symbol: 'LINK/USDT', side: 'BUY', size: 200, price: 17.5, time: '2024-05-28 08:05:20' },
-  { id: '4', symbol: 'LINK/USDT', side: 'SELL', size: 200, price: 17.8, time: '2024-05-28 08:45:10' },
-  { id: '5', symbol: 'SOL/USDT', side: 'BUY', size: 50, price: 168, time: '2024-05-27 22:30:00' },
+  { id: '1', symbol: 'BTC/USDT', side: 'BUY', size: 0.1, price: 61150, time: '2024-05-28 10:30:15' },
+  { id: '2', symbol: 'ETH/USDT', side: 'SELL', size: 5, price: 3460, time: '2024-05-28 09:15:45' },
+  { id: '3', symbol: 'LINK/USDT', side: 'BUY', size: 200, price: 14.10, time: '2024-05-28 08:05:20' },
+  { id: '4', symbol: 'LINK/USDT', side: 'SELL', size: 200, price: 14.25, time: '2024-05-28 08:45:10' },
+  { id: '5', symbol: 'SOL/USDT', side: 'BUY', size: 50, price: 137.5, time: '2024-05-27 22:30:00' },
 ];
 
 export const mockAssetPrices: { [key: string]: number } = {
-  "BTC/USDT": 69230.50,
-  "ETH/USDT": 3550.20,
-  "SOL/USDT": 162.75,
-  "BNB/USDT": 590.10,
-  "XRP/USDT": 0.52,
-  "ADA/USDT": 0.45,
-  "DOGE/USDT": 0.16,
-  "AVAX/USDT": 36.80,
-  "LINK/USDT": 17.25,
-  "DOT/USDT": 7.15,
-  "MATIC/USDT": 0.72,
-  "SHIB/USDT": 0.000025,
-  "LTC/USDT": 84.50,
+  "BTC/USDT": 61500.50,
+  "ETH/USDT": 3420.20,
+  "SOL/USDT": 135.75,
+  "BNB/USDT": 575.10,
+  "XRP/USDT": 0.47,
+  "ADA/USDT": 0.39,
+  "DOGE/USDT": 0.12,
+  "AVAX/USDT": 25.80,
+  "LINK/USDT": 14.25,
+  "DOT/USDT": 5.85,
+  "MATIC/USDT": 0.56,
+  "SHIB/USDT": 0.000017,
+  "LTC/USDT": 71.50,
 };
 
 

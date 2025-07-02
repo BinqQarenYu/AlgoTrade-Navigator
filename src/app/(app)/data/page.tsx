@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -19,7 +20,7 @@ export default function DataPage() {
     const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
     const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
-    const lastPriceRef = useRef<number>(69231.50);
+    const lastPriceRef = useRef<number>(61500.50);
     const { toast } = useToast();
 
     // Effect for handling the data stream simulation

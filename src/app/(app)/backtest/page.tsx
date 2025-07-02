@@ -95,7 +95,7 @@ export default function BacktestPage() {
   }, [])
   
   useEffect(() => {
-    const startPrice = mockAssetPrices[symbol] || 69000;
+    const startPrice = mockAssetPrices[symbol] || 61500;
     const newMockData = generateHistoricalData(startPrice, date?.from, date?.to);
     setBaseChartData(newMockData);
     setBacktestResults([]);
