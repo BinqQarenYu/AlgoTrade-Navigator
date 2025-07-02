@@ -72,15 +72,15 @@ const resampleData = (data: HistoricalData[], intervalMinutes: number): Historic
 export default function BacktestPage() {
   const { toast } = useToast()
   const [date, setDate] = useState<DateRange | undefined>({
-    from: new Date(2024, 4, 27),
-    to: new Date(2024, 4, 28),
+    from: addDays(new Date(), -7),
+    to: new Date(),
   })
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTC/USDT");
   const [baseChartData, setBaseChartData] = useState<HistoricalData[]>([]);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
-  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
@@ -385,7 +385,7 @@ export default function BacktestPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy ?? undefined}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
