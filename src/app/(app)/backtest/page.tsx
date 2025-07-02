@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -23,7 +24,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, Loader2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -43,6 +44,7 @@ export default function BacktestPage() {
   })
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>(mockHistoricalData)
+  const [isBacktesting, setIsBacktesting] = useState(false)
 
   useEffect(() => {
     setIsClient(true)
@@ -71,6 +73,40 @@ export default function BacktestPage() {
     }
     fetchChartData()
   }, [toast])
+
+  const handleRunBacktest = () => {
+    setIsBacktesting(true)
+    toast({
+      title: "Backtest Started",
+      description: "Running your selected strategy against historical data.",
+    })
+
+    // Simulate backtesting logic
+    setTimeout(() => {
+      const dataWithSignals = chartData.map(d => {
+        // Clear old signals
+        const { buySignal, sellSignal, ...rest } = d
+        const newPoint = { ...rest }
+        
+        // Simple mock logic: random signals
+        if (Math.random() > 0.95) {
+          return { ...newPoint, buySignal: newPoint.low }
+        }
+        if (Math.random() > 0.95) {
+          return { ...newPoint, sellSignal: newPoint.high }
+        }
+        return newPoint
+      })
+
+      setChartData(dataWithSignals)
+
+      setIsBacktesting(false)
+      toast({
+        title: "Backtest Complete",
+        description: "Buy and sell signals have been plotted on the chart.",
+      })
+    }, 1500)
+  }
 
   // This is a placeholder for the actual AI analysis logic
   const handleAnalyzeScript = (script: string) => {
@@ -155,7 +191,10 @@ export default function BacktestPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90">Run Backtest</Button>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktest} disabled={isBacktesting}>
+              {isBacktesting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isBacktesting ? "Running..." : "Run Backtest"}
+            </Button>
           </CardFooter>
         </Card>
         <PineScriptEditor onAnalyze={handleAnalyzeScript} isLoading={false} />
