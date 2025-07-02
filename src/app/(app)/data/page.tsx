@@ -211,7 +211,7 @@ export default function DataPage() {
                                             <TableCell className="text-right">{d.volume}</TableCell>
                                         </TableRow>
                                     )) : (
-                                         <TableRow>
+                                         <TableRow key="streaming-placeholder">
                                             <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
                                                 {isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
                                             </TableCell>
@@ -252,7 +252,7 @@ export default function DataPage() {
                                             <TableCell className="text-right">{d.volume}</TableCell>
                                         </TableRow>
                                     )) : (
-                                         <TableRow>
+                                         <TableRow key="saved-data-placeholder">
                                             <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
                                                 No data saved yet. Start a stream to collect data.
                                             </TableCell>
@@ -273,5 +273,3 @@ export default function DataPage() {
         </div>
     );
 }
-
-    
