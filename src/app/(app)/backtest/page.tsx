@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -83,6 +84,12 @@ export default function BacktestPage() {
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
+
+  // New state for advanced parameters
+  const [initialCapital, setInitialCapital] = useState<number>(10000);
+  const [takeProfit, setTakeProfit] = useState<number>(5);
+  const [stopLoss, setStopLoss] = useState<number>(2);
+
 
   useEffect(() => {
     setIsClient(true)
@@ -236,28 +243,55 @@ export default function BacktestPage() {
       let inPosition = false;
       let entryPrice = 0;
       let entryTime = 0;
+      let stopLossPrice = 0;
+      let takeProfitPrice = 0;
 
-      dataWithSignals.forEach(d => {
-        if (d.buySignal && !inPosition) {
-            inPosition = true;
-            entryPrice = d.low; // Assume entry at the low of the signal candle
-            entryTime = d.time;
-        } else if (d.sellSignal && inPosition) {
-            inPosition = false;
-            const exitPrice = d.high; // Assume exit at the high of the signal candle
-            const pnl = exitPrice - entryPrice;
-            const pnlPercent = (pnl / entryPrice) * 100;
-            trades.push({
-                entryTime,
-                entryPrice,
-                exitTime: d.time,
-                exitPrice,
-                pnl,
-                pnlPercent,
-            });
-            entryPrice = 0; // Reset entry price
-        }
-      });
+      for (const d of dataWithSignals) {
+          if (inPosition) {
+              let exitPrice: number | null = null;
+              let closeReason: BacktestResult['closeReason'] | null = null;
+
+              // 1. Check for Stop Loss
+              if (d.low <= stopLossPrice) {
+                  exitPrice = stopLossPrice;
+                  closeReason = 'stop-loss';
+              }
+              // 2. Check for Take Profit
+              else if (d.high >= takeProfitPrice) {
+                  exitPrice = takeProfitPrice;
+                  closeReason = 'take-profit';
+              }
+              // 3. Check for Sell Signal
+              else if (d.sellSignal) {
+                  exitPrice = d.high; // Assume exit at high of signal candle
+                  closeReason = 'signal';
+              }
+
+              if (exitPrice !== null && closeReason !== null) {
+                  inPosition = false;
+                  const pnl = exitPrice - entryPrice;
+                  const pnlPercent = (pnl / entryPrice) * 100;
+                  trades.push({
+                      entryTime,
+                      entryPrice,
+                      exitTime: d.time,
+                      exitPrice,
+                      pnl,
+                      pnlPercent,
+                      closeReason,
+                  });
+                  entryPrice = 0;
+              }
+          }
+
+          if (!inPosition && d.buySignal) {
+              inPosition = true;
+              entryPrice = d.low; // Assume entry at low of signal candle
+              entryTime = d.time;
+              stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
+              takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+          }
+      }
       
       // If still in a position at the end of the data, close it with the last close price
       if (inPosition && dataWithSignals.length > 0) {
@@ -272,6 +306,7 @@ export default function BacktestPage() {
           exitPrice,
           pnl,
           pnlPercent,
+          closeReason: 'signal' // End of data is like a signal to close
         });
       }
 
@@ -281,6 +316,9 @@ export default function BacktestPage() {
       const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
       const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
       const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
+      const endingBalance = (initialCapital || 0) + totalPnl;
+      const totalReturnPercent = totalPnl / (initialCapital || 1) * 100;
+
 
       const summary: BacktestSummary = {
         totalTrades: trades.length,
@@ -289,6 +327,9 @@ export default function BacktestPage() {
         averageWin: wins.length > 0 ? totalWins / wins.length : 0,
         averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
         profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+        initialCapital: initialCapital || 0,
+        endingBalance: endingBalance,
+        totalReturnPercent: totalReturnPercent
       };
 
       setChartData(dataWithSignals);
@@ -363,6 +404,39 @@ export default function BacktestPage() {
                   </Select>
                 </div>
             </div>
+            <div className="space-y-2">
+                <Label htmlFor="initial-capital">Initial Capital ($)</Label>
+                <Input 
+                    id="initial-capital" 
+                    type="number" 
+                    value={initialCapital}
+                    onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
+                    placeholder="10000"
+                />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="take-profit">Take Profit (%)</Label>
+                    <Input 
+                        id="take-profit" 
+                        type="number" 
+                        value={takeProfit}
+                        onChange={(e) => setTakeProfit(parseFloat(e.target.value))}
+                        placeholder="5"
+                    />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                    <Input 
+                        id="stop-loss" 
+                        type="number" 
+                        value={stopLoss}
+                        onChange={(e) => setStopLoss(parseFloat(e.target.value))}
+                        placeholder="2"
+                    />
+                </div>
+            </div>
+
             <div className="space-y-2">
                <Label>Date range</Label>
                 <Popover>

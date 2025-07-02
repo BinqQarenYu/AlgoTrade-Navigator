@@ -11,9 +11,9 @@ type BacktestResultsProps = {
 };
 
 const SummaryStat = ({ label, value }: { label: string, value: string | React.ReactNode }) => (
-    <div className="flex flex-col items-center justify-center p-2 rounded-md bg-muted/50">
+    <div className="flex flex-col items-center justify-center p-2 rounded-md bg-muted/50 text-center">
         <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-lg font-bold">{value}</div>
+        <div className="text-base md:text-lg font-bold truncate">{value}</div>
     </div>
 );
 
@@ -37,6 +37,7 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
   const pnlColor = summary.totalPnl >= 0 ? "text-green-500" : "text-red-500";
   const winRateColor = summary.winRate >= 50 ? "text-green-500" : "text-red-500";
   const profitFactorColor = summary.profitFactor >= 1 ? "text-green-500" : "text-red-500";
+  const returnColor = summary.totalReturnPercent >= 0 ? "text-green-500" : "text-red-500";
 
   return (
     <Card>
@@ -45,13 +46,16 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
         <CardDescription>A summary of the simulated trading performance.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+        <div className="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-4">
             <SummaryStat label="Total PNL" value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>} />
             <SummaryStat label="Win Rate" value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>} />
             <SummaryStat label="Profit Factor" value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>} />
             <SummaryStat label="Total Trades" value={summary.totalTrades} />
             <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
             <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
+            <SummaryStat label="Initial Capital" value={<span>${summary.initialCapital.toFixed(2)}</span>} />
+            <SummaryStat label="Ending Balance" value={<span>${summary.endingBalance.toFixed(2)}</span>} />
+            <SummaryStat label="Total Return" value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>} />
         </div>
 
         <div className="space-y-2">
@@ -63,8 +67,8 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                     <TableHead>Type</TableHead>
                     <TableHead>Entry</TableHead>
                     <TableHead>Exit</TableHead>
+                    <TableHead>Close Reason</TableHead>
                     <TableHead className="text-right">P&L ($)</TableHead>
-                    <TableHead className="text-right">P&L (%)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -84,11 +88,16 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                                 <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
                                 <div>${trade.exitPrice.toFixed(2)}</div>
                             </TableCell>
+                            <TableCell className="capitalize">
+                                <Badge variant={
+                                    trade.closeReason === 'take-profit' ? 'default' :
+                                    trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
+                                } className="whitespace-nowrap">
+                                    {trade.closeReason.replace('-', ' ')}
+                                </Badge>
+                            </TableCell>
                             <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 {trade.pnl.toFixed(2)}
-                            </TableCell>
-                             <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {trade.pnlPercent.toFixed(2)}%
                             </TableCell>
                         </TableRow>
                         ))

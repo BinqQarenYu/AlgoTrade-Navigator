@@ -48,10 +48,12 @@ export type StreamedDataPoint = {
 export type BacktestResult = {
   entryTime: number;
   entryPrice: number;
+
   exitTime: number;
   exitPrice: number;
   pnl: number;
   pnlPercent: number;
+  closeReason: 'signal' | 'take-profit' | 'stop-loss';
 };
 
 export type BacktestSummary = {
@@ -61,4 +63,7 @@ export type BacktestSummary = {
   averageWin: number;
   averageLoss: number;
   profitFactor: number;
+  initialCapital: number;
+  endingBalance: number;
+  totalReturnPercent: number;
 };
