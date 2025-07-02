@@ -45,6 +45,7 @@ export default function BacktestPage() {
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>(mockHistoricalData)
   const [isBacktesting, setIsBacktesting] = useState(false)
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true)
@@ -75,24 +76,50 @@ export default function BacktestPage() {
   }, [toast])
 
   const handleRunBacktest = () => {
+    if (!selectedStrategy) {
+      toast({
+        title: "No Strategy Selected",
+        description: "Please select a strategy before running a backtest.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsBacktesting(true)
     toast({
       title: "Backtest Started",
-      description: "Running your selected strategy against historical data.",
+      description: `Running your selected strategy: ${selectedStrategy}.`,
     })
 
-    // Simulate backtesting logic
+    // Simulate backtesting logic based on strategy
     setTimeout(() => {
+      let buyThreshold = 0.95;
+      let sellThreshold = 0.95;
+      switch (selectedStrategy) {
+        case "sma-crossover":
+          buyThreshold = 0.9;
+          sellThreshold = 0.9;
+          break;
+        case "ema-crossover":
+          buyThreshold = 0.93;
+          sellThreshold = 0.93;
+          break;
+        case "rsi-divergence":
+          buyThreshold = 0.97;
+          sellThreshold = 0.97;
+          break;
+      }
+      
       const dataWithSignals = chartData.map(d => {
         // Clear old signals
         const { buySignal, sellSignal, ...rest } = d
         const newPoint = { ...rest }
         
-        // Simple mock logic: random signals
-        if (Math.random() > 0.95) {
+        // Simple mock logic: random signals based on strategy
+        if (Math.random() > buyThreshold) {
           return { ...newPoint, buySignal: newPoint.low }
         }
-        if (Math.random() > 0.95) {
+        if (Math.random() > sellThreshold) {
           return { ...newPoint, sellSignal: newPoint.high }
         }
         return newPoint
@@ -140,7 +167,7 @@ export default function BacktestPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="strategy">Strategy</Label>
-              <Select>
+              <Select onValueChange={setSelectedStrategy} value={selectedStrategy ?? undefined}>
                 <SelectTrigger id="strategy">
                   <SelectValue placeholder="Select strategy" />
                 </SelectTrigger>
