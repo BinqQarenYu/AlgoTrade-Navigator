@@ -386,6 +386,16 @@ export default function BacktestPage() {
                       <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
                       <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
                       <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
+                      <SelectItem value="BNB/USDT">BNB/USDT</SelectItem>
+                      <SelectItem value="XRP/USDT">XRP/USDT</SelectItem>
+                      <SelectItem value="ADA/USDT">ADA/USDT</SelectItem>
+                      <SelectItem value="DOGE/USDT">DOGE/USDT</SelectItem>
+                      <SelectItem value="AVAX/USDT">AVAX/USDT</SelectItem>
+                      <SelectItem value="LINK/USDT">LINK/USDT</SelectItem>
+                      <SelectItem value="DOT/USDT">DOT/USDT</SelectItem>
+                      <SelectItem value="MATIC/USDT">MATIC/USDT</SelectItem>
+                      <SelectItem value="SHIB/USDT">SHIB/USDT</SelectItem>
+                      <SelectItem value="LTC/USDT">LTC/USDT</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
