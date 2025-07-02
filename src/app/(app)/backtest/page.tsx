@@ -259,6 +259,7 @@ export default function BacktestPage() {
                     if (i > 50) { // Need enough historical data for the AI
                         const recentData = chartData.slice(i - 50, i);
                         try {
+                            await new Promise(resolve => setTimeout(resolve, 4100)); // Rate limit delay
                             const prediction = await predictMarket({
                                 symbol,
                                 recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
@@ -306,6 +307,7 @@ export default function BacktestPage() {
                  if (i > 50) {
                      const recentData = chartData.slice(i - 50, i);
                      try {
+                        await new Promise(resolve => setTimeout(resolve, 4100)); // Rate limit delay
                         const prediction = await predictMarket({
                             symbol,
                             recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
