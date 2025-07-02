@@ -8,6 +8,7 @@ import jsQR from "jsqr"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
+import { getAccountBalance } from "@/lib/binance-service"
 
 import {
   Card,
@@ -156,16 +157,27 @@ export default function SettingsPage() {
 
   const handleConnectToggle = async () => {
     setIsConnecting(true)
-    await new Promise(resolve => setTimeout(resolve, 1500))
 
     if (!isConnected) {
-      if (apiKey && apiKey.length > 5 && secretKey && secretKey.length > 5) {
-        setIsConnected(true)
-        toast({
-          title: "Connection Successful",
-          description: "Successfully connected to Binance API.",
-        })
-        setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
+      if (apiKey && secretKey) {
+        try {
+          // Test the connection by fetching the balance
+          await getAccountBalance(apiKey, secretKey)
+          setIsConnected(true)
+          toast({
+            title: "Connection Successful",
+            description: "Successfully connected to Binance API.",
+          })
+          // This random limit can be improved later
+          setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
+        } catch (error: any) {
+          setIsConnected(false)
+          toast({
+            title: "Connection Failed",
+            description: error.message || "Please check your API keys and permissions.",
+            variant: "destructive",
+          })
+        }
       } else {
         toast({
           title: "Connection Failed",
