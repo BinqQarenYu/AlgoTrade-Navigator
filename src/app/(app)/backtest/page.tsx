@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -60,23 +59,28 @@ export default function BacktestPage() {
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
 
-  const [initialCapital, setInitialCapital] = useState<number>(100);
+  const [initialCapital, setInitialCapital] = useState<number>(10000);
+  const [lotSize, setLotSize] = useState<number>(0.01);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
 
 
   useEffect(() => {
     setIsClient(true)
-    setDate({
-      from: addDays(new Date(), -7),
-      to: new Date(),
-    })
-  }, [])
+    if (!date) {
+        setDate({
+            from: addDays(new Date(), -7),
+            to: new Date(),
+        })
+    }
+  }, [date])
   
   useEffect(() => {
+    if (!isClient) return;
+
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
-            setChartData([]); // Clear chart if not connected or no date
+            setChartData([]);
             return;
         }
         setIsFetchingData(true);
@@ -100,10 +104,8 @@ export default function BacktestPage() {
         }
     };
 
-    if (isClient) {
-      fetchData();
-    }
-  }, [symbol, date, interval, isConnected, isClient]);
+    fetchData();
+  }, [symbol, date, interval, isConnected, isClient, toast]);
 
   const handleRunBacktest = (strategyOverride?: string) => {
     if (chartData.length === 0) {
@@ -237,8 +239,8 @@ export default function BacktestPage() {
 
               if (exitPrice !== null && closeReason !== null) {
                   inPosition = false;
-                  const pnl = exitPrice - entryPrice;
-                  const pnlPercent = (pnl / entryPrice) * 100;
+                  const pnl = (exitPrice - entryPrice) * (lotSize || 0);
+                  const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
                   trades.push({
                       entryTime,
                       entryPrice,
@@ -264,8 +266,8 @@ export default function BacktestPage() {
       if (inPosition && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
-        const pnl = exitPrice - entryPrice;
-        const pnlPercent = (pnl / entryPrice) * 100;
+        const pnl = (exitPrice - entryPrice) * (lotSize || 0);
+        const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
         trades.push({
           entryTime,
           entryPrice,
@@ -339,7 +341,7 @@ export default function BacktestPage() {
   const anyLoading = isBacktesting || isFetchingData;
 
   return (
-    <>
+    <div className="flex flex-col h-full">
     {!isConnected && (
         <Alert variant="destructive" className="mb-4">
             <Terminal className="h-4 w-4" />
@@ -403,25 +405,37 @@ export default function BacktestPage() {
                   </Select>
                 </div>
             </div>
-            <div className="space-y-2">
-                <Label htmlFor="initial-capital">Initial Capital ($)</Label>
-                <Input 
-                    id="initial-capital" 
-                    type="number" 
-                    value={initialCapital}
-                    onChange={(e) => setInitialCapital(parseFloat(e.target.value))}
-                    placeholder="100"
-                    disabled={anyLoading}
-                />
-            </div>
             <div className="grid grid-cols-2 gap-4">
+                 <div className="space-y-2">
+                    <Label htmlFor="initial-capital">Initial Capital ($)</Label>
+                    <Input 
+                        id="initial-capital" 
+                        type="number" 
+                        value={initialCapital}
+                        onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                        placeholder="10000"
+                        disabled={anyLoading}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="lot-size">Lot Size (Units)</Label>
+                    <Input 
+                        id="lot-size" 
+                        type="number" 
+                        value={lotSize}
+                        onChange={(e) => setLotSize(parseFloat(e.target.value) || 0)}
+                        placeholder="0.01"
+                        step="0.001"
+                        disabled={anyLoading}
+                    />
+                </div>
                 <div className="space-y-2">
                     <Label htmlFor="take-profit">Take Profit (%)</Label>
                     <Input 
                         id="take-profit" 
                         type="number" 
                         value={takeProfit}
-                        onChange={(e) => setTakeProfit(parseFloat(e.target.value))}
+                        onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                         placeholder="5"
                         disabled={anyLoading}
                     />
@@ -432,7 +446,7 @@ export default function BacktestPage() {
                         id="stop-loss" 
                         type="number" 
                         value={stopLoss}
-                        onChange={(e) => setStopLoss(parseFloat(e.target.value))}
+                        onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                         placeholder="2"
                         disabled={anyLoading}
                     />
@@ -525,6 +539,6 @@ export default function BacktestPage() {
         <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
       </div>
     </div>
-    </>
+    </div>
   )
 }
