@@ -5,10 +5,10 @@ import Link from "next/link";
 import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
 import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeHistory } from "@/components/dashboard/trade-history";
-import { portfolio as mockPortfolio, openPositions, tradeHistory } from "@/lib/mock-data";
-import { getAccountBalance } from "@/lib/binance-service";
+import { portfolio as mockPortfolio, openPositions as mockOpenPositions, tradeHistory } from "@/lib/mock-data";
+import { getAccountBalance, getOpenPositions } from "@/lib/binance-service";
 import { useApi } from "@/context/api-context";
-import type { Portfolio } from "@/lib/types";
+import type { Portfolio, Position } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function DashboardPage() {
   const { isConnected, apiKey, secretKey } = useApi();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [positions, setPositions] = useState<Position[]>(mockOpenPositions);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -26,22 +27,29 @@ export default function DashboardPage() {
       setError(null);
       if (isConnected && apiKey && secretKey) {
         try {
-          const realPortfolio = await getAccountBalance(apiKey, secretKey);
+          // Fetch portfolio and positions in parallel
+          const [realPortfolio, realPositions] = await Promise.all([
+            getAccountBalance(apiKey, secretKey),
+            getOpenPositions(apiKey, secretKey)
+          ]);
           setPortfolio(realPortfolio);
+          setPositions(realPositions);
         } catch (error: any) {
           console.error(error);
           setPortfolio(null); // Clear data on error
+          setPositions([]); // Clear data on error
           const errorMessage = "Failed to fetch live data. Please check your API key permissions or try again later.";
           setError(errorMessage);
           toast({
             title: "Data Fetch Failed",
-            description: error.message || "Could not retrieve account balance from Binance.",
+            description: error.message || "Could not retrieve data from Binance.",
             variant: "destructive",
           });
         }
       } else {
         // If not connected, show mock data.
         setPortfolio(mockPortfolio);
+        setPositions(mockOpenPositions);
       }
       setIsLoading(false);
     };
@@ -79,7 +87,7 @@ export default function DashboardPage() {
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="lg:col-span-2">
-            <OpenPositions positions={openPositions} />
+            <OpenPositions positions={positions} isLoading={isLoading && isConnected} />
         </div>
         <div className="lg:col-span-2">
             <TradeHistory trades={tradeHistory} />
