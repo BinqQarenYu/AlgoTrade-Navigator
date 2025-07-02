@@ -348,8 +348,8 @@ export default function BacktestPage() {
   
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 h-full">
-      <div className="xl:col-span-3 flex flex-col h-[600px] xl:h-auto">
+    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+      <div className="xl:col-span-3 flex flex-col h-[600px]">
         <TradingChart data={chartData} symbol={symbol} />
       </div>
       <div className="xl:col-span-2 space-y-6">
