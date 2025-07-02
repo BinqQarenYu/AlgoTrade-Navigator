@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect, useRef, useTransition } from "react"
@@ -69,6 +68,7 @@ export default function LiveTradingPage() {
 
   const [botLogs, setBotLogs] = useState<string[]>([]);
   const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wakeLockRef = useRef<any>(null);
   const [isPredicting, startTransition] = useTransition();
   const [prediction, setPrediction] = useState<PredictMarketOutput | null>(null);
 
@@ -113,6 +113,32 @@ export default function LiveTradingPage() {
     const timestamp = new Date().toLocaleTimeString();
     setBotLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 100));
   }
+  
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        addLog("Screen wake lock active to prevent sleeping.");
+        wakeLockRef.current.addEventListener('release', () => {
+          addLog('Screen wake lock was released by the system.');
+          wakeLockRef.current = null;
+        });
+      } catch (err: any) {
+        console.error(`${err.name}, ${err.message}`);
+        addLog(`Warning: Could not acquire screen wake lock: ${err.message}`);
+      }
+    } else {
+      addLog("Warning: Wake Lock API not supported in this browser.");
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      await wakeLockRef.current.release();
+      wakeLockRef.current = null;
+      addLog("Screen wake lock released.");
+    }
+  };
 
   const runPrediction = async () => {
     if (chartData.length < 10) {
@@ -138,7 +164,7 @@ export default function LiveTradingPage() {
     })
   }
 
-  const handleBotToggle = () => {
+  const handleBotToggle = async () => {
     if (isBotRunning) {
         // Stop the bot
         setIsBotRunning(false);
@@ -147,6 +173,7 @@ export default function LiveTradingPage() {
             botIntervalRef.current = null;
         }
         addLog("Bot stopped by user.");
+        await releaseWakeLock();
     } else {
         // Start the bot
         if (!isConnected) {
@@ -158,6 +185,8 @@ export default function LiveTradingPage() {
         setPrediction(null);
         addLog(`Bot started for ${symbol} with ${selectedStrategy}. Margin: ${marginType}, Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
         
+        await requestWakeLock();
+
         // Initial prediction
         runPrediction();
 
@@ -176,6 +205,7 @@ export default function LiveTradingPage() {
         if (botIntervalRef.current) {
             clearInterval(botIntervalRef.current);
         }
+        releaseWakeLock();
     }
   }, []);
 
