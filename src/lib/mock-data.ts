@@ -23,38 +23,30 @@ export const tradeHistory: Trade[] = [
 export const generateHistoricalData = (): HistoricalData[] => {
   const data: HistoricalData[] = [];
   let price = 68000;
-  // Use a fixed date to ensure consistency between server and client rendering
-  const baseTime = new Date('2024-05-28T00:00:00Z');
-  const startTime = baseTime.getTime() - 100 * 60 * 60 * 1000;
+  // Use a fixed date to ensure consistency. This generates 100 data points at a 1-minute interval.
+  const baseTime = new Date('2024-05-28T12:00:00Z').getTime();
+  const startTime = baseTime - 1000 * 60 * 1000;
 
-  for (let i = 0; i < 100; i++) {
-    const timestamp = new Date(startTime + i * 60 * 60 * 1000);
-    const time = `${timestamp.getUTCHours().toString().padStart(2, '0')}:00`;
+  for (let i = 0; i < 1000; i++) {
+    const timestamp = startTime + i * 60 * 1000; // 1 minute interval
 
-    const change = (Math.random() - 0.48) * (price * 0.01);
+    const change = (Math.random() - 0.48) * (price * 0.0005);
     const open = price;
     const close = price + change;
     price = close;
 
-    const high = Math.max(open, close) + Math.random() * (price * 0.005);
-    const low = Math.min(open, close) - Math.random() * (price * 0.005);
-    const volume = Math.random() * 1000 + 500;
+    const high = Math.max(open, close) + Math.random() * (price * 0.0002);
+    const low = Math.min(open, close) - Math.random() * (price * 0.0002);
+    const volume = Math.random() * 10 + 5;
 
     const record: HistoricalData = {
-      time,
+      time: timestamp,
       open: parseFloat(open.toFixed(2)),
       high: parseFloat(high.toFixed(2)),
       low: parseFloat(low.toFixed(2)),
       close: parseFloat(close.toFixed(2)),
       volume: parseFloat(volume.toFixed(2)),
     };
-
-    if (i > 5 && Math.random() > 0.9) {
-        record.buySignal = record.low;
-    }
-    if (i > 5 && Math.random() > 0.92) {
-        record.sellSignal = record.high;
-    }
 
     data.push(record);
   }

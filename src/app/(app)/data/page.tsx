@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import type { StreamedDataPoint } from '@/lib/types';
 import { saveDataPoint, loadSavedData, clearSavedData } from '@/lib/data-service';
+import { format } from 'date-fns';
 
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
@@ -29,7 +30,7 @@ export default function DataPage() {
                 const newPrice = lastPriceRef.current + (Math.random() - 0.5) * 10;
                 lastPriceRef.current = newPrice;
                 const newPoint: StreamedDataPoint = {
-                    time: new Date().toLocaleTimeString(),
+                    time: new Date().getTime(),
                     price: parseFloat(newPrice.toFixed(2)),
                     volume: parseFloat((Math.random() * 5).toFixed(2)),
                 };
@@ -181,7 +182,7 @@ export default function DataPage() {
                                 <TableBody>
                                     {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
                                          <TableRow key={d.time + d.price}>
-                                            <TableCell className="font-mono text-xs">{d.time}</TableCell>
+                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss')}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
                                         </TableRow>
@@ -222,7 +223,7 @@ export default function DataPage() {
                                 <TableBody>
                                     {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
                                          <TableRow key={d.time + d.price}>
-                                            <TableCell className="font-mono text-xs">{d.time}</TableCell>
+                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'yyyy-MM-dd HH:mm:ss')}</TableCell>
                                             <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
                                             <TableCell className="text-right">{d.volume}</TableCell>
                                         </TableRow>

@@ -3,17 +3,28 @@
 import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from 'recharts';
 import type { HistoricalData } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { format } from 'date-fns';
 
 interface TradingChartProps {
   data: HistoricalData[];
 }
 
+const formatXAxis = (tickItem: number) => {
+    // Show date if it's the first tick or midnight, otherwise show time
+    const date = new Date(tickItem);
+    if (date.getHours() === 0 && date.getMinutes() === 0) {
+        return format(date, 'MMM dd');
+    }
+    return format(date, 'HH:mm');
+}
+
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
+    const timeLabel = format(new Date(label), "PPpp");
     return (
       <div className="p-2 bg-background/80 border rounded-lg shadow-lg text-sm">
-        <p className="label font-bold">{`Time: ${label}`}</p>
+        <p className="label font-bold">{timeLabel}</p>
         <p className="text-primary">{`Close: ${data.close?.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`}</p>
         <p className="text-muted-foreground">{`Volume: ${data.volume?.toLocaleString()}`}</p>
         
@@ -51,13 +62,21 @@ export function TradingChart({ data }: TradingChartProps) {
               margin={{ top: 5, right: showRsi ? 40 : 20, left: -10, bottom: 5 }}
             >
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" />
+                <XAxis 
+                  dataKey="time" 
+                  stroke="hsl(var(--muted-foreground))" 
+                  tickFormatter={formatXAxis}
+                  type="number"
+                  scale="time"
+                  domain={['dataMin', 'dataMax']}
+                 />
                 <YAxis 
                     yAxisId="left" 
                     stroke="hsl(var(--muted-foreground))" 
                     orientation="left" 
                     domain={['dataMin - 100', 'dataMax + 100']} 
                     allowDataOverflow 
+                    tickFormatter={(value) => `$${value.toLocaleString()}`}
                 />
                 <YAxis yAxisId="right" stroke="hsl(var(--muted-foreground))" orientation="right" />
                 {showRsi && <YAxis yAxisId="rsi" stroke="hsl(var(--muted-foreground))" orientation="right" domain={[0, 100]} tick={{ dx: 5 }} />}

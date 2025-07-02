@@ -29,7 +29,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import { loadSavedData } from "@/lib/data-service"
-import type { HistoricalData } from "@/lib/types"
+import type { HistoricalData, StreamedDataPoint } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 
 interface DateRange {
@@ -37,22 +37,55 @@ interface DateRange {
   to?: Date;
 }
 
+const resampleData = (data: HistoricalData[], intervalMinutes: number): HistoricalData[] => {
+    if (!data || data.length === 0 || !intervalMinutes) return [];
+
+    const intervalMillis = intervalMinutes * 60 * 1000;
+    const resampled: { [key: number]: HistoricalData[] } = {};
+
+    data.forEach(p => {
+        const bucketTimestamp = Math.floor(p.time / intervalMillis) * intervalMillis;
+        if (!resampled[bucketTimestamp]) {
+            resampled[bucketTimestamp] = [];
+        }
+        resampled[bucketTimestamp].push(p);
+    });
+
+    return Object.keys(resampled).map(key => {
+        const bucket = resampled[Number(key)];
+        const first = bucket[0];
+        const last = bucket[bucket.length - 1];
+
+        return {
+            time: Number(key),
+            open: first.open,
+            high: Math.max(...bucket.map(p => p.high)),
+            low: Math.min(...bucket.map(p => p.low)),
+            close: last.close,
+            volume: parseFloat(bucket.reduce((sum, p) => sum + p.volume, 0).toFixed(2))
+        };
+    }).sort((a, b) => a.time - b.time);
+};
+
+
 export default function BacktestPage() {
   const { toast } = useToast()
   const [date, setDate] = useState<DateRange | undefined>({
-    from: new Date(2024, 0, 20),
+    from: new Date(2024, 4, 27),
     to: new Date(2024, 4, 28),
   })
   const [isClient, setIsClient] = useState(false)
-  const [chartData, setChartData] = useState<HistoricalData[]>(mockHistoricalData)
+  const [baseChartData, setBaseChartData] = useState<HistoricalData[]>(mockHistoricalData);
+  const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [interval, setInterval] = useState<string>("1h");
 
   useEffect(() => {
     setIsClient(true)
     const fetchChartData = async () => {
       try {
-        const savedData = await loadSavedData()
+        const savedData: StreamedDataPoint[] = await loadSavedData()
         if (savedData && savedData.length > 0) {
           const transformedData: HistoricalData[] = savedData.map((point) => ({
             time: point.time,
@@ -62,10 +95,13 @@ export default function BacktestPage() {
             close: point.price,
             volume: point.volume,
           }))
-          setChartData(transformedData)
+          setBaseChartData(transformedData)
+        } else {
+          setBaseChartData(mockHistoricalData);
         }
       } catch (error) {
         console.error("Failed to load saved data for chart:", error)
+        setBaseChartData(mockHistoricalData);
         toast({
           title: "Chart Data Error",
           description: "Could not load latest data, displaying default historical data instead.",
@@ -75,6 +111,19 @@ export default function BacktestPage() {
     }
     fetchChartData()
   }, [toast])
+
+  useEffect(() => {
+    const intervalMap: { [key: string]: number } = {
+        "5m": 5,
+        "15m": 15,
+        "1h": 60,
+        "4h": 240,
+        "1d": 1440,
+    };
+    const intervalMinutes = intervalMap[interval];
+    const resampled = resampleData(baseChartData, intervalMinutes);
+    setChartData(resampled);
+}, [baseChartData, interval]);
 
   const handleRunBacktest = () => {
     if (!selectedStrategy) {
@@ -89,7 +138,7 @@ export default function BacktestPage() {
     setIsBacktesting(true)
     toast({
       title: "Backtest Started",
-      description: `Running your selected strategy: ${selectedStrategy}.`,
+      description: `Running ${selectedStrategy} on ${interval} interval.`,
     })
 
     // Simulate backtesting logic based on strategy
@@ -217,18 +266,35 @@ export default function BacktestPage() {
             <CardDescription>Configure your backtesting parameters.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="strategy">Strategy</Label>
-              <Select onValueChange={setSelectedStrategy} value={selectedStrategy ?? undefined}>
-                <SelectTrigger id="strategy">
-                  <SelectValue placeholder="Select strategy" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
-                  <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
-                  <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="strategy">Strategy</Label>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy ?? undefined}>
+                    <SelectTrigger id="strategy">
+                      <SelectValue placeholder="Select strategy" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
+                      <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
+                      <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interval">Interval</Label>
+                  <Select onValueChange={setInterval} value={interval}>
+                    <SelectTrigger id="interval">
+                      <SelectValue placeholder="Select interval" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5m">5 Minutes</SelectItem>
+                      <SelectItem value="15m">15 Minutes</SelectItem>
+                      <SelectItem value="1h">1 Hour</SelectItem>
+                      <SelectItem value="4h">4 Hours</SelectItem>
+                      <SelectItem value="1d">1 Day</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
             </div>
             <div className="space-y-2">
                <Label>Date range</Label>

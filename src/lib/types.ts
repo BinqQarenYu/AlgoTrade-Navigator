@@ -18,7 +18,7 @@ export type Trade = {
 };
 
 export type HistoricalData = {
-  time: string;
+  time: number;
   open: number;
   high: number;
   low: number;
@@ -40,7 +40,7 @@ export type Portfolio = {
 };
 
 export type StreamedDataPoint = {
-  time: string;
+  time: number;
   price: number;
   volume: number;
 };
