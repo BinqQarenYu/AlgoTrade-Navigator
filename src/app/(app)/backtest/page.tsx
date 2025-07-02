@@ -80,6 +80,7 @@ export default function BacktestPage() {
   const [baseChartData, setBaseChartData] = useState<HistoricalData[]>(mockHistoricalData);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
+  const [symbol, setSymbol] = useState<string>("BTC/USDT");
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
@@ -365,7 +366,7 @@ export default function BacktestPage() {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 h-full">
       <div className="xl:col-span-3 flex flex-col h-[600px] xl:h-auto">
-        <TradingChart data={chartData} />
+        <TradingChart data={chartData} symbol={symbol} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -374,7 +375,20 @@ export default function BacktestPage() {
             <CardDescription>Configure your backtesting parameters.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="symbol">Asset</Label>
+                  <Select onValueChange={setSymbol} value={symbol}>
+                    <SelectTrigger id="symbol">
+                      <SelectValue placeholder="Select asset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BTC/USDT">BTC/USDT</SelectItem>
+                      <SelectItem value="ETH/USDT">ETH/USDT</SelectItem>
+                      <SelectItem value="SOL/USDT">SOL/USDT</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
                   <Select onValueChange={setSelectedStrategy} value={selectedStrategy ?? undefined}>

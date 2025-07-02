@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 
 interface TradingChartProps {
   data: HistoricalData[];
+  symbol: string;
 }
 
 const formatXAxis = (tickItem: number) => {
@@ -45,7 +46,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 
-export function TradingChart({ data }: TradingChartProps) {
+export function TradingChart({ data, symbol }: TradingChartProps) {
   const showSma = data.length > 0 && data.some(p => p.sma_short != null);
   const showEma = data.length > 0 && data.some(p => p.ema_short != null);
   const showRsi = data.length > 0 && data.some(p => p.rsi != null);
@@ -53,7 +54,7 @@ export function TradingChart({ data }: TradingChartProps) {
   return (
     <Card className="h-full flex flex-col">
         <CardHeader>
-            <CardTitle>BTC/USDT Price Chart</CardTitle>
+            <CardTitle>{symbol} Price Chart</CardTitle>
         </CardHeader>
         <CardContent className="flex-grow">
             <ResponsiveContainer width="100%" height="100%">
