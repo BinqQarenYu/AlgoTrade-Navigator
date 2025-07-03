@@ -60,7 +60,6 @@ export default function ManualTradingPage() {
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
-  const chartDataRef = useRef(chartData);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
@@ -74,15 +73,15 @@ export default function ManualTradingPage() {
   const [logs, setLogs] = useState<string[]>([]);
   
   const wsRef = useRef<WebSocket | null>(null);
+  const tradeSignalRef = useRef(tradeSignal);
+
+  useEffect(() => {
+    tradeSignalRef.current = tradeSignal;
+  }, [tradeSignal]);
 
   useEffect(() => {
     setIsClient(true)
   }, [])
-
-  // Keep a ref to the latest chart data to avoid stale state in intervals
-  useEffect(() => {
-    chartDataRef.current = chartData;
-  }, [chartData]);
 
 
   const addLog = useCallback((message: string) => {
@@ -134,10 +133,10 @@ export default function ManualTradingPage() {
     setIsAnalyzing(true);
     setLogs([]);
     setTradeSignal(null);
-    const currentData = chartDataRef.current;
+    
     addLog("Running analysis...");
     
-    if (currentData.length < 50) {
+    if (chartData.length < 50) {
       addLog("Not enough data to analyze. Waiting...");
       setIsAnalyzing(false);
       return;
@@ -145,7 +144,7 @@ export default function ManualTradingPage() {
 
     addLog("Searching for a new setup...");
     let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-    let dataWithSignals = [...currentData]; // Copy data
+    let dataWithSignals = [...chartData]; // Copy data
     let signalCandle: HistoricalData | null = null;
     
     switch (selectedStrategy) {
@@ -153,7 +152,7 @@ export default function ManualTradingPage() {
         case "ema-crossover": { /* EMA logic */ break; }
         case "rsi-divergence": { /* RSI logic */ break; }
         case "peak-formation-fib": {
-            dataWithSignals = await calculatePeakFormationFibSignals(currentData);
+            dataWithSignals = await calculatePeakFormationFibSignals(chartData);
             const lastCandleWithSignal = dataWithSignals[dataWithSignals.length - 1];
             if(lastCandleWithSignal.buySignal) {
                 strategySignal = 'BUY';
@@ -176,7 +175,7 @@ export default function ManualTradingPage() {
     try {
         const prediction = useAIPrediction ? await predictMarket({
             symbol,
-            recentData: JSON.stringify(currentData.slice(-50).map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
+            recentData: JSON.stringify(chartData.slice(-50).map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
             strategySignal
         }) : {
              prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
@@ -187,9 +186,8 @@ export default function ManualTradingPage() {
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
         if (aiConfirms) {
-            const latestCandle = currentData[currentData.length - 1];
+            const latestCandle = chartData[chartData.length - 1];
             const currentPrice = latestCandle.close;
-            // Use specific stop loss from PFF strategy if available
             const stopLossPrice = signalCandle?.stopLossLevel 
                 ? signalCandle.stopLossLevel
                 : prediction.prediction === 'UP' 
@@ -199,7 +197,7 @@ export default function ManualTradingPage() {
             const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (takeProfit / 100)) : currentPrice * (1 - (takeProfit / 100));
 
             const newSignal: TradeSignal = {
-                action: prediction.prediction, entryPrice: currentPrice,
+                action: prediction.prediction === 'UP' ? 'UP' : 'DOWN', entryPrice: currentPrice,
                 stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
                 confidence: prediction.confidence, reasoning: prediction.reasoning,
                 timestamp: new Date(), strategy: selectedStrategy,
@@ -228,9 +226,7 @@ export default function ManualTradingPage() {
 
       wsRef.current.onopen = () => addLog("WebSocket connection established.");
       
-      wsRef.current.onerror = () => {
-          // This event often doesn't contain specific error details.
-          // The `onclose` event provides more useful information.
+      wsRef.current.onerror = (event) => {
           console.error("A generic WebSocket error occurred. See the 'onclose' event for details.");
           addLog("WebSocket error occurred. Check the close reason in the logs.");
       };
@@ -256,6 +252,30 @@ export default function ManualTradingPage() {
             low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
           };
 
+          // --- Invalidation Logic ---
+          const currentSignal = tradeSignalRef.current;
+          if (currentSignal && currentSignal.peakPrice) {
+            let invalidated = false;
+            let invalidationReason = '';
+            if (currentSignal.action === 'DOWN' && newCandle.high > currentSignal.peakPrice) {
+              invalidated = true;
+              invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${currentSignal.peakPrice.toFixed(4)}.`;
+            } else if (currentSignal.action === 'UP' && newCandle.low < currentSignal.peakPrice) {
+              invalidated = true;
+              invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${currentSignal.peakPrice.toFixed(4)}.`;
+            }
+
+            if (invalidated) {
+              addLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
+              toast({
+                title: "Trade Signal Invalidated",
+                description: "Market structure has changed. The trade idea is now void.",
+                variant: "destructive"
+              });
+              setTradeSignal(null);
+            }
+          }
+
           setChartData(prevData => {
             const newData = [...prevData];
             const lastCandle = newData[newData.length - 1];
@@ -265,7 +285,11 @@ export default function ManualTradingPage() {
             } else {
               newData.push(newCandle);
             }
-            return newData.slice(-1500); // Keep data size manageable
+             const sortedData = newData.sort((a, b) => a.time - b.time);
+             const uniqueData = sortedData.filter((candle, index, self) =>
+                index === 0 || candle.time > self[index - 1].time
+            );
+            return uniqueData.slice(-1500);
           });
         }
       };
@@ -277,7 +301,7 @@ export default function ManualTradingPage() {
         }
       };
     }
-  }, [isConnected, symbol, interval, addLog]);
+  }, [isConnected, symbol, interval, addLog, toast]);
 
   return (
     <div className="flex flex-col h-full">
@@ -477,5 +501,4 @@ export default function ManualTradingPage() {
     </div>
   )
 }
-
     
