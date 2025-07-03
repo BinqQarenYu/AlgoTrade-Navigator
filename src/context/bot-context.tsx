@@ -241,17 +241,23 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const shortPeriod = 20; const longPeriod = 50;
             const sma_short = calculateSMA(closePrices, shortPeriod);
             const sma_long = calculateSMA(closePrices, longPeriod);
-            const last_sma_short = sma_short[sma_short.length - 1];
-            const prev_sma_short = sma_short[sma_short.length - 2];
-            const last_sma_long = sma_long[sma_long.length - 1];
-            const prev_sma_long = sma_long[sma_long.length - 2];
-            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) {
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
-                } else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) {
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
+            // Scan last 5 candles for a crossover
+            for (let i = dataToAnalyze.length - 1; i >= Math.max(0, dataToAnalyze.length - 5); i--) {
+                const last_sma_short = sma_short[i];
+                const prev_sma_short = sma_short[i - 1];
+                const last_sma_long = sma_long[i];
+                const prev_sma_long = sma_long[i - 1];
+
+                if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
+                    if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) {
+                        strategySignal = 'BUY';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    } else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) {
+                        strategySignal = 'SELL';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    }
                 }
             }
             break;
@@ -260,32 +266,44 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const shortPeriod = 12; const longPeriod = 26;
             const ema_short = calculateEMA(closePrices, shortPeriod);
             const ema_long = calculateEMA(closePrices, longPeriod);
-            const last_ema_short = ema_short[ema_short.length - 1];
-            const prev_ema_short = ema_short[ema_short.length - 2];
-            const last_ema_long = ema_long[ema_long.length - 1];
-            const prev_ema_long = ema_long[ema_long.length - 2];
-            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) {
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
-                } else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) {
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
+             // Scan last 5 candles for a crossover
+            for (let i = dataToAnalyze.length - 1; i >= Math.max(0, dataToAnalyze.length - 5); i--) {
+                const last_ema_short = ema_short[i];
+                const prev_ema_short = ema_short[i - 1];
+                const last_ema_long = ema_long[i];
+                const prev_ema_long = ema_long[i - 1];
+
+                if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
+                    if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) {
+                        strategySignal = 'BUY';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    } else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) {
+                        strategySignal = 'SELL';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    }
                 }
             }
             break;
         }
         case "rsi-divergence": {
             const rsi = calculateRSI(closePrices, 14);
-            const last_rsi = rsi[rsi.length - 1];
-            const prev_rsi = rsi[rsi.length - 2];
-            if (prev_rsi && last_rsi) {
-                if (prev_rsi <= 30 && last_rsi > 30) {
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
-                } else if (prev_rsi >= 70 && last_rsi < 70) {
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[dataToAnalyze.length - 1];
+             // Scan last 5 candles for a crossover
+            for (let i = dataToAnalyze.length - 1; i >= Math.max(0, dataToAnalyze.length - 5); i--) {
+                const last_rsi = rsi[i];
+                const prev_rsi = rsi[i - 1];
+                
+                if (prev_rsi && last_rsi) {
+                    if (prev_rsi <= 30 && last_rsi > 30) {
+                        strategySignal = 'BUY';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    } else if (prev_rsi >= 70 && last_rsi < 70) {
+                        strategySignal = 'SELL';
+                        signalCandle = dataToAnalyze[i];
+                        break; // Found the most recent signal, stop searching
+                    }
                 }
             }
             break;
