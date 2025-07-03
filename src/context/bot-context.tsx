@@ -489,6 +489,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
     
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
+    // Clear previous data to prevent showing old chart while loading new one
+    setManualTraderState(prev => ({...prev, chartData: []}));
     try {
         const from = addDays(new Date(), -1).getTime();
         const to = new Date().getTime();

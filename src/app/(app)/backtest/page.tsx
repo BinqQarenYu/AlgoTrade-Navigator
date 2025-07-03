@@ -45,8 +45,8 @@ interface DateRange {
 }
 
 const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
+    "LINKUSDT", "MATICUSDT", "LTCUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", "APTUSDT", "SUIUSDT", "OPUSDT"
 ];
 
 export default function BacktestPage() {
@@ -92,6 +92,7 @@ export default function BacktestPage() {
             return;
         }
         setIsFetchingData(true);
+        setChartData([]);
         setBacktestResults([]);
         setSummaryStats(null);
         setSelectedTrade(null);
