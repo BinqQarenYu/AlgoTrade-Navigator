@@ -2,17 +2,20 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, StopCircle, Database, Trash2, FolderClock } from 'lucide-react';
+import { Play, StopCircle, Database, Trash2, FolderClock, Bot } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
+import { useBot } from '@/context/bot-context';
 import type { StreamedDataPoint } from '@/lib/types';
 import { saveDataPoint, loadSavedData, clearSavedData } from '@/lib/data-service';
 import { format } from 'date-fns';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
@@ -23,6 +26,7 @@ export default function DataPage() {
     const wsRef = useRef<WebSocket | null>(null);
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
+    const { isTradingActive, liveBotState } = useBot();
     
     // Batch UI updates to prevent freezing from high-frequency messages
     useEffect(() => {
@@ -40,7 +44,7 @@ export default function DataPage() {
 
     // Effect for handling the real-time data stream connection
     useEffect(() => {
-        if (isStreaming) {
+        if (isStreaming && !isTradingActive) {
             setStatus('connecting');
             const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol}@aggTrade`);
             wsRef.current = ws;
@@ -72,8 +76,8 @@ export default function DataPage() {
                 }
             };
 
-            ws.onerror = (error) => {
-                console.error("WebSocket error:", error);
+            ws.onerror = () => {
+                console.error("A WebSocket error occurred. The browser console may have more specific details about the connection failure.");
                 setStatus('disconnected');
                 toast({ title: "WebSocket Error", description: "Connection failed.", variant: "destructive" });
             };
@@ -91,6 +95,9 @@ export default function DataPage() {
             if (wsRef.current) {
                 wsRef.current.close();
             }
+            if (isStreaming && isTradingActive) {
+                setIsStreaming(false); // Force stop if trading becomes active
+            }
         }
         
         // Cleanup function to close the WebSocket connection
@@ -100,7 +107,7 @@ export default function DataPage() {
                 wsRef.current = null;
             }
         };
-    }, [isStreaming, symbol, toast]);
+    }, [isStreaming, symbol, toast, isTradingActive]);
     
     const fetchSavedData = async () => {
         try {
@@ -122,6 +129,10 @@ export default function DataPage() {
     }, []);
 
     const handleStreamToggle = () => {
+        if (isTradingActive) {
+            toast({ title: "Action Paused", description: "Stop the active trading session to manage data streams.", variant: "destructive" });
+            return;
+        }
         if (!isStreaming) {
             setStreamedData([]); // Clear previous session view on start
             dataBufferRef.current = [];
@@ -133,6 +144,10 @@ export default function DataPage() {
     };
     
     const handleClearData = async () => {
+         if (isTradingActive) {
+            toast({ title: "Action Paused", description: "Stop the active trading session to manage data streams.", variant: "destructive" });
+            return;
+        }
         try {
             await clearSavedData();
             setSavedData([]);
@@ -160,6 +175,16 @@ export default function DataPage() {
                     Manage real-time data streams and persisted historical data.
                 </p>
             </div>
+             {isTradingActive && (
+                <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
+                    <Bot className="h-4 w-4" />
+                    <AlertTitle>Trading Session Active</AlertTitle>
+                    <AlertDescription>
+                        The real-time data stream is disabled to prioritize the active{' '}
+                        {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+                    </AlertDescription>
+                </Alert>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <Card>
                     <CardHeader>
@@ -170,7 +195,7 @@ export default function DataPage() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="symbol">Symbol</Label>
-                                <Select defaultValue="btcusdt" onValueChange={setSymbol} disabled={isStreaming}>
+                                <Select defaultValue="btcusdt" onValueChange={setSymbol} disabled={isStreaming || isTradingActive}>
                                     <SelectTrigger id="symbol">
                                         <SelectValue placeholder="Select symbol" />
                                     </SelectTrigger>
@@ -183,7 +208,7 @@ export default function DataPage() {
                             </div>
                              <div className="space-y-2">
                                 <Label htmlFor="interval">Stream Type</Label>
-                                <Select defaultValue="aggTrade" disabled={isStreaming}>
+                                <Select defaultValue="aggTrade" disabled={isStreaming || isTradingActive}>
                                     <SelectTrigger id="interval">
                                         <SelectValue placeholder="Select stream" />
                                     </SelectTrigger>
@@ -202,10 +227,10 @@ export default function DataPage() {
                                 status === 'connecting' && "bg-yellow-500 animate-pulse"
                              )}/>
                              <span className="text-sm font-medium capitalize text-muted-foreground">
-                                {status}
+                                {isTradingActive ? 'Paused' : status}
                              </span>
                            </div>
-                            <Button onClick={handleStreamToggle} variant={isStreaming ? "destructive" : "default"} size="sm">
+                            <Button onClick={handleStreamToggle} variant={isStreaming ? "destructive" : "default"} size="sm" disabled={isTradingActive}>
                                 {isStreaming ? <StopCircle /> : <Play />}
                                 {isStreaming ? 'Stop Stream' : 'Start Stream'}
                             </Button>
@@ -229,7 +254,7 @@ export default function DataPage() {
                                     )) : (
                                          <TableRow key="streaming-placeholder">
                                             <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
-                                                {isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
+                                                {isTradingActive ? 'Streaming is paused.' : isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -242,7 +267,7 @@ export default function DataPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center justify-between">
                             <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
-                            <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0}>
+                            <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 || isTradingActive}>
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Clear
                             </Button>

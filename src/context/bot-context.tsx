@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useRe
 import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { getHistoricalKlines } from '@/lib/binance-service';
+import { getHistoricalKlines } from "@/lib/binance-service";
 import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
 import { addDays } from 'date-fns';
@@ -31,6 +31,7 @@ interface ManualTraderState {
 interface BotContextType {
   liveBotState: LiveBotState;
   manualTraderState: ManualTraderState;
+  isTradingActive: boolean;
   startLiveBot: (config: LiveBotConfig) => void;
   stopLiveBot: () => void;
   runManualAnalysis: (config: ManualTraderConfig) => void;
@@ -57,6 +58,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   });
   const manualWsRef = useRef<WebSocket | null>(null);
   const manualAnalysisCancelRef = useRef(false);
+
+  // --- Global Trading State ---
+  const [isTradingActive, setIsTradingActive] = useState(false);
+
+  useEffect(() => {
+    const live = liveBotState.isRunning;
+    const manual = manualTraderState.isAnalyzing || manualTraderState.signal !== null;
+    setIsTradingActive(live || manual);
+  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal]);
+
 
   // --- Helper Functions ---
   const addLiveLog = useCallback((message: string) => {
@@ -237,70 +248,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const closePrices = dataToAnalyze.map(d => d.close);
 
     switch (config.strategy) {
-        case "sma-crossover": {
-            const shortPeriod = 20; const longPeriod = 50;
-            const sma_short = calculateSMA(closePrices, shortPeriod);
-            const sma_long = calculateSMA(closePrices, longPeriod);
-            let lastBuySignalIndex = -1;
-            let lastSellSignalIndex = -1;
-
-            for (let i = longPeriod; i < dataToAnalyze.length; i++) {
-                const last_sma_short = sma_short[i];
-                const prev_sma_short = sma_short[i - 1];
-                const last_sma_long = sma_long[i];
-                const prev_sma_long = sma_long[i - 1];
-
-                if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                    if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) {
-                        lastBuySignalIndex = i;
-                    } else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) {
-                        lastSellSignalIndex = i;
-                    }
-                }
-            }
-            
-            if (lastBuySignalIndex > lastSellSignalIndex) {
-                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) {
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[lastBuySignalIndex];
-                }
-            } else if (lastSellSignalIndex > lastBuySignalIndex) {
-                if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) {
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[lastSellSignalIndex];
-                }
-            }
-            break;
-        }
+        case "sma-crossover":
         case "ema-crossover": {
-            const shortPeriod = 12; const longPeriod = 26;
-            const ema_short = calculateEMA(closePrices, shortPeriod);
-            const ema_long = calculateEMA(closePrices, longPeriod);
+            const isSMA = config.strategy === 'sma-crossover';
+            const shortPeriod = isSMA ? 20 : 12;
+            const longPeriod = isSMA ? 50 : 26;
+            const indicatorFunc = isSMA ? calculateSMA : calculateEMA;
+
+            const shortMA = indicatorFunc(closePrices, shortPeriod);
+            const longMA = indicatorFunc(closePrices, longPeriod);
+            
             let lastBuySignalIndex = -1;
             let lastSellSignalIndex = -1;
-            
-            for (let i = longPeriod; i < dataToAnalyze.length; i++) {
-                const last_ema_short = ema_short[i];
-                const prev_ema_short = ema_short[i - 1];
-                const last_ema_long = ema_long[i];
-                const prev_ema_long = ema_long[i - 1];
 
-                if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                    if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) {
-                        lastBuySignalIndex = i;
-                    } else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) {
-                        lastSellSignalIndex = i;
-                    }
-                }
+            for (let i = longPeriod; i < dataToAnalyze.length; i++) {
+                if (!shortMA[i-1] || !longMA[i-1] || !shortMA[i] || !longMA[i]) continue;
+                if (shortMA[i-1]! <= longMA[i-1]! && shortMA[i]! > longMA[i]!) lastBuySignalIndex = i;
+                if (shortMA[i-1]! >= longMA[i-1]! && shortMA[i]! < longMA[i]!) lastSellSignalIndex = i;
             }
 
             if (lastBuySignalIndex > lastSellSignalIndex) {
-                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) {
+                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) { // Check if recent
                     strategySignal = 'BUY';
                     signalCandle = dataToAnalyze[lastBuySignalIndex];
                 }
             } else if (lastSellSignalIndex > lastBuySignalIndex) {
-                if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) {
+                 if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) { // Check if recent
                     strategySignal = 'SELL';
                     signalCandle = dataToAnalyze[lastSellSignalIndex];
                 }
@@ -315,25 +288,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             let lastSellSignalIndex = -1;
             
             for (let i = 14; i < dataToAnalyze.length; i++) {
-                const last_rsi = rsi[i];
-                const prev_rsi = rsi[i-1];
-                
-                if (prev_rsi && last_rsi) {
-                    if (prev_rsi <= oversold && last_rsi > oversold) {
-                        lastBuySignalIndex = i;
-                    } else if (prev_rsi >= overbought && last_rsi < overbought) {
-                        lastSellSignalIndex = i;
-                    }
-                }
+                if (!rsi[i-1] || !rsi[i]) continue;
+                if (rsi[i-1]! <= oversold && rsi[i]! > oversold) lastBuySignalIndex = i;
+                if (rsi[i-1]! >= overbought && rsi[i]! < overbought) lastSellSignalIndex = i;
             }
             
             if (lastBuySignalIndex > lastSellSignalIndex) {
-                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) {
+                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) { // Check if recent
                     strategySignal = 'BUY';
                     signalCandle = dataToAnalyze[lastBuySignalIndex];
                 }
             } else if (lastSellSignalIndex > lastBuySignalIndex) {
-                if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) {
+                if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) { // Check if recent
                     strategySignal = 'SELL';
                     signalCandle = dataToAnalyze[lastSellSignalIndex];
                 }
@@ -550,6 +516,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     <BotContext.Provider value={{ 
       liveBotState, 
       manualTraderState,
+      isTradingActive,
       startLiveBot,
       stopLiveBot,
       runManualAnalysis,

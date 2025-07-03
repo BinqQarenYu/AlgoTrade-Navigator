@@ -8,13 +8,15 @@ import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeHistory } from "@/components/dashboard/trade-history";
 import { getAccountBalance, getOpenPositions, getTradeHistory } from "@/lib/binance-service";
 import { useApi } from "@/context/api-context";
+import { useBot } from "@/context/bot-context";
 import type { Portfolio, Position, Trade } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal } from "lucide-react";
+import { Terminal, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
   const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
+  const { isTradingActive, liveBotState } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
@@ -24,6 +26,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (isTradingActive) {
+        setError("Live data fetching is paused because a trading session is active.");
+        setIsLoading(false);
+        setPortfolio(null);
+        setPositions([]);
+        setHistory([]);
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
       if (isConnected && apiKey && secretKey) {
@@ -88,7 +99,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive]);
 
   const handleClearHistory = () => {
     setHistory([]);
@@ -100,7 +111,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {!isConnected && (
+      {isTradingActive && (
+        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
+            <Bot className="h-4 w-4" />
+            <AlertTitle>Trading Session Active</AlertTitle>
+            <AlertDescription>
+                Live data fetching on the dashboard is paused to prioritize the active{' '}
+                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+            </AlertDescription>
+        </Alert>
+      )}
+
+      {!isConnected && !isTradingActive && (
         <Alert>
           <Terminal className="h-4 w-4" />
           <AlertTitle>API Disconnected</AlertTitle>
@@ -110,7 +132,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {error && isConnected && (
+      {error && (
          <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>API Error</AlertTitle>
@@ -121,14 +143,14 @@ export default function DashboardPage() {
       )}
 
       <PortfolioSummary 
-        isLoading={isLoading && isConnected}
+        isLoading={isLoading && isConnected && !isTradingActive}
         balance={portfolio?.balance} 
         totalPnl={portfolio?.totalPnl} 
         dailyVolume={portfolio?.dailyVolume} 
       />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="lg:col-span-2">
-            <OpenPositions positions={positions} isLoading={isLoading && isConnected} />
+            <OpenPositions positions={positions} isLoading={isLoading && isConnected && !isTradingActive} />
         </div>
         <div className="lg:col-span-2">
             <TradeHistory trades={history} onClear={handleClearHistory} />

@@ -8,6 +8,7 @@ import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
 import { getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
+import { useBot } from "@/context/bot-context"
 import {
   Card,
   CardContent,
@@ -28,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -52,6 +53,7 @@ const assetList = [
 export default function BacktestPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
+  const { isTradingActive, liveBotState } = useBot();
   const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
@@ -84,7 +86,7 @@ export default function BacktestPage() {
   }, [date])
   
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || isTradingActive) return;
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
@@ -101,7 +103,8 @@ export default function BacktestPage() {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
             setChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready for backtesting.` });
-        } catch (error: any) {
+        } catch (error: any)
+{
             console.error("Failed to fetch historical data:", error);
             toast({
                 title: "Failed to Load Data",
@@ -115,7 +118,7 @@ export default function BacktestPage() {
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast]);
+  }, [symbol, date, interval, isConnected, isClient, toast, isTradingActive]);
 
   const handleRunBacktest = async (strategyOverride?: string) => {
     if (chartData.length === 0) {
@@ -541,7 +544,7 @@ export default function BacktestPage() {
     }
   };
   
-  const anyLoading = isBacktesting || isFetchingData;
+  const anyLoading = isBacktesting || isFetchingData || isTradingActive;
 
   const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
     if (!selectedTrade) return null;
@@ -557,6 +560,22 @@ export default function BacktestPage() {
     };
   }, [selectedTrade, selectedStrategy]);
 
+  const handleSymbolChange = (newSymbol: string) => {
+    setSymbol(newSymbol);
+    setChartData([]); // Clear chart data on symbol change
+    setBacktestResults([]);
+    setSummaryStats(null);
+    setSelectedTrade(null);
+  }
+
+  const handleIntervalChange = (newInterval: string) => {
+    setInterval(newInterval);
+    setChartData([]); // Clear chart data on interval change
+    setBacktestResults([]);
+    setSummaryStats(null);
+    setSelectedTrade(null);
+  };
+
   return (
     <div className="flex flex-col h-full">
     {!isConnected && (
@@ -568,9 +587,19 @@ export default function BacktestPage() {
             </AlertDescription>
         </Alert>
     )}
+    {isTradingActive && (
+        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+            <Bot className="h-4 w-4" />
+            <AlertTitle>Trading Session Active</AlertTitle>
+            <AlertDescription>
+                Backtesting is disabled to prioritize the active{' '}
+                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+            </AlertDescription>
+        </Alert>
+    )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} tradeSignal={tradeSignalForChart} />
+        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -582,7 +611,7 @@ export default function BacktestPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={!isConnected || anyLoading}>
+                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={!isConnected || anyLoading}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -609,7 +638,7 @@ export default function BacktestPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval} disabled={anyLoading}>
+                  <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -772,7 +801,7 @@ export default function BacktestPage() {
           <CardFooter>
             <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0}>
               {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
+              {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
             </Button>
           </CardFooter>
         </Card>

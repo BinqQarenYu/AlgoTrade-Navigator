@@ -1,16 +1,19 @@
 "use client";
 
 import React, { useState, useTransition } from "react";
+import Link from "next/link";
 import { validateStrategy, ValidateStrategyOutput } from "@/ai/flows/validate-strategy";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useBot } from "@/context/bot-context";
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { BrainCircuit, Loader2, Wand2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { BrainCircuit, Loader2, Wand2, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -29,6 +32,7 @@ export default function OptimizePage() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
+  const { isTradingActive, liveBotState } = useBot();
 
   const form = useForm<z.infer<typeof strategySchema>>({
     resolver: zodResolver(strategySchema),
@@ -66,6 +70,17 @@ export default function OptimizePage() {
         </p>
       </div>
 
+       {isTradingActive && (
+        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
+            <Bot className="h-4 w-4" />
+            <AlertTitle>Trading Session Active</AlertTitle>
+            <AlertDescription>
+                Strategy optimization is disabled to prioritize the active{' '}
+                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+            </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Analyze Your Strategy</CardTitle>
@@ -83,7 +98,7 @@ export default function OptimizePage() {
                   <FormItem>
                     <FormLabel>Strategy Parameters</FormLabel>
                     <FormControl>
-                      <Textarea placeholder="e.g., Strategy: RSI, Parameters: period=14, overbought=70, oversold=30" {...field} />
+                      <Textarea placeholder="e.g., Strategy: RSI, Parameters: period=14, overbought=70, oversold=30" {...field} disabled={isTradingActive} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -100,6 +115,7 @@ export default function OptimizePage() {
                         placeholder={historicalDataPlaceholder}
                         className="min-h-[200px] font-mono text-xs"
                         {...field}
+                        disabled={isTradingActive}
                       />
                     </FormControl>
                      <FormMessage />
@@ -108,9 +124,9 @@ export default function OptimizePage() {
               />
             </CardContent>
             <CardFooter>
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || isTradingActive}>
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                {isPending ? "Analyzing..." : "Optimize Strategy"}
+                {isTradingActive ? "Trading Active..." : isPending ? "Analyzing..." : "Optimize Strategy"}
               </Button>
             </CardFooter>
           </form>

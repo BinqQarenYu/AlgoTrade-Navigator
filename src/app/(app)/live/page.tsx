@@ -125,6 +125,20 @@ export default function LiveTradingPage() {
 
     fetchData();
   }, [symbol, interval, isConnected, isClient, toast, isRunning]);
+
+  const handleSymbolChange = (newSymbol: string) => {
+    setSymbol(newSymbol);
+    if (!isRunning) {
+        setChartData([]);
+    }
+  };
+
+  const handleIntervalChange = (newInterval: string) => {
+    setInterval(newInterval);
+    if (!isRunning) {
+        setChartData([]);
+    }
+  };
   
   const handleBotToggle = async () => {
     if (isRunning) {
@@ -207,7 +221,7 @@ export default function LiveTradingPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} tradeSignal={tradeSignalForChart} />
+        <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -228,7 +242,7 @@ export default function LiveTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={isRunning}>
+                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={isRunning}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -255,7 +269,7 @@ export default function LiveTradingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
+                  <Select onValueChange={handleIntervalChange} value={interval} disabled={isRunning}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>

@@ -86,10 +86,12 @@ export default function ManualTradingPage() {
   // Simplified handlers just update state. The useEffect handles the data fetching.
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
+    setManualChartData(newInterval, symbol, true);
   };
 
   const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
+    setManualChartData(interval, newSymbol, true);
   };
 
   // This useEffect is now the single source of truth for fetching data.
@@ -99,7 +101,7 @@ export default function ManualTradingPage() {
         // Always force a fetch when symbol/interval change, which resets the monitoring state.
         setManualChartData(symbol, interval, true);
     }
-  }, [isConnected, signal, isAnalyzing, symbol, interval, setManualChartData]);
+  }, [isConnected, setManualChartData]);
 
   const hasActiveSignal = signal !== null;
 
