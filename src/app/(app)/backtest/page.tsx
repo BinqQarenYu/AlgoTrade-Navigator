@@ -236,32 +236,31 @@ export default function BacktestPage() {
     }
 
     const trades: BacktestResult[] = [];
-    let inPosition = false;
+    let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     let entryTime = 0;
     let stopLossPrice = 0;
     let takeProfitPrice = 0;
     let tradeQuantity = 0;
 
-    for (let i = 0; i < dataWithSignals.length; i++) {
+    for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
 
-        if (inPosition) {
+        // --- POSITION MANAGEMENT ---
+        if (positionType === 'long') {
             let exitPrice: number | null = null;
             let closeReason: BacktestResult['closeReason'] | null = null;
 
             if (d.low <= stopLossPrice) {
                 exitPrice = stopLossPrice;
                 closeReason = 'stop-loss';
-            }
-            else if (d.high >= takeProfitPrice) {
+            } else if (d.high >= takeProfitPrice) {
                 exitPrice = takeProfitPrice;
                 closeReason = 'take-profit';
-            }
-            else if (d.sellSignal) {
+            } else if (d.sellSignal) {
                 let closePosition = true;
                 if (useAIValidation) {
-                    if (i > 50) { // Need enough historical data for the AI
+                    if (i > 50) {
                         const recentData = chartData.slice(i - 50, i);
                         try {
                             await new Promise(resolve => setTimeout(resolve, 4100)); // Rate limit delay
@@ -271,104 +270,161 @@ export default function BacktestPage() {
                                 strategySignal: 'SELL'
                             });
                             if (prediction.prediction !== 'DOWN') {
-                                closePosition = false; // AI disagrees, hold position
+                                closePosition = false;
                             }
                         } catch (e: any) {
                            console.error("AI validation failed for sell signal", e);
-                           toast({
-                                title: "AI Validation Failed",
-                                description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.",
-                                variant: "destructive"
-                           });
+                           toast({ title: "AI Validation Failed", description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.", variant: "destructive" });
                            setIsBacktesting(false);
                            return;
                         }
-                    } else {
-                        closePosition = false; // Not enough data to ask AI, hold
-                    }
+                    } else { closePosition = false; }
                 }
-
                 if (closePosition) {
-                    exitPrice = d.high;
+                    exitPrice = d.close;
                     closeReason = 'signal';
                 }
             }
 
             if (exitPrice !== null && closeReason !== null) {
-                inPosition = false;
                 const pnl = (exitPrice - entryPrice) * tradeQuantity;
                 const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
-                trades.push({
-                    entryTime,
-                    entryPrice,
-                    exitTime: d.time,
-                    exitPrice,
-                    pnl,
-                    pnlPercent,
-                    closeReason,
-                });
+                trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
+                positionType = null;
+                entryPrice = 0;
+                tradeQuantity = 0;
+            }
+        } else if (positionType === 'short') {
+            let exitPrice: number | null = null;
+            let closeReason: BacktestResult['closeReason'] | null = null;
+
+            if (d.high >= stopLossPrice) {
+                exitPrice = stopLossPrice;
+                closeReason = 'stop-loss';
+            } else if (d.low <= takeProfitPrice) {
+                exitPrice = takeProfitPrice;
+                closeReason = 'take-profit';
+            } else if (d.buySignal) {
+                let closePosition = true;
+                if (useAIValidation) {
+                    if (i > 50) {
+                        const recentData = chartData.slice(i - 50, i);
+                        try {
+                            await new Promise(resolve => setTimeout(resolve, 4100));
+                            const prediction = await predictMarket({
+                                symbol,
+                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                strategySignal: 'BUY'
+                            });
+                            if (prediction.prediction !== 'UP') {
+                                closePosition = false;
+                            }
+                        } catch (e: any) {
+                            console.error("AI validation failed for buy signal", e);
+                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setIsBacktesting(false);
+                            return;
+                        }
+                    } else { closePosition = false; }
+                }
+                if (closePosition) {
+                    exitPrice = d.close;
+                    closeReason = 'signal';
+                }
+            }
+
+            if (exitPrice !== null && closeReason !== null) {
+                const pnl = (entryPrice - exitPrice) * tradeQuantity;
+                const pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
+                trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
+                positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
             }
         }
 
-        if (!inPosition && d.buySignal) {
-             let openPosition = true;
-             if (useAIValidation) {
-                 if (i > 50) {
-                     const recentData = chartData.slice(i - 50, i);
-                     try {
-                        await new Promise(resolve => setTimeout(resolve, 4100)); // Rate limit delay
-                        const prediction = await predictMarket({
-                            symbol,
-                            recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                            strategySignal: 'BUY'
-                        });
-                        if (prediction.prediction !== 'UP') {
-                            openPosition = false; // AI disagrees, do not enter
+        // --- ENTRY LOGIC ---
+        if (positionType === null) {
+            if (d.buySignal) {
+                let openPosition = true;
+                if (useAIValidation) {
+                    if (i > 50) {
+                        const recentData = chartData.slice(i - 50, i);
+                        try {
+                            await new Promise(resolve => setTimeout(resolve, 4100));
+                            const prediction = await predictMarket({
+                                symbol,
+                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                strategySignal: 'BUY'
+                            });
+                            if (prediction.prediction !== 'UP') {
+                                openPosition = false;
+                            }
+                        } catch (e: any) {
+                            console.error("AI validation failed for buy signal", e);
+                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setIsBacktesting(false);
+                            return;
                         }
-                    } catch (e: any) {
-                        console.error("AI validation failed for buy signal", e);
-                        toast({
-                            title: "AI Validation Failed",
-                            description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.",
-                            variant: "destructive"
-                        });
-                        setIsBacktesting(false);
-                        return;
-                    }
-                 } else {
-                     openPosition = false; // Not enough data for AI
-                 }
-             }
-
-            if (openPosition) {
-                inPosition = true;
-                entryPrice = d.low;
-                entryTime = d.time;
-                stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
-                takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-
-                const positionValue = (initialCapital || 1) * (leverage || 1);
-                tradeQuantity = positionValue / entryPrice;
+                    } else { openPosition = false; }
+                }
+                if (openPosition) {
+                    positionType = 'long';
+                    entryPrice = d.low;
+                    entryTime = d.time;
+                    stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
+                    takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+                    const positionValue = (initialCapital || 1) * (leverage || 1);
+                    tradeQuantity = positionValue / entryPrice;
+                }
+            } else if (d.sellSignal) {
+                let openPosition = true;
+                if (useAIValidation) {
+                    if (i > 50) {
+                        const recentData = chartData.slice(i - 50, i);
+                        try {
+                            await new Promise(resolve => setTimeout(resolve, 4100));
+                            const prediction = await predictMarket({
+                                symbol,
+                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                strategySignal: 'SELL'
+                            });
+                            if (prediction.prediction !== 'DOWN') {
+                                openPosition = false;
+                            }
+                        } catch (e: any) {
+                            console.error("AI validation failed for sell signal", e);
+                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setIsBacktesting(false);
+                            return;
+                        }
+                    } else { openPosition = false; }
+                }
+                if (openPosition) {
+                    positionType = 'short';
+                    entryPrice = d.high;
+                    entryTime = d.time;
+                    stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
+                    takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+                    const positionValue = (initialCapital || 1) * (leverage || 1);
+                    tradeQuantity = positionValue / entryPrice;
+                }
             }
         }
     }
     
-    if (inPosition && dataWithSignals.length > 0) {
-      const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
-      const exitPrice = lastDataPoint.close;
-      const pnl = (exitPrice - entryPrice) * tradeQuantity;
-      const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
-      trades.push({
-        entryTime,
-        entryPrice,
-        exitTime: lastDataPoint.time,
-        exitPrice,
-        pnl,
-        pnlPercent,
-        closeReason: 'signal'
-      });
+    if (positionType !== null && dataWithSignals.length > 0) {
+        const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
+        const exitPrice = lastDataPoint.close;
+        let pnl, pnlPercent;
+        if (positionType === 'long') {
+            pnl = (exitPrice - entryPrice) * tradeQuantity;
+            pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
+        } else { // short
+            pnl = (entryPrice - exitPrice) * tradeQuantity;
+            pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
+        }
+        trades.push({ type: positionType, entryTime, entryPrice, exitTime: lastDataPoint.time, exitPrice, pnl, pnlPercent, closeReason: 'signal' });
     }
 
     const wins = trades.filter(t => t.pnl > 0);

@@ -52,12 +52,12 @@ export type StreamedDataPoint = {
 export type BacktestResult = {
   entryTime: number;
   entryPrice: number;
-
   exitTime: number;
   exitPrice: number;
   pnl: number;
   pnlPercent: number;
   closeReason: 'signal' | 'take-profit' | 'stop-loss';
+  type: 'long' | 'short';
 };
 
 export type BacktestSummary = {

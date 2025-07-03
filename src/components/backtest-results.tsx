@@ -64,7 +64,7 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                 <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
                     <TableRow>
-                    <TableHead>Type</TableHead>
+                    <TableHead>Side</TableHead>
                     <TableHead>Entry</TableHead>
                     <TableHead>Exit</TableHead>
                     <TableHead>Close Reason</TableHead>
@@ -76,8 +76,8 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                         results.map((trade, index) => (
                         <TableRow key={index}>
                             <TableCell>
-                                <Badge variant={trade.pnl > 0 ? "default" : "destructive"}>
-                                    {trade.pnl > 0 ? 'WIN' : 'LOSS'}
+                                <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
+                                    {trade.type === 'long' ? 'LONG' : 'SHORT'}
                                 </Badge>
                             </TableCell>
                             <TableCell>
