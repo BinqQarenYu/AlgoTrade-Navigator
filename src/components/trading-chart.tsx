@@ -247,7 +247,7 @@ export function TradingChart({
 
 
   const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';
-  const chartTitle = `${formattedSymbol} (${interval.toLocaleUpperCase()}) Price Chart`;
+  const chartTitle = `${formattedSymbol} (${(interval || '').toLocaleUpperCase()}) Price Chart`;
 
   return (
     <Card className="h-full flex flex-col">
@@ -275,4 +275,6 @@ export function TradingChart({
     </Card>
   );
 }
+    
+
     
