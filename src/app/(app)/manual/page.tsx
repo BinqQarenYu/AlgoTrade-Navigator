@@ -31,11 +31,7 @@ import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-
-const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
-];
+import { topAssetList } from "@/lib/assets"
 
 export default function ManualTradingPage() {
   const { isConnected } = useApi();
@@ -85,18 +81,19 @@ export default function ManualTradingPage() {
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
+    setManualChartData(symbol, newInterval);
   };
 
   const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
+    setManualChartData(newSymbol, interval);
   };
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null) {
       setManualChartData(symbol, interval);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, symbol, interval, setManualChartData]);
+  }, [isConnected, symbol, interval, setManualChartData, manualTraderState.isAnalyzing, manualTraderState.signal]);
 
 
   const hasActiveSignal = signal !== null;
@@ -171,7 +168,7 @@ export default function ManualTradingPage() {
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {assetList.map(asset => (
+                      {topAssetList.map(asset => (
                         <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
                       ))}
                     </SelectContent>

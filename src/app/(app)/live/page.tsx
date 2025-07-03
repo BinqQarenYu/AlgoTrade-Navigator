@@ -34,11 +34,7 @@ import type { HistoricalData, TradeSignal } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-
-const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "MATICUSDT", "LTCUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", "APTUSDT", "SUIUSDT", "OPUSDT"
-];
+import { topAssetList } from "@/lib/assets"
 
 export default function LiveTradingPage() {
   const { toast } = useToast()
@@ -257,7 +253,7 @@ export default function LiveTradingPage() {
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {assetList.map(asset => (
+                      {topAssetList.map(asset => (
                         <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
                       ))}
                     </SelectContent>

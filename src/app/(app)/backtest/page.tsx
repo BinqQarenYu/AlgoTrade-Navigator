@@ -39,16 +39,12 @@ import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formatio
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
+import { topAssetList } from "@/lib/assets"
 
 interface DateRange {
   from?: Date;
   to?: Date;
 }
-
-const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "MATICUSDT", "LTCUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", "APTUSDT", "SUIUSDT", "OPUSDT"
-];
 
 export default function BacktestPage() {
   const { toast } = useToast()
@@ -615,7 +611,7 @@ export default function BacktestPage() {
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {assetList.map(asset => (
+                      {topAssetList.map(asset => (
                         <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
                       ))}
                     </SelectContent>

@@ -16,12 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
-
-const allAssets = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "MATICUSDT", "LTCUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
-    "SHIBUSDT", "TRXUSDT", "BCHUSDT"
-];
+import { fullAssetList } from "@/lib/assets"
 
 export default function MultiSignalPage() {
     const { toast } = useToast();
@@ -97,7 +92,7 @@ export default function MultiSignalPage() {
                             <Label>Assets to Monitor</Label>
                             <ScrollArea className="h-40 w-full rounded-md border p-4">
                                 <div className="space-y-2">
-                                    {allAssets.map(asset => (
+                                    {fullAssetList.map(asset => (
                                         <div key={asset} className="flex items-center space-x-2">
                                             <Checkbox
                                                 id={asset}
