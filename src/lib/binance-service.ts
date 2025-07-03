@@ -3,8 +3,14 @@
 
 import type { Portfolio, Position, Trade, HistoricalData } from './types';
 import crypto from 'crypto';
+import ccxt from 'ccxt';
 
 const BINANCE_API_URL = 'https://fapi.binance.com';
+
+// CCXT instance for public market data (no API keys needed here)
+const binance = new ccxt.binanceusdm({
+    options: { defaultType: 'future' },
+});
 
 // Helper for authenticated Binance API calls
 const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<T> => {
@@ -90,7 +96,7 @@ export const getTradeHistory = async (symbol: string, apiKey: string, secretKey:
     }));
 };
 
-// Public endpoint, no authentication needed
+// Public endpoint, using CCXT for robustness
 export const getHistoricalKlines = async (
     symbol: string, 
     interval: string, 
@@ -103,40 +109,35 @@ export const getHistoricalKlines = async (
     }
     const upperSymbol = symbol.toUpperCase();
     console.log(`Fetching klines for ${upperSymbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-    const queryString = `symbol=${upperSymbol}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=1500`;
-    const url = `${BINANCE_API_URL}/fapi/v1/klines?${queryString}`;
     
-     try {
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            cache: 'no-store',
-        });
-        const data = await response.json();
-        if (!response.ok) {
-             throw new Error(`Binance API Error: ${data.msg || `Failed to fetch from /fapi/v1/klines`} (Code: ${data.code})`);
+    const limit = 1500;
+
+    try {
+        // Use CCXT's unified method to fetch OHLCV data
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit);
+
+        if (!Array.isArray(ohlcv)) {
+            throw new Error('Unexpected data format from CCXT fetchOHLCV.');
         }
 
-        if (!Array.isArray(data)) {
-            throw new Error('Unexpected data format from Binance klines API.');
-        }
-
-        return data.map((kline: any[]): HistoricalData => ({
+        // Map CCXT's array format [time, open, high, low, close, volume] to our HistoricalData object format
+        return ohlcv.map((kline: number[]): HistoricalData => ({
             time: kline[0],
-            open: parseFloat(kline[1]),
-            high: parseFloat(kline[2]),
-            low: parseFloat(kline[3]),
-            close: parseFloat(kline[4]),
-            volume: parseFloat(kline[5]),
+            open: kline[1],
+            high: kline[2],
+            low: kline[3],
+            close: kline[4],
+            volume: kline[5],
         }));
 
     } catch (error: any) {
-        console.error(`Error fetching klines from Binance API:`, error);
-        if (error.message.includes('Binance API Error')) {
-            throw error;
+        console.error(`Error fetching klines via CCXT:`, error);
+        if (error instanceof ccxt.NetworkError) {
+             throw new Error("Failed to connect to Binance. Please check your network connection.");
+        } else if (error instanceof ccxt.ExchangeError) {
+            throw new Error(`Binance Exchange Error: ${error.message}`);
+        } else {
+            throw new Error("An unexpected error occurred while fetching historical data.");
         }
-        throw new Error("Failed to connect to Binance. Please check your network connection.");
     }
 };
-
-    
