@@ -544,6 +544,7 @@ export default function BacktestPage() {
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="1m">1 Minute</SelectItem>
                       <SelectItem value="5m">5 Minutes</SelectItem>
                       <SelectItem value="15m">15 Minutes</SelectItem>
                       <SelectItem value="1h">1 Hour</SelectItem>
@@ -701,3 +702,5 @@ export default function BacktestPage() {
     </div>
   )
 }
+
+    
