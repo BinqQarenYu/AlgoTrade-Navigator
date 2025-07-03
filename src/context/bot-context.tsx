@@ -68,6 +68,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   });
   const multiSignalIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const multiSignalRunningRef = useRef(false);
+  const multiSignalConfigRef = useRef<MultiSignalConfig | null>(null);
 
   // --- Global Trading State ---
   const [isTradingActive, setIsTradingActive] = useState(false);
@@ -232,22 +233,30 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const longMA = indicatorFunc(closePrices, longPeriod);
                 
                 let lastSignalType: 'BUY' | 'SELL' | null = null;
-                for (let i = dataToAnalyze.length - 1; i >= longPeriod; i--) {
+                let lastSignalIndex = -1;
+
+                // Find the most recent signal event in the whole dataset
+                for (let i = longPeriod; i < dataToAnalyze.length; i++) {
                     if (!shortMA[i - 1] || !longMA[i - 1] || !shortMA[i] || !longMA[i]) continue;
                     
                     const crossedUp = shortMA[i - 1]! <= longMA[i - 1]! && shortMA[i]! > longMA[i]!;
                     const crossedDown = shortMA[i - 1]! >= longMA[i - 1]! && shortMA[i]! < longMA[i]!;
 
-                    if (crossedUp) { lastSignalType = 'BUY'; }
-                    else if (crossedDown) { lastSignalType = 'SELL'; }
+                    if (crossedUp) { 
+                        lastSignalType = 'BUY';
+                        lastSignalIndex = i;
+                    } else if (crossedDown) {
+                        lastSignalType = 'SELL';
+                        lastSignalIndex = i;
+                    }
+                }
 
-                    if (lastSignalType) {
-                        const signalAge = dataToAnalyze.length - 1 - i;
-                        if (signalAge < 5) {
-                            strategySignal = lastSignalType;
-                            signalCandle = dataToAnalyze[i];
-                        }
-                        break; 
+                // Check if the most recent signal is recent enough to be actionable
+                if (lastSignalType && lastSignalIndex > -1) {
+                    const signalAge = dataToAnalyze.length - 1 - lastSignalIndex;
+                    if (signalAge < 5) { // Is the signal within the last 5 candles?
+                        strategySignal = lastSignalType;
+                        signalCandle = dataToAnalyze[lastSignalIndex];
                     }
                 }
                 break;
@@ -257,22 +266,28 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const rsi = calculateRSI(closePrices, 14);
 
                 let lastSignalType: 'BUY' | 'SELL' | null = null;
-                for (let i = dataToAnalyze.length - 1; i >= 14; i--) {
+                let lastSignalIndex = -1;
+
+                for (let i = 14; i < dataToAnalyze.length; i++) {
                     if (!rsi[i - 1] || !rsi[i]) continue;
 
                     const crossedUp = rsi[i - 1]! <= 30 && rsi[i]! > 30;
                     const crossedDown = rsi[i - 1]! >= 70 && rsi[i]! < 70;
 
-                    if (crossedUp) { lastSignalType = 'BUY'; }
-                    else if (crossedDown) { lastSignalType = 'SELL'; }
+                    if (crossedUp) {
+                        lastSignalType = 'BUY';
+                        lastSignalIndex = i;
+                    } else if (crossedDown) {
+                        lastSignalType = 'SELL';
+                        lastSignalIndex = i;
+                    }
+                }
 
-                    if (lastSignalType) {
-                        const signalAge = dataToAnalyze.length - 1 - i;
-                        if (signalAge < 5) {
-                            strategySignal = lastSignalType;
-                            signalCandle = dataToAnalyze[i];
-                        }
-                        break;
+                if (lastSignalType && lastSignalIndex > -1) {
+                    const signalAge = dataToAnalyze.length - 1 - lastSignalIndex;
+                    if (signalAge < 5) { // Is the signal within the last 5 candles?
+                        strategySignal = lastSignalType;
+                        signalCandle = dataToAnalyze[lastSignalIndex];
                     }
                 }
                 break;
@@ -484,16 +499,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
-    if (!multiSignalRunningRef.current) return;
+    if (!multiSignalRunningRef.current || !multiSignalConfigRef.current) return;
+    const config = multiSignalConfigRef.current;
     
-    let config: MultiSignalConfig | null = null;
-    setMultiSignalState(prev => {
-        config = prev.config;
-        return prev;
-    });
-
-    if (!config) return;
-
     addMultiLog("Running sequential analysis for all assets...");
 
     for (const asset of config.assets) {
@@ -539,6 +547,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
     
     multiSignalRunningRef.current = true;
+    multiSignalConfigRef.current = config;
     addMultiLog("Starting multi-signal monitor...");
     
     const initialResults: Record<string, SignalResult> = {};
@@ -556,6 +565,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const stopMultiSignalMonitor = useCallback(() => {
     multiSignalRunningRef.current = false;
+    multiSignalConfigRef.current = null;
     if (multiSignalIntervalRef.current) {
         clearInterval(multiSignalIntervalRef.current);
         multiSignalIntervalRef.current = null;
