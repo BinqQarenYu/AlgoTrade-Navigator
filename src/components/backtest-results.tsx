@@ -4,10 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import type { BacktestResult, BacktestSummary } from "@/lib/types";
 import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 type BacktestResultsProps = {
   results: BacktestResult[];
   summary: BacktestSummary | null;
+  onSelectTrade: (trade: BacktestResult) => void;
+  selectedTradeId?: string | null;
 };
 
 const SummaryStat = ({ label, value }: { label: string, value: string | React.ReactNode }) => (
@@ -17,7 +20,7 @@ const SummaryStat = ({ label, value }: { label: string, value: string | React.Re
     </div>
 );
 
-export function BacktestResults({ results, summary }: BacktestResultsProps) {
+export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
   if (!summary) {
     return (
         <Card>
@@ -43,7 +46,7 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
     <Card>
       <CardHeader>
         <CardTitle>Backtest Results</CardTitle>
-        <CardDescription>A summary of the simulated trading performance.</CardDescription>
+        <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-4">
@@ -73,8 +76,15 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                 </TableHeader>
                 <TableBody>
                     {results.length > 0 ? (
-                        results.map((trade, index) => (
-                        <TableRow key={index}>
+                        results.map((trade) => (
+                        <TableRow 
+                            key={trade.id}
+                            onClick={() => onSelectTrade(trade)}
+                            className={cn(
+                                "cursor-pointer hover:bg-muted/80",
+                                selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
+                            )}
+                        >
                             <TableCell>
                                 <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
                                     {trade.type === 'long' ? 'LONG' : 'SHORT'}

@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -32,7 +32,7 @@ import { CalendarIcon, Loader2, Terminal } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib";
 import { BacktestResults } from "@/components/backtest-results"
@@ -65,6 +65,8 @@ export default function BacktestPage() {
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
+
 
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
@@ -94,6 +96,7 @@ export default function BacktestPage() {
         setIsFetchingData(true);
         setBacktestResults([]);
         setSummaryStats(null);
+        setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
@@ -138,6 +141,7 @@ export default function BacktestPage() {
     setIsBacktesting(true)
     setBacktestResults([]);
     setSummaryStats(null);
+    setSelectedTrade(null);
     toast({
       title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
       description: useAIValidation 
@@ -281,7 +285,19 @@ export default function BacktestPage() {
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (exitPrice - entryPrice) * tradeQuantity;
                 const pnlPercent = (pnl / marginPerTrade) * 100;
-                trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
+                trades.push({
+                    id: `trade_${trades.length}`,
+                    type: 'long', 
+                    entryTime, 
+                    entryPrice, 
+                    exitTime: d.time, 
+                    exitPrice, 
+                    pnl, 
+                    pnlPercent, 
+                    closeReason,
+                    stopLoss: stopLossPrice,
+                    takeProfit: takeProfitPrice
+                });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
@@ -328,7 +344,19 @@ export default function BacktestPage() {
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (entryPrice - exitPrice) * tradeQuantity;
                 const pnlPercent = (pnl / marginPerTrade) * 100;
-                trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
+                trades.push({
+                    id: `trade_${trades.length}`,
+                    type: 'short', 
+                    entryTime, 
+                    entryPrice, 
+                    exitTime: d.time, 
+                    exitPrice, 
+                    pnl, 
+                    pnlPercent, 
+                    closeReason,
+                    stopLoss: stopLossPrice,
+                    takeProfit: takeProfitPrice
+                });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
@@ -426,7 +454,18 @@ export default function BacktestPage() {
         }
 
         const pnlPercent = (pnl / marginPerTrade) * 100;
-        trades.push({ type: positionType, entryTime, entryPrice, exitTime: lastDataPoint.time, exitPrice, pnl, pnlPercent, closeReason: 'signal' });
+        trades.push({ 
+            id: `trade_${trades.length}`,
+            type: positionType, 
+            entryTime, 
+            entryPrice, 
+            exitTime: lastDataPoint.time, 
+            exitPrice, pnl, 
+            pnlPercent, 
+            closeReason: 'signal',
+            stopLoss: stopLossPrice,
+            takeProfit: takeProfitPrice 
+        });
     }
 
     const wins = trades.filter(t => t.pnl > 0);
@@ -489,6 +528,20 @@ export default function BacktestPage() {
   
   const anyLoading = isBacktesting || isFetchingData;
 
+  const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
+    if (!selectedTrade) return null;
+    return {
+      action: selectedTrade.type === 'long' ? 'UP' : 'DOWN',
+      entryPrice: selectedTrade.entryPrice,
+      stopLoss: selectedTrade.stopLoss,
+      takeProfit: selectedTrade.takeProfit,
+      confidence: 1,
+      reasoning: `Trade from backtest. Closed due to ${selectedTrade.closeReason}.`,
+      timestamp: new Date(selectedTrade.entryTime),
+      strategy: selectedStrategy,
+    };
+  }, [selectedTrade, selectedStrategy]);
+
   return (
     <div className="flex flex-col h-full">
     {!isConnected && (
@@ -502,7 +555,7 @@ export default function BacktestPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} />
+        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} tradeSignal={tradeSignalForChart} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -697,7 +750,12 @@ export default function BacktestPage() {
             </Button>
           </CardFooter>
         </Card>
-        <BacktestResults results={backtestResults} summary={summaryStats} />
+        <BacktestResults 
+          results={backtestResults} 
+          summary={summaryStats} 
+          onSelectTrade={setSelectedTrade}
+          selectedTradeId={selectedTrade?.id}
+        />
         <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
       </div>
     </div>

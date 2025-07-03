@@ -52,6 +52,7 @@ export type StreamedDataPoint = {
 };
 
 export type BacktestResult = {
+  id: string;
   entryTime: number;
   entryPrice: number;
   exitTime: number;
@@ -60,6 +61,8 @@ export type BacktestResult = {
   pnlPercent: number;
   closeReason: 'signal' | 'take-profit' | 'stop-loss';
   type: 'long' | 'short';
+  stopLoss: number;
+  takeProfit: number;
 };
 
 export type BacktestSummary = {
@@ -114,4 +117,3 @@ export type ManualTraderConfig = {
     useAIPrediction: boolean;
 }
     
-
