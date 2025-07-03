@@ -67,6 +67,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     isRunning: false, config: null, results: {}, logs: []
   });
   const multiSignalIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const multiSignalRunningRef = useRef(false);
 
   // --- Global Trading State ---
   const [isTradingActive, setIsTradingActive] = useState(false);
@@ -229,44 +230,50 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const indicatorFunc = isSMA ? calculateSMA : calculateEMA;
                 const shortMA = indicatorFunc(closePrices, shortPeriod);
                 const longMA = indicatorFunc(closePrices, longPeriod);
-                let lastSignalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-                let lastSignalIndex = -1;
-                for (let i = longPeriod; i < dataToAnalyze.length; i++) {
+                
+                let lastSignalType: 'BUY' | 'SELL' | null = null;
+                for (let i = dataToAnalyze.length - 1; i >= longPeriod; i--) {
                     if (!shortMA[i - 1] || !longMA[i - 1] || !shortMA[i] || !longMA[i]) continue;
-                    if (shortMA[i - 1]! <= longMA[i - 1]! && shortMA[i]! > longMA[i]!) {
-                        lastSignalType = 'BUY';
-                        lastSignalIndex = i;
+                    
+                    const crossedUp = shortMA[i - 1]! <= longMA[i - 1]! && shortMA[i]! > longMA[i]!;
+                    const crossedDown = shortMA[i - 1]! >= longMA[i - 1]! && shortMA[i]! < longMA[i]!;
+
+                    if (crossedUp) { lastSignalType = 'BUY'; }
+                    else if (crossedDown) { lastSignalType = 'SELL'; }
+
+                    if (lastSignalType) {
+                        const signalAge = dataToAnalyze.length - 1 - i;
+                        if (signalAge < 5) {
+                            strategySignal = lastSignalType;
+                            signalCandle = dataToAnalyze[i];
+                        }
+                        break; 
                     }
-                    if (shortMA[i - 1]! >= longMA[i - 1]! && shortMA[i]! < longMA[i]!) {
-                        lastSignalType = 'SELL';
-                        lastSignalIndex = i;
-                    }
-                }
-                if (lastSignalIndex !== -1 && (dataToAnalyze.length - 1 - lastSignalIndex) < 5) {
-                    strategySignal = lastSignalType;
-                    signalCandle = dataToAnalyze[lastSignalIndex];
                 }
                 break;
             }
             case "rsi-divergence": {
                 const closePrices = dataToAnalyze.map(d => d.close);
                 const rsi = calculateRSI(closePrices, 14);
-                let lastSignalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-                let lastSignalIndex = -1;
-                for (let i = 14; i < dataToAnalyze.length; i++) {
+
+                let lastSignalType: 'BUY' | 'SELL' | null = null;
+                for (let i = dataToAnalyze.length - 1; i >= 14; i--) {
                     if (!rsi[i - 1] || !rsi[i]) continue;
-                    if (rsi[i - 1]! <= 30 && rsi[i]! > 30) {
-                        lastSignalType = 'BUY';
-                        lastSignalIndex = i;
+
+                    const crossedUp = rsi[i - 1]! <= 30 && rsi[i]! > 30;
+                    const crossedDown = rsi[i - 1]! >= 70 && rsi[i]! < 70;
+
+                    if (crossedUp) { lastSignalType = 'BUY'; }
+                    else if (crossedDown) { lastSignalType = 'SELL'; }
+
+                    if (lastSignalType) {
+                        const signalAge = dataToAnalyze.length - 1 - i;
+                        if (signalAge < 5) {
+                            strategySignal = lastSignalType;
+                            signalCandle = dataToAnalyze[i];
+                        }
+                        break;
                     }
-                    if (rsi[i - 1]! >= 70 && rsi[i]! < 70) {
-                        lastSignalType = 'SELL';
-                        lastSignalIndex = i;
-                    }
-                }
-                if (lastSignalIndex !== -1 && (dataToAnalyze.length - 1 - lastSignalIndex) < 5) {
-                    strategySignal = lastSignalType;
-                    signalCandle = dataToAnalyze[lastSignalIndex];
                 }
                 break;
             }
@@ -274,6 +281,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 dataWithSignals = await calculatePeakFormationFibSignals(dataToAnalyze);
                 let lastSignalIndex = -1;
                 let signalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+                
                 for (let i = dataWithSignals.length - 1; i >= 0; i--) {
                     const candle = dataWithSignals[i];
                     if (candle.buySignal || candle.sellSignal) {
@@ -282,6 +290,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         break;
                     }
                 }
+
                 if (lastSignalIndex !== -1 && (dataWithSignals.length - 1 - lastSignalIndex) < 10) {
                     strategySignal = signalType;
                     signalCandle = dataWithSignals[lastSignalIndex];
@@ -329,6 +338,23 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // --- Manual Trader Logic ---
+  const setManualChartData = useCallback(async (symbol: string, interval: string) => {
+    if (manualTraderState.isAnalyzing || manualTraderState.signal !== null) return;
+    
+    setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
+    
+    addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
+    try {
+        const from = addDays(new Date(), -3).getTime();
+        const to = new Date().getTime();
+        const klines = await getHistoricalKlines(symbol, interval, from, to);
+        setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
+    } catch (error: any) {
+        toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
+        addManualLog(`Error loading data: ${error.message}`);
+    }
+  }, [addManualLog, manualTraderState.isAnalyzing, manualTraderState.signal, toast]);
+
   const connectManualWebSocket = useCallback((symbol: string, interval: string) => {
     if (manualWsRef.current) manualWsRef.current.close();
     
@@ -429,7 +455,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
     addManualLog("Running analysis...");
     
-    const result = await analyzeAsset(config);
+    await setManualChartData(config.symbol, config.interval);
+
+    const result = await analyzeAsset({ ...config });
 
     if (manualAnalysisCancelRef.current) {
         addManualLog("Analysis canceled, results discarded.");
@@ -452,64 +480,67 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
     }
 
-  }, [addManualLog, toast, connectManualWebSocket, analyzeAsset]);
-
-  const setManualChartData = useCallback(async (symbol: string, interval: string) => {
-    if (manualTraderState.isAnalyzing || manualTraderState.signal !== null) return;
-    
-    if (manualWsRef.current) {
-        manualWsRef.current.close(1000, "New data fetch requested");
-    }
-    setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
-    
-    addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
-    try {
-        const from = addDays(new Date(), -3).getTime();
-        const to = new Date().getTime();
-        const klines = await getHistoricalKlines(symbol, interval, from, to);
-        setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
-    } catch (error: any) {
-        toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
-        addManualLog(`Error loading data: ${error.message}`);
-    }
-  }, [addManualLog, manualTraderState.isAnalyzing, manualTraderState.signal, toast]);
+  }, [addManualLog, toast, connectManualWebSocket, analyzeAsset, setManualChartData]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
-    const { isRunning, config } = multiSignalState;
-    if (!isRunning || !config) return;
-
-    addMultiLog("Running analysis cycle for all assets...");
-
-    const analysisPromises = config.assets.map(asset => {
-      setMultiSignalState(prev => ({
-        ...prev,
-        results: { ...prev.results, [asset]: { ...prev.results[asset], status: 'analyzing' } }
-      }));
-      return analyzeAsset({ ...config, symbol: asset });
-    });
-
-    const settledResults = await Promise.allSettled(analysisPromises);
-
-    const newResults: Record<string, SignalResult> = {};
-    settledResults.forEach((result, index) => {
-      const asset = config.assets[index];
-      if (result.status === 'fulfilled') {
-        newResults[asset] = result.value;
-      } else {
-        console.error(`Unhandled promise rejection for ${asset}:`, result.reason);
-        newResults[asset] = { status: 'error', log: 'An unexpected error occurred.', signal: null };
-      }
-    });
+    if (!multiSignalRunningRef.current) return;
     
-    setMultiSignalState(prev => ({ ...prev, results: { ...prev.results, ...newResults } }));
-    addMultiLog("Analysis cycle complete.");
+    let config: MultiSignalConfig | null = null;
+    setMultiSignalState(prev => {
+        config = prev.config;
+        return prev;
+    });
 
-  }, [multiSignalState, analyzeAsset, addMultiLog]);
+    if (!config) return;
+
+    addMultiLog("Running sequential analysis for all assets...");
+
+    for (const asset of config.assets) {
+        if (!multiSignalRunningRef.current) {
+            addMultiLog("Monitor stopped during cycle. Aborting.");
+            break;
+        }
+
+        setMultiSignalState(prev => ({
+            ...prev,
+            results: { ...prev.results, [asset]: { ...prev.results[asset], status: 'analyzing' } }
+        }));
+
+        try {
+            const result = await analyzeAsset({ ...config, symbol: asset });
+            
+            if (!multiSignalRunningRef.current) break;
+
+            setMultiSignalState(prev => ({
+                ...prev,
+                results: { ...prev.results, [asset]: result }
+            }));
+
+        } catch (e: any) {
+            console.error(`Unhandled error analyzing ${asset}:`, e);
+            if (!multiSignalRunningRef.current) break;
+            setMultiSignalState(prev => ({
+                ...prev,
+                results: { ...prev.results, [asset]: { status: 'error', log: 'An unexpected error occurred.', signal: null } }
+            }));
+        }
+    }
+
+    if (multiSignalRunningRef.current) {
+        addMultiLog("Analysis cycle complete.");
+    }
+  }, [analyzeAsset, addMultiLog]);
 
 
   const startMultiSignalMonitor = useCallback((config: MultiSignalConfig) => {
+    if (multiSignalIntervalRef.current) {
+        clearInterval(multiSignalIntervalRef.current);
+    }
+    
+    multiSignalRunningRef.current = true;
     addMultiLog("Starting multi-signal monitor...");
+    
     const initialResults: Record<string, SignalResult> = {};
     config.assets.forEach(asset => {
         initialResults[asset] = { status: 'monitoring', log: 'Waiting for first cycle.', signal: null };
@@ -524,6 +555,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addMultiLog, toast, runMultiSignalCheck]);
 
   const stopMultiSignalMonitor = useCallback(() => {
+    multiSignalRunningRef.current = false;
     if (multiSignalIntervalRef.current) {
         clearInterval(multiSignalIntervalRef.current);
         multiSignalIntervalRef.current = null;
@@ -536,6 +568,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      multiSignalRunningRef.current = false;
       if (liveBotIntervalRef.current) clearInterval(liveBotIntervalRef.current);
       if (manualWsRef.current) manualWsRef.current.close();
       if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
