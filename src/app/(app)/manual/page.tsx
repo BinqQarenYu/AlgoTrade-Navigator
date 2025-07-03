@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useTransition, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Loader2, BrainCircuit, ClipboardCheck, Play, StopCircle, Activity } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Play, StopCircle, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
 import type { HistoricalData, TradeSignal } from "@/lib/types"
@@ -85,8 +85,8 @@ export default function ManualTradingPage() {
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 100));
   }
 
-  const fetchData = async () => {
-    if (!isConnected) return;
+  const fetchData = async (): Promise<HistoricalData[] | null> => {
+    if (!isConnected) return null;
     setIsFetchingData(true);
     addLog(`Fetching latest ${interval} data for ${symbol}...`);
     try {
@@ -94,6 +94,7 @@ export default function ManualTradingPage() {
         const to = new Date().getTime();
         const klines = await getHistoricalKlines(symbol, interval, from, to);
         setChartData(klines);
+        return klines;
     } catch (error: any) {
         console.error("Failed to fetch historical data:", error);
         toast({
@@ -102,6 +103,8 @@ export default function ManualTradingPage() {
             variant: "destructive"
         });
         addLog(`Error fetching data: ${error.message}`);
+        setChartData([]);
+        return null;
     } finally {
         setIsFetchingData(false);
     }
@@ -119,149 +122,145 @@ export default function ManualTradingPage() {
 
   const runAnalysisCycle = async () => {
     addLog("Running analysis cycle...");
-    await fetchData(); // Get the absolute latest data
+    const newChartData = await fetchData();
 
-    // Use a transition to avoid blocking UI, but we need to wait for chartData to be updated.
-    // A small timeout helps ensure the state has propagated.
-    setTimeout(async () => {
-       if (chartData.length < 50) {
-            addLog("Not enough data to analyze. Waiting...");
+    if (!newChartData || newChartData.length < 50) {
+      addLog("Not enough data to analyze. Waiting...");
+      return;
+    }
+
+    const latestCandle = newChartData[newChartData.length - 1];
+
+    // --- Active Signal Monitoring ---
+    if (tradeSignal) {
+        if (tradeSignal.action === 'UP' && latestCandle.low <= tradeSignal.stopLoss) {
+            addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
+            toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
+            setTradeSignal(null);
+            return; // End cycle, look for new signal next time
+        }
+        if (tradeSignal.action === 'DOWN' && latestCandle.high >= tradeSignal.stopLoss) {
+             addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
+             toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
+             setTradeSignal(null);
+             return;
+        }
+        if (tradeSignal.action === 'UP' && latestCandle.high >= tradeSignal.takeProfit) {
+            addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
+            toast({ title: "Target Reached", description: "The Take Profit level was hit." });
+            setTradeSignal(null);
             return;
         }
-
-        const latestCandle = chartData[chartData.length - 1];
-
-        // --- Active Signal Monitoring ---
-        if (tradeSignal) {
-            if (tradeSignal.action === 'UP' && latestCandle.low <= tradeSignal.stopLoss) {
-                addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
-                toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
-                setTradeSignal(null);
-                return; // End cycle, look for new signal next time
-            }
-            if (tradeSignal.action === 'DOWN' && latestCandle.high >= tradeSignal.stopLoss) {
-                 addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
-                 toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
-                 setTradeSignal(null);
-                 return;
-            }
-            if (tradeSignal.action === 'UP' && latestCandle.high >= tradeSignal.takeProfit) {
-                addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
-                toast({ title: "Target Reached", description: "The Take Profit level was hit." });
-                setTradeSignal(null);
-                return;
-            }
-            if (tradeSignal.action === 'DOWN' && latestCandle.low <= tradeSignal.takeProfit) {
-                 addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
-                 toast({ title: "Target Reached", description: "The Take Profit level was hit." });
-                 setTradeSignal(null);
-                 return;
-            }
-            addLog("Signal active. Monitoring SL/TP levels...");
-            return; // No need to look for a new signal
+        if (tradeSignal.action === 'DOWN' && latestCandle.low <= tradeSignal.takeProfit) {
+             addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
+             toast({ title: "Target Reached", description: "The Take Profit level was hit." });
+             setTradeSignal(null);
+             return;
         }
+        addLog("Signal active. Monitoring SL/TP levels...");
+        return; // No need to look for a new signal
+    }
+
+    // --- Look for a new signal ---
+    addLog("No active signal. Searching for a new setup...");
+    let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+    const closePrices = newChartData.map(d => d.close);
+
+    switch (selectedStrategy) {
+        case 'sma-crossover': {
+            const shortPeriod = 20; const longPeriod = 50;
+            const sma_short = calculateSMA(closePrices, shortPeriod); const sma_long = calculateSMA(closePrices, longPeriod);
+            const last_sma_short = sma_short[sma_short.length - 1]; const prev_sma_short = sma_short[sma_short.length - 2];
+            const last_sma_long = sma_long[sma_long.length - 1]; const prev_sma_long = sma_long[sma_long.length - 2];
+            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
+                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
+                else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
+            }
+            break;
+        }
+        case 'ema-crossover': {
+            const shortPeriod = 12; const longPeriod = 26;
+            const ema_short = calculateEMA(closePrices, shortPeriod); const ema_long = calculateEMA(closePrices, longPeriod);
+            const last_ema_short = ema_short[ema_short.length - 1]; const prev_ema_short = ema_short[ema_short.length - 2];
+            const last_ema_long = ema_long[ema_long.length - 1]; const prev_ema_long = ema_long[ema_long.length - 2];
+            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
+                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
+                else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
+            }
+            break;
+        }
+        case 'rsi-divergence': {
+            const period = 14; const rsi = calculateRSI(closePrices, period);
+            const last_rsi = rsi[rsi.length - 1]; const prev_rsi = rsi[rsi.length - 2];
+            const oversold = 30; const overbought = 70;
+            if (prev_rsi && last_rsi) {
+                if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
+                else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
+            }
+            break;
+        }
+        case 'peak-formation-fib': {
+            const dataWithSignals = await calculatePeakFormationFibSignals(newChartData);
+            const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
+            if (lastSignal?.buySignal) strategySignal = 'BUY';
+            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
+            break;
+        }
+    }
     
-        // --- Look for a new signal ---
-        addLog("No active signal. Searching for a new setup...");
-        let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-        const closePrices = chartData.map(d => d.close);
+    if (strategySignal === 'HOLD') {
+        addLog("No signal generated by the strategy.");
+        return;
+    }
+    
+    addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Validating with AI...`);
+    let prediction: PredictMarketOutput;
 
-        switch (selectedStrategy) {
-            case 'sma-crossover': {
-                const shortPeriod = 20; const longPeriod = 50;
-                const sma_short = calculateSMA(closePrices, shortPeriod); const sma_long = calculateSMA(closePrices, longPeriod);
-                const last_sma_short = sma_short[sma_short.length - 1]; const prev_sma_short = sma_short[sma_short.length - 2];
-                const last_sma_long = sma_long[sma_long.length - 1]; const prev_sma_long = sma_long[sma_long.length - 2];
-                if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                    if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
-                    else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
-                }
-                break;
-            }
-            case 'ema-crossover': {
-                const shortPeriod = 12; const longPeriod = 26;
-                const ema_short = calculateEMA(closePrices, shortPeriod); const ema_long = calculateEMA(closePrices, longPeriod);
-                const last_ema_short = ema_short[ema_short.length - 1]; const prev_ema_short = ema_short[ema_short.length - 2];
-                const last_ema_long = ema_long[ema_long.length - 1]; const prev_ema_long = ema_long[ema_long.length - 2];
-                if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                    if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
-                    else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
-                }
-                break;
-            }
-            case 'rsi-divergence': {
-                const period = 14; const rsi = calculateRSI(closePrices, period);
-                const last_rsi = rsi[rsi.length - 1]; const prev_rsi = rsi[rsi.length - 2];
-                const oversold = 30; const overbought = 70;
-                if (prev_rsi && last_rsi) {
-                    if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
-                    else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
-                }
-                break;
-            }
-            case 'peak-formation-fib': {
-                const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
-                const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
-                if (lastSignal?.buySignal) strategySignal = 'BUY';
-                else if (lastSignal?.sellSignal) strategySignal = 'SELL';
-                break;
-            }
+    try {
+        if (useAIPrediction) {
+            const recentData = newChartData.slice(-50);
+            prediction = await predictMarket({
+                symbol,
+                recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
+                strategySignal
+            });
+        } else {
+             prediction = {
+                prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
+                confidence: 1,
+                reasoning: `Signal generated directly from the '${selectedStrategy}' strategy without AI validation.`
+            };
         }
+      
+        const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
-        if (strategySignal === 'HOLD') {
-            addLog("No signal generated by the strategy.");
-            return;
-        }
-        
-        addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Validating with AI...`);
-        let prediction: PredictMarketOutput;
+        if (aiConfirms) {
+            const currentPrice = newChartData[newChartData.length - 1].close;
+            const stopLossPrice = prediction.prediction === 'UP' ? currentPrice * (1 - (stopLoss / 100)) : currentPrice * (1 + (stopLoss / 100));
+            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (takeProfit / 100)) : currentPrice * (1 - (takeProfit / 100));
 
-        try {
-            if (useAIPrediction) {
-                const recentData = chartData.slice(-50);
-                prediction = await predictMarket({
-                    symbol,
-                    recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
-                    strategySignal
-                });
-            } else {
-                 prediction = {
-                    prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
-                    confidence: 1,
-                    reasoning: `Signal generated directly from the '${selectedStrategy}' strategy without AI validation.`
-                };
-            }
-          
-            const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
-            
-            if (aiConfirms) {
-                const currentPrice = chartData[chartData.length - 1].close;
-                const stopLossPrice = prediction.prediction === 'UP' ? currentPrice * (1 - (stopLoss / 100)) : currentPrice * (1 + (stopLoss / 100));
-                const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (takeProfit / 100)) : currentPrice * (1 - (takeProfit / 100));
-
-                const newSignal = {
-                    action: prediction.prediction,
-                    entryPrice: currentPrice,
-                    stopLoss: stopLossPrice,
-                    takeProfit: takeProfitPrice,
-                    confidence: prediction.confidence,
-                    reasoning: prediction.reasoning,
-                    timestamp: new Date(),
-                    strategy: selectedStrategy
-                };
-                setTradeSignal(newSignal);
-                addLog(`NEW SIGNAL: ${newSignal.action} at $${newSignal.entryPrice.toFixed(4)}. SL: $${newSignal.stopLoss.toFixed(4)}, TP: $${newSignal.takeProfit.toFixed(4)}`);
-                toast({ title: "Trade Signal Generated!", description: "Review the signal details. Now actively monitoring." });
-            } else {
-                addLog(`AI invalidated signal. Strategy said ${strategySignal}, AI said ${prediction.prediction}. No trade.`);
-                toast({ title: "Signal Invalidated by AI", description: `The AI suggested ${prediction.prediction} against the strategy's ${strategySignal} signal.`, variant: "destructive" });
-            }
-        } catch (error) {
-           console.error("Analysis failed", error);
-           addLog(`Error: AI analysis failed.`);
-           toast({ title: "AI Analysis Failed", description: "Could not get a response from the AI. Please try again.", variant: "destructive" });
+            const newSignal = {
+                action: prediction.prediction,
+                entryPrice: currentPrice,
+                stopLoss: stopLossPrice,
+                takeProfit: takeProfitPrice,
+                confidence: prediction.confidence,
+                reasoning: prediction.reasoning,
+                timestamp: new Date(),
+                strategy: selectedStrategy
+            };
+            setTradeSignal(newSignal);
+            addLog(`NEW SIGNAL: ${newSignal.action} at $${newSignal.entryPrice.toFixed(4)}. SL: $${newSignal.stopLoss.toFixed(4)}, TP: $${newSignal.takeProfit.toFixed(4)}`);
+            toast({ title: "Trade Signal Generated!", description: "Review the signal details. Now actively monitoring." });
+        } else {
+            addLog(`AI invalidated signal. Strategy said ${strategySignal}, AI said ${prediction.prediction}. No trade.`);
+            toast({ title: "Signal Invalidated by AI", description: `The AI suggested ${prediction.prediction} against the strategy's ${strategySignal} signal.`, variant: "destructive" });
         }
-    }, 500);
+    } catch (error) {
+       console.error("Analysis failed", error);
+       addLog(`Error: AI analysis failed.`);
+       toast({ title: "AI Analysis Failed", description: "Could not get a response from the AI. Please try again.", variant: "destructive" });
+    }
   }
 
   const requestWakeLock = async () => {
@@ -525,5 +524,3 @@ export default function ManualTradingPage() {
     </div>
   )
 }
-
-    
