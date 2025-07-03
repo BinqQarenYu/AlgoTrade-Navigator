@@ -164,7 +164,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         addLiveLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
     } catch (error) {
        console.error("Prediction failed", error);
-       toast({ title: "AI Prediction Failed", variant: "destructive" });
+       setTimeout(() => toast({ title: "AI Prediction Failed", variant: "destructive" }), 0);
        addLiveLog("Error: AI prediction failed.");
        setLiveBotState(prev => ({ ...prev, isPredicting: false }));
     }
@@ -354,8 +354,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Manual Trader Logic ---
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
-    if (manualTraderState.isAnalyzing || manualTraderState.signal !== null) return;
-    
     setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
     
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
@@ -368,7 +366,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
         addManualLog(`Error loading data: ${error.message}`);
     }
-  }, [addManualLog, manualTraderState.isAnalyzing, manualTraderState.signal, toast]);
+  }, [addManualLog, toast]);
 
   const connectManualWebSocket = useCallback((symbol: string, interval: string) => {
     if (manualWsRef.current) manualWsRef.current.close();
@@ -391,6 +389,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
       setManualTraderState(prev => {
         const newData = [...prev.chartData];
+        let newChartData = prev.chartData;
+
         if (newData.length > 0) {
             const lastCandle = newData[newData.length - 1];
             if (lastCandle.time === newCandle.time) {
@@ -398,11 +398,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             } else {
               newData.push(newCandle);
             }
+             const sortedData = newData.sort((a, b) => a.time - b.time);
+            newChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
         } else {
             newData.push(newCandle);
+            newChartData = newData;
         }
-        const sortedData = newData.sort((a, b) => a.time - b.time);
-        const updatedChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
 
         if (prev.signal && prev.signal.peakPrice) {
           let invalidated = false;
@@ -425,11 +426,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
              }, 0);
             addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
             manualWsRef.current?.close();
-            return { ...prev, signal: null, chartData: updatedChartData };
+            return { ...prev, signal: null, chartData: newChartData };
           }
         }
         
-        return { ...prev, chartData: updatedChartData };
+        return { ...prev, chartData: newChartData };
       });
     };
     
@@ -488,9 +489,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     } else {
         addManualLog(result.log);
         if(result.status === 'error') {
-            toast({ title: "Analysis Failed", description: result.log, variant: "destructive" });
+             setTimeout(() => toast({ title: "Analysis Failed", description: result.log, variant: "destructive" }), 0);
         } else {
-            toast({ title: "No Signal Found", description: result.log });
+            setTimeout(() => toast({ title: "No Signal Found", description: result.log }), 0);
         }
         setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
     }

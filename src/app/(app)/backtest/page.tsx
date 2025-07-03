@@ -268,7 +268,7 @@ export default function BacktestPage() {
                             }
                         } catch (e: any) {
                            console.error("AI validation failed for sell signal", e);
-                           toast({ title: "AI Validation Failed", description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.", variant: "destructive" });
+                           setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest was stopped because the AI failed to respond, likely due to API rate limits.", variant: "destructive" }), 0);
                            setIsBacktesting(false);
                            return;
                         }
@@ -332,7 +332,7 @@ export default function BacktestPage() {
                             }
                         } catch (e: any) {
                             console.error("AI validation failed for buy signal", e);
-                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
                             setIsBacktesting(false);
                             return;
                         }
@@ -390,7 +390,7 @@ export default function BacktestPage() {
                             }
                         } catch (e: any) {
                             console.error("AI validation failed for buy signal", e);
-                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
                             setIsBacktesting(false);
                             return;
                         }
@@ -426,7 +426,7 @@ export default function BacktestPage() {
                             }
                         } catch (e: any) {
                             console.error("AI validation failed for sell signal", e);
-                            toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" });
+                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
                             setIsBacktesting(false);
                             return;
                         }
