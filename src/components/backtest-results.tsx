@@ -5,6 +5,8 @@ import type { BacktestResult, BacktestSummary } from "@/lib/types";
 import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Info } from "lucide-react";
 
 type BacktestResultsProps = {
   results: BacktestResult[];
@@ -13,12 +15,33 @@ type BacktestResultsProps = {
   selectedTradeId?: string | null;
 };
 
-const SummaryStat = ({ label, value }: { label: string, value: string | React.ReactNode }) => (
+const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: React.ReactNode, tooltipContent?: string }) => {
+  if (tooltipContent) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex flex-col items-center justify-center p-2 rounded-md bg-muted/50 text-center cursor-help">
+            <div className="text-xs text-muted-foreground flex items-center gap-1">
+              {label}
+              <Info className="h-3 w-3" />
+            </div>
+            <div className="text-base md:text-lg font-bold truncate">{value}</div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p className="max-w-xs">{tooltipContent}</p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
     <div className="flex flex-col items-center justify-center p-2 rounded-md bg-muted/50 text-center">
         <div className="text-xs text-muted-foreground">{label}</div>
         <div className="text-base md:text-lg font-bold truncate">{value}</div>
     </div>
-);
+  );
+};
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
   if (!summary) {
@@ -50,10 +73,26 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
-            <SummaryStat label="Net PNL" value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>} />
-            <SummaryStat label="Win Rate" value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>} />
-            <SummaryStat label="Profit Factor" value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>} />
-            <SummaryStat label="Total Return" value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>} />
+            <SummaryStat 
+                label="Net PNL" 
+                value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>}
+                tooltipContent="The total profit or loss from all trades, after deducting all commission fees. Formula: Gross P/L - Total Fees."
+            />
+            <SummaryStat 
+                label="Win Rate" 
+                value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>}
+                tooltipContent="The percentage of trades that were profitable (closed with a positive PNL). Formula: (Winning Trades / Total Trades) * 100."
+            />
+            <SummaryStat 
+                label="Profit Factor" 
+                value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>}
+                tooltipContent="The ratio of gross profit to gross loss. A value greater than 1 indicates a profitable system. Formula: Gross Profit / Gross Loss."
+            />
+            <SummaryStat 
+                label="Total Return" 
+                value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>}
+                tooltipContent="The total percentage return on your initial capital. Formula: (Net PNL / Initial Capital) * 100."
+            />
             <SummaryStat label="Total Trades" value={summary.totalTrades} />
             <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
             <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
