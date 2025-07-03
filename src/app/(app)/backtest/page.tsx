@@ -236,6 +236,7 @@ export default function BacktestPage() {
     }
 
     const trades: BacktestResult[] = [];
+    let currentBalance = initialCapital;
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     let entryTime = 0;
@@ -288,6 +289,7 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (exitPrice - entryPrice) * tradeQuantity;
+                currentBalance += pnl;
                 const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
                 trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
@@ -335,6 +337,7 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (entryPrice - exitPrice) * tradeQuantity;
+                currentBalance += pnl;
                 const pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
                 trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
@@ -374,7 +377,7 @@ export default function BacktestPage() {
                     entryTime = d.time;
                     stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
                     takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-                    const positionValue = (initialCapital || 1) * (leverage || 1);
+                    const positionValue = currentBalance * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
                 }
             } else if (d.sellSignal) {
@@ -406,7 +409,7 @@ export default function BacktestPage() {
                     entryTime = d.time;
                     stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
                     takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-                    const positionValue = (initialCapital || 1) * (leverage || 1);
+                    const positionValue = currentBalance * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
                 }
             }
@@ -424,6 +427,7 @@ export default function BacktestPage() {
             pnl = (entryPrice - exitPrice) * tradeQuantity;
             pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
         }
+        currentBalance += pnl;
         trades.push({ type: positionType, entryTime, entryPrice, exitTime: lastDataPoint.time, exitPrice, pnl, pnlPercent, closeReason: 'signal' });
     }
 
@@ -432,8 +436,8 @@ export default function BacktestPage() {
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
     const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
     const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-    const endingBalance = (initialCapital || 0) + totalPnl;
-    const totalReturnPercent = totalPnl / (initialCapital || 1) * 100;
+    const endingBalance = currentBalance;
+    const totalReturnPercent = totalPnl / initialCapital * 100;
 
     const summary: BacktestSummary = {
       totalTrades: trades.length,
@@ -442,7 +446,7 @@ export default function BacktestPage() {
       averageWin: wins.length > 0 ? totalWins / wins.length : 0,
       averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
       profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
-      initialCapital: initialCapital || 0,
+      initialCapital: initialCapital,
       endingBalance: endingBalance,
       totalReturnPercent: totalReturnPercent
     };
@@ -702,5 +706,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    
