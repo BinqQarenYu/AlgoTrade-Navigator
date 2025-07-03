@@ -50,11 +50,12 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Save, QrCode, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -74,22 +75,29 @@ export default function SettingsPage() {
   } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
-  const [ipAddress, setIpAddress] = useState<string | null>(null)
+  const [clientIpAddress, setClientIpAddress] = useState<string | null>(null)
+  const [serverIpAddress, setServerIpAddress] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
 
   useEffect(() => {
-    const fetchIp = async () => {
+    const fetchIps = async () => {
         try {
-        const response = await fetch('/api/ip');
-        const data = await response.json();
-        setIpAddress(data.ip);
+            const clientRes = await fetch('/api/ip');
+            const clientData = await clientRes.json();
+            setClientIpAddress(clientData.ip);
+
+            const serverRes = await fetch('/api/server-ip');
+            const serverData = await serverRes.json();
+            setServerIpAddress(serverData.ip);
+
         } catch (error) {
-        console.error("Could not fetch IP address:", error);
-        setIpAddress("Unavailable");
+            console.error("Could not fetch IP addresses:", error);
+            setClientIpAddress("Unavailable");
+            setServerIpAddress("Unavailable");
         }
     };
-    fetchIp();
+    fetchIps();
   }, []);
 
   const handleConnectToggle = async () => {
@@ -181,9 +189,6 @@ export default function SettingsPage() {
               )} />
               API Connection
             </div>
-            <span className="text-xs font-normal text-muted-foreground">
-                IP: {ipAddress || 'Loading...'}
-            </span>
           </CardTitle>
           <CardDescription>
             {activeProfile 
@@ -226,6 +231,42 @@ export default function SettingsPage() {
           </CardFooter>
         )}
       </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Globe className="text-primary"/> IP Address Configuration</CardTitle>
+            <CardDescription>For API keys with IP restrictions, you must whitelist the server's outbound IP address.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <Alert>
+                <ShieldCheck className="h-4 w-4" />
+                <AlertTitle>Action Required for Restricted Keys</AlertTitle>
+                <AlertDescription>
+                    Your API calls originate from our server, not your computer. To use an IP-restricted key, add the Server IP below to your whitelist in the Binance API management panel.
+                </AlertDescription>
+            </Alert>
+            <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-1">
+                    <Label>Your Browser IP</Label>
+                    <p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p>
+                </div>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border bg-primary/10 p-3">
+                 <div className="space-y-1">
+                    <Label>Application Server IP (Whitelist this one)</Label>
+                    <p className="font-mono text-sm font-semibold text-primary">{serverIpAddress || "Loading..."}</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => {
+                    if(serverIpAddress) {
+                        navigator.clipboard.writeText(serverIpAddress);
+                        toast({ title: "Copied!", description: "Server IP copied to clipboard." });
+                    }
+                }} disabled={!serverIpAddress || serverIpAddress === 'Unavailable'}>
+                    <Copy className="mr-2 h-4 w-4" /> Copy
+                </Button>
+            </div>
+        </CardContent>
+    </Card>
 
       <Card>
         <CardHeader>
