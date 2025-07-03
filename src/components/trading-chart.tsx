@@ -17,8 +17,8 @@ export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol:
     if (!chartContainerRef.current) return;
 
     const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (chartContainerRef.current && chartRef.current?.chart) {
+        chartRef.current.chart.applyOptions({ width: chartContainerRef.current.clientWidth });
       }
     };
     
@@ -97,7 +97,7 @@ export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol:
     // Cleanup on unmount
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (chartRef.current) {
+      if (chartRef.current?.chart) {
           chartRef.current.chart.remove();
           chartRef.current = null;
       }
@@ -179,5 +179,4 @@ export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol:
     </Card>
   );
 }
-
     
