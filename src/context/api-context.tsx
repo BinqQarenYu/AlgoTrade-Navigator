@@ -19,6 +19,8 @@ interface ApiContextType {
   setIsConnected: (status: boolean) => void;
   apiLimit: { used: number; limit: number };
   setApiLimit: (limit: { used: number; limit: number }) => void;
+  rateLimitThreshold: number;
+  setRateLimitThreshold: (limit: number) => void;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
@@ -28,15 +30,21 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [apiLimit, setApiLimit] = useState({ used: 0, limit: 1200 });
+  const [rateLimitThreshold, setRateLimitThreshold] = useState<number>(1100);
 
   // Load initial state from localStorage
   useEffect(() => {
     const storedProfiles = localStorage.getItem('apiProfiles');
     const storedActiveId = localStorage.getItem('activeProfileId');
     const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
+    const storedThreshold = localStorage.getItem('rateLimitThreshold');
 
     const loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
     setProfiles(loadedProfiles);
+
+    if (storedThreshold) {
+      setRateLimitThreshold(parseInt(storedThreshold, 10));
+    }
     
     if (storedActiveId && loadedProfiles.some((p: ApiProfile) => p.id === storedActiveId)) {
       setActiveProfileId(storedActiveId);
@@ -54,10 +62,16 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('apiProfiles', JSON.stringify(profiles));
   }, [profiles]);
 
+  // Persist threshold to localStorage
+  useEffect(() => {
+    localStorage.setItem('rateLimitThreshold', String(rateLimitThreshold));
+  }, [rateLimitThreshold]);
+
   // Persist activeProfileId to localStorage and handle connection status
   const setActiveProfile = useCallback((profileId: string | null) => {
     if (profileId !== activeProfileId) {
       setIsConnected(false); // Disconnect when switching profiles
+      setApiLimit({ used: 0, limit: 1200 }); // Reset limit on profile switch
       setActiveProfileId(profileId);
       if (profileId) {
         localStorage.setItem('activeProfileId', profileId);
@@ -70,6 +84,9 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   // Persist connection status
   useEffect(() => {
     localStorage.setItem('binance-isConnected', String(isConnected));
+    if (!isConnected) {
+      setApiLimit({ used: 0, limit: 1200 }); // Reset usage when disconnected
+    }
   }, [isConnected]);
 
   // --- Profile Management Functions ---
@@ -103,7 +120,9 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       isConnected,
       setIsConnected, 
       apiLimit, 
-      setApiLimit 
+      setApiLimit,
+      rateLimitThreshold,
+      setRateLimitThreshold,
     }}>
       {children}
     </ApiContext.Provider>

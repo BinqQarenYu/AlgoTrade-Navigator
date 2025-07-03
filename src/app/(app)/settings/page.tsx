@@ -49,7 +49,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { KeyRound, Save, QrCode, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle } from "lucide-react"
+import { KeyRound, Save, QrCode, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -68,6 +68,8 @@ export default function SettingsPage() {
     setIsConnected,
     apiLimit,
     setApiLimit,
+    rateLimitThreshold,
+    setRateLimitThreshold,
   } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
@@ -99,17 +101,26 @@ export default function SettingsPage() {
       return;
     }
 
+    if (!isConnected && apiLimit.used >= rateLimitThreshold) {
+      toast({
+        title: "Rate Limit Threshold Reached",
+        description: `Used weight (${apiLimit.used}) is above your threshold (${rateLimitThreshold}). Please wait a moment.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsConnecting(true)
 
     if (!isConnected) {
       try {
-        await getAccountBalance(activeProfile.apiKey, activeProfile.secretKey)
+        const { data: accountInfo, usedWeight } = await getAccountBalance(activeProfile.apiKey, activeProfile.secretKey)
         setIsConnected(true)
         toast({
           title: "Connection Successful",
           description: `Successfully connected using '${activeProfile.name}' profile.`,
         })
-        setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
+        setApiLimit({ used: usedWeight, limit: 1200 })
       } catch (error: any) {
         setIsConnected(false)
         toast({
@@ -149,6 +160,13 @@ export default function SettingsPage() {
     setEditingProfile(null);
     setIsFormOpen(true);
   }
+
+  const progressColorClass =
+    apiLimit.used >= rateLimitThreshold
+      ? "bg-red-500"
+      : apiLimit.used >= rateLimitThreshold * 0.9
+      ? "bg-yellow-500"
+      : "bg-primary";
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -202,10 +220,36 @@ export default function SettingsPage() {
                 <span>Used: {apiLimit.used}</span>
                 <span>Limit: {apiLimit.limit}</span>
               </div>
-              <Progress value={(apiLimit.used / apiLimit.limit) * 100} />
+              <Progress value={(apiLimit.used / apiLimit.limit) * 100} indicatorClassName={progressColorClass} />
             </div>
           </CardFooter>
         )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ShieldAlert/> Rate Limit Settings</CardTitle>
+          <CardDescription>
+            Set a threshold to prevent hitting Binance API rate limits. The official limit is 1200 requests per minute.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-xs">
+            <Label htmlFor="threshold">Safety Threshold</Label>
+            <Input
+              id="threshold"
+              type="number"
+              value={rateLimitThreshold}
+              onChange={(e) => setRateLimitThreshold(parseInt(e.target.value, 10) || 1200)}
+              placeholder="e.g., 1100"
+              max={1200}
+              min={1}
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              The app will pause API requests when used weight exceeds this value.
+            </p>
+          </div>
+        </CardContent>
       </Card>
       
       <Card>

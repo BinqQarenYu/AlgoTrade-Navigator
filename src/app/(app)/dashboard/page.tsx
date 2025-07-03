@@ -14,7 +14,7 @@ import { Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey, activeProfile } = useApi();
+  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
@@ -27,15 +27,35 @@ export default function DashboardPage() {
       setIsLoading(true);
       setError(null);
       if (isConnected && apiKey && secretKey) {
+        if (apiLimit.used >= rateLimitThreshold) {
+            setError(`API rate limit threshold reached. Used: ${apiLimit.used}. Please wait a moment.`);
+            toast({
+                title: "Rate Limit Reached",
+                description: "Fetching paused to avoid exceeding API limits.",
+                variant: "destructive"
+            });
+            setIsLoading(false);
+            return;
+        }
+
         try {
           // Fetch portfolio, positions, and trades in parallel
-          const [realPortfolio, realPositions, btcTrades, ethTrades, solTrades] = await Promise.all([
+          const [
+            { data: realPortfolio, usedWeight: pnlWeight },
+            { data: realPositions, usedWeight: posWeight },
+            { data: btcTrades, usedWeight: btcWeight },
+            { data: ethTrades, usedWeight: ethWeight },
+            { data: solTrades, usedWeight: solWeight },
+          ] = await Promise.all([
             getAccountBalance(apiKey, secretKey),
             getOpenPositions(apiKey, secretKey),
             getTradeHistory("BTCUSDT", apiKey, secretKey),
             getTradeHistory("ETHUSDT", apiKey, secretKey),
             getTradeHistory("SOLUSDT", apiKey, secretKey),
           ]);
+          
+          setApiLimit({ used: solWeight, limit: 1200 }); // The last call's weight is the most up-to-date total
+          
           setPortfolio(realPortfolio);
           setPositions(realPositions);
 
@@ -68,7 +88,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold]);
 
   const handleClearHistory = () => {
     setHistory([]);

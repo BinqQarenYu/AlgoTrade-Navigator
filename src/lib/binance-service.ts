@@ -13,7 +13,7 @@ const binance = new ccxt.binanceusdm({
 });
 
 // Helper for authenticated Binance API calls
-const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<T> => {
+const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
   const signature = crypto
     .createHmac('sha256', secretKey)
     .update(queryString)
@@ -28,12 +28,13 @@ const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey
       cache: 'no-store',
     });
 
+    const usedWeight = parseInt(response.headers.get('x-fapi-used-weight-1m') || '0', 10);
     const data = await response.json();
 
     if (!response.ok) {
       throw new Error(`Binance API Error: ${data.msg || `Failed to fetch from ${path}`} (Code: ${data.code})`);
     }
-    return data as T;
+    return { data: data as T, usedWeight };
   } catch (error: any) {
     console.error(`Error fetching from Binance API (${path}):`, error);
     if (error.message.includes('Binance API Error')) {
@@ -44,26 +45,27 @@ const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey
 };
 
 
-export const getAccountBalance = async (apiKey: string, secretKey: string): Promise<Portfolio> => {
+export const getAccountBalance = async (apiKey: string, secretKey: string): Promise<{ data: Portfolio, usedWeight: number }> => {
   console.log("Fetching real account balance from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
-  const data = await callAuthenticatedApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
+  const { data, usedWeight } = await callAuthenticatedApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
 
-  return {
+  const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
     totalPnl: parseFloat(data.totalUnrealizedProfit),
     dailyVolume: 0, // Not available from this endpoint
   };
+  return { data: portfolioData, usedWeight };
 };
 
-export const getOpenPositions = async (apiKey: string, secretKey: string): Promise<Position[]> => {
+export const getOpenPositions = async (apiKey: string, secretKey: string): Promise<{ data: Position[], usedWeight: number }> => {
   console.log("Fetching open positions from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
-  const data = await callAuthenticatedApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
+  const { data, usedWeight } = await callAuthenticatedApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
 
-  return data
+  const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
     .map((pos: any): Position => {
       const positionAmt = parseFloat(pos.positionAmt);
@@ -77,15 +79,16 @@ export const getOpenPositions = async (apiKey: string, secretKey: string): Promi
         leverage: `${pos.leverage}x`,
       };
     });
+  return { data: positionsData, usedWeight };
 };
 
-export const getTradeHistory = async (symbol: string, apiKey: string, secretKey: string): Promise<Trade[]> => {
+export const getTradeHistory = async (symbol: string, apiKey: string, secretKey: string): Promise<{ data: Trade[], usedWeight: number }> => {
     console.log(`Fetching trade history for ${symbol} from Binance...`);
     const timestamp = Date.now();
     const queryString = `symbol=${symbol}&timestamp=${timestamp}&limit=50`;
-    const data = await callAuthenticatedApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
+    const { data, usedWeight } = await callAuthenticatedApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
 
-    return data.map((trade: any): Trade => ({
+    const tradesData = data.map((trade: any): Trade => ({
         id: String(trade.id),
         symbol: trade.symbol,
         side: trade.isBuyer ? 'BUY' : 'SELL',
@@ -94,6 +97,7 @@ export const getTradeHistory = async (symbol: string, apiKey: string, secretKey:
         time: new Date(trade.time).toLocaleString(),
         timestamp: trade.time,
     }));
+    return { data: tradesData, usedWeight };
 };
 
 // Public endpoint, using CCXT for robustness
