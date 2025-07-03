@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -25,6 +26,7 @@ const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
   { href: "/live", label: "Live Trading", icon: Bot },
+  { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
   { href: "/data", label: "Data", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
