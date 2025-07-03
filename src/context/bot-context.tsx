@@ -390,7 +390,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     ws.onerror = () => {
-        console.error("A WebSocket error occurred. The browser console may have more specific details about the connection failure.");
         addManualLog("WebSocket error occurred. See browser console for details.");
     };
   };
