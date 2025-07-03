@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw } from "lucide-react"
 import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -57,6 +57,7 @@ export default function ManualTradingPage() {
     manualTraderState,
     runManualAnalysis,
     cancelManualAnalysis,
+    resetManualSignal,
     setManualChartData
   } = useBot();
 
@@ -85,6 +86,10 @@ export default function ManualTradingPage() {
     cancelManualAnalysis();
   }
 
+  const handleResetSignal = () => {
+    resetManualSignal();
+  };
+
   const handleIntervalChange = useCallback((newInterval: string) => {
     setInterval(newInterval);
     // When interval changes, we might want to refetch data if not monitoring
@@ -108,6 +113,7 @@ export default function ManualTradingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, symbol, interval]);
 
+  const hasActiveSignal = signal !== null;
 
   return (
     <div className="flex flex-col h-full">
@@ -141,7 +147,7 @@ export default function ManualTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={isAnalyzing || signal !== null}>
+                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={isAnalyzing || hasActiveSignal}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -154,7 +160,7 @@ export default function ManualTradingPage() {
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={handleIntervalChange} value={interval} disabled={isAnalyzing || signal !== null}>
+                  <Select onValueChange={handleIntervalChange} value={interval} disabled={isAnalyzing || hasActiveSignal}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -170,7 +176,7 @@ export default function ManualTradingPage() {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing || signal !== null}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing || hasActiveSignal}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
@@ -192,7 +198,7 @@ export default function ManualTradingPage() {
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                         placeholder="2"
-                        disabled={isAnalyzing || signal !== null}
+                        disabled={isAnalyzing || hasActiveSignal}
                     />
                 </div>
                  <div className="space-y-2">
@@ -203,14 +209,14 @@ export default function ManualTradingPage() {
                         value={stopLoss}
                         onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                         placeholder="1"
-                        disabled={isAnalyzing || signal !== null}
+                        disabled={isAnalyzing || hasActiveSignal}
                     />
                 </div>
             </div>
             <div className="space-y-2">
               <Label>AI-Powered Analysis</Label>
               <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isAnalyzing || signal !== null} />
+                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isAnalyzing || hasActiveSignal} />
                 <div className="flex flex-col">
                     <Label htmlFor="ai-prediction">Enable AI Validation</Label>
                     <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
@@ -221,14 +227,23 @@ export default function ManualTradingPage() {
           <CardFooter>
             <Button
                 className="w-full"
-                onClick={isAnalyzing ? handleCancelAnalysis : handleRunAnalysis}
-                disabled={!isAnalyzing && (!isConnected || signal !== null)}
-                variant={isAnalyzing ? "destructive" : "default"}
+                onClick={
+                    isAnalyzing ? handleCancelAnalysis :
+                    hasActiveSignal ? handleResetSignal : 
+                    handleRunAnalysis
+                }
+                disabled={!isConnected}
+                variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
             >
                 {isAnalyzing ? (
                     <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Cancel Analysis
+                    </>
+                ) : hasActiveSignal ? (
+                     <>
+                        <RotateCcw className="mr-2 h-4 w-4" />
+                        Reset Signal
                     </>
                 ) : (
                     <>

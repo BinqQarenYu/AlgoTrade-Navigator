@@ -35,6 +35,7 @@ interface BotContextType {
   stopLiveBot: () => void;
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
+  resetManualSignal: () => void;
   setManualChartData: (symbol: string, interval: string, force: boolean) => void;
 }
 
@@ -186,6 +187,20 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     manualAnalysisCancelRef.current = true;
     addManualLog("Analysis canceled by user.");
     setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
+  };
+
+  const resetManualSignal = () => {
+    if (manualWsRef.current) {
+        manualWsRef.current.close(1000, "Signal reset by user"); // Close with normal code
+        manualWsRef.current = null;
+    }
+    setManualTraderState(prev => ({
+        ...prev,
+        isAnalyzing: false,
+        signal: null,
+        logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...prev.logs].slice(0, 100)
+    }));
+    toast({ title: "Signal Reset", description: "You can now run a new analysis." });
   };
 
   const runManualAnalysis = async (config: ManualTraderConfig) => {
@@ -360,13 +375,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     };
     
     ws.onclose = (event) => {
-        addManualLog(`Monitoring WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'No reason given'}`);
+        const reason = event.reason || 'No reason given';
+        const code = event.wasClean ? `(Code: ${event.code})` : `(Code: ${event.code}, unclean closure)`;
+        addManualLog(`Monitoring WebSocket closed. ${reason} ${code}`);
         manualWsRef.current = null;
     }
 
     ws.onerror = (event) => {
         console.error("A WebSocket error occurred:", event);
-        addManualLog("WebSocket error. Connection may be lost.");
+        addManualLog("WebSocket error occurred. See browser console for details.");
     };
   };
 
@@ -408,6 +425,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       stopLiveBot,
       runManualAnalysis,
       cancelManualAnalysis,
+      resetManualSignal,
       setManualChartData,
     }}>
       {children}
