@@ -93,5 +93,25 @@ export type TradeSignal = {
   peakPrice?: number;
 };
     
+export type LiveBotConfig = {
+    symbol: string;
+    interval: string;
+    strategy: string;
+    initialCapital: number;
+    leverage: number;
+    takeProfit: number;
+    stopLoss: number;
+    marginType: string;
+    useAIPrediction: boolean;
+};
 
+export type ManualTraderConfig = {
+    symbol: string;
+    interval: string;
+    strategy: string;
+    takeProfit: number;
+    stopLoss: number;
+    useAIPrediction: boolean;
+}
     
+

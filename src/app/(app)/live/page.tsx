@@ -1,12 +1,13 @@
 
 "use client"
 
-import React, { useState, useEffect, useRef, useTransition } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
+import { useBot } from "@/context/bot-context"
 import {
   Card,
   CardContent,
@@ -28,11 +29,9 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { addDays, format } from "date-fns"
+import { addDays } from "date-fns"
 import type { HistoricalData } from "@/lib/types"
-import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
-import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
-import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
+import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 
@@ -57,14 +56,20 @@ const assetList = [
 export default function LiveTradingPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
+  const { 
+    liveBotState, 
+    startLiveBot, 
+    stopLiveBot 
+  } = useBot();
+
+  const { isRunning, logs, prediction, isPredicting, chartData: botChartData } = liveBotState;
+  
   const [isClient, setIsClient] = useState(false)
+  
+  // Local state for configuration UI
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
   const [interval, setInterval] = useState<string>("1m");
-  const [isBotRunning, setIsBotRunning] = useState(false);
-  
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
@@ -72,11 +77,10 @@ export default function LiveTradingPage() {
   const [marginType, setMarginType] = useState<string>("isolated");
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
-  const [botLogs, setBotLogs] = useState<string[]>([]);
-  const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wakeLockRef = useRef<any>(null);
-  const [isPredicting, startTransition] = useTransition();
-  const [prediction, setPrediction] = useState<PredictMarketOutput | null>(null);
+  // Local state for chart data, separate from the bot's data
+  const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+
   const [ipAddress, setIpAddress] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,11 +97,18 @@ export default function LiveTradingPage() {
     };
     fetchIp();
   }, [])
-  
-  // Effect to fetch initial chart data
+
+  // Sync local chart with bot's chart data when running
   useEffect(() => {
-    if (!isClient || !isConnected) {
-        setChartData([]);
+    if (isRunning) {
+        setChartData(botChartData);
+    }
+  }, [isRunning, botChartData]);
+  
+  // Effect to fetch initial chart data when bot is NOT running
+  useEffect(() => {
+    if (!isClient || !isConnected || isRunning) {
+        if (!isRunning) setChartData([]);
         return;
     }
 
@@ -124,180 +135,31 @@ export default function LiveTradingPage() {
     };
 
     fetchData();
-  }, [symbol, interval, isConnected, isClient, toast]);
+  }, [symbol, interval, isConnected, isClient, toast, isRunning]);
   
-  const addLog = (message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    setBotLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 100));
-  }
-  
-  const requestWakeLock = async () => {
-    if ('wakeLock' in navigator) {
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        addLog("Screen wake lock active to prevent sleeping.");
-        wakeLockRef.current.addEventListener('release', () => {
-          addLog('Screen wake lock was released by the system.');
-          wakeLockRef.current = null;
-        });
-      } catch (err: any) {
-        addLog(`Warning: Could not acquire screen wake lock. The app may not prevent your device from sleeping.`);
-      }
-    } else {
-      addLog("Warning: Wake Lock API not supported. The app may not prevent your device from sleeping.");
-    }
-  };
-
-  const releaseWakeLock = async () => {
-    if (wakeLockRef.current) {
-      await wakeLockRef.current.release();
-      wakeLockRef.current = null;
-      addLog("Screen wake lock released.");
-    }
-  };
-
-  const runPrediction = async () => {
-    if (chartData.length < 50) { // Need enough data for indicators
-        toast({ title: "Not enough data for prediction", description: "Waiting for more market data to accumulate.", variant: "destructive" });
-        return;
-    }
-    
-    setPrediction(null);
-    
-    // 1. Generate signal from the selected classic strategy
-    let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-    const closePrices = chartData.map(d => d.close);
-
-    switch (selectedStrategy) {
-        case 'sma-crossover': {
-            const shortPeriod = 20;
-            const longPeriod = 50;
-            const sma_short = calculateSMA(closePrices, shortPeriod);
-            const sma_long = calculateSMA(closePrices, longPeriod);
-            const last_sma_short = sma_short[sma_short.length - 1];
-            const prev_sma_short = sma_short[sma_short.length - 2];
-            const last_sma_long = sma_long[sma_long.length - 1];
-            const prev_sma_long = sma_long[sma_long.length - 2];
-            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
-                else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'ema-crossover': {
-            const shortPeriod = 12;
-            const longPeriod = 26;
-            const ema_short = calculateEMA(closePrices, shortPeriod);
-            const ema_long = calculateEMA(closePrices, longPeriod);
-            const last_ema_short = ema_short[ema_short.length - 1];
-            const prev_ema_short = ema_short[ema_short.length - 2];
-            const last_ema_long = ema_long[ema_long.length - 1];
-            const prev_ema_long = ema_long[ema_long.length - 2];
-            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
-                else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'rsi-divergence': {
-            const period = 14;
-            const rsi = calculateRSI(closePrices, period);
-            const last_rsi = rsi[rsi.length - 1];
-            const prev_rsi = rsi[rsi.length - 2];
-            const oversold = 30;
-            const overbought = 70;
-            if (prev_rsi && last_rsi) {
-                if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
-                else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'peak-formation-fib': {
-            const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
-            const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal); // Check last 5 candles for a signal
-            if (lastSignal?.buySignal) strategySignal = 'BUY';
-            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
-            break;
-        }
-    }
-    
-    if (useAIPrediction) {
-      addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Asking AI for validation...`);
-      // Pass the signal to the AI for validation
-      startTransition(async () => {
-        try {
-          const recentData = chartData.slice(-50); // Use last 50 data points for context
-          const result = await predictMarket({
-              symbol,
-              recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
-              strategySignal
-          });
-          setPrediction(result);
-          addLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
-        } catch (error) {
-           console.error("Prediction failed", error);
-           toast({ title: "AI Prediction Failed", variant: "destructive" });
-           addLog("Error: AI prediction failed.");
-        }
-      });
-    } else {
-        addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. AI validation is disabled.`);
-        // When AI is disabled, we could still show a mock prediction based on the signal
-        const mockPrediction: PredictMarketOutput = {
-            prediction: strategySignal === 'BUY' ? 'UP' : strategySignal === 'SELL' ? 'DOWN' : 'NEUTRAL',
-            confidence: 0.99,
-            reasoning: `AI is disabled. The prediction is based directly on the '${selectedStrategy}' signal.`
-        };
-        setPrediction(mockPrediction);
-    }
-  }
-
   const handleBotToggle = async () => {
-    if (isBotRunning) {
-        // Stop the bot
-        setIsBotRunning(false);
-        if (botIntervalRef.current) {
-            clearInterval(botIntervalRef.current);
-            botIntervalRef.current = null;
-        }
-        addLog("Bot stopped by user.");
-        await releaseWakeLock();
+    if (isRunning) {
+        stopLiveBot();
     } else {
-        // Start the bot
         if (!isConnected) {
             toast({ title: "Cannot start bot", description: "Please connect to the API first.", variant: "destructive"});
             return;
         }
-        setIsBotRunning(true);
-        setBotLogs([]);
-        setPrediction(null);
-        addLog(`Bot started for ${symbol} on ${interval} interval. Margin: ${marginType}, Capital: $${initialCapital}, Leverage: ${leverage}x, TP: ${takeProfit}%, SL: ${stopLoss}%`);
-        
-        await requestWakeLock();
-
-        // Initial prediction
-        runPrediction();
-
-        // Set interval for subsequent actions
-        botIntervalRef.current = setInterval(() => {
-            addLog("Running new cycle...");
-            runPrediction();
-            // In a real scenario, you'd fetch new k-lines and execute trades here.
-        }, 30000); // Run every 30 seconds
+        startLiveBot({
+            symbol,
+            interval,
+            strategy: selectedStrategy,
+            initialCapital,
+            leverage,
+            takeProfit,
+            stopLoss,
+            marginType,
+            useAIPrediction
+        });
     }
   }
 
-  // Cleanup effect
-  useEffect(() => {
-    return () => {
-        if (botIntervalRef.current) {
-            clearInterval(botIntervalRef.current);
-        }
-        releaseWakeLock();
-    }
-  }, []);
-
-  const anyLoading = isFetchingData || isPredicting;
+  const anyLoading = isFetchingData;
   const getPredictionBadgeVariant = (pred: string) => {
     switch (pred) {
         case 'UP': return 'default';
@@ -319,7 +181,7 @@ export default function LiveTradingPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} />
+        <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -340,7 +202,7 @@ export default function LiveTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={isBotRunning}>
+                  <Select onValueChange={setSymbol} value={symbol} disabled={isRunning}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -353,7 +215,7 @@ export default function LiveTradingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isBotRunning}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
@@ -367,7 +229,7 @@ export default function LiveTradingPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval} disabled={isBotRunning}>
+                  <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -391,7 +253,7 @@ export default function LiveTradingPage() {
                         value={initialCapital}
                         onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
                         placeholder="100"
-                        disabled={isBotRunning}
+                        disabled={isRunning}
                     />
                 </div>
                 <div className="space-y-2">
@@ -403,7 +265,7 @@ export default function LiveTradingPage() {
                     value={leverage}
                     onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
                     placeholder="10"
-                    disabled={isBotRunning}
+                    disabled={isRunning}
                   />
                 </div>
                 <div className="space-y-2">
@@ -414,7 +276,7 @@ export default function LiveTradingPage() {
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                         placeholder="5"
-                        disabled={isBotRunning}
+                        disabled={isRunning}
                     />
                 </div>
                  <div className="space-y-2">
@@ -425,12 +287,12 @@ export default function LiveTradingPage() {
                         value={stopLoss}
                         onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                         placeholder="2"
-                        disabled={isBotRunning}
+                        disabled={isRunning}
                     />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="margin-type">Margin Type</Label>
-                  <Select onValueChange={setMarginType} value={marginType} disabled={isBotRunning}>
+                  <Select onValueChange={setMarginType} value={marginType} disabled={isRunning}>
                     <SelectTrigger id="margin-type">
                       <SelectValue placeholder="Select margin type" />
                     </SelectTrigger>
@@ -444,7 +306,7 @@ export default function LiveTradingPage() {
             <div className="space-y-2">
               <Label>AI-Powered Analysis</Label>
               <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isBotRunning} />
+                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
                 <div className="flex flex-col">
                     <Label htmlFor="ai-prediction">Enable AI Prediction</Label>
                     <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
@@ -453,9 +315,9 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || isBotRunning} variant={isBotRunning ? "destructive" : "default"}>
-              {isBotRunning ? <StopCircle /> : <Play />}
-              {isBotRunning ? "Stop Bot" : "Start Bot"}
+            <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected} variant={isRunning ? "destructive" : "default"}>
+              {isRunning ? <StopCircle /> : <Play />}
+              {isRunning ? "Stop Bot" : "Start Bot"}
             </Button>
           </CardFooter>
         </Card>
@@ -466,9 +328,9 @@ export default function LiveTradingPage() {
                  <CardDescription>AI-powered validation of the strategy's signal.</CardDescription>
             </CardHeader>
             <CardContent>
-                {!useAIPrediction ? (
+                {!useAIPrediction && isRunning ? (
                      <div className="flex items-center justify-center h-24 text-muted-foreground">
-                        <p>AI Prediction is disabled.</p>
+                        <p>AI Prediction is disabled for this session.</p>
                     </div>
                 ) : isPredicting ? (
                     <div className="flex items-center justify-center h-24 text-muted-foreground">
@@ -493,7 +355,7 @@ export default function LiveTradingPage() {
                     </div>
                 ) : (
                     <div className="flex items-center justify-center h-24 text-muted-foreground">
-                         <p>{isBotRunning ? 'Waiting for next cycle...' : 'Start the bot to get predictions.'}</p>
+                         <p>{isRunning ? 'Waiting for next cycle...' : 'Start the bot to get predictions.'}</p>
                     </div>
                 )}
             </CardContent>
@@ -506,17 +368,17 @@ export default function LiveTradingPage() {
                     Status: 
                     <span className={cn(
                         "font-semibold",
-                        isBotRunning ? "text-green-500" : "text-red-500"
+                        isRunning ? "text-green-500" : "text-red-500"
                     )}>
-                        {isBotRunning ? "Running" : "Idle"}
+                        {isRunning ? "Running" : "Idle"}
                     </span>
                 </div>
             </CardHeader>
             <CardContent>
                 <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
-                    {botLogs.length > 0 ? (
+                    {logs.length > 0 ? (
                         <pre className="text-xs whitespace-pre-wrap font-mono">
-                            {botLogs.join('\n')}
+                            {logs.join('\n')}
                         </pre>
                     ) : (
                          <div className="flex items-center justify-center h-full text-muted-foreground">
