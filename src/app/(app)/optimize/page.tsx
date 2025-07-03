@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useTransition } from "react";
@@ -32,7 +33,7 @@ export default function OptimizePage() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
-  const { isTradingActive, liveBotState } = useBot();
+  const { isTradingActive } = useBot();
 
   const form = useForm<z.infer<typeof strategySchema>>({
     resolver: zodResolver(strategySchema),
@@ -75,8 +76,7 @@ export default function OptimizePage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Strategy optimization is disabled to prioritize the active{' '}
-                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+                Strategy optimization is disabled to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
             </AlertDescription>
         </Alert>
       )}

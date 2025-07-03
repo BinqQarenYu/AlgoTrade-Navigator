@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -46,7 +46,8 @@ export default function LiveTradingPage() {
   const { 
     liveBotState, 
     startLiveBot, 
-    stopLiveBot 
+    stopLiveBot,
+    isTradingActive
   } = useBot();
 
   const { isRunning, logs, prediction, isPredicting, chartData: botChartData } = liveBotState;
@@ -133,12 +134,12 @@ export default function LiveTradingPage() {
     }
   };
 
-  const handleIntervalChange = (newInterval: string) => {
+  const handleIntervalChange = useCallback((newInterval: string) => {
     setInterval(newInterval);
     if (!isRunning) {
         setChartData([]);
     }
-  };
+  }, [isRunning]);
   
   const handleBotToggle = async () => {
     if (isRunning) {
@@ -219,6 +220,15 @@ export default function LiveTradingPage() {
             </AlertDescription>
         </Alert>
     )}
+     {isTradingActive && !isRunning && (
+        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+            <Bot className="h-4 w-4" />
+            <AlertTitle>Another Trading Session is Active</AlertTitle>
+            <AlertDescription>
+                Live Trading is disabled to prioritize another active trading session. Check the <Link href="/manual" className="font-bold underline">Manual Trading</Link> or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> page.
+            </AlertDescription>
+        </Alert>
+      )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
         <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
@@ -366,7 +376,7 @@ export default function LiveTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected} variant={isRunning ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
               {isRunning ? <StopCircle /> : <Play />}
               {isRunning ? "Stop Bot" : "Start Bot"}
             </Button>

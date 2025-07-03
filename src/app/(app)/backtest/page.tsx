@@ -53,7 +53,7 @@ const assetList = [
 export default function BacktestPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const { isTradingActive, liveBotState } = useBot();
+  const { isTradingActive } = useBot();
   const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
@@ -544,7 +544,7 @@ export default function BacktestPage() {
     }
   };
   
-  const anyLoading = isBacktesting || isFetchingData || isTradingActive;
+  const anyLoading = isBacktesting || isFetchingData;
 
   const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
     if (!selectedTrade) return null;
@@ -592,8 +592,7 @@ export default function BacktestPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Backtesting is disabled to prioritize the active{' '}
-                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+                Backtesting is disabled to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
             </AlertDescription>
         </Alert>
     )}
@@ -799,7 +798,7 @@ export default function BacktestPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0}>
+            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive}>
               {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
             </Button>

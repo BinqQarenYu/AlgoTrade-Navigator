@@ -122,4 +122,25 @@ export type ManualTraderConfig = {
     useAIPrediction: boolean;
     fee: number;
 }
-    
+
+export type MultiSignalConfig = {
+    assets: string[];
+    interval: string;
+    strategy: string;
+    takeProfit: number;
+    stopLoss: number;
+    useAIPrediction: boolean;
+};
+
+export interface SignalResult {
+    signal: TradeSignal | null;
+    status: 'idle' | 'monitoring' | 'analyzing' | 'error' | 'no_signal';
+    log: string;
+}
+
+export interface MultiSignalState {
+  isRunning: boolean;
+  config: MultiSignalConfig | null;
+  results: Record<string, SignalResult>; // Keyed by asset symbol
+  logs: string[];
+}

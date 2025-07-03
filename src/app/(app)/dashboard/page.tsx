@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
   const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
-  const { isTradingActive, liveBotState } = useBot();
+  const { isTradingActive } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
@@ -27,7 +27,6 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       if (isTradingActive) {
-        setError("Live data fetching is paused because a trading session is active.");
         setIsLoading(false);
         setPortfolio(null);
         setPositions([]);
@@ -116,8 +115,7 @@ export default function DashboardPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Live data fetching on the dashboard is paused to prioritize the active{' '}
-                {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+                Live data fetching on the dashboard is paused to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
             </AlertDescription>
         </Alert>
       )}
@@ -132,7 +130,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {error && (
+      {error && !isTradingActive && (
          <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>API Error</AlertTitle>

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot } from "lucide-react"
 import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -44,7 +44,8 @@ export default function ManualTradingPage() {
     runManualAnalysis,
     cancelManualAnalysis,
     resetManualSignal,
-    setManualChartData
+    setManualChartData,
+    isTradingActive
   } = useBot();
 
   const { isAnalyzing, logs, signal, chartData } = manualTraderState;
@@ -52,7 +53,7 @@ export default function ManualTradingPage() {
   // Local state for UI configuration
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
-  const [interval, setInterval] = useState<string>("1m");
+  const [interval, setInterval] = useState<string>("1h");
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(2);
@@ -60,7 +61,7 @@ export default function ManualTradingPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
-  const handleRunAnalysis = () => {
+  const handleRunAnalysis = useCallback(() => {
     runManualAnalysis({
         symbol,
         interval,
@@ -72,17 +73,16 @@ export default function ManualTradingPage() {
         useAIPrediction,
         fee
     });
-  };
+  }, [runManualAnalysis, symbol, interval, selectedStrategy, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee]);
 
-  const handleCancelAnalysis = () => {
+  const handleCancelAnalysis = useCallback(() => {
     cancelManualAnalysis();
-  }
+  }, [cancelManualAnalysis]);
 
-  const handleResetSignal = () => {
+  const handleResetSignal = useCallback(() => {
     resetManualSignal();
-  };
+  }, [resetManualSignal]);
 
-  // Handlers ONLY update local state. They do not trigger side effects.
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
   };
@@ -91,14 +91,12 @@ export default function ManualTradingPage() {
     setSymbol(newSymbol);
   };
 
-  // This useEffect is the single source of truth for fetching data.
-  // It runs on mount and whenever the symbol or interval changes, but only
-  // when the system is in a state to do so.
   useEffect(() => {
-    if (isConnected && !isAnalyzing && signal === null) {
+    if (isConnected) {
       setManualChartData(symbol, interval);
     }
-  }, [isConnected, symbol, interval, isAnalyzing, signal, setManualChartData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, symbol, interval, setManualChartData]);
 
 
   const hasActiveSignal = signal !== null;
@@ -124,6 +122,8 @@ export default function ManualTradingPage() {
     }
     netPnl = grossPnl - totalFee;
   }
+  
+  const isThisPageTrading = isAnalyzing || hasActiveSignal;
 
   return (
     <div className="flex flex-col h-full">
@@ -136,6 +136,15 @@ export default function ManualTradingPage() {
             </AlertDescription>
         </Alert>
     )}
+     {isTradingActive && !isThisPageTrading && (
+        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+            <Bot className="h-4 w-4" />
+            <AlertTitle>Another Trading Session is Active</AlertTitle>
+            <AlertDescription>
+                Manual trading is disabled to prioritize another active trading session. Check the <Link href="/live" className="font-bold underline">Live Bot</Link> or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> page.
+            </AlertDescription>
+        </Alert>
+      )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
         <TradingChart 
@@ -276,7 +285,7 @@ export default function ManualTradingPage() {
                     hasActiveSignal ? handleResetSignal : 
                     handleRunAnalysis
                 }
-                disabled={!isConnected}
+                disabled={!isConnected || (isTradingActive && !isThisPageTrading)}
                 variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
             >
                 {isAnalyzing ? (

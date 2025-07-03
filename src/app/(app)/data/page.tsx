@@ -26,7 +26,7 @@ export default function DataPage() {
     const wsRef = useRef<WebSocket | null>(null);
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
-    const { isTradingActive, liveBotState } = useBot();
+    const { isTradingActive } = useBot();
     
     // Batch UI updates to prevent freezing from high-frequency messages
     useEffect(() => {
@@ -180,8 +180,7 @@ export default function DataPage() {
                     <Bot className="h-4 w-4" />
                     <AlertTitle>Trading Session Active</AlertTitle>
                     <AlertDescription>
-                        The real-time data stream is disabled to prioritize the active{' '}
-                        {liveBotState.isRunning ? <Link href="/live" className="font-bold underline">Live Bot</Link> : <Link href="/manual" className="font-bold underline">Manual Trade</Link>}.
+                        The real-time data stream is disabled to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
                     </AlertDescription>
                 </Alert>
             )}
