@@ -54,143 +54,120 @@ function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
 
 
 export const calculatePeakFormationFibSignals = async (data: HistoricalData[]): Promise<HistoricalData[]> => {
-    const dataWithSignals = JSON.parse(JSON.stringify(data)); // Deep copy to avoid mutation
+    const dataWithSignals = JSON.parse(JSON.stringify(data)); // Deep copy
     if (data.length < EMA_LONG_PERIOD) return dataWithSignals;
 
     const closePrices = data.map(d => d.close);
     const ema13 = calculateEMA(closePrices, EMA_SHORT_PERIOD);
     const ema50 = calculateEMA(closePrices, EMA_LONG_PERIOD);
-
     const swingLows = findSwingLows(data, SWING_LOOKAROUND);
     const swingHighs = findSwingHighs(data, SWING_LOOKAROUND);
 
-    // State machine variables
-    let tradeDirection: 'long' | 'short' | null = null;
-    let peakIndex: number | null = null;
-    let lookingForPullback = false;
-    let pullbackStartIndex: number | null = null;
-    let pullbackEndIndex: number | null = null;
-
+    // This loop identifies potential setups (Peak + Cross + BoS)
     for (let i = PEAK_LOOKAROUND; i < data.length - PEAK_LOOKAROUND; i++) {
-        // Reset if a new peak invalidates the current pullback search
-        if(lookingForPullback && peakIndex !== null) {
-            if(tradeDirection === 'short' && data[i].high > data[peakIndex].high) {
-                tradeDirection = null;
-            }
-            if(tradeDirection === 'long' && data[i].low < data[peakIndex].low) {
-                tradeDirection = null;
+        
+        // --- Look for a SHORT setup (PFH) ---
+        let isPFH = true;
+        for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
+            if (data[i].high <= data[i - j].high || data[i].high <= data[i + j].high) {
+                isPFH = false;
+                break;
             }
         }
 
-        if (tradeDirection === null) {
-            // Check for Peak Formation High (PFH)
-            let isPFH = true;
-            for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
-                if (data[i].high <= data[i - j].high || data[i].high <= data[i + j].high) {
-                    isPFH = false;
-                    break;
-                }
-            }
+        if (isPFH) {
+            const peakHigh = data[i].high;
+            const relevantSwingLowIndex = findLastSwingLowBefore(swingLows, i);
+            if (relevantSwingLowIndex !== null) {
+                // Now look forward from the peak for the cross and BoS
+                for (let k = i + 1; k < data.length; k++) {
+                    if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
 
-            if (isPFH) {
-                const emaCrossIndex = findBearishEmaCross(ema13, ema50, i);
-                if (emaCrossIndex !== -1) {
-                    const relevantSwingLowIndex = findLastSwingLowBefore(swingLows, i);
-                    if (relevantSwingLowIndex !== null) {
-                        const bosIndex = findBreakBelow(data, relevantSwingLowIndex, i);
-                        if (bosIndex !== -1 && bosIndex > emaCrossIndex) {
-                            tradeDirection = 'short';
-                            peakIndex = i;
-                            lookingForPullback = true;
-                            pullbackStartIndex = bosIndex;
-                            pullbackEndIndex = null;
-                        }
-                    }
-                }
-            }
-            
-            // Check for Peak Formation Low (PFL)
-            let isPFL = true;
-            for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
-                if (data[i].low >= data[i - j].low || data[i].low >= data[i + j].low) {
-                    isPFL = false;
-                    break;
-                }
-            }
+                    const emaCrossed = ema13[k-1] >= ema50[k-1] && ema13[k] < ema50[k];
+                    const structureBroken = data[k].close < data[relevantSwingLowIndex].low;
 
-            if (isPFL) {
-                const emaCrossIndex = findBullishEmaCross(ema13, ema50, i);
-                 if (emaCrossIndex !== -1) {
-                    const relevantSwingHighIndex = findLastSwingHighBefore(swingHighs, i);
-                    if (relevantSwingHighIndex !== null) {
-                        const bosIndex = findBreakAbove(data, relevantSwingHighIndex, i);
-                        if (bosIndex !== -1 && bosIndex > emaCrossIndex) {
-                            tradeDirection = 'long';
-                            peakIndex = i;
-                            lookingForPullback = true;
-                            pullbackStartIndex = bosIndex;
-                            pullbackEndIndex = null;
-                        }
-                    }
-                 }
-            }
+                    if (emaCrossed && structureBroken) {
+                        const bosIndex = k;
+                        let pullbackLow = data[bosIndex].low;
 
-        } else if (lookingForPullback && pullbackStartIndex !== null && peakIndex !== null) {
-            if (tradeDirection === 'short') {
-                if (data[i].high < data[i - 1].high && data[i - 1].high < data[i - 2].high) {
-                    pullbackEndIndex = i - 2; 
-                    const peakHigh = data[peakIndex].high;
-                    const pullbackLow = findLowestLowBetween(data, pullbackStartIndex, pullbackEndIndex);
-                    
-                    if(pullbackLow !== null) {
-                        const fibRange = peakHigh - pullbackLow;
-                        for (const level of FIB_LEVELS) {
-                            const entryPrice = pullbackLow + fibRange * level;
-                            for (let k = i; k < data.length; k++) {
-                                if (data[k].high >= entryPrice && data[k].low <= entryPrice) {
-                                    dataWithSignals[k].sellSignal = entryPrice;
-                                    tradeDirection = null;
-                                    break; 
-                                }
-                                if (data[k].low < pullbackLow) break;
+                        // Now look for the Fib entry after the BoS
+                        for (let l = bosIndex + 1; l < data.length; l++) {
+                            // Update the pullback low if price makes a new low
+                            if (data[l].low < pullbackLow) {
+                                pullbackLow = data[l].low;
+                            }
+                            
+                            // If price goes above the peak, the setup is invalid
+                            if (data[l].high > peakHigh) {
+                                break; 
+                            }
+                            
+                            const fibRange = peakHigh - pullbackLow;
+                            const fib50 = pullbackLow + fibRange * FIB_LEVELS[0];
+                            const fib618 = pullbackLow + fibRange * FIB_LEVELS[1];
+                            
+                            // Check if the current candle hits one of the fib levels
+                            if (data[l].high >= fib50) {
+                                dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib50;
+                            }
+                            if (data[l].high >= fib618) {
+                                dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib618;
                             }
                         }
-                    }
-                    if (tradeDirection === 'short') { 
-                        tradeDirection = null;
-                     }
-                }
-
-            } else if (tradeDirection === 'long') {
-                if (data[i].low > data[i - 1].low && data[i-1].low > data[i-2].low) {
-                    pullbackEndIndex = i - 2;
-                    const peakLow = data[peakIndex].low;
-                    const pullbackHigh = findHighestHighBetween(data, pullbackStartIndex, pullbackEndIndex);
-
-                    if (pullbackHigh !== null) {
-                        const fibRange = pullbackHigh - peakLow;
-                        for (const level of FIB_LEVELS) {
-                            const entryPrice = pullbackHigh - fibRange * level;
-                            for (let k = i; k < data.length; k++) {
-                                if (data[k].low <= entryPrice && data[k].high >= entryPrice) {
-                                    dataWithSignals[k].buySignal = entryPrice;
-                                    tradeDirection = null;
-                                    break;
-                                }
-                                if (data[k].high > pullbackHigh) break;
-                            }
-                        }
-                    }
-                    if(tradeDirection === 'long'){
-                        tradeDirection = null;
+                        break; // Stop looking for a BoS from this peak once one is found
                     }
                 }
             }
-             if (tradeDirection === null) {
-                lookingForPullback = false;
-                pullbackStartIndex = null;
-                pullbackEndIndex = null;
-                peakIndex = null;
+        }
+
+        // --- Look for a LONG setup (PFL) ---
+        let isPFL = true;
+        for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
+            if (data[i].low >= data[i - j].low || data[i].low >= data[i + j].low) {
+                isPFL = false;
+                break;
+            }
+        }
+        
+        if (isPFL) {
+            const peakLow = data[i].low;
+            const relevantSwingHighIndex = findLastSwingHighBefore(swingHighs, i);
+            if (relevantSwingHighIndex !== null) {
+                // Now look forward from the peak for the cross and BoS
+                for (let k = i + 1; k < data.length; k++) {
+                     if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
+
+                    const emaCrossed = ema13[k-1] <= ema50[k-1] && ema13[k] > ema50[k];
+                    const structureBroken = data[k].close > data[relevantSwingHighIndex].high;
+
+                    if (emaCrossed && structureBroken) {
+                        const bosIndex = k;
+                        let pullbackHigh = data[bosIndex].high;
+
+                        // Now look for the Fib entry after the BoS
+                        for (let l = bosIndex + 1; l < data.length; l++) {
+                            if (data[l].high > pullbackHigh) {
+                                pullbackHigh = data[l].high;
+                            }
+
+                            if (data[l].low < peakLow) {
+                                break;
+                            }
+
+                            const fibRange = pullbackHigh - peakLow;
+                            const fib50 = pullbackHigh - fibRange * FIB_LEVELS[0];
+                            const fib618 = pullbackHigh - fibRange * FIB_LEVELS[1];
+                             
+                            if (data[l].low <= fib50) {
+                                dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib50;
+                            }
+                             if (data[l].low <= fib618) {
+                                dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib618;
+                            }
+                        }
+                        break; 
+                    }
+                }
             }
         }
     }
