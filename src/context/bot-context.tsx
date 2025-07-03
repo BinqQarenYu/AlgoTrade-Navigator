@@ -493,7 +493,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...prev.logs].slice(0, 100)
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
-  }, [toast, addManualLog]);
+  }, [toast]);
 
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
     manualAnalysisCancelRef.current = false;

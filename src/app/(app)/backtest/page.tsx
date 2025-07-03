@@ -353,7 +353,7 @@ export default function BacktestPage() {
                             } catch (e: any) {
                                 console.error("AI validation failed for buy signal", e);
                                 setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
-                                setIsBacktesting(false);
+                               setIsBacktesting(false);
                                 return;
                             }
                         } else { closePosition = false; }
