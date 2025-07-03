@@ -50,7 +50,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
-            <SummaryStat label="Total PNL" value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>} />
+            <SummaryStat label="Net PNL" value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>} />
             <SummaryStat label="Win Rate" value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>} />
             <SummaryStat label="Profit Factor" value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>} />
             <SummaryStat label="Total Return" value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>} />
@@ -71,7 +71,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                     <TableHead>Exit</TableHead>
                     <TableHead>Close Reason</TableHead>
                     <TableHead>Fee ($)</TableHead>
-                    <TableHead className="text-right">P&L ($)</TableHead>
+                    <TableHead className="text-right">Net P&L ($)</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
