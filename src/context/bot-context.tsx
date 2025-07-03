@@ -257,6 +257,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
+    if (manualAnalysisCancelRef.current) {
+        addManualLog("Analysis canceled before AI validation.");
+        return;
+    }
     addManualLog(`Strategy generated a ${strategySignal} signal. Validating with AI...`);
     try {
         const prediction = config.useAIPrediction ? await predictMarket({
@@ -362,11 +366,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         // Update chart data
         const newData = [...prev.chartData];
-        const lastCandle = newData[newData.length - 1];
-        if (lastCandle && lastCandle.time === newCandle.time) {
-          newData[newData.length - 1] = newCandle;
+        if (newData.length > 0) {
+            const lastCandle = newData[newData.length - 1];
+            if (lastCandle.time === newCandle.time) {
+              newData[newData.length - 1] = newCandle;
+            } else {
+              newData.push(newCandle);
+            }
         } else {
-          newData.push(newCandle);
+            newData.push(newCandle);
         }
         const sortedData = newData.sort((a, b) => a.time - b.time);
         const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
@@ -390,9 +398,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const setManualChartData = useCallback(async (symbol: string, interval: string, force: boolean) => {
     if (manualTraderState.signal !== null && !force) return;
 
-    if (manualTraderState.signal !== null && force) {
-        setManualTraderState(prev => ({...prev, signal: null, logs: []}));
-        manualWsRef.current?.close();
+    if (force) {
+        if (manualTraderState.signal !== null) {
+            setManualTraderState(prev => ({...prev, signal: null}));
+        }
+        if (manualWsRef.current) {
+            manualWsRef.current.close(1000, "New data fetch requested");
+        }
+        setManualTraderState(prev => ({...prev, logs: []}));
     }
     
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
@@ -400,8 +413,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const from = addDays(new Date(), -1).getTime();
         const to = new Date().getTime();
         const klines = await getHistoricalKlines(symbol, interval, from, to);
-        setManualTraderState(prev => ({ ...prev, chartData: klines }));
-        addManualLog(`Loaded ${klines.length} historical candles.`);
+        setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
         connectManualWebSocket(symbol, interval);
     } catch (error: any) {
         toast({ title: "Failed to load data", description: error.message, variant: "destructive" });

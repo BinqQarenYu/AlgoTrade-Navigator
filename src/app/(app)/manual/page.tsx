@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 
 const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
     "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
 ];
 
@@ -95,11 +95,11 @@ export default function ManualTradingPage() {
   // This useEffect is now the single source of truth for fetching data.
   // It runs on mount and whenever the symbol or interval is changed by the user.
   useEffect(() => {
-    if (isConnected && signal === null) {
+    if (isConnected && signal === null && !isAnalyzing) {
         // Always force a fetch when symbol/interval change, which resets the monitoring state.
         setManualChartData(symbol, interval, true);
     }
-  }, [isConnected, signal, symbol, interval, setManualChartData]);
+  }, [isConnected, signal, isAnalyzing, symbol, interval, setManualChartData]);
 
   const hasActiveSignal = signal !== null;
 
@@ -397,5 +397,3 @@ export default function ManualTradingPage() {
     </div>
   )
 }
-
-    
