@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useTransition } from "react"
+import React, { useState, useEffect, useTransition, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Loader2, BrainCircuit, ClipboardCheck } from "lucide-react"
+import { Terminal, Bot, Loader2, BrainCircuit, ClipboardCheck, Play, StopCircle, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
 import type { HistoricalData, TradeSignal } from "@/lib/types"
@@ -69,109 +69,155 @@ export default function ManualTradingPage() {
   const [stopLoss, setStopLoss] = useState<number>(1);
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
-  const [isAnalyzing, startTransition] = useTransition();
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [tradeSignal, setTradeSignal] = useState<TradeSignal | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  
+  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
     setIsClient(true)
   }, [])
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 100));
+  }
+
+  const fetchData = async () => {
+    if (!isConnected) return;
+    setIsFetchingData(true);
+    addLog(`Fetching latest ${interval} data for ${symbol}...`);
+    try {
+        const from = addDays(new Date(), -3).getTime();
+        const to = new Date().getTime();
+        const klines = await getHistoricalKlines(symbol, interval, from, to);
+        setChartData(klines);
+    } catch (error: any) {
+        console.error("Failed to fetch historical data:", error);
+        toast({
+            title: "Failed to Load Data",
+            description: error.message || "Could not retrieve historical data from Binance.",
+            variant: "destructive"
+        });
+        addLog(`Error fetching data: ${error.message}`);
+    } finally {
+        setIsFetchingData(false);
+    }
+  };
   
   useEffect(() => {
     if (!isClient || !isConnected) {
         setChartData([]);
         return;
     }
-
-    const fetchData = async () => {
-        setIsFetchingData(true);
-        setTradeSignal(null);
-        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
-        try {
-            const from = addDays(new Date(), -3).getTime();
-            const to = new Date().getTime();
-            const klines = await getHistoricalKlines(symbol, interval, from, to);
-            setChartData(klines);
-            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
-        } catch (error: any) {
-            console.error("Failed to fetch historical data:", error);
-            toast({
-                title: "Failed to Load Data",
-                description: error.message || "Could not retrieve historical data from Binance.",
-                variant: "destructive"
-            });
-            setChartData([]);
-        } finally {
-            setIsFetchingData(false);
-        }
-    };
-
     fetchData();
-  }, [symbol, interval, isConnected, isClient, toast]);
-
-  const handleGetSignal = async () => {
-    if (chartData.length < 50) {
-        toast({ title: "Not enough data", description: "Waiting for more market data to accumulate.", variant: "destructive" });
-        return;
-    }
-    
     setTradeSignal(null);
-    
-    let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-    const closePrices = chartData.map(d => d.close);
+  }, [symbol, interval, isConnected, isClient]);
 
-    switch (selectedStrategy) {
-        case 'sma-crossover': {
-            const shortPeriod = 20; const longPeriod = 50;
-            const sma_short = calculateSMA(closePrices, shortPeriod); const sma_long = calculateSMA(closePrices, longPeriod);
-            const last_sma_short = sma_short[sma_short.length - 1]; const prev_sma_short = sma_short[sma_short.length - 2];
-            const last_sma_long = sma_long[sma_long.length - 1]; const prev_sma_long = sma_long[sma_long.length - 2];
-            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
-                else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'ema-crossover': {
-            const shortPeriod = 12; const longPeriod = 26;
-            const ema_short = calculateEMA(closePrices, shortPeriod); const ema_long = calculateEMA(closePrices, longPeriod);
-            const last_ema_short = ema_short[ema_short.length - 1]; const prev_ema_short = ema_short[ema_short.length - 2];
-            const last_ema_long = ema_long[ema_long.length - 1]; const prev_ema_long = ema_long[ema_long.length - 2];
-            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
-                else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'rsi-divergence': {
-            const period = 14; const rsi = calculateRSI(closePrices, period);
-            const last_rsi = rsi[rsi.length - 1]; const prev_rsi = rsi[rsi.length - 2];
-            const oversold = 30; const overbought = 70;
-            if (prev_rsi && last_rsi) {
-                if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
-                else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'peak-formation-fib': {
-            const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
-            const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
-            if (lastSignal?.buySignal) strategySignal = 'BUY';
-            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
-            break;
-        }
-    }
-    
-    if (strategySignal === 'HOLD') {
-        toast({ title: "No Signal Generated", description: "The selected strategy found no trading opportunities on the latest data." });
-        return;
-    }
-    
-    let prediction: PredictMarketOutput;
 
-    startTransition(async () => {
+  const runAnalysisCycle = async () => {
+    addLog("Running analysis cycle...");
+    await fetchData(); // Get the absolute latest data
+
+    // Use a transition to avoid blocking UI, but we need to wait for chartData to be updated.
+    // A small timeout helps ensure the state has propagated.
+    setTimeout(async () => {
+       if (chartData.length < 50) {
+            addLog("Not enough data to analyze. Waiting...");
+            return;
+        }
+
+        const latestCandle = chartData[chartData.length - 1];
+
+        // --- Active Signal Monitoring ---
+        if (tradeSignal) {
+            if (tradeSignal.action === 'UP' && latestCandle.low <= tradeSignal.stopLoss) {
+                addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
+                toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
+                setTradeSignal(null);
+                return; // End cycle, look for new signal next time
+            }
+            if (tradeSignal.action === 'DOWN' && latestCandle.high >= tradeSignal.stopLoss) {
+                 addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
+                 toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
+                 setTradeSignal(null);
+                 return;
+            }
+            if (tradeSignal.action === 'UP' && latestCandle.high >= tradeSignal.takeProfit) {
+                addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
+                toast({ title: "Target Reached", description: "The Take Profit level was hit." });
+                setTradeSignal(null);
+                return;
+            }
+            if (tradeSignal.action === 'DOWN' && latestCandle.low <= tradeSignal.takeProfit) {
+                 addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
+                 toast({ title: "Target Reached", description: "The Take Profit level was hit." });
+                 setTradeSignal(null);
+                 return;
+            }
+            addLog("Signal active. Monitoring SL/TP levels...");
+            return; // No need to look for a new signal
+        }
+    
+        // --- Look for a new signal ---
+        addLog("No active signal. Searching for a new setup...");
+        let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+        const closePrices = chartData.map(d => d.close);
+
+        switch (selectedStrategy) {
+            case 'sma-crossover': {
+                const shortPeriod = 20; const longPeriod = 50;
+                const sma_short = calculateSMA(closePrices, shortPeriod); const sma_long = calculateSMA(closePrices, longPeriod);
+                const last_sma_short = sma_short[sma_short.length - 1]; const prev_sma_short = sma_short[sma_short.length - 2];
+                const last_sma_long = sma_long[sma_long.length - 1]; const prev_sma_long = sma_long[sma_long.length - 2];
+                if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
+                    if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
+                    else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
+                }
+                break;
+            }
+            case 'ema-crossover': {
+                const shortPeriod = 12; const longPeriod = 26;
+                const ema_short = calculateEMA(closePrices, shortPeriod); const ema_long = calculateEMA(closePrices, longPeriod);
+                const last_ema_short = ema_short[ema_short.length - 1]; const prev_ema_short = ema_short[ema_short.length - 2];
+                const last_ema_long = ema_long[ema_long.length - 1]; const prev_ema_long = ema_long[ema_long.length - 2];
+                if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
+                    if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
+                    else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
+                }
+                break;
+            }
+            case 'rsi-divergence': {
+                const period = 14; const rsi = calculateRSI(closePrices, period);
+                const last_rsi = rsi[rsi.length - 1]; const prev_rsi = rsi[rsi.length - 2];
+                const oversold = 30; const overbought = 70;
+                if (prev_rsi && last_rsi) {
+                    if (prev_rsi <= oversold && last_rsi > oversold) strategySignal = 'BUY';
+                    else if (prev_rsi >= overbought && last_rsi < overbought) strategySignal = 'SELL';
+                }
+                break;
+            }
+            case 'peak-formation-fib': {
+                const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
+                const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
+                if (lastSignal?.buySignal) strategySignal = 'BUY';
+                else if (lastSignal?.sellSignal) strategySignal = 'SELL';
+                break;
+            }
+        }
+        
+        if (strategySignal === 'HOLD') {
+            addLog("No signal generated by the strategy.");
+            return;
+        }
+        
+        addLog(`Strategy '${selectedStrategy}' generated a ${strategySignal} signal. Validating with AI...`);
+        let prediction: PredictMarketOutput;
+
         try {
             if (useAIPrediction) {
-                toast({ title: "Analyzing Signal...", description: `Asking AI to validate the ${strategySignal} signal from ${selectedStrategy}.`});
                 const recentData = chartData.slice(-50);
                 prediction = await predictMarket({
                     symbol,
@@ -193,7 +239,7 @@ export default function ManualTradingPage() {
                 const stopLossPrice = prediction.prediction === 'UP' ? currentPrice * (1 - (stopLoss / 100)) : currentPrice * (1 + (stopLoss / 100));
                 const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (takeProfit / 100)) : currentPrice * (1 - (takeProfit / 100));
 
-                setTradeSignal({
+                const newSignal = {
                     action: prediction.prediction,
                     entryPrice: currentPrice,
                     stopLoss: stopLossPrice,
@@ -202,20 +248,75 @@ export default function ManualTradingPage() {
                     reasoning: prediction.reasoning,
                     timestamp: new Date(),
                     strategy: selectedStrategy
-                });
-                 toast({ title: "Trade Signal Generated!", description: "Review the signal details in the card below." });
+                };
+                setTradeSignal(newSignal);
+                addLog(`NEW SIGNAL: ${newSignal.action} at $${newSignal.entryPrice.toFixed(4)}. SL: $${newSignal.stopLoss.toFixed(4)}, TP: $${newSignal.takeProfit.toFixed(4)}`);
+                toast({ title: "Trade Signal Generated!", description: "Review the signal details. Now actively monitoring." });
             } else {
-                toast({ title: "Signal Invalidated by AI", description: `The AI suggested ${prediction.prediction} against the strategy's ${strategySignal} signal. No trade advised.`, variant: "destructive" });
+                addLog(`AI invalidated signal. Strategy said ${strategySignal}, AI said ${prediction.prediction}. No trade.`);
+                toast({ title: "Signal Invalidated by AI", description: `The AI suggested ${prediction.prediction} against the strategy's ${strategySignal} signal.`, variant: "destructive" });
             }
-
         } catch (error) {
            console.error("Analysis failed", error);
+           addLog(`Error: AI analysis failed.`);
            toast({ title: "AI Analysis Failed", description: "Could not get a response from the AI. Please try again.", variant: "destructive" });
         }
-    });
+    }, 500);
   }
 
-  const anyLoading = isFetchingData || isAnalyzing;
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        addLog("Screen wake lock active to prevent sleeping.");
+      } catch (err: any) {
+        addLog(`Warning: Could not acquire screen wake lock.`);
+      }
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      await wakeLockRef.current.release();
+      wakeLockRef.current = null;
+      addLog("Screen wake lock released.");
+    }
+  };
+
+  const handleToggleAnalysis = async () => {
+    if (isAnalyzing) {
+        setIsAnalyzing(false);
+        if (analysisIntervalRef.current) {
+            clearInterval(analysisIntervalRef.current);
+            analysisIntervalRef.current = null;
+        }
+        await releaseWakeLock();
+        addLog("Analysis stopped by user.");
+    } else {
+        if (!isConnected) {
+            toast({ title: "Cannot start", description: "Please connect to the API first.", variant: "destructive"});
+            return;
+        }
+        setIsAnalyzing(true);
+        setLogs([]);
+        setTradeSignal(null);
+        addLog(`Continuous analysis started for ${symbol} on ${interval}.`);
+        await requestWakeLock();
+        
+        runAnalysisCycle(); // Initial run
+        analysisIntervalRef.current = setInterval(runAnalysisCycle, 30000); // Run every 30 seconds
+    }
+  }
+
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+        if (analysisIntervalRef.current) {
+            clearInterval(analysisIntervalRef.current);
+        }
+        releaseWakeLock();
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
@@ -244,7 +345,7 @@ export default function ManualTradingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={setSymbol} value={symbol} disabled={anyLoading}>
+                  <Select onValueChange={setSymbol} value={symbol} disabled={isAnalyzing}>
                     <SelectTrigger id="symbol">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -257,7 +358,7 @@ export default function ManualTradingPage() {
                 </div>
                  <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={setInterval} value={interval} disabled={anyLoading}>
+                  <Select onValueChange={setInterval} value={interval} disabled={isAnalyzing}>
                     <SelectTrigger id="interval">
                       <SelectValue placeholder="Select interval" />
                     </SelectTrigger>
@@ -273,7 +374,7 @@ export default function ManualTradingPage() {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing}>
                     <SelectTrigger id="strategy">
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
@@ -295,7 +396,7 @@ export default function ManualTradingPage() {
                         value={takeProfit}
                         onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                         placeholder="2"
-                        disabled={anyLoading}
+                        disabled={isAnalyzing}
                     />
                 </div>
                  <div className="space-y-2">
@@ -306,14 +407,14 @@ export default function ManualTradingPage() {
                         value={stopLoss}
                         onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                         placeholder="1"
-                        disabled={anyLoading}
+                        disabled={isAnalyzing}
                     />
                 </div>
             </div>
             <div className="space-y-2">
               <Label>AI-Powered Analysis</Label>
               <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={anyLoading} />
+                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isAnalyzing} />
                 <div className="flex flex-col">
                     <Label htmlFor="ai-prediction">Enable AI Validation</Label>
                     <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
@@ -322,18 +423,15 @@ export default function ManualTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleGetSignal} disabled={anyLoading || !isConnected || chartData.length === 0}>
-                {anyLoading ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {isAnalyzing ? "Analyzing..." : "Fetching Data..."}
-                    </>
+            <Button className="w-full" onClick={handleToggleAnalysis} disabled={isFetchingData || !isConnected} variant={isAnalyzing ? "destructive" : "default"}>
+                {isFetchingData ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : isAnalyzing ? (
+                    <StopCircle />
                 ) : (
-                    <>
-                        <BrainCircuit/>
-                        Analyze for Signal
-                    </>
+                    <Play/>
                 )}
+                {isFetchingData ? "Fetching Data..." : isAnalyzing ? "Stop Analysis" : "Start Analysis"}
             </Button>
           </CardFooter>
         </Card>
@@ -346,10 +444,9 @@ export default function ManualTradingPage() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="min-h-[240px]">
-                {isAnalyzing ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        <span>{useAIPrediction ? "AI is analyzing..." : "Generating signal..."}</span>
+                {!isAnalyzing && !tradeSignal ? (
+                     <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                         <p>Start the analysis to get a recommendation.</p>
                     </div>
                 ) : tradeSignal ? (
                     <div className="space-y-4">
@@ -387,14 +484,46 @@ export default function ManualTradingPage() {
                         )}
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                         <p>Click "Analyze for Signal" to get the latest recommendation.</p>
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <span>Searching for a valid signal...</span>
                     </div>
                 )}
             </CardContent>
         </Card>
+        
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Activity/> Analysis Logs</CardTitle>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    Status: 
+                    <span className={cn(
+                        "font-semibold",
+                        isAnalyzing ? "text-green-500" : "text-red-500"
+                    )}>
+                        {isAnalyzing ? "Running" : "Idle"}
+                    </span>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
+                    {logs.length > 0 ? (
+                        <pre className="text-xs whitespace-pre-wrap font-mono">
+                            {logs.join('\n')}
+                        </pre>
+                    ) : (
+                         <div className="flex items-center justify-center h-full text-muted-foreground">
+                            <p>Logs will appear here when analysis is running.</p>
+                        </div>
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+
       </div>
     </div>
     </div>
   )
 }
+
+    
