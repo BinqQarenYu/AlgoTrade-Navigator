@@ -46,7 +46,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { KeyRound, Save, QrCode, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle } from "lucide-react"
