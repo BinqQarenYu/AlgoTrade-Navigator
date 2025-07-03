@@ -134,6 +134,22 @@ export function TradingChart({
 
     // Set candlestick and volume data
     if (data.length > 0) {
+        const firstPrice = data[0].close;
+        let precision = 2;
+        if (firstPrice < 0.1) {
+            precision = 8;
+        } else if (firstPrice < 10) {
+            precision = 4;
+        }
+
+        candlestickSeries.applyOptions({
+          priceFormat: {
+            type: 'price',
+            precision: precision,
+            minMove: 1 / Math.pow(10, precision),
+          },
+        });
+
         candlestickSeries.setData(data.map(d => ({
           time: toTimestamp(d.time), open: d.open, high: d.high, low: d.low, close: d.close
         })));
@@ -231,7 +247,7 @@ export function TradingChart({
 
 
   const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';
-  const chartTitle = `${formattedSymbol} Price Chart`;
+  const chartTitle = `${formattedSymbol} (${interval.toLocaleUpperCase()}) Price Chart`;
 
   return (
     <Card className="h-full flex flex-col">
