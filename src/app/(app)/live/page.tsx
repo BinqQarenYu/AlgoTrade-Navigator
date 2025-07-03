@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData } from "@/lib/types"
+import type { HistoricalData, TradeSignal } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -149,6 +149,42 @@ export default function LiveTradingPage() {
     }
   }
 
+  const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
+    const { isRunning, prediction, chartData: botChartData, config } = liveBotState;
+
+    if (!isRunning || !prediction || prediction.prediction === 'NEUTRAL' || !config) {
+      return null;
+    }
+    
+    const lastCandle = botChartData[botChartData.length - 1];
+    if (!lastCandle) return null;
+
+    const entryPrice = lastCandle.close;
+
+    const slPercent = config.stopLoss;
+    const tpPercent = config.takeProfit;
+
+    const stopLossPrice = prediction.prediction === 'UP' 
+      ? entryPrice * (1 - slPercent / 100)
+      : entryPrice * (1 + slPercent / 100);
+      
+    const takeProfitPrice = prediction.prediction === 'UP'
+      ? entryPrice * (1 + tpPercent / 100)
+      : entryPrice * (1 - tpPercent / 100);
+
+    return {
+      action: prediction.prediction,
+      entryPrice: entryPrice,
+      stopLoss: stopLossPrice,
+      takeProfit: takeProfitPrice,
+      confidence: prediction.confidence,
+      reasoning: `Live AI Prediction: ${prediction.reasoning}`,
+      timestamp: new Date(),
+      strategy: config.strategy,
+    };
+}, [liveBotState]);
+
+
   const anyLoading = isFetchingData;
   const getPredictionBadgeVariant = (pred: string) => {
     switch (pred) {
@@ -171,7 +207,7 @@ export default function LiveTradingPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} />
+        <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} tradeSignal={tradeSignalForChart} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
