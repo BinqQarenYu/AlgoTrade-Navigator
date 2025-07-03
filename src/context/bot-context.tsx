@@ -214,6 +214,21 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setManualTraderState(prev => {
+        // Update chart data first, so we can use it in both return paths.
+        const newData = [...prev.chartData];
+        if (newData.length > 0) {
+            const lastCandle = newData[newData.length - 1];
+            if (lastCandle.time === newCandle.time) {
+              newData[newData.length - 1] = newCandle; // Update current candle
+            } else {
+              newData.push(newCandle); // Add new candle
+            }
+        } else {
+            newData.push(newCandle);
+        }
+        const sortedData = newData.sort((a, b) => a.time - b.time);
+        const updatedChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
+
         // Invalidation Logic
         if (prev.signal && prev.signal.peakPrice) {
           let invalidated = false;
@@ -227,7 +242,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           }
 
           if (invalidated) {
-            // Use setTimeout to escape the current render cycle before calling toast
             setTimeout(() => {
                 toast({
                   title: "Trade Signal Invalidated",
@@ -237,25 +251,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
                 manualWsRef.current?.close(); // Stop monitoring
             }, 0);
-            return { ...prev, signal: null };
+            return { ...prev, signal: null, chartData: updatedChartData };
           }
         }
         
-        // Update chart data
-        const newData = [...prev.chartData];
-        if (newData.length > 0) {
-            const lastCandle = newData[newData.length - 1];
-            if (lastCandle.time === newCandle.time) {
-              newData[newData.length - 1] = newCandle;
-            } else {
-              newData.push(newCandle);
-            }
-        } else {
-            newData.push(newCandle);
-        }
-        const sortedData = newData.sort((a, b) => a.time - b.time);
-        const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
-        return { ...prev, chartData: uniqueData.slice(-1500) };
+        // If not invalidated, just update the chart data
+        return { ...prev, chartData: updatedChartData };
       });
     };
     
@@ -322,11 +323,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     let dataWithSignals = [...dataToAnalyze];
     let signalCandle: HistoricalData | null = null;
     
-    const closePrices = dataToAnalyze.map(d => d.close);
-
     switch (config.strategy) {
         case "sma-crossover":
         case "ema-crossover": {
+            const closePrices = dataToAnalyze.map(d => d.close);
             const isSMA = config.strategy === 'sma-crossover';
             const shortPeriod = isSMA ? 20 : 12;
             const longPeriod = isSMA ? 50 : 26;
@@ -344,20 +344,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 if (shortMA[i-1]! >= longMA[i-1]! && shortMA[i]! < longMA[i]!) lastSellSignalIndex = i;
             }
 
-            if (lastBuySignalIndex > lastSellSignalIndex) {
-                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) { // Check if recent
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[lastBuySignalIndex];
-                }
-            } else if (lastSellSignalIndex > lastBuySignalIndex) {
-                 if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) { // Check if recent
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[lastSellSignalIndex];
-                }
+            const lastSignalIndex = Math.max(lastBuySignalIndex, lastSellSignalIndex);
+
+            if (lastSignalIndex !== -1 && (dataToAnalyze.length - 1 - lastSignalIndex) < 5) {
+                strategySignal = lastBuySignalIndex > lastSellSignalIndex ? 'BUY' : 'SELL';
+                signalCandle = dataToAnalyze[lastSignalIndex];
             }
             break;
         }
         case "rsi-divergence": {
+            const closePrices = dataToAnalyze.map(d => d.close);
             const rsi = calculateRSI(closePrices, 14);
             const oversold = 30;
             const overbought = 70;
@@ -369,17 +365,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 if (rsi[i-1]! <= oversold && rsi[i]! > oversold) lastBuySignalIndex = i;
                 if (rsi[i-1]! >= overbought && rsi[i]! < overbought) lastSellSignalIndex = i;
             }
+
+            const lastSignalIndex = Math.max(lastBuySignalIndex, lastSellSignalIndex);
             
-            if (lastBuySignalIndex > lastSellSignalIndex) {
-                if (dataToAnalyze.length - 1 - lastBuySignalIndex < 5) { // Check if recent
-                    strategySignal = 'BUY';
-                    signalCandle = dataToAnalyze[lastBuySignalIndex];
-                }
-            } else if (lastSellSignalIndex > lastBuySignalIndex) {
-                if (dataToAnalyze.length - 1 - lastSellSignalIndex < 5) { // Check if recent
-                    strategySignal = 'SELL';
-                    signalCandle = dataToAnalyze[lastSellSignalIndex];
-                }
+            if (lastSignalIndex !== -1 && (dataToAnalyze.length - 1 - lastSignalIndex) < 5) {
+                strategySignal = lastBuySignalIndex > lastSellSignalIndex ? 'BUY' : 'SELL';
+                signalCandle = dataToAnalyze[lastSignalIndex];
             }
             break;
         }
