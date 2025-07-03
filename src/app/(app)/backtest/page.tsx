@@ -237,14 +237,13 @@ export default function BacktestPage() {
     }
 
     const trades: BacktestResult[] = [];
-    let currentBalance = initialCapital;
+    const marginPerTrade = initialCapital;
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     let entryTime = 0;
     let stopLossPrice = 0;
     let takeProfitPrice = 0;
     let tradeQuantity = 0;
-    let entryCapital = 0;
 
     for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
@@ -291,13 +290,11 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (exitPrice - entryPrice) * tradeQuantity;
-                const pnlPercent = (pnl / entryCapital) * 100;
-                currentBalance += pnl;
+                const pnlPercent = (pnl / marginPerTrade) * 100;
                 trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
-                entryCapital = 0;
             }
         } else if (positionType === 'short') {
             let exitPrice: number | null = null;
@@ -340,13 +337,11 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (entryPrice - exitPrice) * tradeQuantity;
-                const pnlPercent = (pnl / entryCapital) * 100;
-                currentBalance += pnl;
+                const pnlPercent = (pnl / marginPerTrade) * 100;
                 trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
-                entryCapital = 0;
             }
         }
 
@@ -379,14 +374,13 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    entryCapital = currentBalance;
                     if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
                     }
                     takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-                    const positionValue = currentBalance * (leverage || 1);
+                    const positionValue = marginPerTrade * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
                 }
             } else if (d.sellSignal) {
@@ -416,20 +410,20 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    entryCapital = currentBalance;
                     if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
                     }
                     takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-                    const positionValue = currentBalance * (leverage || 1);
+                    const positionValue = marginPerTrade * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
                 }
             }
         }
     }
     
+    // Close any open position at the end of the data
     if (positionType !== null && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
@@ -441,8 +435,7 @@ export default function BacktestPage() {
             pnl = (entryPrice - exitPrice) * tradeQuantity;
         }
 
-        const pnlPercent = (pnl / entryCapital) * 100;
-        currentBalance += pnl;
+        const pnlPercent = (pnl / marginPerTrade) * 100;
         trades.push({ type: positionType, entryTime, entryPrice, exitTime: lastDataPoint.time, exitPrice, pnl, pnlPercent, closeReason: 'signal' });
     }
 
@@ -451,8 +444,8 @@ export default function BacktestPage() {
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
     const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
     const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-    const endingBalance = currentBalance;
-    const totalReturnPercent = totalPnl / initialCapital * 100;
+    const endingBalance = initialCapital + totalPnl;
+    const totalReturnPercent = initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0;
 
     const summary: BacktestSummary = {
       totalTrades: trades.length,
