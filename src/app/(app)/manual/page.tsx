@@ -34,7 +34,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 
 const assetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT", 
     "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
 ];
 
@@ -83,28 +83,23 @@ export default function ManualTradingPage() {
     resetManualSignal();
   };
 
-  const handleIntervalChange = useCallback((newInterval: string) => {
+  // Simplified handlers just update state. The useEffect handles the data fetching.
+  const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    // When interval changes, we might want to refetch data if not monitoring
-    if (signal === null) {
-      setManualChartData(symbol, newInterval, true);
-    }
-  }, [setManualChartData, signal, symbol]);
+  };
 
-  const handleSymbolChange = useCallback((newSymbol: string) => {
+  const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
-    if (signal === null) {
-      setManualChartData(newSymbol, interval, true);
-    }
-  }, [interval, setManualChartData, signal]);
+  };
 
-  // Initial data fetch and when dependencies change while not monitoring
+  // This useEffect is now the single source of truth for fetching data.
+  // It runs on mount and whenever the symbol or interval is changed by the user.
   useEffect(() => {
     if (isConnected && signal === null) {
-        setManualChartData(symbol, interval, false);
+        // Always force a fetch when symbol/interval change, which resets the monitoring state.
+        setManualChartData(symbol, interval, true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, symbol, interval]);
+  }, [isConnected, signal, symbol, interval, setManualChartData]);
 
   const hasActiveSignal = signal !== null;
 
@@ -402,3 +397,5 @@ export default function ManualTradingPage() {
     </div>
   )
 }
+
+    
