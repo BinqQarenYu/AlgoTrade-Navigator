@@ -34,6 +34,7 @@ export type HistoricalData = {
   ema_short?: number | null;
   ema_long?: number | null;
   rsi?: number | null;
+  stopLossLevel?: number;
 };
 
 export type Portfolio = {
@@ -78,4 +79,6 @@ export type ApiProfile = {
   apiKey: string;
   secretKey: string;
 };
+    
+
     

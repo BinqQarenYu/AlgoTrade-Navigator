@@ -53,7 +53,7 @@ function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
 }
 
 
-export const calculatePeakFormationFibSignals = async (data: HistoricalData[]): Promise<HistoricalData[]> => {
+export async function calculatePeakFormationFibSignals(data: HistoricalData[]): Promise<HistoricalData[]> {
     const dataWithSignals = JSON.parse(JSON.stringify(data)); // Deep copy
     if (data.length < EMA_LONG_PERIOD) return dataWithSignals;
 
@@ -109,9 +109,11 @@ export const calculatePeakFormationFibSignals = async (data: HistoricalData[]): 
                             // Check if the current candle hits one of the fib levels
                             if (data[l].high >= fib50) {
                                 dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib50;
+                                dataWithSignals[l].stopLossLevel = peakHigh;
                             }
                             if (data[l].high >= fib618) {
                                 dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib618;
+                                dataWithSignals[l].stopLossLevel = peakHigh;
                             }
                         }
                         break; // Stop looking for a BoS from this peak once one is found
@@ -160,9 +162,11 @@ export const calculatePeakFormationFibSignals = async (data: HistoricalData[]): 
                              
                             if (data[l].low <= fib50) {
                                 dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib50;
+                                dataWithSignals[l].stopLossLevel = peakLow;
                             }
                              if (data[l].low <= fib618) {
                                 dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib618;
+                                dataWithSignals[l].stopLossLevel = peakLow;
                             }
                         }
                         break; 
@@ -241,3 +245,5 @@ const findHighestHighBetween = (data: HistoricalData[], from: number, to: number
     }
     return highest === -Infinity ? null : highest;
 }
+
+    

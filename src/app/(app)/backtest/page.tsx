@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -163,6 +162,7 @@ export default function BacktestPage() {
         sma_short, sma_long, 
         ema_short, ema_long, 
         rsi, 
+        stopLossLevel,
         ...rest 
       } = d as any;
       return rest;
@@ -375,7 +375,11 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
+                    if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
+                        stopLossPrice = d.stopLossLevel;
+                    } else {
+                        stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
+                    }
                     takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
                     const positionValue = currentBalance * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
@@ -407,7 +411,11 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
+                    if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
+                        stopLossPrice = d.stopLossLevel;
+                    } else {
+                        stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
+                    }
                     takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
                     const positionValue = currentBalance * (leverage || 1);
                     tradeQuantity = positionValue / entryPrice;
@@ -706,3 +714,5 @@ export default function BacktestPage() {
     </div>
   )
 }
+
+    
