@@ -373,7 +373,7 @@ export default function BacktestPage() {
                 }
                 if (openPosition) {
                     positionType = 'long';
-                    entryPrice = d.low;
+                    entryPrice = d.close;
                     entryTime = d.time;
                     stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
                     takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
@@ -405,7 +405,7 @@ export default function BacktestPage() {
                 }
                 if (openPosition) {
                     positionType = 'short';
-                    entryPrice = d.high;
+                    entryPrice = d.close;
                     entryTime = d.time;
                     stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
                     takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
