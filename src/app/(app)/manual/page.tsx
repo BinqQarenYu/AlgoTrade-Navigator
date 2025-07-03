@@ -26,12 +26,11 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Play, StopCircle, Activity } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
 import type { HistoricalData, TradeSignal } from "@/lib/types"
-import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
-import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
+import { predictMarket } from "@/ai/flows/predict-market-flow"
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -63,6 +62,7 @@ export default function ManualTradingPage() {
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const chartDataRef = useRef(chartData);
   const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
   const [interval, setInterval] = useState<string>("1m");
   
@@ -70,13 +70,10 @@ export default function ManualTradingPage() {
   const [stopLoss, setStopLoss] = useState<number>(1);
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [tradeSignal, setTradeSignal] = useState<TradeSignal | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   
   const wsRef = useRef<WebSocket | null>(null);
-  const analysisIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
     setIsClient(true)
@@ -126,65 +123,27 @@ export default function ManualTradingPage() {
         setChartData([]);
         return;
     }
-    fetchInitialData();
+    setLogs([]);
     setTradeSignal(null);
+    fetchInitialData();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, interval, isConnected, isClient]);
 
 
-  const runAnalysisCycle = async () => {
+  const handleRunAnalysis = async () => {
+    setIsAnalyzing(true);
+    setLogs([]);
+    setTradeSignal(null);
     const currentData = chartDataRef.current;
-    addLog("Running analysis cycle...");
+    addLog("Running analysis...");
+    
     if (currentData.length < 50) {
       addLog("Not enough data to analyze. Waiting...");
+      setIsAnalyzing(false);
       return;
     }
 
-    const latestCandle = currentData[currentData.length - 1];
-
-    if (tradeSignal) {
-        // Monitor existing trade signal
-        if (tradeSignal.action === 'UP' && latestCandle.low <= tradeSignal.stopLoss) {
-            addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
-            toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
-            setTradeSignal(null); return;
-        }
-        if (tradeSignal.action === 'DOWN' && latestCandle.high >= tradeSignal.stopLoss) {
-             addLog(`ALERT: Stop Loss triggered at $${tradeSignal.stopLoss.toFixed(4)}. Trade setup invalidated.`);
-             toast({ title: "Trade Invalidated", description: "The Stop Loss level was breached.", variant: "destructive" });
-             setTradeSignal(null); return;
-        }
-        if (tradeSignal.action === 'UP' && latestCandle.high >= tradeSignal.takeProfit) {
-            addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
-            toast({ title: "Target Reached", description: "The Take Profit level was hit." });
-            setTradeSignal(null); return;
-        }
-        if (tradeSignal.action === 'DOWN' && latestCandle.low <= tradeSignal.takeProfit) {
-             addLog(`INFO: Take Profit level reached at $${tradeSignal.takeProfit.toFixed(4)}. Consider closing position.`);
-             toast({ title: "Target Reached", description: "The Take Profit level was hit." });
-             setTradeSignal(null); return;
-        }
-
-        // Monitor for structure change in PFF strategy
-        if (tradeSignal.strategy === 'peak-formation-fib' && tradeSignal.peakPrice) {
-            if (tradeSignal.action === 'DOWN' && latestCandle.high > tradeSignal.peakPrice) {
-                addLog(`ALERT: Market structure changed. A new high has invalidated the original peak formation.`);
-                toast({ title: "Structure Invalidated", description: "The peak high of the setup was broken.", variant: "destructive" });
-                setTradeSignal(null); return;
-            }
-            if (tradeSignal.action === 'UP' && latestCandle.low < tradeSignal.peakPrice) {
-                addLog(`ALERT: Market structure changed. A new low has invalidated the original peak formation.`);
-                toast({ title: "Structure Invalidated", description: "The peak low of the setup was broken.", variant: "destructive" });
-                setTradeSignal(null); return;
-            }
-        }
-        
-        addLog("Signal active. Monitoring SL/TP levels...");
-        return;
-    }
-
-    // Search for a new signal
-    addLog("No active signal. Searching for a new setup...");
+    addLog("Searching for a new setup...");
     let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
     let dataWithSignals = [...currentData]; // Copy data
     const closePrices = currentData.map(d => d.close);
@@ -210,6 +169,7 @@ export default function ManualTradingPage() {
 
     if (strategySignal === 'HOLD') {
         addLog("No signal generated by the strategy.");
+        setIsAnalyzing(false);
         return;
     }
     
@@ -228,6 +188,7 @@ export default function ManualTradingPage() {
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
         if (aiConfirms) {
+            const latestCandle = currentData[currentData.length - 1];
             const currentPrice = latestCandle.close;
             // Use specific stop loss from PFF strategy if available
             const stopLossPrice = signalCandle?.stopLossLevel 
@@ -247,7 +208,7 @@ export default function ManualTradingPage() {
             };
             setTradeSignal(newSignal);
             addLog(`NEW SIGNAL: ${newSignal.action} at $${newSignal.entryPrice.toFixed(4)}. SL: $${newSignal.stopLoss.toFixed(4)}, TP: $${newSignal.takeProfit.toFixed(4)}`);
-            toast({ title: "Trade Signal Generated!", description: "Review the signal details. Now actively monitoring." });
+            toast({ title: "Trade Signal Generated!", description: "Review the signal details." });
         } else {
             addLog(`AI invalidated signal. Strategy said ${strategySignal}, AI said ${prediction.prediction}. No trade.`);
             toast({ title: "Signal Invalidated by AI", description: `The AI suggested ${prediction.prediction} against the strategy's ${strategySignal} signal.`, variant: "destructive" });
@@ -257,49 +218,19 @@ export default function ManualTradingPage() {
        addLog(`Error: AI analysis failed.`);
        toast({ title: "AI Analysis Failed", variant: "destructive" });
     }
+    setIsAnalyzing(false);
   }
 
-  const requestWakeLock = async () => { /* Remains the same */ };
-  const releaseWakeLock = async () => { /* Remains the same */ };
-
-  const handleToggleAnalysis = async () => {
-    if (isAnalyzing) {
-        setIsAnalyzing(false);
-        if (analysisIntervalRef.current) {
-            clearInterval(analysisIntervalRef.current);
-            analysisIntervalRef.current = null;
-        }
-        addLog("Continuous analysis stopped by user.");
-        await releaseWakeLock();
-    } else {
-        if (!isConnected) {
-            toast({ title: "Cannot start", description: "Please connect to the API first.", variant: "destructive"});
-            return;
-        }
-        setIsAnalyzing(true);
-        setLogs([]);
-        setTradeSignal(null);
-        addLog(`Continuous analysis started for ${symbol} on ${interval}. Analysis will run every 2 minutes.`);
-        await requestWakeLock();
-
-        // Initial run
-        runAnalysisCycle();
-
-        // Start interval
-        analysisIntervalRef.current = setInterval(runAnalysisCycle, 120000); // 2 minutes
-    }
-  }
-
-  // Effect to manage WebSocket connection
+  // Effect to manage WebSocket connection for live chart data
   useEffect(() => {
-    if (isAnalyzing && isConnected) {
+    if (isConnected) {
       addLog("Connecting to WebSocket stream for live chart data...");
       wsRef.current = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
 
       wsRef.current.onopen = () => addLog("WebSocket connection established.");
       
       wsRef.current.onerror = (event) => {
-          console.error("A WebSocket error occurred. See the 'close' event for more details.", event);
+          console.error("A WebSocket error occurred:", event);
           addLog("WebSocket error. Connection may be lost.");
       };
       
@@ -313,15 +244,6 @@ export default function ManualTradingPage() {
             default:   reason = `Unknown close code: ${event.code}`; break;
         }
         addLog(`WebSocket closed: ${reason}`);
-
-        if (isAnalyzing) {
-             setIsAnalyzing(false);
-             if (analysisIntervalRef.current) {
-                clearInterval(analysisIntervalRef.current);
-                analysisIntervalRef.current = null;
-             }
-             addLog("Analysis stopped due to unexpected connection closure.");
-        }
       };
 
       wsRef.current.onmessage = (event) => {
@@ -352,29 +274,10 @@ export default function ManualTradingPage() {
           wsRef.current.close();
           wsRef.current = null;
         }
-        releaseWakeLock();
       };
-    } else {
-         if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-        }
-        if (analysisIntervalRef.current) {
-            clearInterval(analysisIntervalRef.current);
-            analysisIntervalRef.current = null;
-        }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyzing, isConnected, symbol, interval]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-        if (analysisIntervalRef.current) {
-            clearInterval(analysisIntervalRef.current);
-        }
-    }
-  }, []);
+  }, [isConnected, symbol, interval]);
 
   return (
     <div className="flex flex-col h-full">
@@ -481,15 +384,15 @@ export default function ManualTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleToggleAnalysis} disabled={isFetchingData || !isConnected} variant={isAnalyzing ? "destructive" : "default"}>
+            <Button className="w-full" onClick={handleRunAnalysis} disabled={isFetchingData || isAnalyzing || !isConnected}>
                 {isFetchingData ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : isAnalyzing ? (
-                    <StopCircle />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                    <Play/>
+                    <Wand2/>
                 )}
-                {isFetchingData ? "Loading History..." : isAnalyzing ? "Stop Analysis" : "Start Analysis"}
+                {isFetchingData ? "Loading History..." : isAnalyzing ? "Analyzing..." : "Analyze for Signal"}
             </Button>
           </CardFooter>
         </Card>
@@ -502,9 +405,10 @@ export default function ManualTradingPage() {
                 </CardDescription>
             </CardHeader>
             <CardContent className="min-h-[240px]">
-                {!isAnalyzing && !tradeSignal ? (
-                     <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                         <p>Start the analysis to get a recommendation.</p>
+                {isAnalyzing ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        <span>Searching for a trade setup...</span>
                     </div>
                 ) : tradeSignal ? (
                     <div className="space-y-4">
@@ -542,9 +446,8 @@ export default function ManualTradingPage() {
                         )}
                     </div>
                 ) : (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        <span>Waiting for next analysis cycle...</span>
+                     <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                         <p>Click "Analyze for Signal" to get a recommendation.</p>
                     </div>
                 )}
             </CardContent>
@@ -553,15 +456,6 @@ export default function ManualTradingPage() {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Activity/> Analysis Logs</CardTitle>
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    Status: 
-                    <span className={cn(
-                        "font-semibold",
-                        isAnalyzing ? "text-green-500" : "text-red-500"
-                    )}>
-                        {isAnalyzing ? "Running" : "Idle"}
-                    </span>
-                </div>
             </CardHeader>
             <CardContent>
                 <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
@@ -571,7 +465,7 @@ export default function ManualTradingPage() {
                         </pre>
                     ) : (
                          <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <p>Logs will appear here when analysis is running.</p>
+                            <p>Logs from the analysis will appear here.</p>
                         </div>
                     )}
                 </div>
@@ -583,3 +477,5 @@ export default function ManualTradingPage() {
     </div>
   )
 }
+
+    
