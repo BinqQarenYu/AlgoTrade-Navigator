@@ -37,7 +37,7 @@ interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
-  setManualChartData: (data: HistoricalData[] | string, intervalOrForce: string | boolean, force?: boolean) => void;
+  setManualChartData: (symbol: string, interval: string) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -214,14 +214,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setManualTraderState(prev => {
-        // Update chart data first, so we can use it in both return paths.
         const newData = [...prev.chartData];
         if (newData.length > 0) {
             const lastCandle = newData[newData.length - 1];
             if (lastCandle.time === newCandle.time) {
-              newData[newData.length - 1] = newCandle; // Update current candle
+              newData[newData.length - 1] = newCandle;
             } else {
-              newData.push(newCandle); // Add new candle
+              newData.push(newCandle);
             }
         } else {
             newData.push(newCandle);
@@ -229,7 +228,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const sortedData = newData.sort((a, b) => a.time - b.time);
         const updatedChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
 
-        // Invalidation Logic
         if (prev.signal && prev.signal.peakPrice) {
           let invalidated = false;
           let invalidationReason = '';
@@ -249,13 +247,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                   variant: "destructive"
                 });
                 addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
-                manualWsRef.current?.close(); // Stop monitoring
+                manualWsRef.current?.close();
             }, 0);
             return { ...prev, signal: null, chartData: updatedChartData };
           }
         }
         
-        // If not invalidated, just update the chart data
         return { ...prev, chartData: updatedChartData };
       });
     };
@@ -280,7 +277,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const resetManualSignal = useCallback(() => {
     if (manualWsRef.current) {
-        manualWsRef.current.close(1000, "Signal reset by user"); // Close with normal code
+        manualWsRef.current.close(1000, "Signal reset by user");
         manualWsRef.current = null;
     }
     setManualTraderState(prev => ({
@@ -466,31 +463,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [manualTraderState.chartData, addManualLog, toast, connectManualWebSocket]);
 
-  const setManualChartData = useCallback(async (data: HistoricalData[] | string, intervalOrForce: string | boolean, force?: boolean) => {
-    // Overload 1: setManualChartData(data, force)
-    if (Array.isArray(data)) {
-        const shouldForce = !!intervalOrForce;
-        if (manualTraderState.signal !== null && !shouldForce) return;
-        setManualTraderState(prev => ({...prev, chartData: data}));
-        return;
-    }
+  const setManualChartData = useCallback(async (symbol: string, interval: string) => {
+    // Guard against fetching if a signal is active. The UI should disable controls,
+    // but this is an extra layer of safety.
+    if (manualTraderState.signal !== null) return;
     
-    // Overload 2: setManualChartData(symbol, interval, force)
-    const symbol = data;
-    const interval = intervalOrForce as string;
-    const shouldForceFetch = !!force;
-    
-    if (manualTraderState.signal !== null && !shouldForceFetch) return;
-
-    if (shouldForceFetch) {
-        if (manualTraderState.signal !== null) {
-            setManualTraderState(prev => ({...prev, signal: null}));
-        }
-        if (manualWsRef.current) {
-            manualWsRef.current.close(1000, "New data fetch requested");
-        }
-        setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
+    // Clear old state before fetching new data
+    if (manualWsRef.current) {
+        manualWsRef.current.close(1000, "New data fetch requested");
     }
+    setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
     
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
     try {
@@ -498,12 +480,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const to = new Date().getTime();
         const klines = await getHistoricalKlines(symbol, interval, from, to);
         setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
-        connectManualWebSocket(symbol, interval);
     } catch (error: any) {
         toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
         addManualLog(`Error loading data: ${error.message}`);
     }
-  }, [addManualLog, manualTraderState.signal, toast, connectManualWebSocket]);
+  }, [addManualLog, manualTraderState.signal, toast]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -82,26 +82,24 @@ export default function ManualTradingPage() {
     resetManualSignal();
   };
 
-  // Simplified handlers just update state. The useEffect handles the data fetching.
+  // Handlers ONLY update local state. They do not trigger side effects.
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    setManualChartData([], true); // Clear chart data immediately
   };
 
   const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
-    setManualChartData([], true); // Clear chart data immediately
   };
 
-  // This useEffect is now the single source of truth for fetching data.
-  // It runs on mount and whenever the symbol or interval is changed by the user.
+  // This useEffect is the single source of truth for fetching data.
+  // It runs on mount and whenever the symbol or interval changes, but only
+  // when the system is in a state to do so.
   useEffect(() => {
     if (isConnected && !isAnalyzing && signal === null) {
-      setManualChartData(symbol, interval, true);
+      setManualChartData(symbol, interval);
     }
-    // The dependency array ensures this hook re-runs only when these specific values change.
-    // The checks inside the hook prevent it from running during analysis or when a signal is active.
   }, [isConnected, symbol, interval, isAnalyzing, signal, setManualChartData]);
+
 
   const hasActiveSignal = signal !== null;
 
