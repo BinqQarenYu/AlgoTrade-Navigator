@@ -56,6 +56,7 @@ export default function ManualTradingPage() {
   const { 
     manualTraderState,
     runManualAnalysis,
+    cancelManualAnalysis,
     setManualChartData
   } = useBot();
 
@@ -79,6 +80,10 @@ export default function ManualTradingPage() {
         useAIPrediction,
     });
   };
+
+  const handleCancelAnalysis = () => {
+    cancelManualAnalysis();
+  }
 
   const handleIntervalChange = useCallback((newInterval: string) => {
     setInterval(newInterval);
@@ -214,13 +219,23 @@ export default function ManualTradingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button className="w-full" onClick={handleRunAnalysis} disabled={isAnalyzing || !isConnected || signal !== null}>
+            <Button
+                className="w-full"
+                onClick={isAnalyzing ? handleCancelAnalysis : handleRunAnalysis}
+                disabled={!isAnalyzing && (!isConnected || signal !== null)}
+                variant={isAnalyzing ? "destructive" : "default"}
+            >
                 {isAnalyzing ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cancel Analysis
+                    </>
                 ) : (
-                    <Wand2/>
+                    <>
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        Analyze for Signal
+                    </>
                 )}
-                {isAnalyzing ? "Analyzing..." : "Analyze for Signal"}
             </Button>
           </CardFooter>
         </Card>

@@ -34,6 +34,7 @@ interface BotContextType {
   startLiveBot: (config: LiveBotConfig) => void;
   stopLiveBot: () => void;
   runManualAnalysis: (config: ManualTraderConfig) => void;
+  cancelManualAnalysis: () => void;
   setManualChartData: (symbol: string, interval: string, force: boolean) => void;
 }
 
@@ -54,6 +55,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     isAnalyzing: false, logs: [], signal: null, chartData: []
   });
   const manualWsRef = useRef<WebSocket | null>(null);
+  const manualAnalysisCancelRef = useRef(false);
 
   // --- Helper Functions ---
   const addLiveLog = useCallback((message: string) => {
@@ -180,7 +182,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   };
   
   // --- Manual Trader Logic ---
+  const cancelManualAnalysis = () => {
+    manualAnalysisCancelRef.current = true;
+    addManualLog("Analysis canceled by user.");
+    setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
+  };
+
   const runManualAnalysis = async (config: ManualTraderConfig) => {
+    manualAnalysisCancelRef.current = false;
     setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
     addManualLog("Running analysis...");
 
@@ -245,6 +254,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
              reasoning: `Signal generated directly from the '${config.strategy}' strategy without AI validation.`
          };
       
+        if (manualAnalysisCancelRef.current) {
+            addManualLog("Analysis canceled, results discarded.");
+            return;
+        }
+
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
         if (aiConfirms) {
@@ -276,6 +290,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
         }
     } catch (error) {
+       if (manualAnalysisCancelRef.current) {
+            addManualLog("Analysis canceled, error discarded.");
+            return;
+        }
        console.error("Analysis failed", error);
        addManualLog(`Error: AI analysis failed.`);
        toast({ title: "AI Analysis Failed", variant: "destructive" });
@@ -341,10 +359,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       });
     };
     
-    ws.onclose = () => {
-        addManualLog("Monitoring WebSocket closed.");
+    ws.onclose = (event) => {
+        addManualLog(`Monitoring WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'No reason given'}`);
         manualWsRef.current = null;
     }
+
+    ws.onerror = (event) => {
+        console.error("A WebSocket error occurred:", event);
+        addManualLog("WebSocket error. Connection may be lost.");
+    };
   };
 
   const setManualChartData = useCallback(async (symbol: string, interval: string, force: boolean) => {
@@ -384,6 +407,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       startLiveBot,
       stopLiveBot,
       runManualAnalysis,
+      cancelManualAnalysis,
       setManualChartData,
     }}>
       {children}
