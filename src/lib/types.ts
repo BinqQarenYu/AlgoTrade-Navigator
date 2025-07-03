@@ -1,4 +1,5 @@
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -71,4 +72,10 @@ export type BacktestSummary = {
   totalReturnPercent: number;
 };
 
+export type ApiProfile = {
+  id: string;
+  name: string;
+  apiKey: string;
+  secretKey: string;
+};
     

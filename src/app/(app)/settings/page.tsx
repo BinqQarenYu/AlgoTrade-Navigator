@@ -1,11 +1,10 @@
 
 "use client"
 
-import React, { useRef, useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import jsQR from "jsqr"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
@@ -19,48 +18,62 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { KeyRound, Save, QrCode, Power, PowerOff, Loader2 } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
+import { KeyRound, Save, QrCode, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-
-const settingsSchema = z.object({
-  apiKey: z.string().min(1, "API Key is required."),
-  secretKey: z.string().min(1, "Secret Key is required."),
-})
+import type { ApiProfile } from "@/lib/types"
+import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
+import { Badge } from "@/components/ui/badge"
 
 export default function SettingsPage() {
   const { toast } = useToast()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const {
-    apiKey,
-    setApiKey,
-    secretKey,
-    setSecretKey,
+    profiles,
+    activeProfile,
+    setActiveProfile,
+    addProfile,
+    updateProfile,
+    deleteProfile,
     isConnected,
     setIsConnected,
     apiLimit,
     setApiLimit,
   } = useApi()
+
   const [isConnecting, setIsConnecting] = useState(false)
   const [ipAddress, setIpAddress] = useState<string | null>(null)
-
-  const form = useForm<z.infer<typeof settingsSchema>>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      apiKey: apiKey || "",
-      secretKey: secretKey || "",
-    },
-  })
-
-  useEffect(() => {
-    form.reset({
-      apiKey: apiKey || '',
-      secretKey: secretKey || '',
-    });
-  }, [apiKey, secretKey, form]);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
 
   useEffect(() => {
     const fetchIp = async () => {
@@ -76,128 +89,32 @@ export default function SettingsPage() {
     fetchIp();
   }, []);
 
-
-  const processQrCodeFile = (file: File) => {
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const imageUrl = e.target?.result as string
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement("canvas")
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext("2d")
-        if (!ctx) {
-          toast({
-            title: "QR Scan Failed",
-            description: "Could not get canvas context.",
-            variant: "destructive",
-          })
-          return
-        }
-        ctx.drawImage(img, 0, 0, img.width, img.height)
-        const imageData = ctx.getImageData(0, 0, img.width, img.height)
-        const code = jsQR(imageData.data, imageData.width, imageData.height)
-
-        if (code) {
-          try {
-            const data = JSON.parse(code.data)
-            if (data.apiKey && data.secretKey) {
-              form.setValue("apiKey", data.apiKey, { shouldValidate: true })
-              form.setValue("secretKey", data.secretKey, { shouldValidate: true })
-              toast({ title: "Success", description: "API keys loaded from QR code." })
-            } else {
-              throw new Error("Invalid QR code data format.")
-            }
-          } catch (error) {
-            form.setValue("apiKey", code.data, { shouldValidate: true })
-            toast({
-              title: "Loaded from QR Code",
-              description: "Content loaded into API Key field. Please verify.",
-            })
-          }
-        } else {
-          toast({
-            title: "QR Scan Failed",
-            description: "No QR code found in the image.",
-            variant: "destructive",
-          })
-        }
-      }
-      img.onerror = () => {
-        toast({
-          title: "Image Error",
-          description: "Could not load the uploaded image.",
-          variant: "destructive",
-        })
-      }
-      img.src = imageUrl
-    }
-    reader.onerror = () => {
+  const handleConnectToggle = async () => {
+    if (!activeProfile) {
       toast({
-        title: "File Error",
-        description: "Could not read the uploaded file.",
+        title: "No Active Profile",
+        description: "Please activate an API profile before connecting.",
         variant: "destructive",
       })
+      return;
     }
-    reader.readAsDataURL(file)
-  }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      processQrCodeFile(event.target.files[0])
-    }
-    event.target.value = ""
-  }
-
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    if (isConnected) return;
-    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-      processQrCodeFile(event.dataTransfer.files[0])
-      event.dataTransfer.clearData()
-    }
-  }
-
-  function onSubmit(values: z.infer<typeof settingsSchema>) {
-    setApiKey(values.apiKey)
-    setSecretKey(values.secretKey)
-    toast({
-      title: "Settings Saved",
-      description: "Your Binance API keys have been saved.",
-    })
-  }
-
-  const handleConnectToggle = async () => {
     setIsConnecting(true)
 
     if (!isConnected) {
-      if (apiKey && secretKey) {
-        try {
-          // Test the connection by fetching the balance
-          await getAccountBalance(apiKey, secretKey)
-          setIsConnected(true)
-          toast({
-            title: "Connection Successful",
-            description: "Successfully connected to Binance API.",
-          })
-          // This random limit can be improved later
-          setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
-        } catch (error: any) {
-          setIsConnected(false)
-          toast({
-            title: "Connection Failed",
-            description: error.message || "Please check your API keys and permissions.",
-            variant: "destructive",
-          })
-        }
-      } else {
+      try {
+        await getAccountBalance(activeProfile.apiKey, activeProfile.secretKey)
+        setIsConnected(true)
+        toast({
+          title: "Connection Successful",
+          description: `Successfully connected using '${activeProfile.name}' profile.`,
+        })
+        setApiLimit({ used: Math.floor(Math.random() * 200), limit: 1200 })
+      } catch (error: any) {
+        setIsConnected(false)
         toast({
           title: "Connection Failed",
-          description: "Please provide and save valid API keys before connecting.",
+          description: error.message || "Please check your API keys and permissions.",
           variant: "destructive",
         })
       }
@@ -211,8 +128,30 @@ export default function SettingsPage() {
     setIsConnecting(false)
   }
 
+  const handleFormSubmit = (values: z.infer<typeof profileSchema>) => {
+    if (editingProfile) {
+      updateProfile({ ...editingProfile, ...values });
+      toast({ title: "Profile Updated", description: `The '${values.name}' profile has been updated.` });
+    } else {
+      addProfile({ ...values, id: Date.now().toString() });
+      toast({ title: "Profile Added", description: `The '${values.name}' profile has been created.` });
+    }
+    setIsFormOpen(false);
+    setEditingProfile(null);
+  };
+
+  const openEditForm = (profile: ApiProfile) => {
+    setEditingProfile(profile);
+    setIsFormOpen(true);
+  }
+
+  const openAddForm = () => {
+    setEditingProfile(null);
+    setIsFormOpen(true);
+  }
+
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
        <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -228,7 +167,9 @@ export default function SettingsPage() {
             </span>
           </CardTitle>
           <CardDescription>
-            Manage your connection to the Binance API. Your keys must be saved first.
+            {activeProfile 
+              ? `Manage your connection using the active profile: '${activeProfile.name}'.`
+              : "Activate a profile below to connect to the Binance API."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -241,7 +182,7 @@ export default function SettingsPage() {
                 {isConnecting ? "Connecting..." : isConnected ? "Connected" : "Disconnected"}
               </span>
             </div>
-            <Button onClick={handleConnectToggle} disabled={isConnecting} variant={isConnected ? "destructive" : "default"}>
+            <Button onClick={handleConnectToggle} disabled={isConnecting || !activeProfile} variant={isConnected ? "destructive" : "default"}>
               {isConnecting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : isConnected ? (
@@ -253,7 +194,7 @@ export default function SettingsPage() {
             </Button>
           </div>
         </CardContent>
-        {isConnected && (
+        {isConnected && activeProfile && (
           <CardFooter className="flex-col items-start gap-4 border-t pt-6">
             <div className="w-full">
               <h3 className="text-sm font-medium mb-2">API Rate Limits (Requests per Minute)</h3>
@@ -269,93 +210,104 @@ export default function SettingsPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><KeyRound/> API Settings</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><KeyRound/> API Profiles</div>
+            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+                <DialogTrigger asChild>
+                    <Button size="sm" onClick={openAddForm}>
+                        <PlusCircle /> Add New Profile
+                    </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle>{editingProfile ? "Edit" : "Add"} API Profile</DialogTitle>
+                        <DialogDescription>
+                            Provide a name and your Binance API keys. Keys are stored only in your browser.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <ApiProfileForm
+                        onSubmit={handleFormSubmit}
+                        onCancel={() => setIsFormOpen(false)}
+                        defaultValues={editingProfile}
+                    />
+                </DialogContent>
+            </Dialog>
+          </CardTitle>
           <CardDescription>
-            Connect your Binance account to enable automated trading. Your keys are stored securely.
+            Manage your Binance API keys. You can save multiple profiles and activate one for trading.
           </CardDescription>
         </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="apiKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Binance API Key</FormLabel>
-                    <FormControl>
-                      <Input
-                        type={isConnected ? "password" : "text"}
-                        placeholder="Enter your API Key"
-                        {...field}
-                        disabled={isConnected}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="secretKey"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Binance Secret Key</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="password"
-                        placeholder="Enter your Secret Key"
-                        {...field}
-                        disabled={isConnected}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="relative py-4">
-                <Separator />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                  OR
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                <FormLabel>Load from QR Code</FormLabel>
-                <div
-                  className={cn(
-                    "flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg text-center transition-colors",
-                    !isConnected ? "cursor-pointer hover:border-primary/80 hover:bg-muted/50" : "bg-muted/50 opacity-50"
-                  )}
-                  onClick={() => {
-                    if (!isConnected) fileInputRef.current?.click()
-                  }}
-                  onDrop={handleDrop}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDragEnter={(e) => e.preventDefault()}
-                >
-                  <QrCode className="w-10 h-10 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Click or drag & drop a QR code image</p>
-                  <Input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*"
-                    disabled={isConnected}
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isConnected}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Settings
-              </Button>
-            </CardFooter>
-          </form>
-        </Form>
+        <CardContent>
+            <div className="border rounded-md">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-[180px]">Profile Name</TableHead>
+                        <TableHead>API Key</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right w-[200px]">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {profiles.length > 0 ? (
+                        profiles.map((profile) => (
+                            <TableRow key={profile.id} className={cn(activeProfile?.id === profile.id && "bg-muted/50")}>
+                                <TableCell className="font-medium">{profile.name}</TableCell>
+                                <TableCell className="font-mono text-xs">{`${profile.apiKey.substring(0, 6)}...${profile.apiKey.slice(-4)}`}</TableCell>
+                                <TableCell>
+                                    {activeProfile?.id === profile.id && (
+                                        <Badge variant="default" className="bg-green-600 hover:bg-green-600">
+                                            <CheckCircle className="mr-1 h-3 w-3" /> Active
+                                        </Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Button 
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setActiveProfile(profile.id)}
+                                            disabled={activeProfile?.id === profile.id || isConnected}
+                                        >
+                                            Activate
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(profile)} disabled={isConnected}>
+                                            <Edit className="h-4 w-4"/>
+                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isConnected}>
+                                                    <Trash2 className="h-4 w-4"/>
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This will permanently delete the profile '{profile.name}'. This action cannot be undone.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => deleteProfile(profile.id)} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                No API profiles found. Add one to get started.
+                            </TableCell>
+                        </TableRow>
+                    )}
+                </TableBody>
+            </Table>
+            </div>
+        </CardContent>
       </Card>
     </div>
   )

@@ -1,12 +1,20 @@
+
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import type { ApiProfile } from '@/lib/types';
 
 interface ApiContextType {
+  profiles: ApiProfile[];
+  activeProfile: ApiProfile | null;
   apiKey: string | null;
-  setApiKey: (key: string | null) => void;
   secretKey: string | null;
-  setSecretKey: (key: string | null) => void;
+  
+  addProfile: (profile: ApiProfile) => void;
+  updateProfile: (profile: ApiProfile) => void;
+  deleteProfile: (profileId: string) => void;
+  setActiveProfile: (profileId: string | null) => void;
+  
   isConnected: boolean;
   setIsConnected: (status: boolean) => void;
   apiLimit: { used: number; limit: number };
@@ -16,53 +24,87 @@ interface ApiContextType {
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export const ApiProvider = ({ children }: { children: ReactNode }) => {
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<ApiProfile[]>([]);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [apiLimit, setApiLimit] = useState({ used: 0, limit: 1200 });
 
+  // Load initial state from localStorage
   useEffect(() => {
-    const storedApiKey = localStorage.getItem('binance-apiKey');
-    const storedSecretKey = localStorage.getItem('binance-secretKey');
+    const storedProfiles = localStorage.getItem('apiProfiles');
+    const storedActiveId = localStorage.getItem('activeProfileId');
     const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
 
-    if (storedApiKey) {
-      setApiKey(storedApiKey);
-    }
-    if (storedSecretKey) {
-      setSecretKey(storedSecretKey);
-    }
-    // Only set connected if both keys are also present
-    if (storedIsConnected && storedApiKey && storedSecretKey) {
-      setIsConnected(true);
+    const loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
+    setProfiles(loadedProfiles);
+    
+    if (storedActiveId && loadedProfiles.some((p: ApiProfile) => p.id === storedActiveId)) {
+      setActiveProfileId(storedActiveId);
+      // Only set connected if an active profile exists and it was connected before
+      if (storedIsConnected) {
+        setIsConnected(true);
+      }
     } else {
-      setIsConnected(false);
+        setIsConnected(false); // No active profile, must be disconnected
     }
   }, []);
 
+  // Persist profiles to localStorage
   useEffect(() => {
-    if (apiKey) {
-      localStorage.setItem('binance-apiKey', apiKey);
-    } else {
-      localStorage.removeItem('binance-apiKey');
-    }
-  }, [apiKey]);
+    localStorage.setItem('apiProfiles', JSON.stringify(profiles));
+  }, [profiles]);
 
-  useEffect(() => {
-    if (secretKey) {
-      localStorage.setItem('binance-secretKey', secretKey);
-    } else {
-      localStorage.removeItem('binance-secretKey');
+  // Persist activeProfileId to localStorage and handle connection status
+  const setActiveProfile = useCallback((profileId: string | null) => {
+    if (profileId !== activeProfileId) {
+      setIsConnected(false); // Disconnect when switching profiles
+      setActiveProfileId(profileId);
+      if (profileId) {
+        localStorage.setItem('activeProfileId', profileId);
+      } else {
+        localStorage.removeItem('activeProfileId');
+      }
     }
-  }, [secretKey]);
-
+  }, [activeProfileId]);
+  
+  // Persist connection status
   useEffect(() => {
     localStorage.setItem('binance-isConnected', String(isConnected));
   }, [isConnected]);
 
+  // --- Profile Management Functions ---
+  const addProfile = (profile: ApiProfile) => {
+    setProfiles(prev => [...prev, profile]);
+  };
+
+  const updateProfile = (updatedProfile: ApiProfile) => {
+    setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? updatedProfile : p));
+  };
+
+  const deleteProfile = (profileId: string) => {
+    setProfiles(prev => prev.filter(p => p.id !== profileId));
+    if (activeProfileId === profileId) {
+      setActiveProfile(null);
+    }
+  };
+
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
   return (
-    <ApiContext.Provider value={{ apiKey, setApiKey, secretKey, setSecretKey, isConnected, setIsConnected, apiLimit, setApiLimit }}>
+    <ApiContext.Provider value={{ 
+      profiles, 
+      activeProfile,
+      apiKey: activeProfile?.apiKey || null,
+      secretKey: activeProfile?.secretKey || null,
+      addProfile,
+      updateProfile,
+      deleteProfile,
+      setActiveProfile,
+      isConnected,
+      setIsConnected, 
+      apiLimit, 
+      setApiLimit 
+    }}>
       {children}
     </ApiContext.Provider>
   );

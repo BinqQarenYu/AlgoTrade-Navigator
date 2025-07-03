@@ -14,7 +14,7 @@ import { Terminal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey } = useApi();
+  const { isConnected, apiKey, secretKey, activeProfile } = useApi();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
@@ -50,7 +50,7 @@ export default function DashboardPage() {
           setPortfolio(null); // Clear data on error
           setPositions([]); // Clear data on error
           setHistory([]);
-          const errorMessage = "Failed to fetch live data. Please check your API key permissions or try again later.";
+          const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
           setError(errorMessage);
           toast({
             title: "Data Fetch Failed",
@@ -68,7 +68,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile]);
 
   const handleClearHistory = () => {
     setHistory([]);
@@ -117,5 +117,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
