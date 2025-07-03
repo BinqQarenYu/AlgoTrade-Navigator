@@ -97,6 +97,10 @@ export const getHistoricalKlines = async (
     startTime: number, 
     endTime: number
 ): Promise<HistoricalData[]> => {
+    if (!symbol) {
+        console.error("getHistoricalKlines was called without a symbol.");
+        return [];
+    }
     const upperSymbol = symbol.toUpperCase();
     console.log(`Fetching klines for ${upperSymbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
     const queryString = `symbol=${upperSymbol}&interval=${interval}&startTime=${startTime}&endTime=${endTime}&limit=1500`;
