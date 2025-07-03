@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -85,12 +85,12 @@ export default function ManualTradingPage() {
   }, [chartData]);
 
 
-  const addLog = (message: string) => {
+  const addLog = useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev].slice(0, 100));
-  }
+  }, []);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     if (!isConnected) return;
     setIsFetchingData(true);
     addLog(`Fetching initial ${interval} data for ${symbol}...`);
@@ -105,7 +105,7 @@ export default function ManualTradingPage() {
     } finally {
         setIsFetchingData(false);
     }
-  };
+  }, [addLog, interval, isConnected, symbol]);
   
   const handleFetchError = (error: any) => {
       console.error("Failed to fetch historical data:", error);
@@ -146,7 +146,6 @@ export default function ManualTradingPage() {
     addLog("Searching for a new setup...");
     let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
     let dataWithSignals = [...currentData]; // Copy data
-    const closePrices = currentData.map(d => d.close);
     let signalCandle: HistoricalData | null = null;
     
     switch (selectedStrategy) {
@@ -229,9 +228,11 @@ export default function ManualTradingPage() {
 
       wsRef.current.onopen = () => addLog("WebSocket connection established.");
       
-      wsRef.current.onerror = (event) => {
-          console.error("A WebSocket error occurred:", event);
-          addLog("WebSocket error. Connection may be lost.");
+      wsRef.current.onerror = () => {
+          // This event often doesn't contain specific error details.
+          // The `onclose` event provides more useful information.
+          console.error("A generic WebSocket error occurred. See the 'onclose' event for details.");
+          addLog("WebSocket error occurred. Check the close reason in the logs.");
       };
       
       wsRef.current.onclose = (event: CloseEvent) => {
@@ -276,8 +277,7 @@ export default function ManualTradingPage() {
         }
       };
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isConnected, symbol, interval]);
+  }, [isConnected, symbol, interval, addLog]);
 
   return (
     <div className="flex flex-col h-full">
