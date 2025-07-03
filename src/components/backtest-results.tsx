@@ -82,11 +82,11 @@ export function BacktestResults({ results, summary }: BacktestResultsProps) {
                             </TableCell>
                             <TableCell>
                                 <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
-                                <div>${trade.entryPrice.toFixed(2)}</div>
+                                <div>${trade.entryPrice.toFixed(4)}</div>
                             </TableCell>
                              <TableCell>
                                 <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
-                                <div>${trade.exitPrice.toFixed(2)}</div>
+                                <div>${trade.exitPrice.toFixed(4)}</div>
                             </TableCell>
                             <TableCell className="capitalize">
                                 <Badge variant={
