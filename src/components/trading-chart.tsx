@@ -2,14 +2,14 @@
 "use client";
 
 import React, { useEffect, useRef } from 'react';
-import { createChart, ColorType } from 'lightweight-charts';
-import type { HistoricalData } from '@/lib/types';
+import { createChart, ColorType, LineStyle } from 'lightweight-charts';
+import type { HistoricalData, TradeSignal } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
 
-export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol: string; }) {
+export function TradingChart({ data, symbol, tradeSignal = null }: { data: HistoricalData[]; symbol: string; tradeSignal?: TradeSignal | null; }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
 
@@ -89,6 +89,7 @@ export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol:
             volumeSeries,
             smaShortSeries: chart.addLineSeries({ color: chartColors.smaShortColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
             smaLongSeries: chart.addLineSeries({ color: chartColors.smaLongColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
+            priceLines: [],
         };
         
         window.addEventListener('resize', handleResize);
@@ -164,6 +165,47 @@ export function TradingChart({ data, symbol }: { data: HistoricalData[]; symbol:
     }
 
   }, [data]);
+
+   // Effect to draw signal lines
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { candlestickSeries } = chartRef.current;
+
+        // Clear previous lines
+        if (chartRef.current.priceLines) {
+            chartRef.current.priceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+        }
+        chartRef.current.priceLines = [];
+
+        if (tradeSignal) {
+            const entryLine = candlestickSeries.createPriceLine({
+                price: tradeSignal.entryPrice,
+                color: '#3b82f6', // blue-500
+                lineWidth: 2,
+                lineStyle: LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: 'Entry',
+            });
+            const tpLine = candlestickSeries.createPriceLine({
+                price: tradeSignal.takeProfit,
+                color: '#22c55e', // green-500
+                lineWidth: 2,
+                lineStyle: LineStyle.Solid,
+                axisLabelVisible: true,
+                title: 'TP',
+            });
+            const slLine = candlestickSeries.createPriceLine({
+                price: tradeSignal.stopLoss,
+                color: '#ef4444', // red-500
+                lineWidth: 2,
+                lineStyle: LineStyle.Solid,
+                axisLabelVisible: true,
+                title: 'SL',
+            });
+            chartRef.current.priceLines = [entryLine, tpLine, slLine];
+        }
+
+    }, [tradeSignal]);
 
 
   const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';

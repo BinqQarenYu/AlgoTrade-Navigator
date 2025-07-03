@@ -29,7 +29,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Loader2, BrainCircuit, ClipboardCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData } from "@/lib/types"
+import type { HistoricalData, TradeSignal } from "@/lib/types"
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
@@ -54,17 +54,6 @@ const assetList = [
     "YFIUSDT", "BALUSDT", "UMAUSDT", "ZRXUSDT", "KNCUSDT", "LRCUSDT", "RENUSDT", "BANDUSDT", "NMRUSDT", "REQUSDT",
     "ANTUSDT", "CVCUSDT", "DNTUSDT", "LOOMUSDT", "MTLUSDT", "POWRUSDT", "RLCUSDT", "TRBUSDT", "WAVESUSDT"
 ];
-
-interface TradeSignal {
-  action: 'UP' | 'DOWN';
-  entryPrice: number;
-  stopLoss: number;
-  takeProfit: number;
-  confidence: number;
-  reasoning: string;
-  timestamp: Date;
-  strategy: string;
-}
 
 export default function ManualTradingPage() {
   const { toast } = useToast()
@@ -241,7 +230,7 @@ export default function ManualTradingPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} />
+        <TradingChart data={chartData} symbol={symbol} tradeSignal={tradeSignal} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>

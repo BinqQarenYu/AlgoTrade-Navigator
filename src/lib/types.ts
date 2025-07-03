@@ -79,6 +79,17 @@ export type ApiProfile = {
   apiKey: string;
   secretKey: string;
 };
+
+export type TradeSignal = {
+  action: 'UP' | 'DOWN';
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  confidence: number;
+  reasoning: string;
+  timestamp: Date;
+  strategy: string;
+};
     
 
     
