@@ -230,7 +230,7 @@ export default function ManualTradingPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} interval={interval} tradeSignal={tradeSignal} />
+        <TradingChart data={chartData} symbol={symbol} interval={interval} tradeSignal={tradeSignal} onIntervalChange={setInterval} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>

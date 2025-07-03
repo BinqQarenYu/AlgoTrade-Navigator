@@ -5,11 +5,33 @@ import React, { useEffect, useRef } from 'react';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
 
-export function TradingChart({ data, symbol, interval, tradeSignal = null }: { data: HistoricalData[]; symbol: string; interval: string; tradeSignal?: TradeSignal | null; }) {
+const intervals = [
+  { value: '1m', label: '1m' },
+  { value: '5m', label: '5m' },
+  { value: '15m', label: '15m' },
+  { value: '1h', label: '1H' },
+  { value: '4h', label: '4H' },
+  { value: '1d', label: '1D' },
+];
+
+export function TradingChart({ 
+  data, 
+  symbol, 
+  interval, 
+  tradeSignal = null,
+  onIntervalChange
+}: { 
+  data: HistoricalData[]; 
+  symbol: string; 
+  interval: string; 
+  tradeSignal?: TradeSignal | null;
+  onIntervalChange?: (newInterval: string) => void;
+}) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
 
@@ -209,12 +231,27 @@ export function TradingChart({ data, symbol, interval, tradeSignal = null }: { d
 
 
   const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';
-  const chartTitle = `${formattedSymbol} Price Chart (${interval})`;
+  const chartTitle = `${formattedSymbol} Price Chart`;
 
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{chartTitle}</CardTitle>
+        {onIntervalChange && (
+          <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+            {intervals.map((item) => (
+              <Button
+                key={item.value}
+                variant={interval === item.value ? 'default' : 'ghost'}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => onIntervalChange(item.value)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="flex-grow p-0">
         <div ref={chartContainerRef} className="w-full h-full" />
