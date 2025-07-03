@@ -37,7 +37,7 @@ interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
-  setManualChartData: (symbol: string, interval: string, force: boolean) => void;
+  setManualChartData: (data: HistoricalData[] | string, intervalOrForce: string | boolean, force?: boolean) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -194,13 +194,90 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   };
   
   // --- Manual Trader Logic ---
-  const cancelManualAnalysis = () => {
+  const connectManualWebSocket = useCallback((symbol: string, interval: string) => {
+    if (manualWsRef.current) manualWsRef.current.close();
+    
+    addManualLog("Connecting to WebSocket for live invalidation monitoring...");
+    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
+    manualWsRef.current = ws;
+
+    ws.onopen = () => addManualLog("Monitoring connection established.");
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.e !== 'kline') return;
+
+      const kline = message.k;
+      const newCandle: HistoricalData = {
+        time: kline.t, open: parseFloat(kline.o), high: parseFloat(kline.h),
+        low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
+      };
+
+      setManualTraderState(prev => {
+        // Invalidation Logic
+        if (prev.signal && prev.signal.peakPrice) {
+          let invalidated = false;
+          let invalidationReason = '';
+          if (prev.signal.action === 'DOWN' && newCandle.high > prev.signal.peakPrice) {
+            invalidated = true;
+            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${prev.signal.peakPrice.toFixed(4)}.`;
+          } else if (prev.signal.action === 'UP' && newCandle.low < prev.signal.peakPrice) {
+            invalidated = true;
+            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${prev.signal.peakPrice.toFixed(4)}.`;
+          }
+
+          if (invalidated) {
+            // Use setTimeout to escape the current render cycle before calling toast
+            setTimeout(() => {
+                toast({
+                  title: "Trade Signal Invalidated",
+                  description: "Market structure has changed. The trade idea is now void.",
+                  variant: "destructive"
+                });
+                addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
+                manualWsRef.current?.close(); // Stop monitoring
+            }, 0);
+            return { ...prev, signal: null };
+          }
+        }
+        
+        // Update chart data
+        const newData = [...prev.chartData];
+        if (newData.length > 0) {
+            const lastCandle = newData[newData.length - 1];
+            if (lastCandle.time === newCandle.time) {
+              newData[newData.length - 1] = newCandle;
+            } else {
+              newData.push(newCandle);
+            }
+        } else {
+            newData.push(newCandle);
+        }
+        const sortedData = newData.sort((a, b) => a.time - b.time);
+        const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
+        return { ...prev, chartData: uniqueData.slice(-1500) };
+      });
+    };
+    
+    ws.onclose = (event) => {
+        const reason = event.reason || 'No reason given';
+        const code = event.wasClean ? `(Code: ${event.code})` : `(Code: ${event.code}, unclean closure)`;
+        addManualLog(`Monitoring WebSocket closed. ${reason} ${code}`);
+        manualWsRef.current = null;
+    }
+
+    ws.onerror = () => {
+        addManualLog("WebSocket error occurred. See browser console for details.");
+    };
+  }, [addManualLog, toast]);
+
+  const cancelManualAnalysis = useCallback(() => {
     manualAnalysisCancelRef.current = true;
     addManualLog("Analysis canceled by user.");
     setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
-  };
+  }, [addManualLog]);
 
-  const resetManualSignal = () => {
+  const resetManualSignal = useCallback(() => {
     if (manualWsRef.current) {
         manualWsRef.current.close(1000, "Signal reset by user"); // Close with normal code
         manualWsRef.current = null;
@@ -212,9 +289,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...prev.logs].slice(0, 100)
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
-  };
+  }, [addManualLog, toast]);
 
-  const runManualAnalysis = async (config: ManualTraderConfig) => {
+  const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
     manualAnalysisCancelRef.current = false;
     setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
     addManualLog("Running analysis...");
@@ -311,15 +388,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             let lastSignalIndex = -1;
             let signalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
-            for (let i = 0; i < dataWithSignals.length; i++) {
+            for (let i = dataWithSignals.length - 1; i >= 0; i--) {
                 const candle = dataWithSignals[i];
-                if (candle.buySignal) {
+                if (candle.buySignal || candle.sellSignal) {
                     lastSignalIndex = i;
-                    signalType = 'BUY';
-                }
-                if (candle.sellSignal) {
-                    lastSignalIndex = i;
-                    signalType = 'SELL';
+                    signalType = candle.buySignal ? 'BUY' : 'SELL';
+                    break; 
                 }
             }
 
@@ -399,89 +473,25 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
        toast({ title: "AI Analysis Failed", variant: "destructive" });
        setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
     }
-  };
+  }, [manualTraderState.chartData, addManualLog, toast, connectManualWebSocket]);
 
-  const connectManualWebSocket = (symbol: string, interval: string) => {
-    if (manualWsRef.current) manualWsRef.current.close();
-    
-    addManualLog("Connecting to WebSocket for live invalidation monitoring...");
-    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
-    manualWsRef.current = ws;
-
-    ws.onopen = () => addManualLog("Monitoring connection established.");
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.e !== 'kline') return;
-
-      const kline = message.k;
-      const newCandle: HistoricalData = {
-        time: kline.t, open: parseFloat(kline.o), high: parseFloat(kline.h),
-        low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
-      };
-
-      setManualTraderState(prev => {
-        // Invalidation Logic
-        if (prev.signal && prev.signal.peakPrice) {
-          let invalidated = false;
-          let invalidationReason = '';
-          if (prev.signal.action === 'DOWN' && newCandle.high > prev.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${prev.signal.peakPrice.toFixed(4)}.`;
-          } else if (prev.signal.action === 'UP' && newCandle.low < prev.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${prev.signal.peakPrice.toFixed(4)}.`;
-          }
-
-          if (invalidated) {
-            // Use setTimeout to escape the current render cycle before calling toast
-            setTimeout(() => {
-                toast({
-                  title: "Trade Signal Invalidated",
-                  description: "Market structure has changed. The trade idea is now void.",
-                  variant: "destructive"
-                });
-                addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
-                manualWsRef.current?.close(); // Stop monitoring
-            }, 0);
-            return { ...prev, signal: null };
-          }
-        }
-        
-        // Update chart data
-        const newData = [...prev.chartData];
-        if (newData.length > 0) {
-            const lastCandle = newData[newData.length - 1];
-            if (lastCandle.time === newCandle.time) {
-              newData[newData.length - 1] = newCandle;
-            } else {
-              newData.push(newCandle);
-            }
-        } else {
-            newData.push(newCandle);
-        }
-        const sortedData = newData.sort((a, b) => a.time - b.time);
-        const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
-        return { ...prev, chartData: uniqueData.slice(-1500) };
-      });
-    };
-    
-    ws.onclose = (event) => {
-        const reason = event.reason || 'No reason given';
-        const code = event.wasClean ? `(Code: ${event.code})` : `(Code: ${event.code}, unclean closure)`;
-        addManualLog(`Monitoring WebSocket closed. ${reason} ${code}`);
-        manualWsRef.current = null;
+  const setManualChartData = useCallback(async (data: HistoricalData[] | string, intervalOrForce: string | boolean, force?: boolean) => {
+    // Overload 1: setManualChartData(data, force)
+    if (Array.isArray(data)) {
+        const shouldForce = !!intervalOrForce;
+        if (manualTraderState.signal !== null && !shouldForce) return;
+        setManualTraderState(prev => ({...prev, chartData: data}));
+        return;
     }
+    
+    // Overload 2: setManualChartData(symbol, interval, force)
+    const symbol = data;
+    const interval = intervalOrForce as string;
+    const shouldForceFetch = !!force;
+    
+    if (manualTraderState.signal !== null && !shouldForceFetch) return;
 
-    ws.onerror = () => {
-        addManualLog("WebSocket error occurred. See browser console for details.");
-    };
-  };
-
-  const setManualChartData = useCallback(async (symbol: string, interval: string, force: boolean) => {
-    if (manualTraderState.signal !== null && !force) return;
-
-    if (force) {
+    if (shouldForceFetch) {
         if (manualTraderState.signal !== null) {
             setManualTraderState(prev => ({...prev, signal: null}));
         }
@@ -502,7 +512,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
         addManualLog(`Error loading data: ${error.message}`);
     }
-  }, [addManualLog, manualTraderState.signal, toast]);
+  }, [addManualLog, manualTraderState.signal, toast, connectManualWebSocket]);
 
   // Cleanup on unmount
   useEffect(() => {

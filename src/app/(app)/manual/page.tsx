@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -86,22 +85,23 @@ export default function ManualTradingPage() {
   // Simplified handlers just update state. The useEffect handles the data fetching.
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    setManualChartData(newInterval, symbol, true);
+    setManualChartData([], true); // Clear chart data immediately
   };
 
   const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
-    setManualChartData(interval, newSymbol, true);
+    setManualChartData([], true); // Clear chart data immediately
   };
 
   // This useEffect is now the single source of truth for fetching data.
   // It runs on mount and whenever the symbol or interval is changed by the user.
   useEffect(() => {
-    if (isConnected && signal === null && !isAnalyzing) {
-        // Always force a fetch when symbol/interval change, which resets the monitoring state.
-        setManualChartData(symbol, interval, true);
+    if (isConnected && !isAnalyzing && signal === null) {
+      setManualChartData(symbol, interval, true);
     }
-  }, [isConnected, setManualChartData]);
+    // The dependency array ensures this hook re-runs only when these specific values change.
+    // The checks inside the hook prevent it from running during analysis or when a signal is active.
+  }, [isConnected, symbol, interval, isAnalyzing, signal, setManualChartData]);
 
   const hasActiveSignal = signal !== null;
 
