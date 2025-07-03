@@ -512,7 +512,7 @@ export default function BacktestPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} />
+        <TradingChart data={chartData} symbol={symbol} interval={interval} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>

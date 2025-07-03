@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
 
-export function TradingChart({ data, symbol, tradeSignal = null }: { data: HistoricalData[]; symbol: string; tradeSignal?: TradeSignal | null; }) {
+export function TradingChart({ data, symbol, interval, tradeSignal = null }: { data: HistoricalData[]; symbol: string; interval: string; tradeSignal?: TradeSignal | null; }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
 
@@ -209,11 +209,12 @@ export function TradingChart({ data, symbol, tradeSignal = null }: { data: Histo
 
 
   const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';
+  const chartTitle = `${formattedSymbol} Price Chart (${interval})`;
 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader>
-        <CardTitle>{formattedSymbol} Price Chart</CardTitle>
+        <CardTitle>{chartTitle}</CardTitle>
       </CardHeader>
       <CardContent className="flex-grow p-0">
         <div ref={chartContainerRef} className="w-full h-full" />
