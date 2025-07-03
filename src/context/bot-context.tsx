@@ -431,13 +431,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           }
 
           if (invalidated) {
-            toast({
-              title: "Trade Signal Invalidated",
-              description: "Market structure has changed. The trade idea is now void.",
-              variant: "destructive"
-            });
-            addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
-            manualWsRef.current?.close(); // Stop monitoring
+            // Use setTimeout to escape the current render cycle before calling toast
+            setTimeout(() => {
+                toast({
+                  title: "Trade Signal Invalidated",
+                  description: "Market structure has changed. The trade idea is now void.",
+                  variant: "destructive"
+                });
+                addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
+                manualWsRef.current?.close(); // Stop monitoring
+            }, 0);
             return { ...prev, signal: null };
           }
         }
