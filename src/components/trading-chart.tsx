@@ -137,7 +137,14 @@ export function TradingChart({
         // Create a sorted copy of the data to avoid mutation and ensure ascending order for the chart.
         const sortedData = [...data].sort((a, b) => a.time - b.time);
 
-        const firstPrice = sortedData[0].close;
+        // Defensively filter out any items with duplicate timestamps to prevent chart errors.
+        const uniqueData = sortedData.filter((candle, index, self) =>
+            index === 0 || candle.time > self[index - 1].time
+        );
+
+        if (uniqueData.length === 0) return;
+
+        const firstPrice = uniqueData[0].close;
         let precision = 2;
         if (firstPrice < 0.1) {
             precision = 8;
@@ -153,11 +160,11 @@ export function TradingChart({
           },
         });
 
-        candlestickSeries.setData(sortedData.map(d => ({
+        candlestickSeries.setData(uniqueData.map(d => ({
           time: toTimestamp(d.time), open: d.open, high: d.high, low: d.low, close: d.close
         })));
 
-        volumeSeries.setData(sortedData.map(d => ({
+        volumeSeries.setData(uniqueData.map(d => ({
             time: toTimestamp(d.time),
             value: d.volume,
             color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
@@ -165,8 +172,8 @@ export function TradingChart({
         
         // Indicators
         const addLineSeries = (series: any, dataKey: keyof HistoricalData) => {
-          if (sortedData.some(d => d[dataKey] != null)) {
-            const lineData = sortedData
+          if (uniqueData.some(d => d[dataKey] != null)) {
+            const lineData = uniqueData
               .filter(d => d[dataKey] != null)
               .map(d => ({ time: toTimestamp(d.time), value: d[dataKey] as number }))
             series.setData(lineData);
@@ -181,7 +188,7 @@ export function TradingChart({
         addLineSeries(smaLongSeries, 'ema_long');   // Reuse same series for EMA
 
         // Markers
-        const markers = sortedData
+        const markers = uniqueData
           .map(d => {
             if (d.buySignal) {
               return { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
@@ -281,3 +288,4 @@ export function TradingChart({
     
 
     
+
