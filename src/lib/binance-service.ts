@@ -8,7 +8,7 @@ import ccxt from 'ccxt';
 const BINANCE_API_URL = 'https://fapi.binance.com';
 
 // CCXT instance for public market data (no API keys needed here)
-const binance = new ccxt.binanceusdm({
+const binance = new ccxt.binance({
     options: { defaultType: 'future' },
 });
 
@@ -117,6 +117,7 @@ export const getHistoricalKlines = async (
     const limit = 1500;
 
     try {
+        await binance.loadMarkets();
         // Use CCXT's unified method to fetch OHLCV data
         const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit);
 
