@@ -237,6 +237,8 @@ export default function BacktestPage() {
     let stopLossPrice = 0;
     let takeProfitPrice = 0;
     let tradeQuantity = 0;
+    let aiValidationCount = 0;
+    let aiLimitReachedNotified = false;
     
     for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
@@ -255,24 +257,35 @@ export default function BacktestPage() {
             } else if (d.sellSignal) {
                 let closePosition = true;
                 if (useAIValidation) {
-                    if (i > 50) {
-                        try {
-                            const recentData = chartData.slice(i - 50, i);
-                            const prediction = await predictMarket({
-                                symbol,
-                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                                strategySignal: 'SELL'
-                            });
-                            if (prediction.prediction !== 'DOWN') {
-                                closePosition = false;
+                    if (aiValidationCount < maxAiValidations) {
+                        if (i > 50) {
+                            try {
+                                aiValidationCount++;
+                                const recentData = chartData.slice(i - 50, i);
+                                const prediction = await predictMarket({
+                                    symbol,
+                                    recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                    strategySignal: 'SELL'
+                                });
+                                if (prediction.prediction !== 'DOWN') {
+                                    closePosition = false;
+                                }
+                            } catch (e: any) {
+                               console.error("AI validation failed for sell signal", e);
+                               setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
+                               setIsBacktesting(false);
+                               return;
                             }
-                        } catch (e: any) {
-                           console.error("AI validation failed for sell signal", e);
-                           setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
-                           setIsBacktesting(false);
-                           return;
+                        } else { closePosition = false; }
+                    } else {
+                        if (!aiLimitReachedNotified) {
+                            toast({
+                                title: "AI Validation Limit Reached",
+                                description: `Max validations (${maxAiValidations}) reached. Continuing with classic strategy signals.`,
+                            });
+                            aiLimitReachedNotified = true;
                         }
-                    } else { closePosition = false; }
+                    }
                 }
                 if (closePosition) {
                     exitPrice = d.close;
@@ -318,24 +331,35 @@ export default function BacktestPage() {
             } else if (d.buySignal) {
                 let closePosition = true;
                 if (useAIValidation) {
-                    if (i > 50) {
-                        try {
-                            const recentData = chartData.slice(i - 50, i);
-                            const prediction = await predictMarket({
-                                symbol,
-                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                                strategySignal: 'BUY'
-                            });
-                            if (prediction.prediction !== 'UP') {
-                                closePosition = false;
+                    if (aiValidationCount < maxAiValidations) {
+                        if (i > 50) {
+                            try {
+                                aiValidationCount++;
+                                const recentData = chartData.slice(i - 50, i);
+                                const prediction = await predictMarket({
+                                    symbol,
+                                    recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                    strategySignal: 'BUY'
+                                });
+                                if (prediction.prediction !== 'UP') {
+                                    closePosition = false;
+                                }
+                            } catch (e: any) {
+                                console.error("AI validation failed for buy signal", e);
+                                setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
+                                setIsBacktesting(false);
+                                return;
                             }
-                        } catch (e: any) {
-                            console.error("AI validation failed for buy signal", e);
-                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
-                            setIsBacktesting(false);
-                            return;
+                        } else { closePosition = false; }
+                    } else {
+                        if (!aiLimitReachedNotified) {
+                            toast({
+                                title: "AI Validation Limit Reached",
+                                description: `Max validations (${maxAiValidations}) reached. Continuing with classic strategy signals.`,
+                            });
+                            aiLimitReachedNotified = true;
                         }
-                    } else { closePosition = false; }
+                    }
                 }
                 if (closePosition) {
                     exitPrice = d.close;
@@ -375,24 +399,35 @@ export default function BacktestPage() {
             if (d.buySignal) {
                 let openPosition = true;
                 if (useAIValidation) {
-                    if (i > 50) {
-                        try {
-                            const recentData = chartData.slice(i - 50, i);
-                            const prediction = await predictMarket({
-                                symbol,
-                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                                strategySignal: 'BUY'
-                            });
-                            if (prediction.prediction !== 'UP') {
-                                openPosition = false;
+                    if (aiValidationCount < maxAiValidations) {
+                        if (i > 50) {
+                            try {
+                                aiValidationCount++;
+                                const recentData = chartData.slice(i - 50, i);
+                                const prediction = await predictMarket({
+                                    symbol,
+                                    recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                    strategySignal: 'BUY'
+                                });
+                                if (prediction.prediction !== 'UP') {
+                                    openPosition = false;
+                                }
+                            } catch (e: any) {
+                                console.error("AI validation failed for buy signal", e);
+                                setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
+                                setIsBacktesting(false);
+                                return;
                             }
-                        } catch (e: any) {
-                            console.error("AI validation failed for buy signal", e);
-                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
-                            setIsBacktesting(false);
-                            return;
+                        } else { openPosition = false; }
+                    } else {
+                         if (!aiLimitReachedNotified) {
+                            toast({
+                                title: "AI Validation Limit Reached",
+                                description: `Max validations (${maxAiValidations}) reached. Continuing with classic strategy signals.`,
+                            });
+                            aiLimitReachedNotified = true;
                         }
-                    } else { openPosition = false; }
+                    }
                 }
                 if (openPosition) {
                     positionType = 'long';
@@ -410,24 +445,35 @@ export default function BacktestPage() {
             } else if (d.sellSignal) {
                 let openPosition = true;
                 if (useAIValidation) {
-                    if (i > 50) {
-                        try {
-                            const recentData = chartData.slice(i - 50, i);
-                            const prediction = await predictMarket({
-                                symbol,
-                                recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                                strategySignal: 'SELL'
-                            });
-                            if (prediction.prediction !== 'DOWN') {
-                                openPosition = false;
+                    if (aiValidationCount < maxAiValidations) {
+                        if (i > 50) {
+                            try {
+                                aiValidationCount++;
+                                const recentData = chartData.slice(i - 50, i);
+                                const prediction = await predictMarket({
+                                    symbol,
+                                    recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                                    strategySignal: 'SELL'
+                                });
+                                if (prediction.prediction !== 'DOWN') {
+                                    openPosition = false;
+                                }
+                            } catch (e: any) {
+                                console.error("AI validation failed for sell signal", e);
+                                setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
+                                setIsBacktesting(false);
+                                return;
                             }
-                        } catch (e: any) {
-                            console.error("AI validation failed for sell signal", e);
-                            setTimeout(() => toast({ title: "AI Validation Failed", description: "The backtest has been stopped. It's likely you have exceeded your daily API quota.", variant: "destructive" }), 0);
-                            setIsBacktesting(false);
-                            return;
+                        } else { openPosition = false; }
+                    } else {
+                         if (!aiLimitReachedNotified) {
+                            toast({
+                                title: "AI Validation Limit Reached",
+                                description: `Max validations (${maxAiValidations}) reached. Continuing with classic strategy signals.`,
+                            });
+                            aiLimitReachedNotified = true;
                         }
-                    } else { openPosition = false; }
+                    }
                 }
                 if (openPosition) {
                     positionType = 'short';
@@ -828,5 +874,7 @@ export default function BacktestPage() {
     </div>
   )
 }
+
+    
 
     
