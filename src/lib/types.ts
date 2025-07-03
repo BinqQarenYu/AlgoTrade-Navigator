@@ -36,6 +36,9 @@ export type HistoricalData = {
   rsi?: number | null;
   stopLossLevel?: number;
   peakPrice?: number;
+  poc?: number;
+  volumeDelta?: number;
+  cumulativeVolumeDelta?: number;
 };
 
 export type Portfolio = {

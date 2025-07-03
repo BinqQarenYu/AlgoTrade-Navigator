@@ -8,6 +8,7 @@ import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-mark
 import { getHistoricalKlines } from "@/lib/binance-service";
 import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
+import { calculateVolumeDeltaSignals } from "@/lib/strategies/volume-profile-delta"
 import { addDays } from 'date-fns';
 
 // --- State Types ---
@@ -141,6 +142,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         case 'peak-formation-fib': {
             const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
             const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
+            if (lastSignal?.buySignal) strategySignal = 'BUY';
+            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
+            break;
+        }
+        case 'volume-delta': {
+            const dataWithSignals = await calculateVolumeDeltaSignals(chartData);
+            const lastSignal = dataWithSignals[dataWithSignals.length - 1];
             if (lastSignal?.buySignal) strategySignal = 'BUY';
             else if (lastSignal?.sellSignal) strategySignal = 'SELL';
             break;
@@ -312,6 +320,27 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 }
                 break;
             }
+            case "volume-delta": {
+                dataWithSignals = await calculateVolumeDeltaSignals(dataToAnalyze);
+                let lastSignalIndex = -1;
+                let signalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
+                
+                // Find the most recent signal in the last 5 candles
+                for (let i = dataWithSignals.length - 1; i >= Math.max(0, dataWithSignals.length - 5); i--) {
+                    const candle = dataWithSignals[i];
+                    if (candle.buySignal || candle.sellSignal) {
+                        lastSignalIndex = i;
+                        signalType = candle.buySignal ? 'BUY' : 'SELL';
+                        break;
+                    }
+                }
+
+                if (lastSignalIndex !== -1) {
+                    strategySignal = signalType;
+                    signalCandle = dataWithSignals[lastSignalIndex];
+                }
+                break;
+            }
         }
 
         if (strategySignal === 'HOLD' || !signalCandle) {
@@ -464,7 +493,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...prev.logs].slice(0, 100)
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
-  }, [addManualLog, toast]);
+  }, [toast, addManualLog]);
 
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
     manualAnalysisCancelRef.current = false;

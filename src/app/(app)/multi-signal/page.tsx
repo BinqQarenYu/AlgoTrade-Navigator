@@ -129,6 +129,7 @@ export default function MultiSignalPage() {
                                     <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
                                     <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
                                     <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
+                                    <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

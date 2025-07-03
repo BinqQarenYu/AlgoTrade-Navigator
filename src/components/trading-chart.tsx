@@ -59,6 +59,7 @@ export function TradingChart({
             volumeDownColor: 'rgba(239, 83, 80, 0.4)',
             smaShortColor: '#f59e0b',
             smaLongColor: '#8b5cf6',
+            pocColor: '#eab308',
             buySignalColor: '#22c55e',
             sellSignalColor: '#ef4444',
         };
@@ -111,6 +112,7 @@ export function TradingChart({
             volumeSeries,
             smaShortSeries: chart.addLineSeries({ color: chartColors.smaShortColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
             smaLongSeries: chart.addLineSeries({ color: chartColors.smaLongColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
+            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false }),
             priceLines: [],
         };
         
@@ -130,7 +132,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, chart } = chartRef.current;
+    const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, chart } = chartRef.current;
 
     // Set candlestick and volume data
     if (data.length > 0) {
@@ -167,7 +169,9 @@ export function TradingChart({
         volumeSeries.setData(uniqueData.map(d => ({
             time: toTimestamp(d.time),
             value: d.volume,
-            color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)',
+            color: d.volumeDelta && d.volumeDelta !== 0 
+                ? (d.volumeDelta > 0 ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)')
+                : (d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)'),
         })));
         
         // Indicators
@@ -186,6 +190,7 @@ export function TradingChart({
         addLineSeries(smaShortSeries, 'ema_short'); // Reuse same series for EMA
         addLineSeries(smaLongSeries, 'sma_long');
         addLineSeries(smaLongSeries, 'ema_long');   // Reuse same series for EMA
+        addLineSeries(pocSeries, 'poc');
 
         // Markers
         const markers = uniqueData
@@ -209,6 +214,7 @@ export function TradingChart({
         volumeSeries.setData([]);
         smaShortSeries.setData([]);
         smaLongSeries.setData([]);
+        pocSeries.setData([]);
         candlestickSeries.setMarkers([]);
     }
 
@@ -285,7 +291,3 @@ export function TradingChart({
     </Card>
   );
 }
-    
-
-    
-

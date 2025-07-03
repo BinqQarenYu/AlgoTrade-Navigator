@@ -36,6 +36,7 @@ import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } from "@/lib/types"
 import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
 import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib";
+import { calculateVolumeDeltaSignals } from "@/lib/strategies/volume-profile-delta";
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
@@ -157,6 +158,7 @@ export default function BacktestPage() {
         ema_short, ema_long, 
         rsi, 
         stopLossLevel,
+        poc, volumeDelta, cumulativeVolumeDelta,
         ...rest 
       } = d as any;
       return rest;
@@ -223,8 +225,12 @@ export default function BacktestPage() {
         });
         break;
       }
-       case "peak-formation-fib": {
+      case "peak-formation-fib": {
         dataWithSignals = await calculatePeakFormationFibSignals(dataWithSignals);
+        break;
+      }
+      case "volume-delta": {
+        dataWithSignals = await calculateVolumeDeltaSignals(dataWithSignals);
         break;
       }
     }
@@ -671,6 +677,7 @@ export default function BacktestPage() {
                       <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
                       <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
                       <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
+                      <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -874,7 +881,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    
-
-    
