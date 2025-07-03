@@ -297,19 +297,30 @@ export default function ManualTradingPage() {
       wsRef.current = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
 
       wsRef.current.onopen = () => addLog("WebSocket connection established.");
-      wsRef.current.onerror = (err) => {
-          console.error("WebSocket Error:", err);
-          addLog("WebSocket error. Connection lost.");
+      
+      wsRef.current.onerror = (event) => {
+          console.error("A WebSocket error occurred. See the 'close' event for more details.", event);
+          addLog("WebSocket error. Connection may be lost.");
       };
-      wsRef.current.onclose = () => {
-        addLog("WebSocket connection closed.");
+      
+      wsRef.current.onclose = (event: CloseEvent) => {
+        let reason;
+        switch (event.code) {
+            case 1000: reason = "Normal closure"; break;
+            case 1001: reason = "Endpoint is going away (e.g., server shutting down or browser navigating away)."; break;
+            case 1002: reason = "Protocol error."; break;
+            case 1006: reason = "Connection closed abnormally. Check network connection or server status."; break;
+            default:   reason = `Unknown close code: ${event.code}`; break;
+        }
+        addLog(`WebSocket closed: ${reason}`);
+
         if (isAnalyzing) {
              setIsAnalyzing(false);
              if (analysisIntervalRef.current) {
                 clearInterval(analysisIntervalRef.current);
                 analysisIntervalRef.current = null;
              }
-             addLog("Analysis stopped due to connection closure.");
+             addLog("Analysis stopped due to unexpected connection closure.");
         }
       };
 
