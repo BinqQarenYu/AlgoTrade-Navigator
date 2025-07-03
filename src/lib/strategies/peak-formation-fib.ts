@@ -14,7 +14,7 @@ const FIB_LEVELS = [0.5, 0.618]; // 50% and 61.8% retracement levels
  * Finds swing lows in the data, which are essential for identifying breaks of structure.
  * A swing low is a point where the low is lower than the lows of the surrounding bars.
  */
-function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
+export function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
     const swingLows: number[] = [];
     for (let i = lookaround; i < data.length - lookaround; i++) {
         let isSwingLow = true;
@@ -35,7 +35,7 @@ function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
  * Finds swing highs in the data.
  * A swing high is a point where the high is higher than the highs of the surrounding bars.
  */
-function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
+export function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
     const swingHighs: number[] = [];
     for (let i = lookaround; i < data.length - lookaround; i++) {
         let isSwingHigh = true;
@@ -110,10 +110,12 @@ export async function calculatePeakFormationFibSignals(data: HistoricalData[]): 
                             if (data[l].high >= fib50) {
                                 dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib50;
                                 dataWithSignals[l].stopLossLevel = peakHigh;
+                                dataWithSignals[l].peakPrice = peakHigh;
                             }
                             if (data[l].high >= fib618) {
                                 dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib618;
                                 dataWithSignals[l].stopLossLevel = peakHigh;
+                                dataWithSignals[l].peakPrice = peakHigh;
                             }
                         }
                         break; // Stop looking for a BoS from this peak once one is found
@@ -163,10 +165,12 @@ export async function calculatePeakFormationFibSignals(data: HistoricalData[]): 
                             if (data[l].low <= fib50) {
                                 dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib50;
                                 dataWithSignals[l].stopLossLevel = peakLow;
+                                dataWithSignals[l].peakPrice = peakLow;
                             }
                              if (data[l].low <= fib618) {
                                 dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib618;
                                 dataWithSignals[l].stopLossLevel = peakLow;
+                                dataWithSignals[l].peakPrice = peakLow;
                             }
                         }
                         break; 
@@ -245,5 +249,3 @@ const findHighestHighBetween = (data: HistoricalData[], from: number, to: number
     }
     return highest === -Infinity ? null : highest;
 }
-
-    

@@ -35,6 +35,7 @@ export type HistoricalData = {
   ema_long?: number | null;
   rsi?: number | null;
   stopLossLevel?: number;
+  peakPrice?: number;
 };
 
 export type Portfolio = {
@@ -89,6 +90,7 @@ export type TradeSignal = {
   reasoning: string;
   timestamp: Date;
   strategy: string;
+  peakPrice?: number;
 };
     
 
