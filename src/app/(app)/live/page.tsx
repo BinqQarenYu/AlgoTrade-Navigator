@@ -37,10 +37,7 @@ import { Switch } from "@/components/ui/switch"
 
 const assetList = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", 
-    "AAVEUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT", "RUNEUSDT", "FTMUSDT", "GALAUSDT", "GMTUSDT", "APEUSDT", "OPUSDT", 
-    "APTUSDT", "ARBUSDT", "SUIUSDT", "PEPEUSDT", "WLDUSDT", "INJUSDT", "ORDIUSDT", "TIAUSDT", "SEIUSDT", "JUPUSDT", 
-    "PYTHUSDT", "ONDOUSDT", "WIFUSDT", "BONKUSDT", "ENAUSDT", "ETHFIUSDT", "NOTUSDT"
+    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
 ];
 
 export default function LiveTradingPage() {
@@ -64,6 +61,7 @@ export default function LiveTradingPage() {
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
+  const [fee, setFee] = useState<number>(0.04);
   const [marginType, setMarginType] = useState<string>("isolated");
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
@@ -144,7 +142,8 @@ export default function LiveTradingPage() {
             takeProfit,
             stopLoss,
             marginType,
-            useAIPrediction
+            useAIPrediction,
+            fee
         });
     }
   }
@@ -270,7 +269,7 @@ export default function LiveTradingPage() {
                   </Select>
                 </div>
             </div>
-             <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="initial-capital">Initial Capital ($)</Label>
                     <Input 
@@ -293,6 +292,17 @@ export default function LiveTradingPage() {
                     placeholder="10"
                     disabled={isRunning}
                   />
+                </div>
+                 <div className="space-y-2">
+                    <Label htmlFor="fee">Fee (%)</Label>
+                    <Input 
+                        id="fee" 
+                        type="number" 
+                        value={fee}
+                        onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                        placeholder="0.04"
+                        disabled={isRunning}
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="take-profit">Take Profit (%)</Label>

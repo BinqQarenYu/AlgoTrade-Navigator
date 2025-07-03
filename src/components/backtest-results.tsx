@@ -49,16 +49,15 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
         <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 md:grid-cols-3 gap-2 md:gap-4">
+        <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
             <SummaryStat label="Total PNL" value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>} />
             <SummaryStat label="Win Rate" value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>} />
             <SummaryStat label="Profit Factor" value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>} />
+            <SummaryStat label="Total Return" value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>} />
             <SummaryStat label="Total Trades" value={summary.totalTrades} />
             <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
             <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
-            <SummaryStat label="Initial Capital" value={<span>${summary.initialCapital.toFixed(2)}</span>} />
-            <SummaryStat label="Ending Balance" value={<span>${summary.endingBalance.toFixed(2)}</span>} />
-            <SummaryStat label="Total Return" value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>} />
+            <SummaryStat label="Total Fees" value={<span>${summary.totalFees.toFixed(2)}</span>} />
         </div>
 
         <div className="space-y-2">
@@ -71,6 +70,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                     <TableHead>Entry</TableHead>
                     <TableHead>Exit</TableHead>
                     <TableHead>Close Reason</TableHead>
+                    <TableHead>Fee ($)</TableHead>
                     <TableHead className="text-right">P&L ($)</TableHead>
                     </TableRow>
                 </TableHeader>
@@ -106,6 +106,9 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                     {trade.closeReason.replace('-', ' ')}
                                 </Badge>
                             </TableCell>
+                            <TableCell className="font-mono text-xs">
+                                {trade.fee.toFixed(4)}
+                            </TableCell>
                             <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                 {trade.pnl.toFixed(2)}
                             </TableCell>
@@ -113,7 +116,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                         ))
                     ) : (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                            <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
                                 No trades were executed in this backtest.
                             </TableCell>
                         </TableRow>

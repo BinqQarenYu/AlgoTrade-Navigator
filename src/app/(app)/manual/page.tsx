@@ -35,10 +35,7 @@ import { Separator } from "@/components/ui/separator"
 
 const assetList = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", 
-    "AAVEUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT", "RUNEUSDT", "FTMUSDT", "GALAUSDT", "GMTUSDT", "APEUSDT", "OPUSDT", 
-    "APTUSDT", "ARBUSDT", "SUIUSDT", "PEPEUSDT", "WLDUSDT", "INJUSDT", "ORDIUSDT", "TIAUSDT", "SEIUSDT", "JUPUSDT", 
-    "PYTHUSDT", "ONDOUSDT", "WIFUSDT", "BONKUSDT", "ENAUSDT", "ETHFIUSDT", "NOTUSDT"
+    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
 ];
 
 export default function ManualTradingPage() {
@@ -57,8 +54,11 @@ export default function ManualTradingPage() {
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
   const [interval, setInterval] = useState<string>("1m");
+  const [initialCapital, setInitialCapital] = useState<number>(100);
+  const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(2);
   const [stopLoss, setStopLoss] = useState<number>(1);
+  const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(true);
 
   const handleRunAnalysis = () => {
@@ -66,9 +66,12 @@ export default function ManualTradingPage() {
         symbol,
         interval,
         strategy: selectedStrategy,
+        initialCapital,
+        leverage,
         takeProfit,
         stopLoss,
         useAIPrediction,
+        fee
     });
   };
 
@@ -104,6 +107,28 @@ export default function ManualTradingPage() {
   }, [isConnected, symbol, interval]);
 
   const hasActiveSignal = signal !== null;
+
+  // Derived state for signal card
+  const positionValue = initialCapital * leverage;
+  let tradeQuantity = 0;
+  let entryFee = 0;
+  let exitFee = 0;
+  let totalFee = 0;
+  let grossPnl = 0;
+  let netPnl = 0;
+
+  if (signal) {
+    tradeQuantity = positionValue / signal.entryPrice;
+    entryFee = signal.entryPrice * tradeQuantity * (fee / 100);
+    exitFee = signal.takeProfit * tradeQuantity * (fee / 100);
+    totalFee = entryFee + exitFee;
+    if (signal.action === 'UP') {
+        grossPnl = (signal.takeProfit - signal.entryPrice) * tradeQuantity;
+    } else {
+        grossPnl = (signal.entryPrice - signal.takeProfit) * tradeQuantity;
+    }
+    netPnl = grossPnl - totalFee;
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -179,7 +204,41 @@ export default function ManualTradingPage() {
                   </Select>
                 </div>
             </div>
-             <div className="grid grid-cols-2 gap-4">
+             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="initial-capital">Capital ($)</Label>
+                    <Input 
+                        id="initial-capital" 
+                        type="number" 
+                        value={initialCapital}
+                        onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                        placeholder="100"
+                        disabled={isAnalyzing || hasActiveSignal}
+                    />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="leverage">Leverage (x)</Label>
+                  <Input
+                    id="leverage"
+                    type="number"
+                    min="1"
+                    value={leverage}
+                    onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                    placeholder="10"
+                    disabled={isAnalyzing || hasActiveSignal}
+                  />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="fee">Fee (%)</Label>
+                    <Input 
+                        id="fee" 
+                        type="number" 
+                        value={fee}
+                        onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                        placeholder="0.04"
+                        disabled={isAnalyzing || hasActiveSignal}
+                    />
+                </div>
                  <div className="space-y-2">
                     <Label htmlFor="take-profit">Take Profit (%)</Label>
                     <Input 
@@ -267,18 +326,36 @@ export default function ManualTradingPage() {
                             </Badge>
                         </div>
                         <Separator/>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Entry Price (approx.)</span>
-                            <span className="font-mono text-base">${signal.entryPrice.toFixed(4)}</span>
+                        <div className="grid gap-2 text-sm">
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Entry Price (approx.)</span>
+                                <span className="font-mono">${signal.entryPrice.toFixed(4)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Stop Loss</span>
+                                <span className="font-mono text-red-500">${signal.stopLoss.toFixed(4)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Take Profit</span>
+                                <span className="font-mono text-green-500">${signal.takeProfit.toFixed(4)}</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Stop Loss Target</span>
-                            <span className="font-mono text-base text-red-500">${signal.stopLoss.toFixed(4)}</span>
+                        <Separator/>
+                        <div className="grid gap-2 text-sm">
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Est. Position Value</span>
+                                <span className="font-mono">${positionValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                            </div>
+                             <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Est. Total Fee</span>
+                                <span className="font-mono">${totalFee.toFixed(4)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-muted-foreground">Net PNL at TP</span>
+                                <span className="font-mono font-semibold text-green-500">${netPnl.toFixed(4)}</span>
+                            </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Take Profit Target</span>
-                            <span className="font-mono text-base text-green-500">${signal.takeProfit.toFixed(4)}</span>
-                        </div>
+                        
                         {useAIPrediction && (
                             <>
                                 <Separator />

@@ -46,10 +46,7 @@ interface DateRange {
 
 const assetList = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "SHIBUSDT", "AVAXUSDT", "DOTUSDT", 
-    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", 
-    "AAVEUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT", "RUNEUSDT", "FTMUSDT", "GALAUSDT", "GMTUSDT", "APEUSDT", "OPUSDT", 
-    "APTUSDT", "ARBUSDT", "SUIUSDT", "PEPEUSDT", "WLDUSDT", "INJUSDT", "ORDIUSDT", "TIAUSDT", "SEIUSDT", "JUPUSDT", 
-    "PYTHUSDT", "ONDOUSDT", "WIFUSDT", "BONKUSDT", "ENAUSDT", "ETHFIUSDT", "NOTUSDT"
+    "LINKUSDT", "TRXUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT"
 ];
 
 export default function BacktestPage() {
@@ -72,6 +69,7 @@ export default function BacktestPage() {
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
   const [stopLoss, setStopLoss] = useState<number>(2);
+  const [fee, setFee] = useState<number>(0.04);
   const [useAIValidation, setUseAIValidation] = useState(false);
 
 
@@ -283,8 +281,12 @@ export default function BacktestPage() {
             }
 
             if (exitPrice !== null && closeReason !== null) {
-                const pnl = (exitPrice - entryPrice) * tradeQuantity;
+                const entryFee = entryPrice * tradeQuantity * (fee / 100);
+                const exitFee = exitPrice * tradeQuantity * (fee / 100);
+                const totalFee = entryFee + exitFee;
+                const pnl = (exitPrice - entryPrice) * tradeQuantity - totalFee;
                 const pnlPercent = (pnl / marginPerTrade) * 100;
+
                 trades.push({
                     id: `trade_${trades.length}`,
                     type: 'long', 
@@ -296,7 +298,8 @@ export default function BacktestPage() {
                     pnlPercent, 
                     closeReason,
                     stopLoss: stopLossPrice,
-                    takeProfit: takeProfitPrice
+                    takeProfit: takeProfitPrice,
+                    fee: totalFee
                 });
                 positionType = null;
                 entryPrice = 0;
@@ -342,8 +345,12 @@ export default function BacktestPage() {
             }
 
             if (exitPrice !== null && closeReason !== null) {
-                const pnl = (entryPrice - exitPrice) * tradeQuantity;
+                const entryFee = entryPrice * tradeQuantity * (fee / 100);
+                const exitFee = exitPrice * tradeQuantity * (fee / 100);
+                const totalFee = entryFee + exitFee;
+                const pnl = (entryPrice - exitPrice) * tradeQuantity - totalFee;
                 const pnlPercent = (pnl / marginPerTrade) * 100;
+                
                 trades.push({
                     id: `trade_${trades.length}`,
                     type: 'short', 
@@ -355,7 +362,8 @@ export default function BacktestPage() {
                     pnlPercent, 
                     closeReason,
                     stopLoss: stopLossPrice,
-                    takeProfit: takeProfitPrice
+                    takeProfit: takeProfitPrice,
+                    fee: totalFee
                 });
                 positionType = null;
                 entryPrice = 0;
@@ -445,12 +453,15 @@ export default function BacktestPage() {
     if (positionType !== null && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
+        const entryFee = entryPrice * tradeQuantity * (fee / 100);
+        const exitFee = exitPrice * tradeQuantity * (fee / 100);
+        const totalFee = entryFee + exitFee;
         let pnl;
         
         if (positionType === 'long') {
-            pnl = (exitPrice - entryPrice) * tradeQuantity;
+            pnl = (exitPrice - entryPrice) * tradeQuantity - totalFee;
         } else { // short
-            pnl = (entryPrice - exitPrice) * tradeQuantity;
+            pnl = (entryPrice - exitPrice) * tradeQuantity - totalFee;
         }
 
         const pnlPercent = (pnl / marginPerTrade) * 100;
@@ -464,13 +475,15 @@ export default function BacktestPage() {
             pnlPercent, 
             closeReason: 'signal',
             stopLoss: stopLossPrice,
-            takeProfit: takeProfitPrice 
+            takeProfit: takeProfitPrice,
+            fee: totalFee
         });
     }
 
     const wins = trades.filter(t => t.pnl > 0);
     const losses = trades.filter(t => t.pnl <= 0);
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+    const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
     const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
     const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
     const endingBalance = initialCapital + totalPnl;
@@ -480,6 +493,7 @@ export default function BacktestPage() {
       totalTrades: trades.length,
       winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
       totalPnl: totalPnl,
+      totalFees: totalFees,
       averageWin: wins.length > 0 ? totalWins / wins.length : 0,
       averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
       profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
@@ -609,7 +623,7 @@ export default function BacktestPage() {
                   </Select>
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                  <div className="space-y-2">
                     <Label htmlFor="initial-capital">Initial Capital ($)</Label>
                     <Input 
@@ -630,6 +644,17 @@ export default function BacktestPage() {
                         onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
                         placeholder="10"
                         min="1"
+                        disabled={anyLoading}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="fee">Fee (%)</Label>
+                    <Input 
+                        id="fee" 
+                        type="number" 
+                        value={fee}
+                        onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                        placeholder="0.04"
                         disabled={anyLoading}
                     />
                 </div>

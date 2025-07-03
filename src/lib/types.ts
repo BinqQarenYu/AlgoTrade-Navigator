@@ -63,6 +63,7 @@ export type BacktestResult = {
   type: 'long' | 'short';
   stopLoss: number;
   takeProfit: number;
+  fee: number;
 };
 
 export type BacktestSummary = {
@@ -75,6 +76,7 @@ export type BacktestSummary = {
   initialCapital: number;
   endingBalance: number;
   totalReturnPercent: number;
+  totalFees: number;
 };
 
 export type ApiProfile = {
@@ -106,14 +108,18 @@ export type LiveBotConfig = {
     stopLoss: number;
     marginType: string;
     useAIPrediction: boolean;
+    fee: number;
 };
 
 export type ManualTraderConfig = {
     symbol: string;
     interval: string;
     strategy: string;
+    initialCapital: number;
+    leverage: number;
     takeProfit: number;
     stopLoss: number;
     useAIPrediction: boolean;
+    fee: number;
 }
     
