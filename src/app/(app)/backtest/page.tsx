@@ -244,6 +244,7 @@ export default function BacktestPage() {
     let stopLossPrice = 0;
     let takeProfitPrice = 0;
     let tradeQuantity = 0;
+    let entryCapital = 0;
 
     for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
@@ -290,12 +291,13 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (exitPrice - entryPrice) * tradeQuantity;
+                const pnlPercent = (pnl / entryCapital) * 100;
                 currentBalance += pnl;
-                const pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
                 trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
+                entryCapital = 0;
             }
         } else if (positionType === 'short') {
             let exitPrice: number | null = null;
@@ -338,12 +340,13 @@ export default function BacktestPage() {
 
             if (exitPrice !== null && closeReason !== null) {
                 const pnl = (entryPrice - exitPrice) * tradeQuantity;
+                const pnlPercent = (pnl / entryCapital) * 100;
                 currentBalance += pnl;
-                const pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
                 trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl, pnlPercent, closeReason });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
+                entryCapital = 0;
             }
         }
 
@@ -376,6 +379,7 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
+                    entryCapital = currentBalance;
                     if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
@@ -412,6 +416,7 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
+                    entryCapital = currentBalance;
                     if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
@@ -428,14 +433,15 @@ export default function BacktestPage() {
     if (positionType !== null && dataWithSignals.length > 0) {
         const lastDataPoint = dataWithSignals[dataWithSignals.length - 1];
         const exitPrice = lastDataPoint.close;
-        let pnl, pnlPercent;
+        let pnl;
+        
         if (positionType === 'long') {
             pnl = (exitPrice - entryPrice) * tradeQuantity;
-            pnlPercent = ((exitPrice - entryPrice) / entryPrice) * 100;
         } else { // short
             pnl = (entryPrice - exitPrice) * tradeQuantity;
-            pnlPercent = ((entryPrice - exitPrice) / entryPrice) * 100;
         }
+
+        const pnlPercent = (pnl / entryCapital) * 100;
         currentBalance += pnl;
         trades.push({ type: positionType, entryTime, entryPrice, exitTime: lastDataPoint.time, exitPrice, pnl, pnlPercent, closeReason: 'signal' });
     }
