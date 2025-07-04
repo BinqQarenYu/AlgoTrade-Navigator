@@ -182,7 +182,7 @@ export function TradingChart({
           },
         });
         
-        const highlightColor = '#eab308'; // Amber-500, same as POC line
+        const highlightColor = '#3b82f6'; // Blue-500 for highlighting trades
         const candlestickChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
             return {
@@ -202,7 +202,7 @@ export function TradingChart({
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
             const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
-            const highlightedVolumeColor = 'rgba(234, 179, 8, 0.4)'; // amber-500 with opacity
+            const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)'; // blue-500 with opacity
 
             return {
                 time: toTimestamp(d.time),
