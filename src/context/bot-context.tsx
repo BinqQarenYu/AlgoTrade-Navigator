@@ -251,11 +251,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Live Bot Logic ---
   const runLiveBotPrediction = useCallback(async () => {
-    if (!liveBotState.isRunning || !liveBotState.config) return;
+    const currentConfig = liveBotState.config;
+    if (!liveBotState.isRunning || !currentConfig) return;
 
     setLiveBotState(prev => ({ ...prev, isPredicting: true, prediction: null }));
     
-    const result = await analyzeAsset(liveBotState.config);
+    const result = await analyzeAsset(currentConfig);
     
     if (result.signal) {
         const aiPrediction: PredictMarketOutput = {
@@ -271,7 +272,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     setLiveBotState(prev => ({ ...prev, isPredicting: false }));
 
-  }, [liveBotState, addLiveLog, analyzeAsset]);
+  }, [liveBotState.isRunning, liveBotState.config, addLiveLog, analyzeAsset]);
 
   const startLiveBot = async (config: LiveBotConfig) => {
     addLiveLog("Starting bot...");
@@ -357,8 +358,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       };
 
       setManualTraderState(current => {
-        let newChartData = current.chartData;
         const currentLogs = current.logs || [];
+        let newChartData = current.chartData;
 
         if (newChartData.length > 0) {
             const lastCandle = newChartData[newChartData.length - 1];
@@ -402,7 +403,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        // Ensure logs are preserved in every state update
         return { ...current, chartData: newChartData, logs: currentLogs };
       });
     };
@@ -602,7 +602,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setMultiSignalState({ isRunning: false, config: null, results: {}, logs: [] });
     addMultiLog("Multi-signal monitor stopped by user.");
     toast({ title: "Multi-Signal Monitor Stopped" });
-  }, [addManualLog, toast]);
+  }, [addMultiLog, toast]);
 
   // --- AI Screener Logic ---
   const startScreener = useCallback(async (config: ScreenerConfig) => {
@@ -613,12 +613,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     
     const foundSignals: TradeSignal[] = [];
 
-    // Create a flattened array of all analysis tasks
     const tasks = config.assets.flatMap(asset => 
         config.strategies.map(strategy => ({ asset, strategy }))
     );
 
-    // Process tasks sequentially to avoid overwhelming APIs
     for (const task of tasks) {
         if (!screenerRunningRef.current) break;
         
@@ -628,10 +626,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             symbol: task.asset,
             interval: config.interval,
             strategy: task.strategy,
-            takeProfit: 2, // Default value for screening
-            stopLoss: 1,   // Default value for screening
-            // When using code-based ranking, we don't need AI validation on each signal.
-            // This significantly reduces token usage.
+            takeProfit: 2,
+            stopLoss: 1,
             useAIPrediction: config.useAiRanking,
             fee: 0.04
         });
@@ -644,46 +640,49 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     if (!screenerRunningRef.current) {
         addScreenerLog("Screener stopped by user.");
-        setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs}));
+        setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs || [] }));
         return;
     }
 
     addScreenerLog(`Screening complete. Found ${foundSignals.length} potential signals.`);
     
-    const fng = await getFearAndGreedIndex();
-    const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-
-    if (config.useAiRanking && foundSignals.length > 0) {
-        addScreenerLog(`Ranking ${foundSignals.length} signals with AI Head Trader...`);
-        try {
-            const rankedResult = await rankSignals({
-                signals: foundSignals,
-                marketContext
-            });
-            
-            const rankedSignals = rankedResult.rankedSignals.sort((a,b) => a.rank - b.rank);
-            
-            setScreenerState(prev => ({...prev, results: rankedSignals as RankedTradeSignal[]}));
-            addScreenerLog(`AI ranking complete. Displaying top signals.`);
-            toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} high-potential signals.` });
-        } catch (e: any) {
-            addScreenerLog(`AI ranking failed: ${e.message}`);
-            toast({ title: "AI Ranking Failed", description: "Displaying unranked signals.", variant: "destructive" });
-            const unrankedSignals = foundSignals.map(s => ({...s, rank: 99, justification: "AI ranking failed."}));
-            setScreenerState(prev => ({...prev, results: unrankedSignals }));
+    if (foundSignals.length > 0) {
+        const fng = await getFearAndGreedIndex();
+        
+        if (config.useAiRanking) {
+            const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
+            addScreenerLog(`Ranking ${foundSignals.length} signals with AI Head Trader...`);
+            try {
+                const rankedResult = await rankSignals({
+                    signals: foundSignals,
+                    marketContext
+                });
+                
+                const rankedSignals = rankedResult.rankedSignals.sort((a,b) => a.rank - b.rank);
+                
+                setScreenerState(prev => ({...prev, results: rankedSignals as RankedTradeSignal[]}));
+                addScreenerLog(`AI ranking complete. Displaying top signals.`);
+                toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} high-potential signals.` });
+            } catch (e: any) {
+                addScreenerLog(`AI ranking failed: ${e.message}`);
+                toast({ title: "AI Ranking Failed", description: "Displaying unranked signals.", variant: "destructive" });
+                const unrankedSignals = foundSignals.map(s => ({...s, rank: 99, justification: "AI ranking failed."}));
+                setScreenerState(prev => ({...prev, results: unrankedSignals }));
+            }
+        } else {
+            // Use code-based ranking
+            addScreenerLog(`Ranking ${foundSignals.length} signals with code-based logic...`);
+            const rankedSignals = rankSignalsWithCode(foundSignals, fng);
+            setScreenerState(prev => ({...prev, results: rankedSignals }));
+            addScreenerLog(`Code-based ranking complete.`);
+            toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} signals.` });
         }
-    } else if (foundSignals.length > 0) {
-        addScreenerLog(`Ranking ${foundSignals.length} signals with code-based logic...`);
-        const rankedSignals = rankSignalsWithCode(foundSignals, fng);
-        setScreenerState(prev => ({...prev, results: rankedSignals }));
-        addScreenerLog(`Code-based ranking complete.`);
-        toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} signals.` });
     } else {
         addScreenerLog('No actionable signals found across all assets and strategies.');
         toast({ title: "Screener Finished", description: "No actionable signals were found." });
     }
 
-    setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs}));
+    setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs || [] }));
     screenerRunningRef.current = false;
   }, [addScreenerLog, analyzeAsset, toast]);
 
