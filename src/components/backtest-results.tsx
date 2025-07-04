@@ -132,8 +132,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
             <div className="space-y-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Trade Log</h3>
                 <ScrollArea className="h-72 w-full rounded-md border">
-                  <TooltipProvider>
-                    <Table>
+                  <Table>
                     <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
                         <TableRow>
                         <TableHead>Side</TableHead>
@@ -141,15 +140,15 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                         <TableHead>Exit</TableHead>
                         <TableHead>Close Reason</TableHead>
                         <TableHead>Fee ($)</TableHead>
-                        <TableHead className="text-right">Net P&L ($)</TableHead>
+                        <TableHead>Net P&L ($)</TableHead>
+                        <TableHead className="text-right">Info</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {results.length > 0 ? (
                             results.map((trade) => (
-                            <Tooltip key={trade.id}>
-                              <TooltipTrigger asChild>
                                 <TableRow 
+                                    key={trade.id}
                                     onClick={() => onSelectTrade(trade)}
                                     className={cn(
                                         "cursor-pointer hover:bg-muted/80",
@@ -180,34 +179,43 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                     <TableCell className="font-mono text-xs">
                                         {trade.fee.toFixed(4)}
                                     </TableCell>
-                                    <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    <TableCell className={`font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                         {trade.pnl.toFixed(2)}
                                     </TableCell>
+                                    <TableCell className="text-right">
+                                      {trade.reasoning && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-60 hover:opacity-100">
+                                                <Info className="h-4 w-4" />
+                                                <span className="sr-only">Show rationale</span>
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <div className="max-w-xs space-y-1">
+                                                    <p className="font-semibold">Entry Rationale:</p>
+                                                    <p>{trade.reasoning}</p>
+                                                    {trade.confidence && (
+                                                        <p className="text-muted-foreground text-xs">AI Confidence: {(trade.confidence * 100).toFixed(1)}%</p>
+                                                    )}
+                                                </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </TableCell>
                                 </TableRow>
-                              </TooltipTrigger>
-                              {trade.reasoning && (
-                                <TooltipContent>
-                                    <div className="max-w-xs space-y-1">
-                                        <p className="font-semibold">Entry Rationale:</p>
-                                        <p>{trade.reasoning}</p>
-                                        {trade.confidence && (
-                                            <p className="text-muted-foreground text-xs">AI Confidence: {(trade.confidence * 100).toFixed(1)}%</p>
-                                        )}
-                                    </div>
-                                </TooltipContent>
-                              )}
-                            </Tooltip>
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                                <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
                                     No trades were executed in this backtest.
                                 </TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                     </Table>
-                  </TooltipProvider>
                 </ScrollArea>
             </div>
           </CardContent>
