@@ -6,10 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getHistoricalKlines } from "@/lib/binance-service";
-import { calculateEMA, calculateRSI, calculateSMA } from "@/lib/indicators"
-import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib"
-import { calculateVolumeDeltaSignals } from "@/lib/strategies/volume-profile-delta"
 import { addDays } from 'date-fns';
+import { getStrategyById } from '@/lib/strategies';
 
 // --- State Types ---
 interface LiveBotState {
@@ -92,97 +90,99 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
   
+  // --- Reusable Analysis Logic ---
+  const analyzeAsset = useCallback(async (
+    config: { symbol: string; interval: string; strategy: string; takeProfit: number; stopLoss: number; useAIPrediction: boolean }
+  ): Promise<SignalResult> => {
+    try {
+        const from = addDays(new Date(), -3).getTime();
+        const to = new Date().getTime();
+        const dataToAnalyze = await getHistoricalKlines(config.symbol, config.interval, from, to);
+
+        if (dataToAnalyze.length < 50) {
+            return { status: 'error', log: 'Not enough data.', signal: null };
+        }
+
+        const strategy = getStrategyById(config.strategy);
+        if (!strategy) {
+          return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
+        }
+
+        const dataWithSignals = await strategy.calculate(dataToAnalyze);
+        const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
+
+        if (!latestCandleWithSignal) {
+             return { status: 'no_signal', log: 'No recent signal.', signal: null };
+        }
+        
+        const signalAge = (dataWithSignals.length - 1) - dataWithSignals.indexOf(latestCandleWithSignal);
+        if (signalAge > 5) { // Only consider signals in the last 5 candles
+            return { status: 'no_signal', log: 'Signal found but is too old.', signal: null };
+        }
+        
+        const strategySignal: 'BUY' | 'SELL' = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
+
+        const prediction = config.useAIPrediction ? await predictMarket({
+            symbol: config.symbol,
+            recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
+            strategySignal
+        }) : {
+            prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
+            confidence: 1,
+            reasoning: `Signal from '${config.strategy}' without AI validation.`
+        };
+        const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
+        
+        if (aiConfirms) {
+            const currentPrice = latestCandleWithSignal.close;
+            const stopLossPrice = latestCandleWithSignal?.stopLossLevel ? latestCandleWithSignal.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
+            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
+            
+            const newSignal: TradeSignal = {
+                action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
+                stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+                confidence: prediction.confidence, reasoning: prediction.reasoning,
+                timestamp: new Date(latestCandleWithSignal.time), strategy: config.strategy,
+                peakPrice: latestCandleWithSignal?.peakPrice
+            };
+            return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
+        } else {
+            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
+        }
+    } catch (e: any) {
+        console.error(`Analysis failed for ${config.symbol}:`, e);
+        return { status: 'error', log: e.message || 'Unknown error', signal: null };
+    }
+  }, []);
+
   // --- Live Bot Logic ---
   const runLiveBotPrediction = useCallback(async () => {
     if (!liveBotState.isRunning || !liveBotState.config) return;
 
-    const { config, chartData } = liveBotState;
-    
-    if (chartData.length < 50) {
-      addLiveLog("Waiting for more market data to accumulate...");
-      return;
-    }
-
     setLiveBotState(prev => ({ ...prev, isPredicting: true, prediction: null }));
-
-    let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-    const closePrices = chartData.map(d => d.close);
-    switch (config.strategy) {
-       case 'sma-crossover': {
-            const shortPeriod = 20; const longPeriod = 50;
-            const sma_short = calculateSMA(closePrices, shortPeriod); const sma_long = calculateSMA(closePrices, longPeriod);
-            const last_sma_short = sma_short.slice(-1)[0]; const prev_sma_short = sma_short.slice(-2)[0];
-            const last_sma_long = sma_long.slice(-1)[0]; const prev_sma_long = sma_long.slice(-2)[0];
-            if (prev_sma_short && prev_sma_long && last_sma_short && last_sma_long) {
-                if (prev_sma_short <= prev_sma_long && last_sma_short > last_sma_long) strategySignal = 'BUY';
-                else if (prev_sma_short >= prev_sma_long && last_sma_short < last_sma_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'ema-crossover': {
-            const shortPeriod = 12; const longPeriod = 26;
-            const ema_short = calculateEMA(closePrices, shortPeriod); const ema_long = calculateEMA(closePrices, longPeriod);
-            const last_ema_short = ema_short.slice(-1)[0]; const prev_ema_short = ema_short.slice(-2)[0];
-            const last_ema_long = ema_long.slice(-1)[0]; const prev_ema_long = ema_long.slice(-2)[0];
-            if (prev_ema_short && prev_ema_long && last_ema_short && last_ema_long) {
-                if (prev_ema_short <= prev_ema_long && last_ema_short > last_ema_long) strategySignal = 'BUY';
-                else if (prev_ema_short >= prev_ema_long && last_ema_short < last_ema_long) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'rsi-divergence': {
-            const rsi = calculateRSI(closePrices, 14);
-            const last_rsi = rsi.slice(-1)[0]; const prev_rsi = rsi.slice(-2)[0];
-            if (prev_rsi && last_rsi) {
-                if (prev_rsi <= 30 && last_rsi > 30) strategySignal = 'BUY';
-                else if (prev_rsi >= 70 && last_rsi < 70) strategySignal = 'SELL';
-            }
-            break;
-        }
-        case 'peak-formation-fib': {
-            const dataWithSignals = await calculatePeakFormationFibSignals(chartData);
-            const lastSignal = dataWithSignals.slice(-5).find(d => d.buySignal || d.sellSignal);
-            if (lastSignal?.buySignal) strategySignal = 'BUY';
-            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
-            break;
-        }
-        case 'volume-delta': {
-            const dataWithSignals = await calculateVolumeDeltaSignals(chartData);
-            const lastSignal = dataWithSignals[dataWithSignals.length - 1];
-            if (lastSignal?.buySignal) strategySignal = 'BUY';
-            else if (lastSignal?.sellSignal) strategySignal = 'SELL';
-            break;
-        }
-    }
     
-    addLiveLog(`Strategy '${config.strategy}' generated a ${strategySignal} signal. Asking AI for validation...`);
+    const result = await analyzeAsset(liveBotState.config);
     
-    try {
-        const recentData = chartData.slice(-50);
-        const result = config.useAIPrediction ? await predictMarket({
-            symbol: config.symbol,
-            recentData: JSON.stringify(recentData.map(d => ({t: d.time, o: d.open, h: d.high, l: d.low, c:d.close, v:d.volume}))),
-            strategySignal
-        }) : {
-             prediction: strategySignal === 'BUY' ? 'UP' : strategySignal === 'SELL' ? 'DOWN' : 'NEUTRAL',
-             confidence: 0.99,
-             reasoning: `AI is disabled. The prediction is based directly on the '${config.strategy}' signal.`
+    if (result.signal) {
+        const aiPrediction: PredictMarketOutput = {
+            prediction: result.signal.action,
+            confidence: result.signal.confidence,
+            reasoning: result.signal.reasoning,
         };
-        setLiveBotState(prev => ({ ...prev, prediction: result, isPredicting: false }));
-        addLiveLog(`AI Prediction: ${result.prediction} (Confidence: ${(result.confidence * 100).toFixed(1)}%). Reason: ${result.reasoning}`);
-    } catch (error) {
-       console.error("Prediction failed", error);
-       setTimeout(() => toast({ title: "AI Prediction Failed", variant: "destructive" }), 0);
-       addLiveLog("Error: AI prediction failed.");
-       setLiveBotState(prev => ({ ...prev, isPredicting: false }));
+        setLiveBotState(prev => ({ ...prev, prediction: aiPrediction }));
+        addLiveLog(`AI Prediction: ${aiPrediction.prediction} (Confidence: ${(aiPrediction.confidence * 100).toFixed(1)}%).`);
+    } else {
+        addLiveLog(`No actionable signal found. Reason: ${result.log}`);
     }
-  }, [liveBotState, addLiveLog, toast]);
+
+    setLiveBotState(prev => ({ ...prev, isPredicting: false }));
+
+  }, [liveBotState, addLiveLog, analyzeAsset]);
 
   const startLiveBot = async (config: LiveBotConfig) => {
     addLiveLog("Starting bot...");
     
-    // Fetch initial data
-    setLiveBotState(prev => ({...prev, isRunning: true, config, logs: [], chartData: []}));
+    setLiveBotState(prev => ({...prev, isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: []}));
     try {
       const from = addDays(new Date(), -1).getTime();
       const to = new Date().getTime();
@@ -190,7 +190,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       setLiveBotState(prev => ({ ...prev, chartData: klines }));
       addLiveLog(`Loaded ${klines.length} initial candles for ${config.symbol}.`);
       
-      // Start the interval
       runLiveBotPrediction(); // Initial run
       liveBotIntervalRef.current = setInterval(runLiveBotPrediction, 30000); // 30 seconds
       toast({ title: "Live Bot Started", description: `Monitoring ${config.symbol} on the ${config.interval} interval.`});
@@ -212,174 +211,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: "Live Bot Stopped" });
   };
   
-  // --- Reusable Analysis Logic ---
-  const analyzeAsset = useCallback(async (
-    config: { symbol: string; interval: string; strategy: string; takeProfit: number; stopLoss: number; useAIPrediction: boolean }
-  ): Promise<SignalResult> => {
-    try {
-        const from = addDays(new Date(), -3).getTime();
-        const to = new Date().getTime();
-        const dataToAnalyze = await getHistoricalKlines(config.symbol, config.interval, from, to);
-
-        if (dataToAnalyze.length < 50) {
-            return { status: 'error', log: 'Not enough data.', signal: null };
-        }
-
-        let strategySignal: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-        let signalCandle: HistoricalData | null = null;
-        let dataWithSignals = [...dataToAnalyze];
-
-        switch (config.strategy) {
-            case "sma-crossover":
-            case "ema-crossover": {
-                const closePrices = dataToAnalyze.map(d => d.close);
-                const isSMA = config.strategy === 'sma-crossover';
-                const shortPeriod = isSMA ? 20 : 12;
-                const longPeriod = isSMA ? 50 : 26;
-                const indicatorFunc = isSMA ? calculateSMA : calculateEMA;
-                const shortMA = indicatorFunc(closePrices, shortPeriod);
-                const longMA = indicatorFunc(closePrices, longPeriod);
-                
-                let lastSignalType: 'BUY' | 'SELL' | null = null;
-                let lastSignalIndex = -1;
-
-                // Find the most recent signal event in the whole dataset
-                for (let i = longPeriod; i < dataToAnalyze.length; i++) {
-                    if (!shortMA[i - 1] || !longMA[i - 1] || !shortMA[i] || !longMA[i]) continue;
-                    
-                    const crossedUp = shortMA[i - 1]! <= longMA[i - 1]! && shortMA[i]! > longMA[i]!;
-                    const crossedDown = shortMA[i - 1]! >= longMA[i - 1]! && shortMA[i]! < longMA[i]!;
-
-                    if (crossedUp) { 
-                        lastSignalType = 'BUY';
-                        lastSignalIndex = i;
-                    } else if (crossedDown) {
-                        lastSignalType = 'SELL';
-                        lastSignalIndex = i;
-                    }
-                }
-
-                // Check if the most recent signal is recent enough to be actionable
-                if (lastSignalType && lastSignalIndex > -1) {
-                    const signalAge = dataToAnalyze.length - 1 - lastSignalIndex;
-                    if (signalAge < 5) { // Is the signal within the last 5 candles?
-                        strategySignal = lastSignalType;
-                        signalCandle = dataToAnalyze[lastSignalIndex];
-                    }
-                }
-                break;
-            }
-            case "rsi-divergence": {
-                const closePrices = dataToAnalyze.map(d => d.close);
-                const rsi = calculateRSI(closePrices, 14);
-
-                let lastSignalType: 'BUY' | 'SELL' | null = null;
-                let lastSignalIndex = -1;
-
-                for (let i = 14; i < dataToAnalyze.length; i++) {
-                    if (!rsi[i - 1] || !rsi[i]) continue;
-
-                    const crossedUp = rsi[i - 1]! <= 30 && rsi[i]! > 30;
-                    const crossedDown = rsi[i - 1]! >= 70 && rsi[i]! < 70;
-
-                    if (crossedUp) {
-                        lastSignalType = 'BUY';
-                        lastSignalIndex = i;
-                    } else if (crossedDown) {
-                        lastSignalType = 'SELL';
-                        lastSignalIndex = i;
-                    }
-                }
-
-                if (lastSignalType && lastSignalIndex > -1) {
-                    const signalAge = dataToAnalyze.length - 1 - lastSignalIndex;
-                    if (signalAge < 5) { // Is the signal within the last 5 candles?
-                        strategySignal = lastSignalType;
-                        signalCandle = dataToAnalyze[lastSignalIndex];
-                    }
-                }
-                break;
-            }
-            case "peak-formation-fib": {
-                dataWithSignals = await calculatePeakFormationFibSignals(dataToAnalyze);
-                let lastSignalIndex = -1;
-                let signalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-                
-                for (let i = dataWithSignals.length - 1; i >= 0; i--) {
-                    const candle = dataWithSignals[i];
-                    if (candle.buySignal || candle.sellSignal) {
-                        lastSignalIndex = i;
-                        signalType = candle.buySignal ? 'BUY' : 'SELL';
-                        break;
-                    }
-                }
-
-                if (lastSignalIndex !== -1 && (dataWithSignals.length - 1 - lastSignalIndex) < 10) {
-                    strategySignal = signalType;
-                    signalCandle = dataWithSignals[lastSignalIndex];
-                }
-                break;
-            }
-            case "volume-delta": {
-                dataWithSignals = await calculateVolumeDeltaSignals(dataToAnalyze);
-                let lastSignalIndex = -1;
-                let signalType: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
-                
-                // Find the most recent signal in the last 5 candles
-                for (let i = dataWithSignals.length - 1; i >= Math.max(0, dataWithSignals.length - 5); i--) {
-                    const candle = dataWithSignals[i];
-                    if (candle.buySignal || candle.sellSignal) {
-                        lastSignalIndex = i;
-                        signalType = candle.buySignal ? 'BUY' : 'SELL';
-                        break;
-                    }
-                }
-
-                if (lastSignalIndex !== -1) {
-                    strategySignal = signalType;
-                    signalCandle = dataWithSignals[lastSignalIndex];
-                }
-                break;
-            }
-        }
-
-        if (strategySignal === 'HOLD' || !signalCandle) {
-            return { status: 'no_signal', log: 'No recent signal.', signal: null };
-        }
-
-        const prediction = config.useAIPrediction ? await predictMarket({
-            symbol: config.symbol,
-            recentData: JSON.stringify(dataToAnalyze.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
-            strategySignal
-        }) : {
-            prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
-            confidence: 1,
-            reasoning: `Signal from '${config.strategy}' without AI validation.`
-        };
-        const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
-        
-        if (aiConfirms) {
-            const latestCandle = signalCandle;
-            const currentPrice = latestCandle.close;
-            const stopLossPrice = latestCandle?.stopLossLevel ? latestCandle.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
-            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
-            
-            const newSignal: TradeSignal = {
-                action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
-                stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                confidence: prediction.confidence, reasoning: prediction.reasoning,
-                timestamp: new Date(), strategy: config.strategy,
-                peakPrice: latestCandle?.peakPrice
-            };
-            return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
-        } else {
-            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
-        }
-    } catch (e: any) {
-        console.error(`Analysis failed for ${config.symbol}:`, e);
-        return { status: 'error', log: e.message || 'Unknown error', signal: null };
-    }
-  }, []);
 
   // --- Manual Trader Logic ---
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {

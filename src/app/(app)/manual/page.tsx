@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { topAssetList } from "@/lib/assets"
+import { strategies } from "@/lib/strategies"
 
 export default function ManualTradingPage() {
   const { isConnected } = useApi();
@@ -197,11 +198,9 @@ export default function ManualTradingPage() {
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
-                      <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
-                      <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
-                      <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
-                      <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
+                      {strategies.map(strategy => (
+                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

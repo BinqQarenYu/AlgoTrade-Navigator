@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
 import { fullAssetList } from "@/lib/assets"
+import { strategies } from "@/lib/strategies"
 
 export default function MultiSignalPage() {
     const { toast } = useToast();
@@ -125,11 +126,9 @@ export default function MultiSignalPage() {
                             <Select onValueChange={setStrategy} value={strategy} disabled={isRunning}>
                                 <SelectTrigger id="strategy"><SelectValue/></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
-                                    <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
-                                    <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
-                                    <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
-                                    <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
+                                    {strategies.map(strategy => (
+                                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>

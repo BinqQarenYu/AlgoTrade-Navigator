@@ -34,13 +34,11 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } from "@/lib/types"
-import { calculateSMA, calculateEMA, calculateRSI } from "@/lib/indicators";
-import { calculatePeakFormationFibSignals } from "@/lib/strategies/peak-formation-fib";
-import { calculateVolumeDeltaSignals } from "@/lib/strategies/volume-profile-delta";
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
 import { topAssetList } from "@/lib/assets"
+import { strategies, getStrategyById } from "@/lib/strategies"
 
 interface DateRange {
   from?: Date;
@@ -58,7 +56,7 @@ export default function BacktestPage() {
   const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
-  const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
+  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategies[0].id);
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
@@ -123,55 +121,26 @@ export default function BacktestPage() {
 
   // Effect to calculate and display indicators when strategy or data changes
   useEffect(() => {
-    const calculateIndicators = async () => {
+    const calculateAndSetIndicators = async () => {
       if (chartData.length === 0) {
         setDataWithIndicators([]);
         return;
       }
       
-      let dataWithIndicatorsTemp: HistoricalData[] = JSON.parse(JSON.stringify(chartData));
-      const closePrices = chartData.map(d => d.close);
-      
-      switch (selectedStrategy) {
-        case "sma-crossover": {
-          const sma_short = calculateSMA(closePrices, 20);
-          const sma_long = calculateSMA(closePrices, 50);
-          dataWithIndicatorsTemp.forEach((d, i) => {
-            d.sma_short = sma_short[i];
-            d.sma_long = sma_long[i];
-          });
-          break;
-        }
-        case "ema-crossover": {
-          const ema_short = calculateEMA(closePrices, 12);
-          const ema_long = calculateEMA(closePrices, 26);
-          dataWithIndicatorsTemp.forEach((d, i) => {
-            d.ema_short = ema_short[i];
-            d.ema_long = ema_long[i];
-          });
-          break;
-        }
-        case "rsi-divergence":
-          // RSI is not drawn on the main chart, so we don't need to pre-calculate it for display.
-          // The backtest will calculate it when needed.
-          break;
-        case "peak-formation-fib": {
-            dataWithIndicatorsTemp = await calculatePeakFormationFibSignals(dataWithIndicatorsTemp, false);
-            break;
-        }
-        case "volume-delta": {
-            dataWithIndicatorsTemp = await calculateVolumeDeltaSignals(dataWithIndicatorsTemp, false);
-            break;
-        }
+      const strategy = getStrategyById(selectedStrategy);
+      if (strategy) {
+        const dataWithInd = await strategy.calculate(chartData);
+        // Clear signals for display, we only want to see indicators, not past signals
+        const dataWithoutSignals = dataWithInd.map(d => ({...d, buySignal: undefined, sellSignal: undefined}));
+        setDataWithIndicators(dataWithoutSignals);
       }
-      setDataWithIndicators(dataWithIndicatorsTemp);
     };
     
-    calculateIndicators();
+    calculateAndSetIndicators();
   }, [chartData, selectedStrategy]);
 
 
-  const handleRunBacktest = async (strategyOverride?: string) => {
+  const handleRunBacktest = async () => {
     if (chartData.length === 0) {
        toast({
         title: "No Data",
@@ -181,11 +150,11 @@ export default function BacktestPage() {
       return;
     }
 
-    const strategyToRun = strategyOverride || selectedStrategy;
-    if (!strategyToRun) {
+    const strategy = getStrategyById(selectedStrategy);
+    if (!strategy) {
       toast({
         title: "No Strategy Selected",
-        description: "Please select a strategy or load a script before running a backtest.",
+        description: "Please select a strategy before running a backtest.",
         variant: "destructive",
       });
       return;
@@ -199,67 +168,11 @@ export default function BacktestPage() {
       title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
       description: useAIValidation 
         ? "AI is validating each signal. This may take time."
-        : `Running ${strategyToRun} on ${interval} interval.`,
+        : `Running ${strategy.name} on ${interval} interval.`,
     })
     
     // Always start with fresh data for backtesting to ensure integrity
-    let dataWithSignals: HistoricalData[] = JSON.parse(JSON.stringify(chartData));
-
-    switch (strategyToRun) {
-      case "sma-crossover": {
-        const closePrices = dataWithSignals.map(d => d.close);
-        const sma_short = calculateSMA(closePrices, 20);
-        const sma_long = calculateSMA(closePrices, 50);
-        
-        dataWithSignals.forEach((d, i) => {
-          d.sma_short = sma_short[i];
-          d.sma_long = sma_long[i];
-          if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
-            if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) d.buySignal = d.low;
-            if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) d.sellSignal = d.high;
-          }
-        });
-        break;
-      }
-      case "ema-crossover": {
-        const closePrices = dataWithSignals.map(d => d.close);
-        const ema_short = calculateEMA(closePrices, 12);
-        const ema_long = calculateEMA(closePrices, 26);
-
-        dataWithSignals.forEach((d, i) => {
-          d.ema_short = ema_short[i];
-          d.ema_long = ema_long[i];
-          if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
-            if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) d.buySignal = d.low;
-            if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) d.sellSignal = d.high;
-          }
-        });
-        break;
-      }
-      case "rsi-divergence": {
-        const closePrices = dataWithSignals.map(d => d.close);
-        const rsi = calculateRSI(closePrices, 14);
-        const oversold = 30;
-        const overbought = 70;
-
-        dataWithSignals.forEach((d, i) => {
-          d.rsi = rsi[i];
-           if (i > 0 && rsi[i-1] && rsi[i]) {
-            if (rsi[i-1] <= oversold && rsi[i] > oversold) d.buySignal = d.low;
-            if (rsi[i-1] >= overbought && rsi[i] < overbought) d.sellSignal = d.high;
-          }
-        });
-        break;
-      }
-      case "peak-formation-fib": {
-        dataWithSignals = await calculatePeakFormationFibSignals(dataWithSignals, true);
-        break;
-      }
-      case "volume-delta": {
-        dataWithSignals = await calculateVolumeDeltaSignals(dataWithSignals, true);
-        break;
-      }
-    }
+    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)));
 
     const trades: BacktestResult[] = [];
     const marginPerTrade = initialCapital;
@@ -465,7 +378,7 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
+                    if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
@@ -511,7 +424,7 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    if (strategyToRun === 'peak-formation-fib' && d.stopLossLevel) {
+                    if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
@@ -693,11 +606,9 @@ export default function BacktestPage() {
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
-                      <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
-                      <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
-                      <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
-                      <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
+                      {strategies.map(strategy => (
+                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

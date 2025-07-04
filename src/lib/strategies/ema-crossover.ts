@@ -1,0 +1,30 @@
+'use client';
+import type { Strategy, HistoricalData } from '@/lib/types';
+import { calculateEMA } from '@/lib/indicators';
+
+const emaCrossoverStrategy: Strategy = {
+  id: 'ema-crossover',
+  name: 'EMA Crossover',
+  description: 'A trend-following strategy using Exponential Moving Averages, which give more weight to recent prices.',
+  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    if (data.length < 26) return dataWithIndicators;
+
+    const closePrices = data.map(d => d.close);
+    const ema_short = calculateEMA(closePrices, 12);
+    const ema_long = calculateEMA(closePrices, 26);
+
+    dataWithIndicators.forEach((d: HistoricalData, i: number) => {
+      d.ema_short = ema_short[i];
+      d.ema_long = ema_long[i];
+      if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
+        if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) d.buySignal = d.low;
+        if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) d.sellSignal = d.high;
+      }
+    });
+
+    return dataWithIndicators;
+  },
+};
+
+export default emaCrossoverStrategy;

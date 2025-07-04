@@ -35,6 +35,7 @@ import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { topAssetList } from "@/lib/assets"
+import { strategies } from "@/lib/strategies"
 
 export default function LiveTradingPage() {
   const { toast } = useToast()
@@ -52,7 +53,7 @@ export default function LiveTradingPage() {
   
   // Local state for configuration UI
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
-  const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
+  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategies[0].id);
   const [interval, setInterval] = useState<string>("1m");
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
@@ -266,11 +267,9 @@ export default function LiveTradingPage() {
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sma-crossover">SMA Crossover</SelectItem>
-                      <SelectItem value="ema-crossover">EMA Crossover</SelectItem>
-                      <SelectItem value="rsi-divergence">RSI Divergence</SelectItem>
-                      <SelectItem value="peak-formation-fib">Peak Formation Fib</SelectItem>
-                      <SelectItem value="volume-delta">Volume Delta Confirmation</SelectItem>
+                      {strategies.map(strategy => (
+                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

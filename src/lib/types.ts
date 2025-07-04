@@ -1,5 +1,6 @@
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -146,4 +147,11 @@ export interface MultiSignalState {
   config: MultiSignalConfig | null;
   results: Record<string, SignalResult>; // Keyed by asset symbol
   logs: string[];
+}
+
+export interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+  calculate: (data: HistoricalData[]) => Promise<HistoricalData[]>;
 }
