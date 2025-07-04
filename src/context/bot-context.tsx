@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { rankSignals } from "@/ai/flows/rank-signals-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service";
@@ -63,6 +63,66 @@ const intervalToMs = (interval: string): number => {
         default: return 60000;
     }
 }
+
+
+/**
+ * Ranks signals using a code-based scoring model instead of AI.
+ * @param signals - The array of signals to rank.
+ * @param fngIndex - The current Fear & Greed Index data.
+ * @returns A sorted array of ranked signals.
+ */
+const rankSignalsWithCode = (signals: TradeSignal[], fngIndex: FearAndGreedIndex | null): RankedTradeSignal[] => {
+    if (signals.length === 0) return [];
+
+    const scoredSignals = signals.map(signal => {
+        let score = 50; // Base score for any valid signal
+        let justification = ['Base score for valid signal.'];
+
+        // Confluence scoring
+        const confluenceCount = signals.filter(s => 
+            s.asset === signal.asset && 
+            s.action === signal.action &&
+            s.strategy !== signal.strategy
+        ).length;
+
+        if (confluenceCount > 0) {
+            score += confluenceCount * 25;
+            justification.push(`Confluence with ${confluenceCount} other strategy/strategies.`);
+        }
+
+        // Fear & Greed Index scoring
+        if (fngIndex) {
+            if (signal.action === 'UP' && fngIndex.value <= 25) {
+                score += 15;
+                justification.push('Contrarian signal in Extreme Fear market.');
+            } else if (signal.action === 'DOWN' && fngIndex.value >= 75) {
+                score += 15;
+                justification.push('Contrarian signal in Extreme Greed market.');
+            } else if (signal.action === 'UP' && fngIndex.value >= 75) {
+                score -= 10;
+                justification.push('Risky signal in Extreme Greed market.');
+            } else if (signal.action === 'DOWN' && fngIndex.value <= 25) {
+                score -= 10;
+                justification.push('Risky signal in Extreme Fear market.');
+            }
+        }
+        
+        return {
+            ...signal,
+            score,
+            justification: justification.join(' '),
+        }
+    });
+
+    // Sort by score descending
+    scoredSignals.sort((a, b) => b.score - a.score);
+
+    // Assign rank
+    return scoredSignals.map((s, index) => ({
+        ...s,
+        rank: index + 1,
+    }));
+};
 
 
 // --- Provider Component ---
@@ -570,7 +630,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             strategy: task.strategy,
             takeProfit: 2, // Default value for screening
             stopLoss: 1,   // Default value for screening
-            useAIPrediction: true, // Always use AI validation for the screener
+            // When using code-based ranking, we don't need AI validation on each signal.
+            // This significantly reduces token usage.
+            useAIPrediction: config.useAiRanking,
             fee: 0.04
         });
 
@@ -587,13 +649,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     addScreenerLog(`Screening complete. Found ${foundSignals.length} potential signals.`);
+    
+    const fng = await getFearAndGreedIndex();
+    const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
 
     if (config.useAiRanking && foundSignals.length > 0) {
         addScreenerLog(`Ranking ${foundSignals.length} signals with AI Head Trader...`);
         try {
-            const fng = await getFearAndGreedIndex();
-            const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-
             const rankedResult = await rankSignals({
                 signals: foundSignals,
                 marketContext
@@ -610,11 +672,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const unrankedSignals = foundSignals.map(s => ({...s, rank: 99, justification: "AI ranking failed."}));
             setScreenerState(prev => ({...prev, results: unrankedSignals }));
         }
-
     } else if (foundSignals.length > 0) {
-        addScreenerLog(`Displaying ${foundSignals.length} unranked signals.`);
-        const unrankedSignals = foundSignals.map(s => ({...s, rank: 0, justification: "AI ranking was not enabled."}));
-        setScreenerState(prev => ({...prev, results: unrankedSignals }));
+        addScreenerLog(`Ranking ${foundSignals.length} signals with code-based logic...`);
+        const rankedSignals = rankSignalsWithCode(foundSignals, fng);
+        setScreenerState(prev => ({...prev, results: rankedSignals }));
+        addScreenerLog(`Code-based ranking complete.`);
+        toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} signals.` });
+    } else {
+        addScreenerLog('No actionable signals found across all assets and strategies.');
+        toast({ title: "Screener Finished", description: "No actionable signals were found." });
     }
 
     setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs}));
