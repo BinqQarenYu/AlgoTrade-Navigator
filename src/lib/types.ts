@@ -1,9 +1,4 @@
 
-
-
-
-
-
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -43,6 +38,15 @@ export type HistoricalData = {
   poc?: number;
   volumeDelta?: number;
   cumulativeVolumeDelta?: number;
+  bb_upper?: number | null;
+  bb_middle?: number | null;
+  bb_lower?: number | null;
+  macd?: number | null;
+  macd_signal?: number | null;
+  macd_hist?: number | null;
+  supertrend?: number | null;
+  supertrend_direction?: number | null;
+  atr?: number | null;
 };
 
 export type Portfolio = {
