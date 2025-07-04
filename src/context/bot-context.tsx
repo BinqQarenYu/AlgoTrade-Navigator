@@ -318,9 +318,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                   variant: "default"
                 });
              }, 0);
-            addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
+            
+            const timestamp = new Date().toLocaleTimeString();
+            const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
+            const newLogs = [newLog, ...(prev.logs || [])].slice(0, 100);
+
             manualWsRef.current?.close();
-            return { ...prev, signal: null, chartData: newChartData };
+            return { ...prev, signal: null, chartData: newChartData, logs: newLogs };
           }
         }
         
