@@ -10,12 +10,14 @@ interface ApiContextType {
   apiKey: string | null;
   secretKey: string | null;
   coingeckoApiKey: string | null;
+  coinmarketcapApiKey: string | null;
   
   addProfile: (profile: ApiProfile) => void;
   updateProfile: (profile: ApiProfile) => void;
   deleteProfile: (profileId: string) => void;
   setActiveProfile: (profileId: string | null) => void;
   setCoingeckoApiKey: (key: string | null) => void;
+  setCoinmarketcapApiKey: (key: string | null) => void;
   
   isConnected: boolean;
   setIsConnected: (status: boolean) => void;
@@ -34,6 +36,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [apiLimit, setApiLimit] = useState({ used: 0, limit: 1200 });
   const [rateLimitThreshold, setRateLimitThreshold] = useState<number>(1100);
   const [coingeckoApiKey, setCoingeckoApiKey] = useState<string | null>(null);
+  const [coinmarketcapApiKey, setCoinmarketcapApiKey] = useState<string | null>(null);
 
   // Load initial state from localStorage
   useEffect(() => {
@@ -42,12 +45,16 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
     const storedThreshold = localStorage.getItem('rateLimitThreshold');
     const storedCgKey = localStorage.getItem('coingeckoApiKey');
+    const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
 
     const loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
     setProfiles(loadedProfiles);
     
     if (storedCgKey) {
         setCoingeckoApiKey(storedCgKey);
+    }
+    if (storedCmcKey) {
+        setCoinmarketcapApiKey(storedCmcKey);
     }
 
     if (storedThreshold) {
@@ -78,6 +85,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem('coingeckoApiKey');
     }
   }, [coingeckoApiKey]);
+
+  useEffect(() => {
+    if (coinmarketcapApiKey) {
+      localStorage.setItem('coinmarketcapApiKey', coinmarketcapApiKey);
+    } else {
+      localStorage.removeItem('coinmarketcapApiKey');
+    }
+  }, [coinmarketcapApiKey]);
 
 
   // Persist threshold to localStorage
@@ -132,11 +147,13 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       apiKey: activeProfile?.apiKey || null,
       secretKey: activeProfile?.secretKey || null,
       coingeckoApiKey,
+      coinmarketcapApiKey,
       addProfile,
       updateProfile,
       deleteProfile,
       setActiveProfile,
       setCoingeckoApiKey,
+      setCoinmarketcapApiKey,
       isConnected,
       setIsConnected, 
       apiLimit, 

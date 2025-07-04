@@ -74,7 +74,9 @@ export default function SettingsPage() {
     rateLimitThreshold,
     setRateLimitThreshold,
     coingeckoApiKey,
-    setCoingeckoApiKey
+    setCoingeckoApiKey,
+    coinmarketcapApiKey,
+    setCoinmarketcapApiKey,
   } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
@@ -83,6 +85,7 @@ export default function SettingsPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
+  const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
 
   // Collapsible states
   const [isConnectionOpen, setConnectionOpen] = useState(true);
@@ -95,6 +98,10 @@ export default function SettingsPage() {
   useEffect(() => {
     setCgKeyValue(coingeckoApiKey || "");
   }, [coingeckoApiKey]);
+
+  useEffect(() => {
+    setCmcKeyValue(coinmarketcapApiKey || "");
+  }, [coinmarketcapApiKey]);
 
 
   useEffect(() => {
@@ -180,6 +187,11 @@ export default function SettingsPage() {
   const handleSaveCgKey = () => {
     setCoingeckoApiKey(cgKeyValue);
     toast({ title: "CoinGecko API Key Saved" });
+  };
+  
+  const handleSaveCmcKey = () => {
+    setCoinmarketcapApiKey(cmcKeyValue);
+    toast({ title: "CoinMarketCap API Key Saved" });
   };
 
   const openEditForm = (profile: ApiProfile) => {
@@ -318,7 +330,7 @@ export default function SettingsPage() {
           <div>
             <CardTitle>Third-Party Integrations</CardTitle>
             <CardDescription>
-              Manage API keys for other services like CoinGecko.
+              Manage API keys for external data services.
             </CardDescription>
           </div>
           <CollapsibleTrigger asChild>
@@ -329,7 +341,7 @@ export default function SettingsPage() {
           </CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div className="space-y-2">
                 <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
                 <div className="flex items-center gap-2">
@@ -343,7 +355,23 @@ export default function SettingsPage() {
                     <Button onClick={handleSaveCgKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                    The app can fetch some data without a key, but a key is recommended for higher rate limits.
+                    Provides asset intelligence data. Recommended for higher rate limits.
+                </p>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="coinmarketcap-key">CoinMarketCap API Key (Optional)</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                    id="coinmarketcap-key"
+                    type="password"
+                    value={cmcKeyValue}
+                    onChange={(e) => setCmcKeyValue(e.target.value)}
+                    placeholder="Enter your CoinMarketCap API Key"
+                    />
+                    <Button onClick={handleSaveCmcKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    An alternative source for market and asset data.
                 </p>
             </div>
           </CardContent>
