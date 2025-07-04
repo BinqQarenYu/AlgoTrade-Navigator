@@ -38,7 +38,7 @@ import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategies } from "@/lib/strategies"
+import { strategies, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface DateRange {
