@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown } from "lucide-react"
-import type { HistoricalData } from "@/lib/types"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile } from "lucide-react"
+import type { HistoricalData, CoinDetails } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -35,9 +35,12 @@ import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
+import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function ManualTradingPage() {
-  const { isConnected } = useApi();
+  const { isConnected, coingeckoApiKey } = useApi();
   const { 
     manualTraderState,
     runManualAnalysis,
@@ -64,8 +67,13 @@ export default function ManualTradingPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(false);
 
+  // State for CoinGecko data
+  const [coinDetails, setCoinDetails] = useState<CoinDetails | null>(null);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+
   // Collapsible states
   const [isGeneratorOpen, setGeneratorOpen] = useState(true);
+  const [isIntelOpen, setIntelOpen] = useState(true);
   const [isSignalOpen, setSignalOpen] = useState(true);
   const [isLogsOpen, setLogsOpen] = useState(true);
   
@@ -76,6 +84,26 @@ export default function ManualTradingPage() {
       setQuoteAsset(quotes[0] || '');
     }
   }, [baseAsset, quoteAsset]);
+
+  useEffect(() => {
+    const fetchDetails = async () => {
+      if (!baseAsset) {
+        setCoinDetails(null);
+        return;
+      }
+      setIsFetchingDetails(true);
+      setCoinDetails(null);
+      try {
+        const details = await getCoinDetailsByTicker(baseAsset, coingeckoApiKey);
+        setCoinDetails(details);
+      } catch (e) {
+        console.error("Failed to fetch coin details", e);
+      } finally {
+        setIsFetchingDetails(false);
+      }
+    };
+    fetchDetails();
+  }, [baseAsset, coingeckoApiKey]);
 
   const handleRunAnalysis = useCallback(() => {
     runManualAnalysis({
@@ -341,6 +369,74 @@ export default function ManualTradingPage() {
           </Collapsible>
         </Card>
         
+        <Card>
+          <Collapsible open={isIntelOpen} onOpenChange={setIntelOpen}>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2"><Newspaper/> Asset Intelligence</CardTitle>
+                  <CardDescription>Contextual data and sentiment from CoinGecko.</CardDescription>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isIntelOpen && "rotate-180")} />
+                    <span className="sr-only">Toggle</span>
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                  <CardContent>
+                      {isFetchingDetails ? (
+                          <div className="space-y-4">
+                              <div className="flex items-center gap-4">
+                                  <Skeleton className="h-10 w-10 rounded-full" />
+                                  <div className="flex-1 space-y-2">
+                                      <Skeleton className="h-4 w-24" />
+                                      <Skeleton className="h-3 w-16" />
+                                  </div>
+                              </div>
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-full" />
+                              <Skeleton className="h-4 w-3/4" />
+                          </div>
+                      ) : coinDetails ? (
+                          <div className="space-y-4">
+                              <div className="flex items-start gap-4">
+                                  <Avatar>
+                                      <AvatarImage src={coinDetails.image} alt={coinDetails.name} data-ai-hint="crypto icon" />
+                                      <AvatarFallback>{coinDetails.symbol.toUpperCase().slice(0, 2)}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                      <h3 className="font-semibold">{coinDetails.name} ({coinDetails.symbol.toUpperCase()})</h3>
+                                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                          <span className="flex items-center gap-1"><Crown className="h-3 w-3 text-yellow-500" /> Rank #{coinDetails.marketCapRank}</span>
+                                          <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-500" /> Score {coinDetails.publicInterestScore.toFixed(2)}</span>
+                                      </div>
+                                  </div>
+                              </div>
+                              <div>
+                                  <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Smile className="h-3 w-3"/> Community Sentiment</Label>
+                                  <div className="w-full bg-destructive/20 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${coinDetails.sentimentUp}%` }}></div>
+                                  </div>
+                                  <p className="text-right text-xs mt-1 font-semibold">{coinDetails.sentimentUp.toFixed(1)}% Up</p>
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground">Description</Label>
+                                <p className="text-sm text-foreground/90 line-clamp-3">
+                                  {coinDetails.description || "No description available."}
+                                </p>
+                              </div>
+                          </div>
+                      ) : (
+                          <div className="flex items-center justify-center h-48 text-muted-foreground text-center">
+                              <p>Asset intelligence from CoinGecko is unavailable for {baseAsset}.</p>
+                          </div>
+                      )}
+                  </CardContent>
+              </CollapsibleContent>
+          </Collapsible>
+        </Card>
+
         <Card>
           <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
             <CardHeader className="flex flex-row items-center justify-between">

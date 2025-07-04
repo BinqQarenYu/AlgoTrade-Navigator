@@ -1,7 +1,7 @@
 
 'use server';
 
-import type { CoinSentimentData } from './types';
+import type { CoinSentimentData, CoinDetails } from './types';
 
 const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3';
 
@@ -78,6 +78,61 @@ const getCoinData = async (
 
     } catch (error) {
         console.error(`Failed to fetch CoinGecko data for ${coinId}:`, error);
+        return null;
+    }
+};
+
+export const getCoinDetailsByTicker = async (
+    ticker: string, 
+    apiKey?: string | null
+): Promise<CoinDetails | null> => {
+    const coinId = TICKER_TO_CG_ID[ticker.toUpperCase()];
+    if (!coinId) return null;
+
+    try {
+        const url = new URL(`${COINGECKO_API_URL}/coins/${coinId}`);
+        if (apiKey) {
+            url.searchParams.append('x_cg_demo_api_key', apiKey);
+        }
+        url.searchParams.append('localization', 'false');
+        url.searchParams.append('tickers', 'false');
+        url.searchParams.append('market_data', 'false');
+        url.searchParams.append('sparkline', 'false');
+        
+        const response = await fetch(url.toString(), {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            if (response.status === 429) {
+                console.warn(`CoinGecko rate limit hit for ${coinId}.`);
+            } else {
+                console.error(`CoinGecko API Error for ${coinId}: ${response.statusText}`);
+            }
+            return null;
+        }
+
+        const data = await response.json();
+        if (!data) return null;
+
+        // Strip HTML tags from description
+        const description = data.description?.en?.replace(/<[^>]*>?/gm, '') || null;
+
+        return {
+            id: data.id,
+            symbol: data.symbol,
+            name: data.name,
+            image: data.image?.thumb || '',
+            sentimentUp: data.sentiment_votes_up_percentage || 0,
+            description: description,
+            marketCapRank: data.market_cap_rank || null,
+            publicInterestScore: data.public_interest_score || 0,
+        };
+
+    } catch (error) {
+        console.error(`Failed to fetch CoinGecko details for ${coinId}:`, error);
         return null;
     }
 };
