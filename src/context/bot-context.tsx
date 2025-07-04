@@ -101,7 +101,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // --- Helper Functions ---
   const addLog = useCallback((setter: React.Dispatch<React.SetStateAction<any>>, message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    setter((prev: any) => ({ ...prev, logs: [`[${timestamp}] ${message}`, ...prev.logs].slice(0, 100) }));
+    // Defensive check to prevent crash if logs array becomes undefined
+    setter((prev: any) => ({ ...prev, logs: [`[${timestamp}] ${message}`, ...(prev.logs || [])].slice(0, 100) }));
   }, []);
 
   const addLiveLog = useCallback((message: string) => addLog(setLiveBotState, message), [addLog]);
@@ -244,14 +245,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         ...prev,
         isAnalyzing: false,
         signal: null,
-        logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...prev.logs].slice(0, 100)
+        logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...(prev.logs || [])].slice(0, 100)
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
   }, [toast]);
 
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
+    // This function is for loading the initial chart data on the manual page.
     setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
-    
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
     try {
         const klines = await getLatestKlinesByLimit(symbol, interval, 500);
@@ -321,6 +322,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             
             const timestamp = new Date().toLocaleTimeString();
             const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
+            // Ensure prev.logs is an array before spreading
             const newLogs = [newLog, ...(prev.logs || [])].slice(0, 100);
 
             manualWsRef.current?.close();
@@ -328,7 +330,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           }
         }
         
-        return { ...prev, chartData: newChartData };
+        // Ensure logs are preserved in every state update
+        return { ...prev, chartData: newChartData, logs: prev.logs || [] };
       });
     };
     
@@ -353,65 +356,89 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
     manualAnalysisCancelRef.current = false;
     manualConfigRef.current = config;
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
+    // 1. Set analyzing state and clear previous data
+    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null, chartData: [] }));
     addManualLog("Running analysis...");
     
-    await setManualChartData(config.symbol, config.interval);
+    // 2. Perform all async operations first
+    let chartDataForAnalysis: HistoricalData[];
+    try {
+        addManualLog(`Fetching chart data for ${config.symbol}...`);
+        chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+    } catch (e: any) {
+        addManualLog(`Failed to load chart data: ${e.message}`);
+        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] })); // End analysis on error
+        toast({ title: "Analysis Failed", description: "Could not load market data.", variant: "destructive" });
+        return;
+    }
 
-    setManualTraderState(async (currentState) => {
-        const result = await analyzeAsset({ ...config }, currentState.chartData);
+    // Update state with fetched chart data
+    setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis }));
+    addManualLog(`Loaded ${chartDataForAnalysis.length} historical candles.`);
 
-        if (manualAnalysisCancelRef.current) {
-            addManualLog("Analysis canceled, results discarded.");
-            return { ...currentState, isAnalyzing: false };
-        }
+    if (manualAnalysisCancelRef.current) {
+        addManualLog("Analysis canceled before execution.");
+        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
+        return;
+    }
+
+    const result = await analyzeAsset({ ...config }, chartDataForAnalysis);
+
+    if (manualAnalysisCancelRef.current) {
+        addManualLog("Analysis canceled, results discarded.");
+        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
+        return;
+    }
+    
+    // 3. Update state based on async result
+    if (result.signal) {
+        addManualLog(`NEW SIGNAL: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}. SL: $${result.signal.stopLoss.toFixed(4)}, TP: $${result.signal.takeProfit.toFixed(4)}`);
+        toast({ title: "Trade Signal Generated!", description: "Monitoring for invalidation and re-evaluation." });
+        connectManualWebSocket(config.symbol, config.interval);
+
+        // Re-evaluation Logic
+        if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
+        const reevalTime = intervalToMs(config.interval);
+        addManualLog(`Signal found. Re-evaluating every ${config.interval}.`);
         
-        if (result.signal) {
-            addManualLog(`NEW SIGNAL: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}. SL: $${result.signal.stopLoss.toFixed(4)}, TP: $${result.signal.takeProfit.toFixed(4)}`);
-            toast({ title: "Trade Signal Generated!", description: "Monitoring for invalidation and re-evaluation." });
-            connectManualWebSocket(config.symbol, config.interval);
+        manualReevalIntervalRef.current = setInterval(() => {
+            const currentConfig = manualConfigRef.current;
+            if (!currentConfig) return;
 
-            // --- Re-evaluation Logic ---
-            if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-            const reevalTime = intervalToMs(config.interval);
-            addManualLog(`Signal found. Re-evaluating every ${config.interval}.`);
-            
-            manualReevalIntervalRef.current = setInterval(() => {
-                const currentConfig = manualConfigRef.current;
-                if (!currentConfig) return;
+            addManualLog("Re-evaluating signal...");
+            // Use set state with callback to get latest chart data
+            setManualTraderState(current => {
+                // Ensure logs are preserved if the component re-renders during the promise
+                const preservedLogs = current.logs || [];
 
-                addManualLog("Re-evaluating signal...");
-
-                setManualTraderState(current => {
-                    analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
-                        if (!manualReevalIntervalRef.current) return;
-                        
-                        if (reevalResult.signal) {
-                            setManualTraderState(prev => ({ ...prev, signal: reevalResult.signal }));
-                            addManualLog(`Signal updated. New entry: $${reevalResult.signal.entryPrice.toFixed(4)}`);
-                        } else {
-                            addManualLog(`Signal no longer valid. Reason: ${reevalResult.log}.`);
-                            toast({ title: "Signal Invalidated", description: `Setup no longer valid: ${reevalResult.log}` });
-                            resetManualSignal();
-                        }
-                    });
-                    return current;
+                analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
+                    if (!manualReevalIntervalRef.current) return;
+                    
+                    if (reevalResult.signal) {
+                        setManualTraderState(prev => ({ ...prev, signal: reevalResult.signal }));
+                        addManualLog(`Signal updated. New entry: $${reevalResult.signal.entryPrice.toFixed(4)}`);
+                    } else {
+                        addManualLog(`Signal no longer valid. Reason: ${reevalResult.log}.`);
+                        toast({ title: "Signal Invalidated", description: `Setup no longer valid: ${reevalResult.log}` });
+                        resetManualSignal();
+                    }
                 });
-            }, reevalTime);
+                // Return the current state synchronously. The update happens inside the .then()
+                return { ...current, logs: preservedLogs };
+            });
+        }, reevalTime);
 
-            return { ...currentState, signal: result.signal, isAnalyzing: false };
+        setManualTraderState(prev => ({ ...prev, signal: result.signal, isAnalyzing: false, logs: prev.logs || [] }));
+    } else {
+        addManualLog(result.log);
+        if(result.status === 'error') {
+             setTimeout(() => toast({ title: "Analysis Failed", description: result.log, variant: "destructive" }), 0);
         } else {
-            addManualLog(result.log);
-            if(result.status === 'error') {
-                 setTimeout(() => toast({ title: "Analysis Failed", description: result.log, variant: "destructive" }), 0);
-            } else {
-                setTimeout(() => toast({ title: "No Signal Found", description: result.log }), 0);
-            }
-            return { ...currentState, isAnalyzing: false };
+            setTimeout(() => toast({ title: "No Signal Found", description: result.log }), 0);
         }
-    });
-
-  }, [addManualLog, toast, connectManualWebSocket, analyzeAsset, setManualChartData, resetManualSignal]);
+        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
+    }
+  }, [addManualLog, toast, connectManualWebSocket, analyzeAsset, resetManualSignal]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
@@ -489,7 +516,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setMultiSignalState({ isRunning: false, config: null, results: {}, logs: [] });
     addMultiLog("Multi-signal monitor stopped by user.");
     toast({ title: "Multi-Signal Monitor Stopped" });
-  }, [addMultiLog, toast]);
+  }, [addManualLog, toast]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -529,3 +556,4 @@ export const useBot = () => {
   }
   return context;
 };
+ 
