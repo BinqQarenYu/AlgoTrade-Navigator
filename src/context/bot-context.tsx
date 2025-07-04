@@ -282,33 +282,31 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
       };
 
-      setManualTraderState(prev => {
-        const newData = [...prev.chartData];
-        let newChartData = prev.chartData;
+      setManualTraderState(current => {
+        let newChartData = current.chartData;
 
-        if (newData.length > 0) {
-            const lastCandle = newData[newData.length - 1];
+        if (newChartData.length > 0) {
+            const lastCandle = newChartData[newChartData.length - 1];
             if (lastCandle.time === newCandle.time) {
-              newData[newData.length - 1] = newCandle;
+              newChartData[newChartData.length - 1] = newCandle;
             } else {
-              newData.push(newCandle);
+              newChartData.push(newCandle);
             }
-             const sortedData = newData.sort((a, b) => a.time - b.time);
+            const sortedData = newChartData.sort((a, b) => a.time - b.time);
             newChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
         } else {
-            newData.push(newCandle);
-            newChartData = newData;
+            newChartData = [newCandle];
         }
 
-        if (prev.signal && prev.signal.peakPrice) {
+        if (current.signal && current.signal.peakPrice) {
           let invalidated = false;
           let invalidationReason = '';
-          if (prev.signal.action === 'DOWN' && newCandle.high > prev.signal.peakPrice) {
+          if (current.signal.action === 'DOWN' && newCandle.high > current.signal.peakPrice) {
             invalidated = true;
-            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${prev.signal.peakPrice.toFixed(4)}.`;
-          } else if (prev.signal.action === 'UP' && newCandle.low < prev.signal.peakPrice) {
+            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${current.signal.peakPrice.toFixed(4)}.`;
+          } else if (current.signal.action === 'UP' && newCandle.low < current.signal.peakPrice) {
             invalidated = true;
-            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${prev.signal.peakPrice.toFixed(4)}.`;
+            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${current.signal.peakPrice.toFixed(4)}.`;
           }
 
           if (invalidated) {
@@ -322,16 +320,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             
             const timestamp = new Date().toLocaleTimeString();
             const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
-            // Ensure prev.logs is an array before spreading
-            const newLogs = [newLog, ...(prev.logs || [])].slice(0, 100);
+            const newLogs = [newLog, ...(current.logs || [])].slice(0, 100);
 
             manualWsRef.current?.close();
-            return { ...prev, signal: null, chartData: newChartData, logs: newLogs };
+            return { ...current, signal: null, chartData: newChartData, logs: newLogs };
           }
         }
         
         // Ensure logs are preserved in every state update
-        return { ...prev, chartData: newChartData, logs: prev.logs || [] };
+        return { ...current, chartData: newChartData, logs: current.logs || [] };
       });
     };
     
@@ -350,7 +347,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const cancelManualAnalysis = useCallback(() => {
     manualAnalysisCancelRef.current = true;
     addManualLog("Analysis canceled by user.");
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
+    setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
   }, [addManualLog]);
 
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
@@ -373,7 +370,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     // Update state with fetched chart data
-    setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis }));
+    setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis, logs: prev.logs || [] }));
     addManualLog(`Loaded ${chartDataForAnalysis.length} historical candles.`);
 
     if (manualAnalysisCancelRef.current) {
@@ -406,24 +403,38 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             if (!currentConfig) return;
 
             addManualLog("Re-evaluating signal...");
-            // Use set state with callback to get latest chart data
             setManualTraderState(current => {
-                // Ensure logs are preserved if the component re-renders during the promise
                 const preservedLogs = current.logs || [];
-
+                const originalSignal = current.signal;
+                if (!originalSignal) {
+                    if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
+                    return current;
+                }
                 analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
                     if (!manualReevalIntervalRef.current) return;
-                    
                     if (reevalResult.signal) {
-                        setManualTraderState(prev => ({ ...prev, signal: reevalResult.signal }));
-                        addManualLog(`Signal updated. New entry: $${reevalResult.signal.entryPrice.toFixed(4)}`);
+                        if (reevalResult.signal.action !== originalSignal.action) {
+                            addManualLog(`SIGNAL REVERSED: Original was ${originalSignal.action}, new analysis suggests ${reevalResult.signal.action}.`);
+                            setTimeout(() => {
+                                toast({
+                                    title: "CANCEL TRADE: Signal Reversed",
+                                    description: "Market conditions have changed, and the analysis now suggests the opposite direction.",
+                                    variant: "destructive",
+                                });
+                            }, 0);
+                            resetManualSignal();
+                        } else {
+                            setManualTraderState(prev => ({ ...prev, signal: reevalResult.signal, logs: prev.logs || [] }));
+                            addManualLog(`Signal updated. New entry: $${reevalResult.signal.entryPrice.toFixed(4)}`);
+                        }
                     } else {
                         addManualLog(`Signal no longer valid. Reason: ${reevalResult.log}.`);
-                        toast({ title: "Signal Invalidated", description: `Setup no longer valid: ${reevalResult.log}` });
+                        setTimeout(() => {
+                           toast({ title: "Signal Invalidated", description: `Setup no longer valid: ${reevalResult.log}` });
+                        }, 0);
                         resetManualSignal();
                     }
                 });
-                // Return the current state synchronously. The update happens inside the .then()
                 return { ...current, logs: preservedLogs };
             });
         }, reevalTime);
