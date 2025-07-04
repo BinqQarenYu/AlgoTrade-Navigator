@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info, ChevronDown } from "lucide-react";
+import { Info, ChevronDown, GripHorizontal } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Button } from "./ui/button";
 
@@ -51,6 +51,33 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const [logHeight, setLogHeight] = useState(288); // Corresponds to h-72
+
+  const startResizing = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownEvent.preventDefault();
+    const startHeight = logHeight;
+    const startPosition = mouseDownEvent.clientY;
+
+    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
+      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
+      if (newHeight >= 150 && newHeight <= 800) {
+        setLogHeight(newHeight);
+      }
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+  }, [logHeight]);
+
 
   if (!summary) {
     return (
@@ -101,7 +128,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
           </CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 pb-8">
             <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                 <SummaryStat 
                     label="Net PNL" 
@@ -129,9 +156,12 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                 <SummaryStat label="Total Fees" value={<span>${summary.totalFees.toFixed(2)}</span>} />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
                 <h3 className="text-sm font-medium text-muted-foreground">Trade Log</h3>
-                <ScrollArea className="h-72 w-full rounded-md border">
+                <ScrollArea
+                    className="w-full rounded-md border"
+                    style={{ height: `${logHeight}px` }}
+                >
                   <Table>
                     <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
                         <TableRow>
@@ -217,6 +247,12 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                     </TableBody>
                     </Table>
                 </ScrollArea>
+                <div
+                    onMouseDown={startResizing}
+                    className="absolute -bottom-4 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+                >
+                    <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+                </div>
             </div>
           </CardContent>
         </CollapsibleContent>
