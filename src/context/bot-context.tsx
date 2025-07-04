@@ -110,12 +110,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
 
         if (!latestCandleWithSignal) {
-             return { status: 'no_signal', log: 'No recent signal.', signal: null };
+             return { status: 'no_signal', log: 'No actionable trade setup found. Waiting for market conditions to align with strategy rules.', signal: null };
         }
         
         const signalAge = (dataWithSignals.length - 1) - dataWithSignals.indexOf(latestCandleWithSignal);
         if (signalAge > 5) { // Only consider signals in the last 5 candles
-            return { status: 'no_signal', log: 'Signal found but is too old.', signal: null };
+            return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null };
         }
         
         const strategySignal: 'BUY' | 'SELL' = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
