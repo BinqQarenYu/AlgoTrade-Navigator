@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MarketSentiment } from "@/components/dashboard/market-sentiment";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey } = useApi();
+  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey, coinmarketcapApiKey } = useApi();
   const { isTradingActive } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -119,7 +119,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive, coingeckoApiKey]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive, coingeckoApiKey, coinmarketcapApiKey]);
 
   const handleClearHistory = () => {
     setHistory([]);

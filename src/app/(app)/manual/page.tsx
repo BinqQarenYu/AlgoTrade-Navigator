@@ -36,13 +36,15 @@ import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
+import { getCoinDetailsByTickerFromCMC } from "@/lib/coinmarketcap-service"
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 
 export default function ManualTradingPage() {
-  const { isConnected, coingeckoApiKey } = useApi();
+  const { isConnected, coingeckoApiKey, coinmarketcapApiKey } = useApi();
+  const { toast } = useToast();
   const { 
     manualTraderState,
     runManualAnalysis,
@@ -99,7 +101,18 @@ export default function ManualTradingPage() {
       setIsFetchingDetails(true);
       setCoinDetails(null);
       try {
-        const details = await getCoinDetailsByTicker(baseAsset, coingeckoApiKey);
+        let details: CoinDetails | null = null;
+        // Prefer CoinMarketCap if key is available
+        if (coinmarketcapApiKey) {
+            details = await getCoinDetailsByTickerFromCMC(baseAsset, coinmarketcapApiKey);
+            if(details) {
+                toast({ title: "Loaded from CoinMarketCap", description: "Asset intelligence is provided by CoinMarketCap." });
+            }
+        } 
+        // Fallback to CoinGecko if CMC fails or key is not present
+        if (!details) {
+            details = await getCoinDetailsByTicker(baseAsset, coingeckoApiKey);
+        }
         setCoinDetails(details);
       } catch (e) {
         console.error("Failed to fetch coin details", e);
@@ -108,7 +121,7 @@ export default function ManualTradingPage() {
       }
     };
     fetchDetails();
-  }, [baseAsset, coingeckoApiKey]);
+  }, [baseAsset, coingeckoApiKey, coinmarketcapApiKey, toast]);
   
   // Fetch market-wide Fear & Greed index once on page load
   useEffect(() => {
@@ -444,8 +457,8 @@ export default function ManualTradingPage() {
                                   <div className="flex-1">
                                       <h3 className="font-semibold">{coinDetails.name} ({coinDetails.symbol.toUpperCase()})</h3>
                                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                          <span className="flex items-center gap-1"><Crown className="h-3 w-3 text-yellow-500" /> Rank #{coinDetails.marketCapRank}</span>
-                                          <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-500" /> Score {coinDetails.publicInterestScore.toFixed(2)}</span>
+                                          {coinDetails.marketCapRank && <span className="flex items-center gap-1"><Crown className="h-3 w-3 text-yellow-500" /> Rank #{coinDetails.marketCapRank}</span>}
+                                          {coinDetails.publicInterestScore > 0 && <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-500" /> Score {coinDetails.publicInterestScore.toFixed(2)}</span>}
                                       </div>
                                   </div>
                                   <div className="text-right">
@@ -509,15 +522,17 @@ export default function ManualTradingPage() {
                                   )}
                               </div>
 
-                              <Separator />
+                              {coinDetails.sentimentUp > 0 && <Separator />}
                               
-                              <div>
-                                <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Smile className="h-3 w-3"/> Community Sentiment</Label>
-                                <div className="w-full bg-destructive/20 rounded-full h-2.5">
-                                  <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${coinDetails.sentimentUp}%` }}></div>
+                              {coinDetails.sentimentUp > 0 && (
+                                <div>
+                                    <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Smile className="h-3 w-3"/> Community Sentiment</Label>
+                                    <div className="w-full bg-destructive/20 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${coinDetails.sentimentUp}%` }}></div>
+                                    </div>
+                                    <p className="text-right text-xs mt-1 font-semibold">{coinDetails.sentimentUp.toFixed(1)}% Up</p>
                                 </div>
-                                <p className="text-right text-xs mt-1 font-semibold">{coinDetails.sentimentUp.toFixed(1)}% Up</p>
-                              </div>
+                              )}
                               <div>
                                 <Label className="text-xs text-muted-foreground">Description</Label>
                                 <p className="text-sm text-foreground/90 line-clamp-3">
