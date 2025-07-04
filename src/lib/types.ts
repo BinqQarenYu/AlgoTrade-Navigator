@@ -2,6 +2,7 @@
 
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -188,6 +189,15 @@ export type CoinDetails = CoinSentimentData & {
   description: string | null;
   marketCapRank: number | null;
   publicInterestScore: number;
+  marketCap: number;
+  priceChange24h: number;
+  volume24h: number;
+  circulatingSupply: number;
+  totalSupply: number | null;
+  ath: number;
+  athDate: string;
+  atl: number;
+  atlDate: string;
 };
 
 export type FearAndGreedIndex = {

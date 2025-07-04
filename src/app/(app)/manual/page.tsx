@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine } from "lucide-react"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { cn, formatPrice } from "@/lib/utils"
+import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -427,7 +427,12 @@ export default function ManualTradingPage() {
                               </div>
                               <Skeleton className="h-4 w-full" />
                               <Skeleton className="h-4 w-full" />
-                              <Skeleton className="h-4 w-3/4" />
+                              <Separator />
+                              <div className="space-y-2">
+                                <Skeleton className="h-3 w-1/3" />
+                                <div className="flex justify-between"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-1/4" /></div>
+                                <div className="flex justify-between"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-1/4" /></div>
+                              </div>
                           </div>
                       ) : coinDetails ? (
                           <div className="space-y-4">
@@ -443,13 +448,75 @@ export default function ManualTradingPage() {
                                           <span className="flex items-center gap-1"><Flame className="h-3 w-3 text-orange-500" /> Score {coinDetails.publicInterestScore.toFixed(2)}</span>
                                       </div>
                                   </div>
-                              </div>
-                              <div>
-                                  <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Smile className="h-3 w-3"/> Community Sentiment</Label>
-                                  <div className="w-full bg-destructive/20 rounded-full h-2.5">
-                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${coinDetails.sentimentUp}%` }}></div>
+                                  <div className="text-right">
+                                    <Label className="text-xs text-muted-foreground">Market Cap</Label>
+                                    <p className="font-semibold">${formatLargeNumber(coinDetails.marketCap)}</p>
                                   </div>
-                                  <p className="text-right text-xs mt-1 font-semibold">{coinDetails.sentimentUp.toFixed(1)}% Up</p>
+                              </div>
+                              
+                              <Separator />
+
+                              <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground">24h Performance</Label>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="flex items-center gap-1 text-muted-foreground">
+                                          {coinDetails.priceChange24h >= 0 ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
+                                          Price Change
+                                      </span>
+                                      <span className={cn("font-semibold", coinDetails.priceChange24h >= 0 ? "text-green-500" : "text-red-500")}>
+                                          {coinDetails.priceChange24h.toFixed(2)}%
+                                      </span>
+                                  </div>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="flex items-center gap-1 text-muted-foreground"><DollarSign className="h-4 w-4" /> Volume</span>
+                                      <span className="font-semibold">${formatLargeNumber(coinDetails.volume24h)}</span>
+                                  </div>
+                              </div>
+
+                              <Separator />
+
+                              <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground">Lifetime Performance</Label>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="flex items-center gap-1 text-muted-foreground"><ArrowUpToLine className="h-4 w-4" /> All-Time High</span>
+                                      <div className="text-right">
+                                        <p className="font-semibold">${formatPrice(coinDetails.ath)}</p>
+                                        <p className="text-xs text-muted-foreground">{coinDetails.athDate}</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="flex items-center gap-1 text-muted-foreground"><ArrowDownToLine className="h-4 w-4" /> All-Time Low</span>
+                                      <div className="text-right">
+                                        <p className="font-semibold">${formatPrice(coinDetails.atl)}</p>
+                                        <p className="text-xs text-muted-foreground">{coinDetails.atlDate}</p>
+                                      </div>
+                                  </div>
+                              </div>
+                              
+                              <Separator />
+                              
+                              <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground">Token Supply</Label>
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Circulating</span>
+                                      <span className="font-semibold">{formatLargeNumber(coinDetails.circulatingSupply, 2)}</span>
+                                  </div>
+                                  {coinDetails.totalSupply && (
+                                     <div className="flex justify-between items-center text-sm">
+                                        <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Total</span>
+                                        <span className="font-semibold">{formatLargeNumber(coinDetails.totalSupply, 2)}</span>
+                                    </div>
+                                  )}
+                              </div>
+
+                              <Separator />
+                              
+                              <div>
+                                <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1"><Smile className="h-3 w-3"/> Community Sentiment</Label>
+                                <div className="w-full bg-destructive/20 rounded-full h-2.5">
+                                  <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${coinDetails.sentimentUp}%` }}></div>
+                                </div>
+                                <p className="text-right text-xs mt-1 font-semibold">{coinDetails.sentimentUp.toFixed(1)}% Up</p>
                               </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground">Description</Label>
@@ -457,7 +524,7 @@ export default function ManualTradingPage() {
                                   {coinDetails.description || "No description available."}
                                 </p>
                               </div>
-                              <Separator className="my-4" />
+                              <Separator />
                               <div className="space-y-2">
                                   <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
                                       <Thermometer className="h-3 w-3"/> Overall Market Sentiment

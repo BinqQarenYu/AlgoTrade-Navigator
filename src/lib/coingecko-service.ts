@@ -14,6 +14,26 @@ const TICKER_TO_CG_ID: Record<string, string> = {
     'ADA': 'cardano',
     'XRP': 'ripple',
     'DOGE': 'dogecoin',
+    // Added more to support the topAssets list
+    'AVAX': 'avalanche-2',
+    'DOT': 'polkadot',
+    'LINK': 'chainlink',
+    'MATIC': 'matic-network',
+    'LTC': 'litecoin',
+    'NEAR': 'near',
+    'UNI': 'uniswap',
+    'ATOM': 'cosmos',
+    'ETC': 'ethereum-classic',
+    'FIL': 'filecoin',
+    'APT': 'aptos',
+    'SUI': 'sui',
+    'OP': 'optimism',
+    'PEPE': 'pepe',
+    'WIF': 'dogwifhat',
+    'TON': 'the-open-network',
+    'ORDI': 'ordinals',
+    'WLD': 'worldcoin-wld',
+    'ARB': 'arbitrum'
 };
 
 export const getSentimentForTickers = async (
@@ -96,7 +116,7 @@ export const getCoinDetailsByTicker = async (
         }
         url.searchParams.append('localization', 'false');
         url.searchParams.append('tickers', 'false');
-        url.searchParams.append('market_data', 'false');
+        url.searchParams.append('market_data', 'true'); // Fetch market data now
         url.searchParams.append('sparkline', 'false');
         
         const response = await fetch(url.toString(), {
@@ -119,6 +139,7 @@ export const getCoinDetailsByTicker = async (
 
         // Strip HTML tags from description
         const description = data.description?.en?.replace(/<[^>]*>?/gm, '') || null;
+        const marketData = data.market_data;
 
         return {
             id: data.id,
@@ -129,6 +150,16 @@ export const getCoinDetailsByTicker = async (
             description: description,
             marketCapRank: data.market_cap_rank || null,
             publicInterestScore: data.public_interest_score || 0,
+            // New fields
+            marketCap: marketData?.market_cap?.usd ?? 0,
+            priceChange24h: marketData?.price_change_percentage_24h ?? 0,
+            volume24h: marketData?.total_volume?.usd ?? 0,
+            circulatingSupply: marketData?.circulating_supply ?? 0,
+            totalSupply: marketData?.total_supply ?? null,
+            ath: marketData?.ath?.usd ?? 0,
+            athDate: marketData?.ath_date?.usd ? new Date(marketData.ath_date.usd).toLocaleDateString() : 'N/A',
+            atl: marketData?.atl?.usd ?? 0,
+            atlDate: marketData?.atl_date?.usd ? new Date(marketData.atl_date.usd).toLocaleDateString() : 'N/A',
         };
 
     } catch (error) {
