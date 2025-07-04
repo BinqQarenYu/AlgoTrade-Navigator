@@ -36,7 +36,7 @@ import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
-import { predictMarket } from "@/ai/flows/predict-market-flow"
+import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
@@ -197,6 +197,8 @@ export default function BacktestPage() {
     let tradeQuantity = 0;
     let aiValidationCount = 0;
     let aiLimitReachedNotified = false;
+    let entryReasoning: string | undefined = undefined;
+    let entryConfidence: number | undefined = undefined;
     
     for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
@@ -270,11 +272,15 @@ export default function BacktestPage() {
                     closeReason,
                     stopLoss: stopLossPrice,
                     takeProfit: takeProfitPrice,
-                    fee: totalFee
+                    fee: totalFee,
+                    reasoning: entryReasoning,
+                    confidence: entryConfidence,
                 });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
+                entryReasoning = undefined;
+                entryConfidence = undefined;
             }
         } else if (positionType === 'short') {
             let exitPrice: number | null = null;
@@ -344,11 +350,15 @@ export default function BacktestPage() {
                     closeReason,
                     stopLoss: stopLossPrice,
                     takeProfit: takeProfitPrice,
-                    fee: totalFee
+                    fee: totalFee,
+                    reasoning: entryReasoning,
+                    confidence: entryConfidence,
                 });
                 positionType = null;
                 entryPrice = 0;
                 tradeQuantity = 0;
+                entryReasoning = undefined;
+                entryConfidence = undefined;
             }
         }
 
@@ -356,13 +366,14 @@ export default function BacktestPage() {
         if (positionType === null) {
             if (d.buySignal) {
                 let openPosition = true;
+                let prediction: PredictMarketOutput | null = null;
                 if (useAIValidation) {
                     if (aiValidationCount < maxAiValidations) {
                         if (i > 50) {
                             try {
                                 aiValidationCount++;
                                 const recentData = chartData.slice(i - 50, i);
-                                const prediction = await predictMarket({
+                                prediction = await predictMarket({
                                     symbol,
                                     recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
                                     strategySignal: 'BUY'
@@ -391,6 +402,8 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
+                    entryReasoning = prediction?.reasoning ?? `Classic '${strategy.name}' buy signal triggered.`;
+                    entryConfidence = prediction?.confidence ?? 1;
                     if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
@@ -402,13 +415,14 @@ export default function BacktestPage() {
                 }
             } else if (d.sellSignal) {
                 let openPosition = true;
+                let prediction: PredictMarketOutput | null = null;
                 if (useAIValidation) {
                     if (aiValidationCount < maxAiValidations) {
                         if (i > 50) {
                             try {
                                 aiValidationCount++;
                                 const recentData = chartData.slice(i - 50, i);
-                                const prediction = await predictMarket({
+                                prediction = await predictMarket({
                                     symbol,
                                     recentData: JSON.stringify(recentData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
                                     strategySignal: 'SELL'
@@ -437,6 +451,8 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
+                    entryReasoning = prediction?.reasoning ?? `Classic '${strategy.name}' sell signal triggered.`;
+                    entryConfidence = prediction?.confidence ?? 1;
                     if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
@@ -477,7 +493,9 @@ export default function BacktestPage() {
             closeReason: 'signal',
             stopLoss: stopLossPrice,
             takeProfit: takeProfitPrice,
-            fee: totalFee
+            fee: totalFee,
+            reasoning: entryReasoning,
+            confidence: entryConfidence,
         });
     }
 
@@ -550,8 +568,8 @@ export default function BacktestPage() {
       entryPrice: selectedTrade.entryPrice,
       stopLoss: selectedTrade.stopLoss,
       takeProfit: selectedTrade.takeProfit,
-      confidence: 1,
-      reasoning: `Trade from backtest. Closed due to ${selectedTrade.closeReason}.`,
+      confidence: selectedTrade.confidence ?? 1,
+      reasoning: selectedTrade.reasoning || `Trade from backtest. Closed due to ${selectedTrade.closeReason}.`,
       timestamp: new Date(selectedTrade.entryTime),
       strategy: selectedStrategy,
     };

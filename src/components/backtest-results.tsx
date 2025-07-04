@@ -5,7 +5,7 @@ import type { BacktestResult, BacktestSummary } from "@/lib/types";
 import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Info } from "lucide-react";
 
 type BacktestResultsProps = {
@@ -102,6 +102,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
         <div className="space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">Trade Log</h3>
              <ScrollArea className="h-72 w-full rounded-md border">
+              <TooltipProvider>
                 <Table>
                 <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
                     <TableRow>
@@ -116,42 +117,56 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                 <TableBody>
                     {results.length > 0 ? (
                         results.map((trade) => (
-                        <TableRow 
-                            key={trade.id}
-                            onClick={() => onSelectTrade(trade)}
-                            className={cn(
-                                "cursor-pointer hover:bg-muted/80",
-                                selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
-                            )}
-                        >
-                            <TableCell>
-                                <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
-                                    {trade.type === 'long' ? 'LONG' : 'SHORT'}
-                                </Badge>
-                            </TableCell>
-                            <TableCell>
-                                <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
-                                <div>${trade.entryPrice.toFixed(4)}</div>
-                            </TableCell>
-                             <TableCell>
-                                <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
-                                <div>${trade.exitPrice.toFixed(4)}</div>
-                            </TableCell>
-                            <TableCell className="capitalize">
-                                <Badge variant={
-                                    trade.closeReason === 'take-profit' ? 'default' :
-                                    trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
-                                } className="whitespace-nowrap">
-                                    {trade.closeReason.replace('-', ' ')}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="font-mono text-xs">
-                                {trade.fee.toFixed(4)}
-                            </TableCell>
-                            <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                {trade.pnl.toFixed(2)}
-                            </TableCell>
-                        </TableRow>
+                        <Tooltip key={trade.id}>
+                          <TooltipTrigger asChild>
+                            <TableRow 
+                                onClick={() => onSelectTrade(trade)}
+                                className={cn(
+                                    "cursor-pointer hover:bg-muted/80",
+                                    selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
+                                )}
+                            >
+                                <TableCell>
+                                    <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
+                                        {trade.type === 'long' ? 'LONG' : 'SHORT'}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
+                                    <div>${trade.entryPrice.toFixed(4)}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
+                                    <div>${trade.exitPrice.toFixed(4)}</div>
+                                </TableCell>
+                                <TableCell className="capitalize">
+                                    <Badge variant={
+                                        trade.closeReason === 'take-profit' ? 'default' :
+                                        trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
+                                    } className="whitespace-nowrap">
+                                        {trade.closeReason.replace('-', ' ')}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                    {trade.fee.toFixed(4)}
+                                </TableCell>
+                                <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    {trade.pnl.toFixed(2)}
+                                </TableCell>
+                            </TableRow>
+                          </TooltipTrigger>
+                          {trade.reasoning && (
+                            <TooltipContent>
+                                <div className="max-w-xs space-y-1">
+                                    <p className="font-semibold">Entry Rationale:</p>
+                                    <p>{trade.reasoning}</p>
+                                    {trade.confidence && (
+                                        <p className="text-muted-foreground text-xs">AI Confidence: {(trade.confidence * 100).toFixed(1)}%</p>
+                                    )}
+                                </div>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                         ))
                     ) : (
                         <TableRow>
@@ -162,6 +177,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                     )}
                 </TableBody>
                 </Table>
+              </TooltipProvider>
              </ScrollArea>
         </div>
       </CardContent>

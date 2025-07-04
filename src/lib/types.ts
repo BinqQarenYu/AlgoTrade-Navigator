@@ -1,6 +1,7 @@
 
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -68,6 +69,8 @@ export type BacktestResult = {
   stopLoss: number;
   takeProfit: number;
   fee: number;
+  reasoning?: string;
+  confidence?: number;
 };
 
 export type BacktestSummary = {
