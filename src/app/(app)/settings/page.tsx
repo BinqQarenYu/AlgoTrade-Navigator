@@ -50,7 +50,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -72,6 +72,8 @@ export default function SettingsPage() {
     setApiLimit,
     rateLimitThreshold,
     setRateLimitThreshold,
+    coingeckoApiKey,
+    setCoingeckoApiKey
   } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
@@ -79,6 +81,12 @@ export default function SettingsPage() {
   const [serverIpAddress, setServerIpAddress] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
+  const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
+
+  useEffect(() => {
+    setCgKeyValue(coingeckoApiKey || "");
+  }, [coingeckoApiKey]);
+
 
   useEffect(() => {
     const fetchIps = async () => {
@@ -158,6 +166,11 @@ export default function SettingsPage() {
     }
     setIsFormOpen(false);
     setEditingProfile(null);
+  };
+
+  const handleSaveCgKey = () => {
+    setCoingeckoApiKey(cgKeyValue);
+    toast({ title: "CoinGecko API Key Saved" });
   };
 
   const openEditForm = (profile: ApiProfile) => {
@@ -266,6 +279,33 @@ export default function SettingsPage() {
                 </Button>
             </div>
         </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>Third-Party Integrations</CardTitle>
+        <CardDescription>
+          Manage API keys for other services like CoinGecko.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+            <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
+            <div className="flex items-center gap-2">
+                <Input
+                id="coingecko-key"
+                type="password"
+                value={cgKeyValue}
+                onChange={(e) => setCgKeyValue(e.target.value)}
+                placeholder="Enter your CoinGecko API Key"
+                />
+                <Button onClick={handleSaveCgKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+                The app can fetch some data without a key, but a key is recommended for higher rate limits.
+            </p>
+        </div>
+      </CardContent>
     </Card>
 
       <Card>

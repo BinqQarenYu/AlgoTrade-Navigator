@@ -2,6 +2,7 @@
 
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -158,3 +159,11 @@ export interface Strategy {
   description: string;
   calculate: (data: HistoricalData[]) => Promise<HistoricalData[]>;
 }
+
+export type CoinSentimentData = {
+  id: string;
+  symbol: string;
+  name: string;
+  sentimentUp: number;
+  image: string;
+};

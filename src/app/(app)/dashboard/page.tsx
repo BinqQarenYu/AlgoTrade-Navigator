@@ -7,20 +7,24 @@ import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
 import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeHistory } from "@/components/dashboard/trade-history";
 import { getAccountBalance, getOpenPositions, getTradeHistory } from "@/lib/binance-service";
+import { getSentimentForTickers } from "@/lib/coingecko-service";
 import { useApi } from "@/context/api-context";
 import { useBot } from "@/context/bot-context";
-import type { Portfolio, Position, Trade } from "@/lib/types";
+import type { Portfolio, Position, Trade, CoinSentimentData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { MarketSentiment } from "@/components/dashboard/market-sentiment";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
+  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey } = useApi();
   const { isTradingActive } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
+  const [sentiments, setSentiments] = useState<CoinSentimentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSentimentLoading, setIsSentimentLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -28,14 +32,31 @@ export default function DashboardPage() {
     const fetchData = async () => {
       if (isTradingActive) {
         setIsLoading(false);
+        setIsSentimentLoading(false);
         setPortfolio(null);
         setPositions([]);
         setHistory([]);
+        setSentiments([]);
         return;
       }
 
       setIsLoading(true);
+      setIsSentimentLoading(true);
       setError(null);
+
+      // Fetch CoinGecko sentiment data regardless of Binance connection
+      try {
+        const sentimentData = await getSentimentForTickers(['BTC', 'ETH', 'SOL'], coingeckoApiKey);
+        setSentiments(sentimentData);
+      } catch (e) {
+        console.error("Failed to fetch sentiment data", e);
+        // Don't show a toast for this, it's a non-critical feature
+        setSentiments([]);
+      } finally {
+        setIsSentimentLoading(false);
+      }
+
+
       if (isConnected && apiKey && secretKey) {
         if (apiLimit.used >= rateLimitThreshold) {
             setError(`API rate limit threshold reached. Used: ${apiLimit.used}. Please wait a moment.`);
@@ -98,7 +119,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive, coingeckoApiKey]);
 
   const handleClearHistory = () => {
     setHistory([]);
@@ -146,11 +167,14 @@ export default function DashboardPage() {
         totalPnl={portfolio?.totalPnl} 
         dailyVolume={portfolio?.dailyVolume} 
       />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
             <OpenPositions positions={positions} isLoading={isLoading && isConnected && !isTradingActive} />
         </div>
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-1">
+            <MarketSentiment sentiments={sentiments} isLoading={isSentimentLoading} />
+        </div>
+        <div className="lg:col-span-3">
             <TradeHistory trades={history} onClear={handleClearHistory} />
         </div>
       </div>

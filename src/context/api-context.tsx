@@ -9,11 +9,13 @@ interface ApiContextType {
   activeProfile: ApiProfile | null;
   apiKey: string | null;
   secretKey: string | null;
+  coingeckoApiKey: string | null;
   
   addProfile: (profile: ApiProfile) => void;
   updateProfile: (profile: ApiProfile) => void;
   deleteProfile: (profileId: string) => void;
   setActiveProfile: (profileId: string | null) => void;
+  setCoingeckoApiKey: (key: string | null) => void;
   
   isConnected: boolean;
   setIsConnected: (status: boolean) => void;
@@ -31,6 +33,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [apiLimit, setApiLimit] = useState({ used: 0, limit: 1200 });
   const [rateLimitThreshold, setRateLimitThreshold] = useState<number>(1100);
+  const [coingeckoApiKey, setCoingeckoApiKey] = useState<string | null>(null);
 
   // Load initial state from localStorage
   useEffect(() => {
@@ -38,9 +41,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedActiveId = localStorage.getItem('activeProfileId');
     const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
     const storedThreshold = localStorage.getItem('rateLimitThreshold');
+    const storedCgKey = localStorage.getItem('coingeckoApiKey');
 
     const loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
     setProfiles(loadedProfiles);
+    
+    if (storedCgKey) {
+        setCoingeckoApiKey(storedCgKey);
+    }
 
     if (storedThreshold) {
       setRateLimitThreshold(parseInt(storedThreshold, 10));
@@ -61,6 +69,16 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('apiProfiles', JSON.stringify(profiles));
   }, [profiles]);
+
+  // Persist coingecko key to localStorage
+  useEffect(() => {
+    if (coingeckoApiKey) {
+      localStorage.setItem('coingeckoApiKey', coingeckoApiKey);
+    } else {
+      localStorage.removeItem('coingeckoApiKey');
+    }
+  }, [coingeckoApiKey]);
+
 
   // Persist threshold to localStorage
   useEffect(() => {
@@ -113,10 +131,12 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       activeProfile,
       apiKey: activeProfile?.apiKey || null,
       secretKey: activeProfile?.secretKey || null,
+      coingeckoApiKey,
       addProfile,
       updateProfile,
       deleteProfile,
       setActiveProfile,
+      setCoingeckoApiKey,
       isConnected,
       setIsConnected, 
       apiLimit, 
