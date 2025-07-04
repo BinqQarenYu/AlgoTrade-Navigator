@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile } from "lucide-react"
-import type { HistoricalData, CoinDetails } from "@/lib/types"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer } from "lucide-react"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -36,8 +36,10 @@ import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
+import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
 
 export default function ManualTradingPage() {
   const { isConnected, coingeckoApiKey } = useApi();
@@ -67,9 +69,11 @@ export default function ManualTradingPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(false);
 
-  // State for CoinGecko data
+  // State for external data
   const [coinDetails, setCoinDetails] = useState<CoinDetails | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
+  const [fearAndGreed, setFearAndGreed] = useState<FearAndGreedIndex | null>(null);
+  const [isFetchingFng, setIsFetchingFng] = useState(false);
 
   // Collapsible states
   const [isGeneratorOpen, setGeneratorOpen] = useState(true);
@@ -85,6 +89,7 @@ export default function ManualTradingPage() {
     }
   }, [baseAsset, quoteAsset]);
 
+  // Fetch asset-specific details
   useEffect(() => {
     const fetchDetails = async () => {
       if (!baseAsset) {
@@ -104,6 +109,23 @@ export default function ManualTradingPage() {
     };
     fetchDetails();
   }, [baseAsset, coingeckoApiKey]);
+  
+  // Fetch market-wide Fear & Greed index once on page load
+  useEffect(() => {
+    const fetchFng = async () => {
+        setIsFetchingFng(true);
+        try {
+            const index = await getFearAndGreedIndex();
+            setFearAndGreed(index);
+        } catch(e) {
+            console.error("Failed to fetch F&G index", e);
+            setFearAndGreed(null);
+        } finally {
+            setIsFetchingFng(false);
+        }
+    };
+    fetchFng();
+  }, []);
 
   const handleRunAnalysis = useCallback(() => {
     runManualAnalysis({
@@ -171,6 +193,15 @@ export default function ManualTradingPage() {
   }
   
   const isThisPageTrading = isAnalyzing || hasActiveSignal;
+
+  const getFngColor = (value: number) => {
+    if (value <= 25) return "bg-red-600"; // Extreme Fear
+    if (value <= 45) return "bg-orange-500"; // Fear
+    if (value <= 55) return "bg-yellow-500"; // Neutral
+    if (value <= 75) return "bg-green-400"; // Greed
+    return "bg-green-600"; // Extreme Greed
+  };
+
 
   return (
     <div className="flex flex-col h-full">
@@ -374,7 +405,7 @@ export default function ManualTradingPage() {
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2"><Newspaper/> Asset Intelligence</CardTitle>
-                  <CardDescription>Contextual data and sentiment from CoinGecko.</CardDescription>
+                  <CardDescription>Contextual data and sentiment for the selected asset.</CardDescription>
                 </div>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -425,6 +456,28 @@ export default function ManualTradingPage() {
                                 <p className="text-sm text-foreground/90 line-clamp-3">
                                   {coinDetails.description || "No description available."}
                                 </p>
+                              </div>
+                              <Separator className="my-4" />
+                              <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground flex items-center gap-1 mb-1">
+                                      <Thermometer className="h-3 w-3"/> Overall Market Sentiment
+                                  </Label>
+                                  {isFetchingFng ? (
+                                      <div className="space-y-2">
+                                          <Skeleton className="h-4 w-full" />
+                                          <Skeleton className="h-2 w-full" />
+                                      </div>
+                                  ) : fearAndGreed ? (
+                                      <div>
+                                          <div className="flex justify-between items-center text-sm mb-1">
+                                              <span className="font-medium">Fear & Greed Index</span>
+                                              <span className="font-semibold">{fearAndGreed.valueClassification} ({fearAndGreed.value})</span>
+                                          </div>
+                                          <Progress value={fearAndGreed.value} className="h-2" indicatorClassName={getFngColor(fearAndGreed.value)} />
+                                      </div>
+                                  ) : (
+                                      <p className="text-xs text-muted-foreground">Could not load Fear & Greed Index.</p>
+                                  )}
                               </div>
                           </div>
                       ) : (
