@@ -20,7 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 
 type TradeHistoryProps = {
   trades: Trade[];
@@ -87,7 +87,7 @@ export function TradeHistory({ trades, onClear }: TradeHistoryProps) {
                         </Badge>
                         </TableCell>
                         <TableCell>{trade.size}</TableCell>
-                        <TableCell>${trade.price.toLocaleString()}</TableCell>
+                        <TableCell>${formatPrice(trade.price)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{trade.time}</TableCell>
                     </TableRow>
                     ))

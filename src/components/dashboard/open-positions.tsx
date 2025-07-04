@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 
 type OpenPositionsProps = {
   positions: Position[];
@@ -74,8 +74,8 @@ export function OpenPositions({ positions, isLoading }: OpenPositionsProps) {
                           </Badge>
                         </TableCell>
                         <TableCell>{pos.size}</TableCell>
-                        <TableCell>${pos.entryPrice.toLocaleString()}</TableCell>
-                        <TableCell>${pos.markPrice.toLocaleString()}</TableCell>
+                        <TableCell>${formatPrice(pos.entryPrice)}</TableCell>
+                        <TableCell>${formatPrice(pos.markPrice)}</TableCell>
                         <TableCell>{pos.leverage}</TableCell>
                         <TableCell className={`text-right font-medium ${pos.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {pos.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}

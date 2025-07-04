@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { SignalResult } from "@/lib/types";
 import { Separator } from "./ui/separator";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { parseSymbolString } from "@/lib/assets";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -66,15 +66,15 @@ export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
                         <div className="grid gap-1.5 text-sm">
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Entry Price</span>
-                                <span className="font-mono">${signal.entryPrice.toFixed(4)}</span>
+                                <span className="font-mono">${formatPrice(signal.entryPrice)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Stop Loss</span>
-                                <span className="font-mono text-red-500">${signal.stopLoss.toFixed(4)}</span>
+                                <span className="font-mono text-red-500">${formatPrice(signal.stopLoss)}</span>
                             </div>
                             <div className="flex justify-between items-center">
                                 <span className="text-muted-foreground">Take Profit</span>
-                                <span className="font-mono text-green-500">${signal.takeProfit.toFixed(4)}</span>
+                                <span className="font-mono text-green-500">${formatPrice(signal.takeProfit)}</span>
                             </div>
                         </div>
                         <Separator />

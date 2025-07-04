@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BacktestResult, BacktestSummary } from "@/lib/types";
 import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Info, ChevronDown } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
@@ -162,11 +162,11 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                     </TableCell>
                                     <TableCell>
                                         <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
-                                        <div>${trade.entryPrice.toFixed(4)}</div>
+                                        <div>${formatPrice(trade.entryPrice)}</div>
                                     </TableCell>
                                     <TableCell>
                                         <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
-                                        <div>${trade.exitPrice.toFixed(4)}</div>
+                                        <div>${formatPrice(trade.exitPrice)}</div>
                                     </TableCell>
                                     <TableCell className="capitalize">
                                         <Badge variant={

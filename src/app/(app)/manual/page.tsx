@@ -34,7 +34,7 @@ import { Separator } from "@/components/ui/separator"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { cn } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 
 export default function ManualTradingPage() {
   const { isConnected } = useApi();
@@ -156,7 +156,7 @@ export default function ManualTradingPage() {
         </Alert>
     )}
      {isTradingActive && !isThisPageTrading && (
-        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
             <AlertDescription>
@@ -376,15 +376,15 @@ export default function ManualTradingPage() {
                           <div className="grid gap-2 text-sm">
                               <div className="flex justify-between items-center">
                                   <span className="text-muted-foreground">Entry Price (approx.)</span>
-                                  <span className="font-mono">${signal.entryPrice.toFixed(4)}</span>
+                                  <span className="font-mono">${formatPrice(signal.entryPrice)}</span>
                               </div>
                               <div className="flex justify-between items-center">
                                   <span className="text-muted-foreground">Stop Loss</span>
-                                  <span className="font-mono text-red-500">${signal.stopLoss.toFixed(4)}</span>
+                                  <span className="font-mono text-red-500">${formatPrice(signal.stopLoss)}</span>
                               </div>
                               <div className="flex justify-between items-center">
                                   <span className="text-muted-foreground">Take Profit</span>
-                                  <span className="font-mono text-green-500">${signal.takeProfit.toFixed(4)}</span>
+                                  <span className="font-mono text-green-500">${formatPrice(signal.takeProfit)}</span>
                               </div>
                           </div>
                           <Separator/>
