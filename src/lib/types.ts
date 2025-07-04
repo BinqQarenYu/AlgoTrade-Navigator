@@ -1,4 +1,5 @@
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -47,6 +48,14 @@ export type HistoricalData = {
   supertrend?: number | null;
   supertrend_direction?: number | null;
   atr?: number | null;
+  donchian_upper?: number | null;
+  donchian_middle?: number | null;
+  donchian_lower?: number | null;
+  tenkan_sen?: number | null;
+  kijun_sen?: number | null;
+  senkou_a?: number | null;
+  senkou_b?: number | null;
+  chikou_span?: number | null;
 };
 
 export type Portfolio = {

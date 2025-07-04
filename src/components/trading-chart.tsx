@@ -17,7 +17,7 @@ const intervals = [
   { value: '15m', label: '15m' },
   { value: '1h', label: '1H' },
   { value: '4h', label: '4H' },
-  { value: '1d', label: '1D' },
+  { value: '1d', 'label': '1D' },
 ];
 
 export function TradingChart({ 
@@ -58,11 +58,19 @@ export function TradingChart({
             barDownColor: '#ef5350',
             volumeUpColor: 'rgba(38, 166, 154, 0.4)',
             volumeDownColor: 'rgba(239, 83, 80, 0.4)',
-            smaShortColor: '#f59e0b',
-            smaLongColor: '#8b5cf6',
             pocColor: '#eab308',
             buySignalColor: '#22c55e',
             sellSignalColor: '#ef4444',
+            // Indicator Colors
+            smaShortColor: '#f59e0b',
+            smaLongColor: '#8b5cf6',
+            donchianUpperColor: '#4ade80', // green-400
+            donchianLowerColor: '#f87171', // red-400
+            donchianMiddleColor: 'rgba(148, 163, 184, 0.4)', // slate-400
+            tenkanColor: '#38bdf8', // sky-400
+            kijunColor: '#f472b6', // pink-400
+            senkouAColor: 'rgba(38, 166, 154, 0.2)',
+            senkouBColor: 'rgba(239, 83, 80, 0.2)',
         };
         
         const chart = createChart(chartContainerRef.current, {
@@ -106,14 +114,23 @@ export function TradingChart({
           wickDownColor: chartColors.wickDownColor,
           borderVisible: false,
         });
+        
+        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false };
 
         chartRef.current = {
             chart,
             candlestickSeries,
             volumeSeries,
-            smaShortSeries: chart.addLineSeries({ color: chartColors.smaShortColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
-            smaLongSeries: chart.addLineSeries({ color: chartColors.smaLongColor, lineWidth: 2, lastValueVisible: false, priceLineVisible: false }),
+            smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
+            smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false }),
+            donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
+            donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
+            donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
+            tenkanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.tenkanColor }),
+            kijunSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.kijunColor }),
+            senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
+            senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
             priceLines: [],
         };
         
@@ -133,7 +150,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, chart } = chartRef.current;
+    const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
 
     // Set candlestick and volume data
     if (data.length > 0) {
@@ -186,12 +203,24 @@ export function TradingChart({
             series.setData([]);
           }
         };
-
+        
+        // Classic Indicators
         addLineSeries(smaShortSeries, 'sma_short');
         addLineSeries(smaShortSeries, 'ema_short'); // Reuse same series for EMA
         addLineSeries(smaLongSeries, 'sma_long');
         addLineSeries(smaLongSeries, 'ema_long');   // Reuse same series for EMA
         addLineSeries(pocSeries, 'poc');
+        
+        // Donchian Channels
+        addLineSeries(donchianUpperSeries, 'donchian_upper');
+        addLineSeries(donchianMiddleSeries, 'donchian_middle');
+        addLineSeries(donchianLowerSeries, 'donchian_lower');
+        
+        // Ichimoku Cloud
+        addLineSeries(tenkanSeries, 'tenkan_sen');
+        addLineSeries(kijunSeries, 'kijun_sen');
+        addLineSeries(senkouASeries, 'senkou_a');
+        addLineSeries(senkouBSeries, 'senkou_b');
 
         // Markers
         const markers = uniqueData
@@ -216,6 +245,13 @@ export function TradingChart({
         smaShortSeries.setData([]);
         smaLongSeries.setData([]);
         pocSeries.setData([]);
+        donchianUpperSeries.setData([]);
+        donchianMiddleSeries.setData([]);
+        donchianLowerSeries.setData([]);
+        tenkanSeries.setData([]);
+        kijunSeries.setData([]);
+        senkouASeries.setData([]);
+        senkouBSeries.setData([]);
         candlestickSeries.setMarkers([]);
     }
 

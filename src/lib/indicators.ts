@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { HistoricalData } from './types';
@@ -231,4 +232,96 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
         direction.push(trendDirection);
     }
     return { supertrend, direction };
+};
+
+export const calculateDonchianChannels = (
+  highs: number[],
+  lows: number[],
+  period: number
+): { upper: (number | null)[]; middle: (number | null)[]; lower: (number | null)[] } => {
+  const upper: (number | null)[] = [];
+  const lower: (number | null)[] = [];
+  const middle: (number | null)[] = [];
+
+  for (let i = 0; i < highs.length; i++) {
+    if (i < period - 1) {
+      upper.push(null);
+      lower.push(null);
+      middle.push(null);
+    } else {
+      const highSlice = highs.slice(i - period + 1, i + 1);
+      const lowSlice = lows.slice(i - period + 1, i + 1);
+      const upperBand = Math.max(...highSlice);
+      const lowerBand = Math.min(...lowSlice);
+      upper.push(upperBand);
+      lower.push(lowerBand);
+      middle.push((upperBand + lowerBand) / 2);
+    }
+  }
+  return { upper, middle, lower };
+};
+
+export const calculateIchimokuCloud = (
+  data: HistoricalData[],
+  tenkanPeriod: number,
+  kijunPeriod: number,
+  senkouBPeriod: number,
+  displacement: number
+): { tenkan: (number | null)[]; kijun: (number | null)[]; senkouA: (number | null)[]; senkouB: (number | null)[]; chikou: (number | null)[] } => {
+  const result = {
+    tenkan: Array(data.length).fill(null),
+    kijun: Array(data.length).fill(null),
+    senkouA: Array(data.length).fill(null),
+    senkouB: Array(data.length).fill(null),
+    chikou: Array(data.length).fill(null),
+  };
+
+  for (let i = 0; i < data.length; i++) {
+    // Tenkan-sen (Conversion Line)
+    if (i >= tenkanPeriod - 1) {
+      const slice = data.slice(i - tenkanPeriod + 1, i + 1);
+      const highestHigh = Math.max(...slice.map(d => d.high));
+      const lowestLow = Math.min(...slice.map(d => d.low));
+      result.tenkan[i] = (highestHigh + lowestLow) / 2;
+    }
+
+    // Kijun-sen (Base Line)
+    if (i >= kijunPeriod - 1) {
+      const slice = data.slice(i - kijunPeriod + 1, i + 1);
+      const highestHigh = Math.max(...slice.map(d => d.high));
+      const lowestLow = Math.min(...slice.map(d => d.low));
+      result.kijun[i] = (highestHigh + lowestLow) / 2;
+    }
+  }
+
+  // This loop calculates the forward-shifted spans.
+  // It populates future indexes of the result arrays.
+  for (let i = 0; i < data.length; i++) {
+    // Senkou Span A (Leading Span A)
+    if (result.tenkan[i] !== null && result.kijun[i] !== null) {
+      const val = (result.tenkan[i]! + result.kijun[i]!) / 2;
+      if (i + displacement < data.length) {
+        result.senkouA[i + displacement] = val;
+      }
+    }
+
+    // Senkou Span B (Leading Span B)
+    if (i >= senkouBPeriod - 1) {
+      const slice = data.slice(i - senkouBPeriod + 1, i + 1);
+      const highestHigh = Math.max(...slice.map(d => d.high));
+      const lowestLow = Math.min(...slice.map(d => d.low));
+      const val = (highestHigh + lowestLow) / 2;
+      if (i + displacement < data.length) {
+        result.senkouB[i + displacement] = val;
+      }
+    }
+
+    // Chikou Span (Lagging Span) - This value is for i, but needs to be plotted at i-displacement
+    // For simplicity in data structure, we place the current close in the chikou array at i-displacement index.
+    if (i - displacement >= 0) {
+       result.chikou[i-displacement] = data[i].close;
+    }
+  }
+
+  return result;
 };
