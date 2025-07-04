@@ -3,9 +3,11 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
+import { rankSignals } from "@/ai/flows/rank-signals-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service";
+import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from '@/lib/strategies';
 
@@ -31,6 +33,7 @@ interface BotContextType {
   liveBotState: LiveBotState;
   manualTraderState: ManualTraderState;
   multiSignalState: MultiSignalState;
+  screenerState: ScreenerState;
   isTradingActive: boolean;
   startLiveBot: (config: LiveBotConfig) => void;
   stopLiveBot: () => void;
@@ -40,6 +43,8 @@ interface BotContextType {
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;
   stopMultiSignalMonitor: () => void;
+  startScreener: (config: ScreenerConfig) => void;
+  stopScreener: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -87,6 +92,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const multiSignalRunningRef = useRef(false);
   const multiSignalConfigRef = useRef<MultiSignalConfig | null>(null);
 
+  // --- Screener State ---
+  const [screenerState, setScreenerState] = useState<ScreenerState>({
+    isRunning: false, config: null, results: [], logs: []
+  });
+  const screenerRunningRef = useRef(false);
+
   // --- Global Trading State ---
   const [isTradingActive, setIsTradingActive] = useState(false);
 
@@ -94,8 +105,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const live = liveBotState.isRunning;
     const manual = manualTraderState.isAnalyzing || manualTraderState.signal !== null;
     const multi = multiSignalState.isRunning;
-    setIsTradingActive(live || manual || multi);
-  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, multiSignalState.isRunning]);
+    const screener = screenerState.isRunning;
+    setIsTradingActive(live || manual || multi || screener);
+  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, multiSignalState.isRunning, screenerState.isRunning]);
 
 
   // --- Helper Functions ---
@@ -108,6 +120,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addLiveLog = useCallback((message: string) => addLog(setLiveBotState, message), [addLog]);
   const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
+  const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
   
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
@@ -159,6 +172,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
             
             const newSignal: TradeSignal = {
+                asset: config.symbol,
                 action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
                 stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
                 confidence: prediction.confidence, reasoning: prediction.reasoning,
@@ -284,6 +298,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
       setManualTraderState(current => {
         let newChartData = current.chartData;
+        const currentLogs = current.logs || [];
 
         if (newChartData.length > 0) {
             const lastCandle = newChartData[newChartData.length - 1];
@@ -320,7 +335,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             
             const timestamp = new Date().toLocaleTimeString();
             const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
-            const newLogs = [newLog, ...(current.logs || [])].slice(0, 100);
+            const newLogs = [newLog, ...currentLogs].slice(0, 100);
 
             manualWsRef.current?.close();
             return { ...current, signal: null, chartData: newChartData, logs: newLogs };
@@ -328,7 +343,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Ensure logs are preserved in every state update
-        return { ...current, chartData: newChartData, logs: current.logs || [] };
+        return { ...current, chartData: newChartData, logs: currentLogs };
       });
     };
     
@@ -408,7 +423,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const originalSignal = current.signal;
                 if (!originalSignal) {
                     if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-                    return current;
+                    return { ...current, logs: preservedLogs };
                 }
                 analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
                     if (!manualReevalIntervalRef.current) return;
@@ -529,9 +544,93 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: "Multi-Signal Monitor Stopped" });
   }, [addManualLog, toast]);
 
+  // --- AI Screener Logic ---
+  const startScreener = useCallback(async (config: ScreenerConfig) => {
+    screenerRunningRef.current = true;
+    setScreenerState({ isRunning: true, config, results: [], logs: [] });
+    addScreenerLog(`Starting screener for ${config.assets.length} assets and ${config.strategies.length} strategies.`);
+    toast({ title: "AI Screener Started", description: "Scanning markets... This may take a while." });
+    
+    const foundSignals: TradeSignal[] = [];
+
+    // Create a flattened array of all analysis tasks
+    const tasks = config.assets.flatMap(asset => 
+        config.strategies.map(strategy => ({ asset, strategy }))
+    );
+
+    // Process tasks sequentially to avoid overwhelming APIs
+    for (const task of tasks) {
+        if (!screenerRunningRef.current) break;
+        
+        addScreenerLog(`Analyzing ${task.asset} with ${task.strategy}...`);
+        
+        const result = await analyzeAsset({
+            symbol: task.asset,
+            interval: config.interval,
+            strategy: task.strategy,
+            takeProfit: 2, // Default value for screening
+            stopLoss: 1,   // Default value for screening
+            useAIPrediction: true, // Always use AI validation for the screener
+            fee: 0.04
+        });
+
+        if (result.signal) {
+            foundSignals.push(result.signal);
+            addScreenerLog(`Signal found for ${task.asset} via ${task.strategy}.`);
+        }
+    }
+
+    if (!screenerRunningRef.current) {
+        addScreenerLog("Screener stopped by user.");
+        setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs}));
+        return;
+    }
+
+    addScreenerLog(`Screening complete. Found ${foundSignals.length} potential signals.`);
+
+    if (config.useAiRanking && foundSignals.length > 0) {
+        addScreenerLog(`Ranking ${foundSignals.length} signals with AI Head Trader...`);
+        try {
+            const fng = await getFearAndGreedIndex();
+            const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
+
+            const rankedResult = await rankSignals({
+                signals: foundSignals,
+                marketContext
+            });
+            
+            const rankedSignals = rankedResult.rankedSignals.sort((a,b) => a.rank - b.rank);
+            
+            setScreenerState(prev => ({...prev, results: rankedSignals as RankedTradeSignal[]}));
+            addScreenerLog(`AI ranking complete. Displaying top signals.`);
+            toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} high-potential signals.` });
+        } catch (e: any) {
+            addScreenerLog(`AI ranking failed: ${e.message}`);
+            toast({ title: "AI Ranking Failed", description: "Displaying unranked signals.", variant: "destructive" });
+            const unrankedSignals = foundSignals.map(s => ({...s, rank: 99, justification: "AI ranking failed."}));
+            setScreenerState(prev => ({...prev, results: unrankedSignals }));
+        }
+
+    } else if (foundSignals.length > 0) {
+        addScreenerLog(`Displaying ${foundSignals.length} unranked signals.`);
+        const unrankedSignals = foundSignals.map(s => ({...s, rank: 0, justification: "AI ranking was not enabled."}));
+        setScreenerState(prev => ({...prev, results: unrankedSignals }));
+    }
+
+    setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs}));
+    screenerRunningRef.current = false;
+  }, [addScreenerLog, analyzeAsset, toast]);
+
+  const stopScreener = useCallback(() => {
+    addScreenerLog("Stopping screener...");
+    screenerRunningRef.current = false;
+  }, [addScreenerLog]);
+
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      screenerRunningRef.current = false;
       multiSignalRunningRef.current = false;
       if (liveBotIntervalRef.current) clearInterval(liveBotIntervalRef.current);
       if (manualWsRef.current) manualWsRef.current.close();
@@ -545,6 +644,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       liveBotState, 
       manualTraderState,
       multiSignalState,
+      screenerState,
       isTradingActive,
       startLiveBot,
       stopLiveBot,
@@ -554,6 +654,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       setManualChartData,
       startMultiSignalMonitor,
       stopMultiSignalMonitor,
+      startScreener,
+      stopScreener,
     }}>
       {children}
     </BotContext.Provider>

@@ -1,4 +1,5 @@
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -117,6 +118,12 @@ export type TradeSignal = {
   timestamp: Date;
   strategy: string;
   peakPrice?: number;
+  asset: string;
+};
+
+export type RankedTradeSignal = TradeSignal & {
+  rank: number;
+  justification: string;
 };
     
 export type LiveBotConfig = {
@@ -163,6 +170,20 @@ export interface MultiSignalState {
   isRunning: boolean;
   config: MultiSignalConfig | null;
   results: Record<string, SignalResult>; // Keyed by asset symbol
+  logs: string[];
+}
+
+export type ScreenerConfig = {
+  assets: string[];
+  strategies: string[];
+  interval: string;
+  useAiRanking: boolean;
+};
+
+export interface ScreenerState {
+  isRunning: boolean;
+  config: ScreenerConfig | null;
+  results: RankedTradeSignal[];
   logs: string[];
 }
 
