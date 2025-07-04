@@ -31,7 +31,7 @@ import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function ManualTradingPage() {
@@ -181,8 +181,8 @@ export default function ManualTradingPage() {
                   <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isAnalyzing || hasActiveSignal}>
                     <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {topBases.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      {topAssets.map(asset => (
+                        <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

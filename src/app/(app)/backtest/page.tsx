@@ -37,7 +37,7 @@ import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } fro
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
-import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 interface DateRange {
@@ -601,8 +601,8 @@ export default function BacktestPage() {
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {topBases.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      {topAssets.map(asset => (
+                        <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

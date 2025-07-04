@@ -34,7 +34,7 @@ import type { HistoricalData, TradeSignal } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function LiveTradingPage() {
@@ -271,8 +271,8 @@ export default function LiveTradingPage() {
                   <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}>
                     <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {topBases.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      {topAssets.map(asset => (
+                        <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

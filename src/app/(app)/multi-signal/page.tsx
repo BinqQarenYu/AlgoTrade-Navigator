@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
-import { topBases, pairsByBase } from "@/lib/assets"
+import { topBases, pairsByBase, assetInfo } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function MultiSignalPage() {
@@ -99,7 +99,7 @@ export default function MultiSignalPage() {
 
                                         return (
                                             <div key={base}>
-                                                <h4 className="font-medium text-sm mb-2">{base}</h4>
+                                                <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
                                                 <div className="grid grid-cols-3 gap-x-4 gap-y-2 pl-2">
                                                     {quotes.map(quote => {
                                                         const symbol = `${base}${quote}`;
