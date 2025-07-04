@@ -3,9 +3,9 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { rankSignals } from "@/ai/flows/rank-signals-flow";
+import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service";
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
@@ -64,66 +64,13 @@ const intervalToMs = (interval: string): number => {
     }
 }
 
-
-/**
- * Ranks signals using a code-based scoring model instead of AI.
- * @param signals - The array of signals to rank.
- * @param fngIndex - The current Fear & Greed Index data.
- * @returns A sorted array of ranked signals.
- */
-const rankSignalsWithCode = (signals: TradeSignal[], fngIndex: FearAndGreedIndex | null): RankedTradeSignal[] => {
-    if (signals.length === 0) return [];
-
-    const scoredSignals = signals.map(signal => {
-        let score = 50; // Base score for any valid signal
-        let justification = ['Base score for valid signal.'];
-
-        // Confluence scoring
-        const confluenceCount = signals.filter(s => 
-            s.asset === signal.asset && 
-            s.action === signal.action &&
-            s.strategy !== signal.strategy
-        ).length;
-
-        if (confluenceCount > 0) {
-            score += confluenceCount * 25;
-            justification.push(`Confluence with ${confluenceCount} other strategy/strategies.`);
-        }
-
-        // Fear & Greed Index scoring
-        if (fngIndex) {
-            if (signal.action === 'UP' && fngIndex.value <= 25) {
-                score += 15;
-                justification.push('Contrarian signal in Extreme Fear market.');
-            } else if (signal.action === 'DOWN' && fngIndex.value >= 75) {
-                score += 15;
-                justification.push('Contrarian signal in Extreme Greed market.');
-            } else if (signal.action === 'UP' && fngIndex.value >= 75) {
-                score -= 10;
-                justification.push('Risky signal in Extreme Greed market.');
-            } else if (signal.action === 'DOWN' && fngIndex.value <= 25) {
-                score -= 10;
-                justification.push('Risky signal in Extreme Fear market.');
-            }
-        }
-        
-        return {
-            ...signal,
-            score,
-            justification: justification.join(' '),
-        }
-    });
-
-    // Sort by score descending
-    scoredSignals.sort((a, b) => b.score - a.score);
-
-    // Assign rank
-    return scoredSignals.map((s, index) => ({
-        ...s,
-        rank: index + 1,
-    }));
-};
-
+const KNOWN_INDICATORS = [
+    'sma_short', 'sma_long', 'ema_short', 'ema_long', 'rsi', 'stopLossLevel',
+    'peakPrice', 'poc', 'volumeDelta', 'cumulativeVolumeDelta', 'bb_upper', 'bb_middle',
+    'bb_lower', 'macd', 'macd_signal', 'macd_hist', 'supertrend', 'supertrend_direction',
+    'atr', 'donchian_upper', 'donchian_middle', 'donchian_lower', 'tenkan_sen',
+    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span'
+];
 
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
@@ -154,7 +101,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Screener State ---
   const [screenerState, setScreenerState] = useState<ScreenerState>({
-    isRunning: false, config: null, results: [], logs: []
+    isRunning: false, config: null, prediction: null, strategyInputs: [], logs: []
   });
   const screenerRunningRef = useRef(false);
 
@@ -607,88 +554,81 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // --- AI Screener Logic ---
   const startScreener = useCallback(async (config: ScreenerConfig) => {
     screenerRunningRef.current = true;
-    setScreenerState({ isRunning: true, config, results: [], logs: [] });
-    addScreenerLog(`Starting screener for ${config.assets.length} assets and ${config.strategies.length} strategies.`);
-    toast({ title: "AI Screener Started", description: "Scanning markets... This may take a while." });
+    setScreenerState({ isRunning: true, config, prediction: null, logs: [], strategyInputs: [] });
+    addScreenerLog(`Starting ensemble analysis for ${config.asset}...`);
+    toast({ title: "Ensemble Analysis Started", description: "This may take a few moments." });
     
-    const foundSignals: TradeSignal[] = [];
+    try {
+        addScreenerLog("Fetching historical data...");
+        const data = await getLatestKlinesByLimit(config.asset, config.interval, 500);
 
-    const tasks = config.assets.flatMap(asset => 
-        config.strategies.map(strategy => ({ asset, strategy }))
-    );
+        if (!screenerRunningRef.current) return;
 
-    for (const task of tasks) {
-        if (!screenerRunningRef.current) break;
+        addScreenerLog(`Analyzing with ${config.strategies.length} strategies...`);
+        const strategyOutputs: StrategyAnalysisInput[] = [];
+
+        for (const strategyId of config.strategies) {
+             if (!screenerRunningRef.current) break;
+            const strategy = getStrategyById(strategyId);
+            if (!strategy) continue;
+
+            const dataWithIndicators = await strategy.calculate(data);
+            const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
+            
+            let signal: string | null = null;
+            if (lastCandle.buySignal) signal = 'BUY';
+            else if (lastCandle.sellSignal) signal = 'SELL';
+            else signal = 'HOLD';
+
+            const indicators: Record<string, any> = {};
+            for (const key of KNOWN_INDICATORS) {
+                if (key in lastCandle && lastCandle[key as keyof HistoricalData] !== null && lastCandle[key as keyof HistoricalData] !== undefined) {
+                    indicators[key] = lastCandle[key as keyof HistoricalData];
+                }
+            }
+
+            strategyOutputs.push({ name: strategy.name, signal, indicators });
+            setScreenerState(prev => ({...prev, strategyInputs: [...strategyOutputs]}));
+        }
         
-        addScreenerLog(`Analyzing ${task.asset} with ${task.strategy}...`);
+        if (!screenerRunningRef.current) return;
+
+        addScreenerLog("All strategies analyzed. Calling AI meta-model for final prediction...");
+        const fng = await getFearAndGreedIndex();
+        const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
         
-        const result = await analyzeAsset({
-            symbol: task.asset,
+        const prediction = await predictPrice({
+            asset: config.asset,
             interval: config.interval,
-            strategy: task.strategy,
-            takeProfit: 2,
-            stopLoss: 1,
-            useAIPrediction: config.useAiRanking,
-            fee: 0.04
+            recentData: JSON.stringify(data.slice(-50).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+            strategyOutputs: strategyOutputs.map(s => ({
+                strategyName: s.name,
+                signal: s.signal as 'BUY' | 'SELL' | 'HOLD' | null,
+                indicatorValues: s.indicators
+            })),
+            marketContext
         });
 
-        if (result.signal) {
-            foundSignals.push(result.signal);
-            addScreenerLog(`Signal found for ${task.asset} via ${task.strategy}.`);
-        }
-    }
-
-    if (!screenerRunningRef.current) {
-        addScreenerLog("Screener stopped by user.");
-        setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs || [] }));
-        return;
-    }
-
-    addScreenerLog(`Screening complete. Found ${foundSignals.length} potential signals.`);
-    
-    if (foundSignals.length > 0) {
-        const fng = await getFearAndGreedIndex();
+        if (!screenerRunningRef.current) return;
         
-        if (config.useAiRanking) {
-            const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-            addScreenerLog(`Ranking ${foundSignals.length} signals with AI Head Trader...`);
-            try {
-                const rankedResult = await rankSignals({
-                    signals: foundSignals,
-                    marketContext
-                });
-                
-                const rankedSignals = rankedResult.rankedSignals.sort((a,b) => a.rank - b.rank);
-                
-                setScreenerState(prev => ({...prev, results: rankedSignals as RankedTradeSignal[]}));
-                addScreenerLog(`AI ranking complete. Displaying top signals.`);
-                toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} high-potential signals.` });
-            } catch (e: any) {
-                addScreenerLog(`AI ranking failed: ${e.message}`);
-                toast({ title: "AI Ranking Failed", description: "Displaying unranked signals.", variant: "destructive" });
-                const unrankedSignals = foundSignals.map(s => ({...s, rank: 99, justification: "AI ranking failed."}));
-                setScreenerState(prev => ({...prev, results: unrankedSignals }));
-            }
-        } else {
-            // Use code-based ranking
-            addScreenerLog(`Ranking ${foundSignals.length} signals with code-based logic...`);
-            const rankedSignals = rankSignalsWithCode(foundSignals, fng);
-            setScreenerState(prev => ({...prev, results: rankedSignals }));
-            addScreenerLog(`Code-based ranking complete.`);
-            toast({ title: "Screener Finished", description: `Found and ranked ${rankedSignals.length} signals.` });
-        }
-    } else {
-        addScreenerLog('No actionable signals found across all assets and strategies.');
-        toast({ title: "Screener Finished", description: "No actionable signals were found." });
+        setScreenerState(prev => ({...prev, prediction, isRunning: false}));
+        addScreenerLog(`AI prediction received: ${prediction.predictedPrice.toFixed(4)}`);
+        toast({ title: "Prediction Complete", description: `The AI predicts a price of ${prediction.predictedPrice.toFixed(4)}.` });
+
+    } catch (e: any) {
+        addScreenerLog(`Analysis failed: ${e.message}`);
+        toast({ title: "Analysis Failed", description: e.message, variant: "destructive" });
+        setScreenerState(prev => ({...prev, isRunning: false}));
+    } finally {
+        screenerRunningRef.current = false;
     }
 
-    setScreenerState(prev => ({...prev, isRunning: false, logs: prev.logs || [] }));
-    screenerRunningRef.current = false;
-  }, [addScreenerLog, analyzeAsset, toast]);
+  }, [addScreenerLog, toast]);
 
   const stopScreener = useCallback(() => {
-    addScreenerLog("Stopping screener...");
+    addScreenerLog("Stopping analysis...");
     screenerRunningRef.current = false;
+    setScreenerState(prev => ({...prev, isRunning: false}));
   }, [addScreenerLog]);
 
 

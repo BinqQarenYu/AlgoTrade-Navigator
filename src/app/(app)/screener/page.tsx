@@ -1,96 +1,25 @@
 
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Sparkles, Play, StopCircle, ChevronDown, Trophy, Info } from "lucide-react"
-import { topBases, pairsByBase, assetInfo, parseSymbolString } from "@/lib/assets"
+import { Bot, Sparkles, Play, StopCircle, ChevronDown, BrainCircuit, Loader2 } from "lucide-react"
+import { topAssets } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
-import type { RankedTradeSignal } from "@/lib/types"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-
-const ScreenerResultCard = ({ rankedSignal }: { rankedSignal: RankedTradeSignal }) => {
-    const displaySymbol = useMemo(() => {
-        const parsed = parseSymbolString(rankedSignal.asset);
-        return parsed ? `${parsed.base}/${parsed.quote}` : rankedSignal.asset;
-    }, [rankedSignal.asset]);
-
-    const getRankColor = (rank: number) => {
-        if (rank === 1) return "bg-amber-400 text-amber-900 border-amber-500";
-        if (rank === 2) return "bg-slate-300 text-slate-800 border-slate-400";
-        if (rank === 3) return "bg-orange-400 text-orange-900 border-orange-500";
-        return "bg-muted text-muted-foreground";
-    }
-
-    return (
-        <Card className="flex flex-col">
-            <CardHeader>
-                <div className="flex justify-between items-start">
-                    <div>
-                        <CardTitle className="flex items-center gap-3">
-                            {displaySymbol}
-                             <Badge variant={rankedSignal.action === 'UP' ? 'default' : 'destructive'} className="text-sm">
-                                {rankedSignal.action === 'UP' ? 'LONG' : 'SHORT'}
-                            </Badge>
-                        </CardTitle>
-                        <CardDescription>Strategy: {rankedSignal.strategy}</CardDescription>
-                    </div>
-                    <div className={cn("flex items-center gap-2 font-bold text-lg rounded-md px-3 py-1 border", getRankColor(rankedSignal.rank))}>
-                       <Trophy className="w-5 h-5"/> #{rankedSignal.rank}
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent className="space-y-3 flex-grow">
-                <div className="grid gap-1.5 text-sm">
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Entry Price</span>
-                        <span className="font-mono">${formatPrice(rankedSignal.entryPrice)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Stop Loss</span>
-                        <span className="font-mono text-red-500">${formatPrice(rankedSignal.stopLoss)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Take Profit</span>
-                        <span className="font-mono text-green-500">${formatPrice(rankedSignal.takeProfit)}</span>
-                    </div>
-                </div>
-                 <div className="space-y-1 pt-2">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary"/> AI Justification
-                    </h4>
-                    <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <p className="text-xs text-muted-foreground cursor-help line-clamp-2">
-                                {rankedSignal.justification}
-                            </p>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                            <p>{rankedSignal.justification}</p>
-                        </TooltipContent>
-                    </Tooltip>
-                    </TooltipProvider>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Progress } from "@/components/ui/progress"
 
 export default function ScreenerPage() {
     const { toast } = useToast();
@@ -100,21 +29,14 @@ export default function ScreenerPage() {
         stopScreener, 
         isTradingActive 
     } = useBot();
-    const { isRunning, results, logs, config: runningConfig } = screenerState;
+    const { isRunning, prediction, logs, config: runningConfig, strategyInputs } = screenerState;
 
     // UI State
-    const [selectedAssets, setSelectedAssets] = useState<string[]>(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
-    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(["peak-formation-fib"]);
-    const [interval, setInterval] = useState("1h");
-    const [useAiRanking, setUseAiRanking] = useState(true);
+    const [selectedAsset, setSelectedAsset] = useState<string>("BTCUSDT");
+    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(["peak-formation-fib", "ema-crossover"]);
+    const [interval, setInterval] = useState("5m");
     
     const [isConfigOpen, setConfigOpen] = useState(true);
-
-    const handleAssetToggle = (asset: string) => {
-        setSelectedAssets(prev => 
-            prev.includes(asset) ? prev.filter(a => a !== asset) : [...prev, asset]
-        );
-    };
 
     const handleStrategyToggle = (strategyId: string) => {
         setSelectedStrategies(prev => 
@@ -126,19 +48,18 @@ export default function ScreenerPage() {
         if (isRunning) {
             stopScreener();
         } else {
-            if (selectedAssets.length === 0) {
-                toast({ title: "No Assets Selected", description: "Please select at least one asset to screen.", variant: "destructive"});
+            if (!selectedAsset) {
+                toast({ title: "No Asset Selected", description: "Please select an asset to analyze.", variant: "destructive"});
                 return;
             }
             if (selectedStrategies.length === 0) {
-                toast({ title: "No Strategies Selected", description: "Please select at least one strategy to run.", variant: "destructive"});
+                toast({ title: "No Strategies Selected", description: "Please select at least one strategy for the ensemble.", variant: "destructive"});
                 return;
             }
             startScreener({
-                assets: selectedAssets,
+                asset: selectedAsset,
                 strategies: selectedStrategies,
                 interval,
-                useAiRanking
             });
         }
     };
@@ -149,10 +70,10 @@ export default function ScreenerPage() {
         <div className="space-y-6">
             <div className="text-left">
                 <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                    <Sparkles size={32}/> AI Screener
+                    <BrainCircuit size={32}/> Ensemble Price Predictor
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                    Find high-potential trade setups by running multiple strategies across multiple assets, ranked by AI.
+                    Use a meta-model to predict future price by combining multiple strategy outputs.
                 </p>
             </div>
              {isTradingActive && !isThisPageRunning && (
@@ -171,7 +92,7 @@ export default function ScreenerPage() {
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle>Configuration</CardTitle>
-                                <CardDescription>Set parameters for the screener.</CardDescription>
+                                <CardDescription>Set up the ensemble model.</CardDescription>
                             </div>
                             <CollapsibleTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -182,35 +103,19 @@ export default function ScreenerPage() {
                         <CollapsibleContent>
                             <CardContent className="space-y-4">
                                 <div className="space-y-2">
-                                    <Label>Assets to Screen</Label>
-                                    <ScrollArea className="h-40 w-full rounded-md border p-4">
-                                        <div className="space-y-4">
-                                            {topBases.map((base) => {
-                                                const quotes = pairsByBase[base] || [];
-                                                if (quotes.length === 0) return null;
-                                                return (
-                                                    <div key={base}>
-                                                        <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
-                                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pl-2">
-                                                            {quotes.map(quote => {
-                                                                const symbol = `${base}${quote}`;
-                                                                return (
-                                                                    <div key={symbol} className="flex items-center space-x-2">
-                                                                        <Checkbox id={`asset-${symbol}`} checked={selectedAssets.includes(symbol)} onCheckedChange={() => handleAssetToggle(symbol)} disabled={isRunning} />
-                                                                        <Label htmlFor={`asset-${symbol}`} className="font-normal text-muted-foreground">{quote}</Label>
-                                                                    </div>
-                                                                )
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    </ScrollArea>
+                                    <Label>Asset to Analyze</Label>
+                                    <Select onValueChange={setSelectedAsset} value={selectedAsset} disabled={isRunning}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            {topAssets.map(asset => (
+                                                <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Strategies to Use</Label>
-                                    <ScrollArea className="h-40 w-full rounded-md border p-4">
+                                    <Label>Strategies for Ensemble</Label>
+                                    <ScrollArea className="h-48 w-full rounded-md border p-4">
                                         <div className="space-y-2">
                                         {strategies.map((strategy) => (
                                             <div key={strategy.id} className="flex items-center space-x-2">
@@ -235,56 +140,99 @@ export default function ScreenerPage() {
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="flex items-center space-x-2 pt-2">
-                                    <Switch id="ai-ranking" checked={useAiRanking} onCheckedChange={setUseAiRanking} disabled={isRunning} />
-                                    <Label htmlFor="ai-ranking">Enable AI Ranking</Label>
-                                </div>
-
+                                
                                 <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
                                     {isRunning ? <StopCircle /> : <Play />}
-                                    {isRunning ? "Stop Screener" : "Find Top Signals"}
+                                    {isRunning ? "Stop Analysis" : "Predict Price"}
                                 </Button>
                             </CardContent>
                         </CollapsibleContent>
                     </Collapsible>
                 </Card>
 
-                <div className="lg:col-span-3">
+                <div className="lg:col-span-3 space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Ranked Signals</CardTitle>
+                            <CardTitle>AI Price Prediction</CardTitle>
                             <CardDescription>
-                                {isRunning ? "Scanning markets... This may take a few moments." : `Showing ${results.length} ranked signals from the last run.`}
+                                {isRunning ? "Analyzing... This may take a few moments." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             {isRunning ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {Array.from({length: 3}).map((_, i) => (
-                                         <Card key={i}>
-                                            <CardHeader>
-                                                <Skeleton className="h-5 w-24"/>
-                                                <Skeleton className="h-4 w-32"/>
-                                            </CardHeader>
-                                            <CardContent className="space-y-2">
-                                                <Skeleton className="h-4 w-full"/>
-                                                <Skeleton className="h-4 w-full"/>
-                                                <Skeleton className="h-4 w-4/5"/>
-                                            </CardContent>
-                                         </Card>
-                                    ))}
+                                <div className="flex items-center justify-center h-48 text-muted-foreground">
+                                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                                    <span>Synthesizing strategy data...</span>
                                 </div>
-                            ) : results.length > 0 ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {results.map((signal, index) => (
-                                        <ScreenerResultCard key={`${signal.asset}-${signal.strategy}-${index}`} rankedSignal={signal} />
-                                    ))}
+                            ) : prediction ? (
+                                <div className="space-y-4">
+                                    <div>
+                                        <Label className="text-sm text-muted-foreground">Predicted Price</Label>
+                                        <p className="text-4xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
+                                    </div>
+                                    <div>
+                                        <Label className="text-sm text-muted-foreground">Confidence</Label>
+                                        <div className="flex items-center gap-4">
+                                            <Progress value={prediction.confidence * 100} className="w-full" />
+                                            <span className="font-semibold">{(prediction.confidence * 100).toFixed(1)}%</span>
+                                        </div>
+                                    </div>
+                                     <div>
+                                        <Label className="text-sm text-muted-foreground">Reasoning</Label>
+                                        <p className="text-sm text-foreground/80">{prediction.reasoning}</p>
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="flex items-center justify-center h-64 text-muted-foreground border border-dashed rounded-md">
-                                    <p>{logs.length > 0 ? logs[logs.length-1] : "Run the screener to find top signals."}</p>
+                                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                                    <p>{logs.length > 0 ? logs[logs.length-1] : "Prediction results will appear here."}</p>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>Strategy Inputs</CardTitle>
+                            <CardDescription>The data fed to the AI from each selected strategy.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                    <TableHead>Strategy</TableHead>
+                                    <TableHead>Signal</TableHead>
+                                    <TableHead>Key Indicators</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {isRunning && strategyInputs.length === 0 ? (
+                                        Array.from({length: selectedStrategies.length}).map((_, i) => (
+                                            <TableRow key={`skel-${i}`}>
+                                                <TableCell><Skeleton className="h-5 w-32"/></TableCell>
+                                                <TableCell><Skeleton className="h-5 w-16"/></TableCell>
+                                                <TableCell><Skeleton className="h-5 w-48"/></TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : strategyInputs.length > 0 ? (
+                                        strategyInputs.map((input) => (
+                                            <TableRow key={input.name}>
+                                                <TableCell className="font-medium">{input.name}</TableCell>
+                                                <TableCell>{input.signal || 'None'}</TableCell>
+                                                <TableCell className="text-xs font-mono">
+                                                    {Object.entries(input.indicators).map(([key, value]) => (
+                                                        <div key={key}>{key}: {typeof value === 'number' ? value.toFixed(4) : String(value)}</div>
+                                                    ))}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                                            Run analysis to see strategy inputs.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
                         </CardContent>
                     </Card>
                 </div>
@@ -292,4 +240,3 @@ export default function ScreenerPage() {
         </div>
     );
 }
-

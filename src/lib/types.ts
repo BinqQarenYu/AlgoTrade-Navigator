@@ -1,5 +1,6 @@
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -175,16 +176,28 @@ export interface MultiSignalState {
 }
 
 export type ScreenerConfig = {
-  assets: string[];
+  asset: string;
   strategies: string[];
   interval: string;
-  useAiRanking: boolean;
+};
+
+export type PricePredictionOutput = {
+    predictedPrice: number;
+    confidence: number;
+    reasoning: string;
+};
+
+export type StrategyAnalysisInput = {
+    name: string;
+    signal: string | null;
+    indicators: Record<string, any>;
 };
 
 export interface ScreenerState {
   isRunning: boolean;
   config: ScreenerConfig | null;
-  results: RankedTradeSignal[];
+  prediction: PricePredictionOutput | null;
+  strategyInputs: StrategyAnalysisInput[];
   logs: string[];
 }
 
