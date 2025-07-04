@@ -1,3 +1,7 @@
+
+"use client"
+
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +10,9 @@ import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info } from "lucide-react";
+import { Info, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Button } from "./ui/button";
 
 type BacktestResultsProps = {
   results: BacktestResult[];
@@ -44,19 +50,33 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
 };
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
+  const [isOpen, setIsOpen] = useState(true);
+
   if (!summary) {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Backtest Results</CardTitle>
-                <CardDescription>Run a backtest to see the results here.</CardDescription>
-            </CardHeader>
+      <Card>
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Backtest Results</CardTitle>
+              <CardDescription>Run a backtest to see the results here.</CardDescription>
+            </div>
+            <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                    <span className="sr-only">Toggle</span>
+                </Button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
             <CardContent>
                 <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
                     <p>Results will be displayed after a backtest is complete.</p>
                 </div>
             </CardContent>
-        </Card>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
     )
   }
 
@@ -67,120 +87,132 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Backtest Results</CardTitle>
-        <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
-            <SummaryStat 
-                label="Net PNL" 
-                value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>}
-                tooltipContent="The total profit or loss from all trades, after deducting all commission fees. Formula: Gross P/L - Total Fees."
-            />
-            <SummaryStat 
-                label="Win Rate" 
-                value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>}
-                tooltipContent="The percentage of trades that were profitable (closed with a positive PNL). Formula: (Winning Trades / Total Trades) * 100."
-            />
-            <SummaryStat 
-                label="Profit Factor" 
-                value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>}
-                tooltipContent="The ratio of gross profit to gross loss. A value greater than 1 indicates a profitable system. Formula: Gross Profit / Gross Loss."
-            />
-            <SummaryStat 
-                label="Total Return" 
-                value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>}
-                tooltipContent="The total percentage return on your initial capital. Formula: (Net PNL / Initial Capital) * 100."
-            />
-            <SummaryStat label="Total Trades" value={summary.totalTrades} />
-            <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
-            <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
-            <SummaryStat label="Total Fees" value={<span>${summary.totalFees.toFixed(2)}</span>} />
-        </div>
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Backtest Results</CardTitle>
+            <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
+          </div>
+          <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle</span>
+              </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
+                <SummaryStat 
+                    label="Net PNL" 
+                    value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>}
+                    tooltipContent="The total profit or loss from all trades, after deducting all commission fees. Formula: Gross P/L - Total Fees."
+                />
+                <SummaryStat 
+                    label="Win Rate" 
+                    value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>}
+                    tooltipContent="The percentage of trades that were profitable (closed with a positive PNL). Formula: (Winning Trades / Total Trades) * 100."
+                />
+                <SummaryStat 
+                    label="Profit Factor" 
+                    value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>}
+                    tooltipContent="The ratio of gross profit to gross loss. A value greater than 1 indicates a profitable system. Formula: Gross Profit / Gross Loss."
+                />
+                <SummaryStat 
+                    label="Total Return" 
+                    value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>}
+                    tooltipContent="The total percentage return on your initial capital. Formula: (Net PNL / Initial Capital) * 100."
+                />
+                <SummaryStat label="Total Trades" value={summary.totalTrades} />
+                <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
+                <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
+                <SummaryStat label="Total Fees" value={<span>${summary.totalFees.toFixed(2)}</span>} />
+            </div>
 
-        <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground">Trade Log</h3>
-             <ScrollArea className="h-72 w-full rounded-md border">
-              <TooltipProvider>
-                <Table>
-                <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
-                    <TableRow>
-                    <TableHead>Side</TableHead>
-                    <TableHead>Entry</TableHead>
-                    <TableHead>Exit</TableHead>
-                    <TableHead>Close Reason</TableHead>
-                    <TableHead>Fee ($)</TableHead>
-                    <TableHead className="text-right">Net P&L ($)</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {results.length > 0 ? (
-                        results.map((trade) => (
-                        <Tooltip key={trade.id}>
-                          <TooltipTrigger asChild>
-                            <TableRow 
-                                onClick={() => onSelectTrade(trade)}
-                                className={cn(
-                                    "cursor-pointer hover:bg-muted/80",
-                                    selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
-                                )}
-                            >
-                                <TableCell>
-                                    <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
-                                        {trade.type === 'long' ? 'LONG' : 'SHORT'}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
-                                    <div>${trade.entryPrice.toFixed(4)}</div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
-                                    <div>${trade.exitPrice.toFixed(4)}</div>
-                                </TableCell>
-                                <TableCell className="capitalize">
-                                    <Badge variant={
-                                        trade.closeReason === 'take-profit' ? 'default' :
-                                        trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
-                                    } className="whitespace-nowrap">
-                                        {trade.closeReason.replace('-', ' ')}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs">
-                                    {trade.fee.toFixed(4)}
-                                </TableCell>
-                                <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                    {trade.pnl.toFixed(2)}
+            <div className="space-y-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Trade Log</h3>
+                <ScrollArea className="h-72 w-full rounded-md border">
+                  <TooltipProvider>
+                    <Table>
+                    <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                        <TableRow>
+                        <TableHead>Side</TableHead>
+                        <TableHead>Entry</TableHead>
+                        <TableHead>Exit</TableHead>
+                        <TableHead>Close Reason</TableHead>
+                        <TableHead>Fee ($)</TableHead>
+                        <TableHead className="text-right">Net P&L ($)</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {results.length > 0 ? (
+                            results.map((trade) => (
+                            <Tooltip key={trade.id}>
+                              <TooltipTrigger asChild>
+                                <TableRow 
+                                    onClick={() => onSelectTrade(trade)}
+                                    className={cn(
+                                        "cursor-pointer hover:bg-muted/80",
+                                        selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
+                                    )}
+                                >
+                                    <TableCell>
+                                        <Badge variant={trade.type === 'long' ? "default" : "destructive"}>
+                                            {trade.type === 'long' ? 'LONG' : 'SHORT'}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
+                                        <div>${trade.entryPrice.toFixed(4)}</div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
+                                        <div>${trade.exitPrice.toFixed(4)}</div>
+                                    </TableCell>
+                                    <TableCell className="capitalize">
+                                        <Badge variant={
+                                            trade.closeReason === 'take-profit' ? 'default' :
+                                            trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
+                                        } className="whitespace-nowrap">
+                                            {trade.closeReason.replace('-', ' ')}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-xs">
+                                        {trade.fee.toFixed(4)}
+                                    </TableCell>
+                                    <TableCell className={`text-right font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                        {trade.pnl.toFixed(2)}
+                                    </TableCell>
+                                </TableRow>
+                              </TooltipTrigger>
+                              {trade.reasoning && (
+                                <TooltipContent>
+                                    <div className="max-w-xs space-y-1">
+                                        <p className="font-semibold">Entry Rationale:</p>
+                                        <p>{trade.reasoning}</p>
+                                        {trade.confidence && (
+                                            <p className="text-muted-foreground text-xs">AI Confidence: {(trade.confidence * 100).toFixed(1)}%</p>
+                                        )}
+                                    </div>
+                                </TooltipContent>
+                              )}
+                            </Tooltip>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                                    No trades were executed in this backtest.
                                 </TableCell>
                             </TableRow>
-                          </TooltipTrigger>
-                          {trade.reasoning && (
-                            <TooltipContent>
-                                <div className="max-w-xs space-y-1">
-                                    <p className="font-semibold">Entry Rationale:</p>
-                                    <p>{trade.reasoning}</p>
-                                    {trade.confidence && (
-                                        <p className="text-muted-foreground text-xs">AI Confidence: {(trade.confidence * 100).toFixed(1)}%</p>
-                                    )}
-                                </div>
-                            </TooltipContent>
-                          )}
-                        </Tooltip>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
-                                No trades were executed in this backtest.
-                            </TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-                </Table>
-              </TooltipProvider>
-             </ScrollArea>
-        </div>
-      </CardContent>
+                        )}
+                    </TableBody>
+                    </Table>
+                  </TooltipProvider>
+                </ScrollArea>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }

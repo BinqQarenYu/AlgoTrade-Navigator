@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, StopCircle, Database, Trash2, FolderClock, Bot } from 'lucide-react';
+import { Play, StopCircle, Database, Trash2, FolderClock, Bot, ChevronDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import { useBot } from '@/context/bot-context';
@@ -16,6 +16,7 @@ import type { StreamedDataPoint } from '@/lib/types';
 import { saveDataPoint, loadSavedData, clearSavedData } from '@/lib/data-service';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
@@ -27,6 +28,8 @@ export default function DataPage() {
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
     const { isTradingActive } = useBot();
+    const [isStreamCardOpen, setStreamCardOpen] = useState(true);
+    const [isSavedCardOpen, setSavedCardOpen] = useState(true);
     
     // Batch UI updates to prevent freezing from high-frequency messages
     useEffect(() => {
@@ -186,128 +189,152 @@ export default function DataPage() {
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <Card>
-                    <CardHeader>
-                        <CardTitle>Real-time Data Stream</CardTitle>
-                        <CardDescription>Connect to a live Binance data feed via WebSocket.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="symbol">Symbol</Label>
-                                <Select defaultValue="btcusdt" onValueChange={setSymbol} disabled={isStreaming || isTradingActive}>
-                                    <SelectTrigger id="symbol">
-                                        <SelectValue placeholder="Select symbol" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="btcusdt">BTC/USDT</SelectItem>
-                                        <SelectItem value="ethusdt">ETH/USDT</SelectItem>
-                                        <SelectItem value="solusdt">SOL/USDT</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                    <Collapsible open={isStreamCardOpen} onOpenChange={setStreamCardOpen}>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>Real-time Data Stream</CardTitle>
+                                <CardDescription>Connect to a live Binance data feed via WebSocket.</CardDescription>
                             </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="interval">Stream Type</Label>
-                                <Select defaultValue="aggTrade" disabled={isStreaming || isTradingActive}>
-                                    <SelectTrigger id="interval">
-                                        <SelectValue placeholder="Select stream" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="aggTrade">Aggregate Trade</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between rounded-lg border p-3">
-                           <div className="flex items-center gap-2">
-                             <span className={cn(
-                                "h-2.5 w-2.5 rounded-full",
-                                status === 'connected' && "bg-green-500",
-                                status === 'disconnected' && "bg-red-500",
-                                status === 'connecting' && "bg-yellow-500 animate-pulse"
-                             )}/>
-                             <span className="text-sm font-medium capitalize text-muted-foreground">
-                                {isTradingActive ? 'Paused' : status}
-                             </span>
-                           </div>
-                            <Button onClick={handleStreamToggle} variant={isStreaming ? "destructive" : "default"} size="sm" disabled={isTradingActive}>
-                                {isStreaming ? <StopCircle /> : <Play />}
-                                {isStreaming ? 'Stop Stream' : 'Start Stream'}
-                            </Button>
-                        </div>
-                        <div className="h-64 overflow-y-auto border rounded-md">
-                             <Table>
-                                <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
-                                    <TableRow>
-                                        <TableHead>Time</TableHead>
-                                        <TableHead>Price (USD)</TableHead>
-                                        <TableHead className="text-right">Volume</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
-                                         <TableRow key={d.id}>
-                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss.SSS')}</TableCell>
-                                            <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                                            <TableCell className="text-right">{d.volume}</TableCell>
-                                        </TableRow>
-                                    )) : (
-                                         <TableRow key="streaming-placeholder">
-                                            <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
-                                                {isTradingActive ? 'Streaming is paused.' : isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isStreamCardOpen && "rotate-180")} />
+                                    <span className="sr-only">Toggle</span>
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardHeader>
+                        <CollapsibleContent>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="symbol">Symbol</Label>
+                                        <Select defaultValue="btcusdt" onValueChange={setSymbol} disabled={isStreaming || isTradingActive}>
+                                            <SelectTrigger id="symbol">
+                                                <SelectValue placeholder="Select symbol" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="btcusdt">BTC/USDT</SelectItem>
+                                                <SelectItem value="ethusdt">ETH/USDT</SelectItem>
+                                                <SelectItem value="solusdt">SOL/USDT</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="interval">Stream Type</Label>
+                                        <Select defaultValue="aggTrade" disabled={isStreaming || isTradingActive}>
+                                            <SelectTrigger id="interval">
+                                                <SelectValue placeholder="Select stream" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="aggTrade">Aggregate Trade</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div className="flex items-center justify-between rounded-lg border p-3">
+                                <div className="flex items-center gap-2">
+                                    <span className={cn(
+                                        "h-2.5 w-2.5 rounded-full",
+                                        status === 'connected' && "bg-green-500",
+                                        status === 'disconnected' && "bg-red-500",
+                                        status === 'connecting' && "bg-yellow-500 animate-pulse"
+                                    )}/>
+                                    <span className="text-sm font-medium capitalize text-muted-foreground">
+                                        {isTradingActive ? 'Paused' : status}
+                                    </span>
+                                </div>
+                                    <Button onClick={handleStreamToggle} variant={isStreaming ? "destructive" : "default"} size="sm" disabled={isTradingActive}>
+                                        {isStreaming ? <StopCircle /> : <Play />}
+                                        {isStreaming ? 'Stop Stream' : 'Start Stream'}
+                                    </Button>
+                                </div>
+                                <div className="h-64 overflow-y-auto border rounded-md">
+                                    <Table>
+                                        <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                                            <TableRow>
+                                                <TableHead>Time</TableHead>
+                                                <TableHead>Price (USD)</TableHead>
+                                                <TableHead className="text-right">Volume</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {isStreaming && streamedData.length > 0 ? streamedData.map(d => (
+                                                <TableRow key={d.id}>
+                                                    <TableCell className="font-mono text-xs">{format(new Date(d.time), 'HH:mm:ss.SSS')}</TableCell>
+                                                    <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                                                    <TableCell className="text-right">{d.volume}</TableCell>
+                                                </TableRow>
+                                            )) : (
+                                                <TableRow key="streaming-placeholder">
+                                                    <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                                                        {isTradingActive ? 'Streaming is paused.' : isStreaming ? 'Connecting to stream...' : 'Start stream to see live data.'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </Card>
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                            <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
-                            <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 || isTradingActive}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Clear
-                            </Button>
-                        </CardTitle>
-                        <CardDescription>Review data saved from your streams and view AI-generated reports.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <h3 className="text-sm font-medium text-muted-foreground">Saved Stream Data ({savedData.length} points)</h3>
-                         <div className="h-64 overflow-y-auto border rounded-md">
-                            <Table>
-                                <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
-                                    <TableRow>
-                                        <TableHead>Time</TableHead>
-                                        <TableHead>Price (USD)</TableHead>
-                                        <TableHead className="text-right">Volume</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
-                                         <TableRow key={d.id}>
-                                            <TableCell className="font-mono text-xs">{format(new Date(d.time), 'yyyy-MM-dd HH:mm:ss')}</TableCell>
-                                            <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                                            <TableCell className="text-right">{d.volume}</TableCell>
-                                        </TableRow>
-                                    )) : (
-                                         <TableRow key="saved-data-placeholder">
-                                            <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
-                                                No data saved yet. Start a stream to collect data.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <div className="border-t pt-4">
-                             <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports</h3>
-                             <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
-                                 <p>AI-generated reports will be displayed here.</p>
-                             </div>
-                        </div>
-                    </CardContent>
+                    <Collapsible open={isSavedCardOpen} onOpenChange={setSavedCardOpen}>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div className="flex-1">
+                                <CardTitle className="flex items-center justify-between">
+                                    <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
+                                    <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 || isTradingActive}>
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Clear
+                                    </Button>
+                                </CardTitle>
+                                <CardDescription>Review data saved from your streams and view AI-generated reports.</CardDescription>
+                            </div>
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 ml-4">
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isSavedCardOpen && "rotate-180")} />
+                                    <span className="sr-only">Toggle</span>
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardHeader>
+                        <CollapsibleContent>
+                            <CardContent className="space-y-4">
+                                <h3 className="text-sm font-medium text-muted-foreground">Saved Stream Data ({savedData.length} points)</h3>
+                                <div className="h-64 overflow-y-auto border rounded-md">
+                                    <Table>
+                                        <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
+                                            <TableRow>
+                                                <TableHead>Time</TableHead>
+                                                <TableHead>Price (USD)</TableHead>
+                                                <TableHead className="text-right">Volume</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
+                                                <TableRow key={d.id}>
+                                                    <TableCell className="font-mono text-xs">{format(new Date(d.time), 'yyyy-MM-dd HH:mm:ss')}</TableCell>
+                                                    <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
+                                                    <TableCell className="text-right">{d.volume}</TableCell>
+                                                </TableRow>
+                                            )) : (
+                                                <TableRow key="saved-data-placeholder">
+                                                    <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
+                                                        No data saved yet. Start a stream to collect data.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                <div className="border-t pt-4">
+                                    <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports</h3>
+                                    <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
+                                        <p>AI-generated reports will be displayed here.</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </Card>
             </div>
         </div>

@@ -26,13 +26,15 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown } from "lucide-react"
 import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { cn } from "@/lib/utils"
 
 export default function ManualTradingPage() {
   const { isConnected } = useApi();
@@ -61,6 +63,11 @@ export default function ManualTradingPage() {
   const [stopLoss, setStopLoss] = useState<number>(1);
   const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(false);
+
+  // Collapsible states
+  const [isGeneratorOpen, setGeneratorOpen] = useState(true);
+  const [isSignalOpen, setSignalOpen] = useState(true);
+  const [isLogsOpen, setLogsOpen] = useState(true);
   
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -168,251 +175,283 @@ export default function ManualTradingPage() {
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
-          <CardHeader>
-             <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><ClipboardCheck/> Manual Signal Generator</div>
-            </CardTitle>
-            <CardDescription>Configure and generate a trade signal for manual execution.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="base-asset">Base Asset</Label>
-                  <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {topAssets.map(asset => (
-                        <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="quote-asset">Quote Asset</Label>
-                  <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isAnalyzing || hasActiveSignal || availableQuotes.length === 0}>
-                    <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                       {availableQuotes.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={handleIntervalChange} value={interval} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1m">1 Minute</SelectItem>
-                      <SelectItem value="5m">5 Minutes</SelectItem>
-                      <SelectItem value="15m">15 Minutes</SelectItem>
-                      <SelectItem value="1h">1 Hour</SelectItem>
-                      <SelectItem value="4h">4 Hours</SelectItem>
-                      <SelectItem value="1d">1 Day</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {strategies.map(strategy => (
-                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-            </div>
-             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="initial-capital">Capital ($)</Label>
-                    <Input 
-                        id="initial-capital" 
-                        type="number" 
-                        value={initialCapital}
-                        onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                        placeholder="100"
-                        disabled={isAnalyzing || hasActiveSignal}
-                    />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="leverage">Leverage (x)</Label>
-                  <Input
-                    id="leverage"
-                    type="number"
-                    min="1"
-                    value={leverage}
-                    onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
-                    placeholder="10"
-                    disabled={isAnalyzing || hasActiveSignal}
-                  />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="fee">Fee (%)</Label>
-                    <Input 
-                        id="fee" 
-                        type="number" 
-                        value={fee}
-                        onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
-                        placeholder="0.04"
-                        disabled={isAnalyzing || hasActiveSignal}
-                    />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="take-profit">Take Profit (%)</Label>
-                    <Input 
-                        id="take-profit" 
-                        type="number" 
-                        value={takeProfit}
-                        onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
-                        placeholder="2"
-                        disabled={isAnalyzing || hasActiveSignal}
-                    />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="stop-loss">Stop Loss (%)</Label>
-                    <Input 
-                        id="stop-loss" 
-                        type="number" 
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
-                        placeholder="1"
-                        disabled={isAnalyzing || hasActiveSignal}
-                    />
-                </div>
-            </div>
-            <div className="space-y-2">
-              <Label>AI-Powered Analysis</Label>
-              <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isAnalyzing || hasActiveSignal} />
-                <div className="flex flex-col">
-                    <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                    <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
-                </div>
+          <Collapsible open={isGeneratorOpen} onOpenChange={setGeneratorOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2"><ClipboardCheck/> Manual Signal Generator</CardTitle>
+                <CardDescription>Configure and generate a trade signal for manual execution.</CardDescription>
               </div>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button
-                className="w-full"
-                onClick={
-                    isAnalyzing ? handleCancelAnalysis :
-                    hasActiveSignal ? handleResetSignal : 
-                    handleRunAnalysis
-                }
-                disabled={!isConnected || (isTradingActive && !isThisPageTrading)}
-                variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
-            >
-                {isAnalyzing ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Cancel Analysis
-                    </>
-                ) : hasActiveSignal ? (
-                     <>
-                        <RotateCcw className="mr-2 h-4 w-4" />
-                        Reset Signal
-                    </>
-                ) : (
-                    <>
-                        <Wand2 className="mr-2 h-4 w-4" />
-                        Analyze for Signal
-                    </>
-                )}
-            </Button>
-          </CardFooter>
+              <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isGeneratorOpen && "rotate-180")} />
+                      <span className="sr-only">Toggle</span>
+                  </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="base-asset">Base Asset</Label>
+                      <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isAnalyzing || hasActiveSignal}>
+                        <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {topAssets.map(asset => (
+                            <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quote-asset">Quote Asset</Label>
+                      <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isAnalyzing || hasActiveSignal || availableQuotes.length === 0}>
+                        <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {availableQuotes.map(asset => (
+                            <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="interval">Interval</Label>
+                      <Select onValueChange={handleIntervalChange} value={interval} disabled={isAnalyzing || hasActiveSignal}>
+                        <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1m">1 Minute</SelectItem>
+                          <SelectItem value="5m">5 Minutes</SelectItem>
+                          <SelectItem value="15m">15 Minutes</SelectItem>
+                          <SelectItem value="1h">1 Hour</SelectItem>
+                          <SelectItem value="4h">4 Hours</SelectItem>
+                          <SelectItem value="1d">1 Day</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="strategy">Strategy</Label>
+                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing || hasActiveSignal}>
+                        <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {strategies.map(strategy => (
+                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="initial-capital">Capital ($)</Label>
+                        <Input 
+                            id="initial-capital" 
+                            type="number" 
+                            value={initialCapital}
+                            onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                            placeholder="100"
+                            disabled={isAnalyzing || hasActiveSignal}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="leverage">Leverage (x)</Label>
+                      <Input
+                        id="leverage"
+                        type="number"
+                        min="1"
+                        value={leverage}
+                        onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                        placeholder="10"
+                        disabled={isAnalyzing || hasActiveSignal}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fee">Fee (%)</Label>
+                        <Input 
+                            id="fee" 
+                            type="number" 
+                            value={fee}
+                            onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                            placeholder="0.04"
+                            disabled={isAnalyzing || hasActiveSignal}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="take-profit">Take Profit (%)</Label>
+                        <Input 
+                            id="take-profit" 
+                            type="number" 
+                            value={takeProfit}
+                            onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
+                            placeholder="2"
+                            disabled={isAnalyzing || hasActiveSignal}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                        <Input 
+                            id="stop-loss" 
+                            type="number" 
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
+                            placeholder="1"
+                            disabled={isAnalyzing || hasActiveSignal}
+                        />
+                    </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>AI-Powered Analysis</Label>
+                  <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
+                    <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isAnalyzing || hasActiveSignal} />
+                    <div className="flex flex-col">
+                        <Label htmlFor="ai-prediction">Enable AI Validation</Label>
+                        <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button
+                    className="w-full"
+                    onClick={
+                        isAnalyzing ? handleCancelAnalysis :
+                        hasActiveSignal ? handleResetSignal : 
+                        handleRunAnalysis
+                    }
+                    disabled={!isConnected || (isTradingActive && !isThisPageTrading)}
+                    variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
+                >
+                    {isAnalyzing ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Cancel Analysis
+                        </>
+                    ) : hasActiveSignal ? (
+                        <>
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Reset Signal
+                        </>
+                    ) : (
+                        <>
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            Analyze for Signal
+                        </>
+                    )}
+                </Button>
+              </CardFooter>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
         
         <Card>
-            <CardHeader>
+          <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
                 <CardTitle>Trade Signal</CardTitle>
-                 <CardDescription>
+                <CardDescription>
                     {signal ? `Signal for ${symbol} generated at ${signal.timestamp.toLocaleTimeString()}` : "Signals will appear here after analysis."}
                 </CardDescription>
+              </div>
+              <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isSignalOpen && "rotate-180")} />
+                      <span className="sr-only">Toggle</span>
+                  </Button>
+              </CollapsibleTrigger>
             </CardHeader>
-            <CardContent className="min-h-[240px]">
-                {isAnalyzing ? (
-                    <div className="flex items-center justify-center h-full text-muted-foreground">
-                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                        <span>Searching for a trade setup...</span>
-                    </div>
-                ) : signal ? (
-                    <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Recommended Action</span>
-                            <Badge variant={signal.action === 'UP' ? 'default' : 'destructive'} className="text-base px-4 py-1">
-                                {signal.action === 'UP' ? 'BUY / LONG' : 'SELL / SHORT'}
-                            </Badge>
-                        </div>
-                        <Separator/>
-                        <div className="grid gap-2 text-sm">
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Entry Price (approx.)</span>
-                                <span className="font-mono">${signal.entryPrice.toFixed(4)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Stop Loss</span>
-                                <span className="font-mono text-red-500">${signal.stopLoss.toFixed(4)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Take Profit</span>
-                                <span className="font-mono text-green-500">${signal.takeProfit.toFixed(4)}</span>
-                            </div>
-                        </div>
-                        <Separator/>
-                        <div className="grid gap-2 text-sm">
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Est. Position Value</span>
-                                <span className="font-mono">${positionValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                            </div>
-                             <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Est. Total Fee</span>
-                                <span className="font-mono">${totalFee.toFixed(4)}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-muted-foreground">Net PNL at TP</span>
-                                <span className="font-mono font-semibold text-green-500">${netPnl.toFixed(4)}</span>
-                            </div>
-                        </div>
-                        
-                        <Separator />
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-medium">{useAIPrediction ? "AI Analysis" : "Signal Rationale"}</h4>
-                            {useAIPrediction && (
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Confidence</span>
-                                    <span className="font-mono font-semibold">{(signal.confidence * 100).toFixed(1)}%</span>
-                                </div>
-                            )}
-                            <p className="text-xs text-muted-foreground pt-1">{signal.reasoning}</p>
-                        </div>
-                    </div>
-                ) : (
-                     <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                         <p>Click "Analyze for Signal" to get a recommendation.</p>
-                    </div>
-                )}
-            </CardContent>
+            <CollapsibleContent>
+              <CardContent className="min-h-[240px]">
+                  {isAnalyzing ? (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                          <span>Searching for a trade setup...</span>
+                      </div>
+                  ) : signal ? (
+                      <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                              <span className="text-sm text-muted-foreground">Recommended Action</span>
+                              <Badge variant={signal.action === 'UP' ? 'default' : 'destructive'} className="text-base px-4 py-1">
+                                  {signal.action === 'UP' ? 'BUY / LONG' : 'SELL / SHORT'}
+                              </Badge>
+                          </div>
+                          <Separator/>
+                          <div className="grid gap-2 text-sm">
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Entry Price (approx.)</span>
+                                  <span className="font-mono">${signal.entryPrice.toFixed(4)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Stop Loss</span>
+                                  <span className="font-mono text-red-500">${signal.stopLoss.toFixed(4)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Take Profit</span>
+                                  <span className="font-mono text-green-500">${signal.takeProfit.toFixed(4)}</span>
+                              </div>
+                          </div>
+                          <Separator/>
+                          <div className="grid gap-2 text-sm">
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Est. Position Value</span>
+                                  <span className="font-mono">${positionValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Est. Total Fee</span>
+                                  <span className="font-mono">${totalFee.toFixed(4)}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                  <span className="text-muted-foreground">Net PNL at TP</span>
+                                  <span className="font-mono font-semibold text-green-500">${netPnl.toFixed(4)}</span>
+                              </div>
+                          </div>
+                          
+                          <Separator />
+                          <div className="space-y-2">
+                              <h4 className="text-sm font-medium">{useAIPrediction ? "AI Analysis" : "Signal Rationale"}</h4>
+                              {useAIPrediction && (
+                                  <div className="flex justify-between items-center text-sm">
+                                      <span className="text-muted-foreground">Confidence</span>
+                                      <span className="font-mono font-semibold">{(signal.confidence * 100).toFixed(1)}%</span>
+                                  </div>
+                              )}
+                              <p className="text-xs text-muted-foreground pt-1">{signal.reasoning}</p>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                          <p>Click "Analyze for Signal" to get a recommendation.</p>
+                      </div>
+                  )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
         
         <Card>
-            <CardHeader>
+          <Collapsible open={isLogsOpen} onOpenChange={setLogsOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="flex items-center gap-2"><Activity/> Analysis Logs</CardTitle>
+                <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isLogsOpen && "rotate-180")} />
+                        <span className="sr-only">Toggle</span>
+                    </Button>
+                </CollapsibleTrigger>
             </CardHeader>
-            <CardContent>
-                <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
-                    {logs.length > 0 ? (
-                        <pre className="text-xs whitespace-pre-wrap font-mono">
-                            {logs.join('\n')}
-                        </pre>
-                    ) : (
-                         <div className="flex items-center justify-center h-full text-muted-foreground">
-                            <p>Logs from the analysis will appear here.</p>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
+            <CollapsibleContent>
+              <CardContent>
+                  <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
+                      {logs.length > 0 ? (
+                          <pre className="text-xs whitespace-pre-wrap font-mono">
+                              {logs.join('\n')}
+                          </pre>
+                      ) : (
+                          <div className="flex items-center justify-center h-full text-muted-foreground">
+                              <p>Logs from the analysis will appear here.</p>
+                          </div>
+                      )}
+                  </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
       </div>

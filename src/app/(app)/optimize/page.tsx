@@ -14,9 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BrainCircuit, Loader2, Wand2, Bot } from "lucide-react";
+import { BrainCircuit, Loader2, Wand2, Bot, ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 
 const historicalDataPlaceholder = `Date,Open,High,Low,Close,Volume
 2023-01-01,16541.7,16632.4,16518.4,16625.1,149999
@@ -34,6 +36,8 @@ export default function OptimizePage() {
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
   const { isTradingActive } = useBot();
+  const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(true);
+  const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(true);
 
   const form = useForm<z.infer<typeof strategySchema>>({
     resolver: zodResolver(strategySchema),
@@ -49,6 +53,7 @@ export default function OptimizePage() {
       try {
         const validationResult = await validateStrategy(values);
         setResult(validationResult);
+        setFeedbackCardOpen(true);
       } catch (error) {
         console.error("Error validating strategy:", error);
         toast({
@@ -82,55 +87,67 @@ export default function OptimizePage() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Analyze Your Strategy</CardTitle>
-          <CardDescription>
-            Provide your strategy parameters and historical data for the AI to analyze.
-          </CardDescription>
-        </CardHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="strategyParameters"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Strategy Parameters</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="e.g., Strategy: RSI, Parameters: period=14, overbought=70, oversold=30" {...field} disabled={isTradingActive} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="historicalData"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Historical Market Data (CSV format)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder={historicalDataPlaceholder}
-                        className="min-h-[200px] font-mono text-xs"
-                        {...field}
-                        disabled={isTradingActive}
-                      />
-                    </FormControl>
-                     <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" disabled={isPending || isTradingActive}>
-                {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                {isTradingActive ? "Trading Active..." : isPending ? "Analyzing..." : "Optimize Strategy"}
-              </Button>
-            </CardFooter>
-          </form>
-        </Form>
+        <Collapsible open={isAnalyzeCardOpen} onOpenChange={setAnalyzeCardOpen}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle>Analyze Your Strategy</CardTitle>
+              <CardDescription>
+                Provide your strategy parameters and historical data for the AI to analyze.
+              </CardDescription>
+            </div>
+            <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isAnalyzeCardOpen && "rotate-180")} />
+                    <span className="sr-only">Toggle</span>
+                </Button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="strategyParameters"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Strategy Parameters</FormLabel>
+                        <FormControl>
+                          <Textarea placeholder="e.g., Strategy: RSI, Parameters: period=14, overbought=70, oversold=30" {...field} disabled={isTradingActive} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="historicalData"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Historical Market Data (CSV format)</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={historicalDataPlaceholder}
+                            className="min-h-[200px] font-mono text-xs"
+                            {...field}
+                            disabled={isTradingActive}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+                <CardFooter>
+                  <Button type="submit" disabled={isPending || isTradingActive}>
+                    {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    {isTradingActive ? "Trading Active..." : isPending ? "Analyzing..." : "Optimize Strategy"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Form>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
       
       {isPending && (
@@ -149,14 +166,24 @@ export default function OptimizePage() {
 
       {result && (
         <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-primary">Optimization Feedback</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="prose prose-invert max-w-none">
-              <p>{result.feedback}</p>
-            </div>
-          </CardContent>
+          <Collapsible open={isFeedbackCardOpen} onOpenChange={setFeedbackCardOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-primary">Optimization Feedback</CardTitle>
+              <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isFeedbackCardOpen && "rotate-180")} />
+                      <span className="sr-only">Toggle</span>
+                  </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent>
+                <div className="prose prose-invert max-w-none">
+                  <p>{result.feedback}</p>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
       )}
     </div>

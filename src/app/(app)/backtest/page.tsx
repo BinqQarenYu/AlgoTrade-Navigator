@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -39,6 +39,7 @@ import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface DateRange {
   from?: Date;
@@ -67,7 +68,6 @@ export default function BacktestPage() {
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
 
-
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
@@ -75,7 +75,7 @@ export default function BacktestPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
-
+  const [isControlsOpen, setControlsOpen] = useState(true);
 
   useEffect(() => {
     setIsClient(true)
@@ -606,238 +606,250 @@ export default function BacktestPage() {
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Backtest Controls</CardTitle>
-            <CardDescription>Configure your backtesting parameters.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="base-asset">Base</Label>
-                  <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading}>
-                    <SelectTrigger id="base-asset">
-                      <SelectValue placeholder="Select asset" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {topAssets.map(asset => (
-                        <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quote-asset">Quote</Label>
-                  <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0}>
-                    <SelectTrigger id="quote-asset">
-                      <SelectValue placeholder="Select asset" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableQuotes.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="strategy">Strategy</Label>
-                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
-                    <SelectTrigger id="strategy">
-                      <SelectValue placeholder="Select strategy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {strategies.map(strategy => (
-                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}>
-                    <SelectTrigger id="interval">
-                      <SelectValue placeholder="Select interval" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1m">1 Minute</SelectItem>
-                      <SelectItem value="5m">5 Minutes</SelectItem>
-                      <SelectItem value="15m">15 Minutes</SelectItem>
-                      <SelectItem value="1h">1 Hour</SelectItem>
-                      <SelectItem value="4h">4 Hours</SelectItem>
-                      <SelectItem value="1d">1 Day</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-            </div>
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                 <div className="space-y-2">
-                    <Label htmlFor="initial-capital">Initial Capital ($)</Label>
-                    <Input 
-                        id="initial-capital" 
-                        type="number" 
-                        value={initialCapital}
-                        onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                        placeholder="10000"
-                        disabled={anyLoading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="leverage">Leverage (x)</Label>
-                    <Input 
-                        id="leverage" 
-                        type="number" 
-                        value={leverage}
-                        onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
-                        placeholder="10"
-                        min="1"
-                        disabled={anyLoading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="fee">Fee (%)</Label>
-                    <Input 
-                        id="fee" 
-                        type="number" 
-                        value={fee}
-                        onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
-                        placeholder="0.04"
-                        disabled={anyLoading}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="take-profit">Take Profit (%)</Label>
-                    <Input 
-                        id="take-profit" 
-                        type="number" 
-                        value={takeProfit}
-                        onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
-                        placeholder="5"
-                        disabled={anyLoading}
-                    />
-                </div>
-                 <div className="space-y-2">
-                    <Label htmlFor="stop-loss">Stop Loss (%)</Label>
-                    <Input 
-                        id="stop-loss" 
-                        type="number" 
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
-                        placeholder="2"
-                        disabled={anyLoading}
-                    />
-                </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>AI-Powered Analysis</Label>
-              <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading} />
-                    <div className="flex flex-col">
-                        <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
-                        <p className="text-xs text-muted-foreground">Let an AI validate each signal. This is more accurate but significantly slower.</p>
-                    </div>
-                  </div>
-                  {useAIValidation && (
-                      <>
-                          <div className="border-b -mx-3"></div>
-                          <div className="space-y-2 pt-4">
-                          <Label htmlFor="max-ai-validations">Max Validations Per Run</Label>
-                          <Input 
-                              id="max-ai-validations" 
-                              type="number" 
-                              value={maxAiValidations}
-                              onChange={(e) => setMaxAiValidations(parseInt(e.target.value, 10) || 0)}
-                              placeholder="20"
-                              disabled={anyLoading}
-                          />
-                          <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas (e.g., free tier is 50/day).</p>
-                          </div>
-                      </>
-                  )}
+          <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Backtest Controls</CardTitle>
+                <CardDescription>Configure your backtesting parameters.</CardDescription>
               </div>
-            </div>
-
-            <div className="space-y-2">
-               <Label>Date range</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !date && "text-muted-foreground"
-                      )}
-                      disabled={!isConnected || anyLoading}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {isClient && date?.from ? (
-                        date.to ? (
-                          <>
-                            {format(date.from, "LLL dd, y")} -{" "}
-                            {format(date.to, "LLL dd, y")}
-                          </>
-                        ) : (
-                          format(date.from, "LLL dd, y")
-                        )
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto flex p-0" align="start">
-                    <div className="flex flex-col space-y-1 border-r p-3">
-                        <div className="px-1 pb-1">
-                            <h4 className="font-medium text-sm text-muted-foreground">Presets</h4>
-                        </div>
-                        <div className="flex flex-col items-start space-y-1">
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start font-normal h-8 px-2"
-                                onClick={() => setDate({ from: new Date(), to: new Date() })}
-                            >
-                                Today
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start font-normal h-8 px-2"
-                                onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
-                            >
-                                Last 7 Days
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start font-normal h-8 px-2"
-                                onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
-                            >
-                                Last 30 Days
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start font-normal h-8 px-2"
-                                onClick={() => setDate({ from: date?.from, to: new Date() })}
-                            >
-                                Until Today
-                            </Button>
-                        </div>
+              <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
+                      <span className="sr-only">Toggle</span>
+                  </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="base-asset">Base</Label>
+                      <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading}>
+                        <SelectTrigger id="base-asset">
+                          <SelectValue placeholder="Select asset" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {topAssets.map(asset => (
+                            <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={date?.from}
-                      selected={date}
-                      onSelect={setDate}
-                      numberOfMonths={2}
-                    />
-                  </PopoverContent>
-                </Popover>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive}>
-              {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
-            </Button>
-          </CardFooter>
+                    <div className="space-y-2">
+                      <Label htmlFor="quote-asset">Quote</Label>
+                      <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0}>
+                        <SelectTrigger id="quote-asset">
+                          <SelectValue placeholder="Select asset" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableQuotes.map(asset => (
+                            <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="strategy">Strategy</Label>
+                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                        <SelectTrigger id="strategy">
+                          <SelectValue placeholder="Select strategy" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {strategies.map(strategy => (
+                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="interval">Interval</Label>
+                      <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}>
+                        <SelectTrigger id="interval">
+                          <SelectValue placeholder="Select interval" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1m">1 Minute</SelectItem>
+                          <SelectItem value="5m">5 Minutes</SelectItem>
+                          <SelectItem value="15m">15 Minutes</SelectItem>
+                          <SelectItem value="1h">1 Hour</SelectItem>
+                          <SelectItem value="4h">4 Hours</SelectItem>
+                          <SelectItem value="1d">1 Day</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="initial-capital">Initial Capital ($)</Label>
+                        <Input 
+                            id="initial-capital" 
+                            type="number" 
+                            value={initialCapital}
+                            onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                            placeholder="10000"
+                            disabled={anyLoading}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="leverage">Leverage (x)</Label>
+                        <Input 
+                            id="leverage" 
+                            type="number" 
+                            value={leverage}
+                            onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                            placeholder="10"
+                            min="1"
+                            disabled={anyLoading}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="fee">Fee (%)</Label>
+                        <Input 
+                            id="fee" 
+                            type="number" 
+                            value={fee}
+                            onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                            placeholder="0.04"
+                            disabled={anyLoading}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="take-profit">Take Profit (%)</Label>
+                        <Input 
+                            id="take-profit" 
+                            type="number" 
+                            value={takeProfit}
+                            onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
+                            placeholder="5"
+                            disabled={anyLoading}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                        <Input 
+                            id="stop-loss" 
+                            type="number" 
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
+                            placeholder="2"
+                            disabled={anyLoading}
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>AI-Powered Analysis</Label>
+                  <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                      <div className="flex items-center space-x-2">
+                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading} />
+                        <div className="flex flex-col">
+                            <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
+                            <p className="text-xs text-muted-foreground">Let an AI validate each signal. This is more accurate but significantly slower.</p>
+                        </div>
+                      </div>
+                      {useAIValidation && (
+                          <>
+                              <div className="border-b -mx-3"></div>
+                              <div className="space-y-2 pt-4">
+                              <Label htmlFor="max-ai-validations">Max Validations Per Run</Label>
+                              <Input 
+                                  id="max-ai-validations" 
+                                  type="number" 
+                                  value={maxAiValidations}
+                                  onChange={(e) => setMaxAiValidations(parseInt(e.target.value, 10) || 0)}
+                                  placeholder="20"
+                                  disabled={anyLoading}
+                              />
+                              <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas (e.g., free tier is 50/day).</p>
+                              </div>
+                          </>
+                      )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Date range</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                          )}
+                          disabled={!isConnected || anyLoading}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {isClient && date?.from ? (
+                            date.to ? (
+                              <>
+                                {format(date.from, "LLL dd, y")} -{" "}
+                                {format(date.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(date.from, "LLL dd, y")
+                            )
+                          ) : (
+                            <span>Pick a date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto flex p-0" align="start">
+                        <div className="flex flex-col space-y-1 border-r p-3">
+                            <div className="px-1 pb-1">
+                                <h4 className="font-medium text-sm text-muted-foreground">Presets</h4>
+                            </div>
+                            <div className="flex flex-col items-start space-y-1">
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start font-normal h-8 px-2"
+                                    onClick={() => setDate({ from: new Date(), to: new Date() })}
+                                >
+                                    Today
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start font-normal h-8 px-2"
+                                    onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
+                                >
+                                    Last 7 Days
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start font-normal h-8 px-2"
+                                    onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
+                                >
+                                    Last 30 Days
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    className="w-full justify-start font-normal h-8 px-2"
+                                    onClick={() => setDate({ from: date?.from, to: new Date() })}
+                                >
+                                    Until Today
+                                </Button>
+                            </div>
+                        </div>
+                        <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={date?.from}
+                          selected={date}
+                          onSelect={setDate}
+                          numberOfMonths={2}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                </div>
+              </CardContent>
+              <CardFooter>
+                <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive}>
+                  {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isBacktesting ? "Running..." : "Run Backtest"}
+                </Button>
+              </CardFooter>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
         <BacktestResults 
           results={backtestResults} 

@@ -1,8 +1,16 @@
+
+"use client"
+
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Position } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type OpenPositionsProps = {
   positions: Position[];
@@ -25,55 +33,67 @@ const OpenPositionsSkeleton = () => (
 
 
 export function OpenPositions({ positions, isLoading }: OpenPositionsProps) {
+  const [isOpen, setIsOpen] = useState(true);
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Open Positions</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Symbol</TableHead>
-              <TableHead>Side</TableHead>
-              <TableHead>Size</TableHead>
-              <TableHead>Entry Price</TableHead>
-              <TableHead>Mark Price</TableHead>
-              <TableHead>Leverage</TableHead>
-              <TableHead className="text-right">PNL (USD)</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <OpenPositionsSkeleton />
-            ) : positions.length > 0 ? (
-                positions.map((pos) => (
-                  <TableRow key={pos.symbol}>
-                    <TableCell className="font-medium">{pos.symbol}</TableCell>
-                    <TableCell>
-                      <Badge variant={pos.side === 'LONG' ? "default" : "destructive"}>
-                        {pos.side}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{pos.size}</TableCell>
-                    <TableCell>${pos.entryPrice.toLocaleString()}</TableCell>
-                    <TableCell>${pos.markPrice.toLocaleString()}</TableCell>
-                    <TableCell>{pos.leverage}</TableCell>
-                    <TableCell className={`text-right font-medium ${pos.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                      {pos.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : (
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Open Positions</CardTitle>
+           <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle</span>
+              </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent>
+            <Table>
+              <TableHeader>
                 <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
-                        No open positions
-                    </TableCell>
+                  <TableHead>Symbol</TableHead>
+                  <TableHead>Side</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Entry Price</TableHead>
+                  <TableHead>Mark Price</TableHead>
+                  <TableHead>Leverage</TableHead>
+                  <TableHead className="text-right">PNL (USD)</TableHead>
                 </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <OpenPositionsSkeleton />
+                ) : positions.length > 0 ? (
+                    positions.map((pos) => (
+                      <TableRow key={pos.symbol}>
+                        <TableCell className="font-medium">{pos.symbol}</TableCell>
+                        <TableCell>
+                          <Badge variant={pos.side === 'LONG' ? "default" : "destructive"}>
+                            {pos.side}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{pos.size}</TableCell>
+                        <TableCell>${pos.entryPrice.toLocaleString()}</TableCell>
+                        <TableCell>${pos.markPrice.toLocaleString()}</TableCell>
+                        <TableCell>{pos.leverage}</TableCell>
+                        <TableCell className={`text-right font-medium ${pos.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {pos.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                ) : (
+                    <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
+                            No open positions
+                        </TableCell>
+                    </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }

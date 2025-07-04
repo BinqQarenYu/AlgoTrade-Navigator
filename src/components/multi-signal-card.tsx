@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,6 +10,9 @@ import { Separator } from "./ui/separator";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { parseSymbolString } from "@/lib/assets";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
+import { Button } from "./ui/button";
+import { ChevronDown } from "lucide-react";
 
 interface MultiSignalCardProps {
   asset: string;
@@ -17,6 +20,8 @@ interface MultiSignalCardProps {
 }
 
 export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
+    const [isOpen, setIsOpen] = useState(true);
+
     const displaySymbol = useMemo(() => {
         const parsed = parseSymbolString(asset);
         return parsed ? `${parsed.base}/${parsed.quote}` : asset;
@@ -105,19 +110,31 @@ export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
 
     return (
         <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                    <span>{displaySymbol}</span>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-normal text-muted-foreground capitalize">{result?.status?.replace('_', ' ') || 'Idle'}</span>
-                        <span className={cn("h-2.5 w-2.5 rounded-full", getStatusColor(result?.status))} />
+            <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+                <CardHeader className="flex flex-row items-start justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2">
+                            <span>{displaySymbol}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-normal text-muted-foreground capitalize">{result?.status?.replace('_', ' ') || 'Idle'}</span>
+                                <span className={cn("h-2.5 w-2.5 rounded-full", getStatusColor(result?.status))} />
+                            </div>
+                        </CardTitle>
+                        {result?.signal && <CardDescription>{result.signal.strategy} on {new Date(result.signal.timestamp).toLocaleTimeString()}</CardDescription>}
                     </div>
-                </CardTitle>
-                {result?.signal && <CardDescription>{result.signal.strategy} on {new Date(result.signal.timestamp).toLocaleTimeString()}</CardDescription>}
-            </CardHeader>
-            <CardContent className="min-h-[180px]">
-                {renderContent()}
-            </CardContent>
+                     <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 -mt-1">
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                            <span className="sr-only">Toggle</span>
+                        </Button>
+                    </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                    <CardContent className="min-h-[180px]">
+                        {renderContent()}
+                    </CardContent>
+                </CollapsibleContent>
+            </Collapsible>
         </Card>
     );
 }

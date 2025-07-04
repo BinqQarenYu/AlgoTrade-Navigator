@@ -14,10 +14,12 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
 import { topBases, pairsByBase, assetInfo } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { cn } from "@/lib/utils"
 
 export default function MultiSignalPage() {
     const { toast } = useToast();
@@ -36,6 +38,8 @@ export default function MultiSignalPage() {
     const [takeProfit, setTakeProfit] = useState(2);
     const [stopLoss, setStopLoss] = useState(1);
     const [useAIPrediction, setUseAIPrediction] = useState(false);
+    const [isConfigOpen, setConfigOpen] = useState(true);
+    const [isDashboardOpen, setDashboardOpen] = useState(true);
 
     const handleAssetToggle = (asset: string) => {
         setSelectedAssets(prev => 
@@ -84,112 +88,136 @@ export default function MultiSignalPage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
                 <Card className="lg:col-span-1">
-                    <CardHeader>
-                        <CardTitle>Configuration</CardTitle>
-                        <CardDescription>Set up the parameters for the signal monitor.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>Assets to Monitor</Label>
-                            <ScrollArea className="h-60 w-full rounded-md border p-4">
-                                <div className="space-y-4">
-                                    {topBases.map((base) => {
-                                        const quotes = pairsByBase[base] || [];
-                                        if (quotes.length === 0) return null;
+                    <Collapsible open={isConfigOpen} onOpenChange={setConfigOpen}>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>Configuration</CardTitle>
+                                <CardDescription>Set up the parameters for the signal monitor.</CardDescription>
+                            </div>
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
+                                    <span className="sr-only">Toggle</span>
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardHeader>
+                        <CollapsibleContent>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label>Assets to Monitor</Label>
+                                    <ScrollArea className="h-60 w-full rounded-md border p-4">
+                                        <div className="space-y-4">
+                                            {topBases.map((base) => {
+                                                const quotes = pairsByBase[base] || [];
+                                                if (quotes.length === 0) return null;
 
-                                        return (
-                                            <div key={base}>
-                                                <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
-                                                <div className="grid grid-cols-3 gap-x-4 gap-y-2 pl-2">
-                                                    {quotes.map(quote => {
-                                                        const symbol = `${base}${quote}`;
-                                                        return (
-                                                            <div key={symbol} className="flex items-center space-x-2">
-                                                                <Checkbox
-                                                                    id={symbol}
-                                                                    checked={selectedAssets.includes(symbol)}
-                                                                    onCheckedChange={() => handleAssetToggle(symbol)}
-                                                                    disabled={isRunning}
-                                                                />
-                                                                <Label htmlFor={symbol} className="font-normal text-muted-foreground">{quote}</Label>
-                                                            </div>
-                                                        )
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )
-                                    })}
+                                                return (
+                                                    <div key={base}>
+                                                        <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
+                                                        <div className="grid grid-cols-3 gap-x-4 gap-y-2 pl-2">
+                                                            {quotes.map(quote => {
+                                                                const symbol = `${base}${quote}`;
+                                                                return (
+                                                                    <div key={symbol} className="flex items-center space-x-2">
+                                                                        <Checkbox
+                                                                            id={symbol}
+                                                                            checked={selectedAssets.includes(symbol)}
+                                                                            onCheckedChange={() => handleAssetToggle(symbol)}
+                                                                            disabled={isRunning}
+                                                                        />
+                                                                        <Label htmlFor={symbol} className="font-normal text-muted-foreground">{quote}</Label>
+                                                                    </div>
+                                                                )
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </ScrollArea>
                                 </div>
-                            </ScrollArea>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="interval">Interval</Label>
-                            <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
-                                <SelectTrigger id="interval"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="1m">1 Minute</SelectItem>
-                                    <SelectItem value="5m">5 Minutes</SelectItem>
-                                    <SelectItem value="15m">15 Minutes</SelectItem>
-                                    <SelectItem value="1h">1 Hour</SelectItem>
-                                    <SelectItem value="4h">4 Hours</SelectItem>
-                                    <SelectItem value="1d">1 Day</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="strategy">Strategy</Label>
-                            <Select onValueChange={setStrategy} value={strategy} disabled={isRunning}>
-                                <SelectTrigger id="strategy"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    {strategies.map(strategy => (
-                                        <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                         <div className="grid grid-cols-2 gap-4">
-                             <div className="space-y-2">
-                                <Label htmlFor="take-profit">Take Profit (%)</Label>
-                                <Input id="take-profit" type="number" value={takeProfit} onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)} disabled={isRunning} />
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="stop-loss">Stop Loss (%)</Label>
-                                <Input id="stop-loss" type="number" value={stopLoss} onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)} disabled={isRunning} />
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-2 pt-2">
-                            <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
-                            <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                        </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="interval">Interval</Label>
+                                    <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
+                                        <SelectTrigger id="interval"><SelectValue/></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="1m">1 Minute</SelectItem>
+                                            <SelectItem value="5m">5 Minutes</SelectItem>
+                                            <SelectItem value="15m">15 Minutes</SelectItem>
+                                            <SelectItem value="1h">1 Hour</SelectItem>
+                                            <SelectItem value="4h">4 Hours</SelectItem>
+                                            <SelectItem value="1d">1 Day</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="strategy">Strategy</Label>
+                                    <Select onValueChange={setStrategy} value={strategy} disabled={isRunning}>
+                                        <SelectTrigger id="strategy"><SelectValue/></SelectTrigger>
+                                        <SelectContent>
+                                            {strategies.map(strategy => (
+                                                <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="take-profit">Take Profit (%)</Label>
+                                        <Input id="take-profit" type="number" value={takeProfit} onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                                        <Input id="stop-loss" type="number" value={stopLoss} onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-2 pt-2">
+                                    <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
+                                    <Label htmlFor="ai-prediction">Enable AI Validation</Label>
+                                </div>
 
-                        <Button onClick={handleToggleMonitor} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
-                            {isRunning ? <StopCircle /> : <Play />}
-                            {isRunning ? "Stop Monitoring" : "Start Monitoring"}
-                        </Button>
-                    </CardContent>
+                                <Button onClick={handleToggleMonitor} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
+                                    {isRunning ? <StopCircle /> : <Play />}
+                                    {isRunning ? "Stop Monitoring" : "Start Monitoring"}
+                                </Button>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </Card>
 
                 <div className="lg:col-span-3">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>Signal Dashboard</CardTitle>
-                            <CardDescription>
-                                {isRunning ? `Monitoring ${monitoredAssets.length} assets...` : "Start the monitor to see live signals."}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {isRunning ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                                    {monitoredAssets.map(asset => (
-                                        <MultiSignalCard key={asset} asset={asset} result={results[asset]} />
-                                    ))}
+                        <Collapsible open={isDashboardOpen} onOpenChange={setDashboardOpen}>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Signal Dashboard</CardTitle>
+                                    <CardDescription>
+                                        {isRunning ? `Monitoring ${monitoredAssets.length} assets...` : "Start the monitor to see live signals."}
+                                    </CardDescription>
                                 </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-64 text-muted-foreground border border-dashed rounded-md">
-                                    <p>The signal dashboard is idle.</p>
-                                </div>
-                            )}
-                        </CardContent>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isDashboardOpen && "rotate-180")} />
+                                        <span className="sr-only">Toggle</span>
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent>
+                                    {isRunning ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                            {monitoredAssets.map(asset => (
+                                                <MultiSignalCard key={asset} asset={asset} result={results[asset]} />
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-64 text-muted-foreground border border-dashed rounded-md">
+                                            <p>The signal dashboard is idle.</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </Card>
                 </div>
             </div>
