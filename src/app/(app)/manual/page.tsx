@@ -100,26 +100,43 @@ export default function ManualTradingPage() {
       }
       setIsFetchingDetails(true);
       setCoinDetails(null);
+
       try {
-        let details: CoinDetails | null = null;
-        // Prefer CoinMarketCap if key is available
-        if (coinmarketcapApiKey) {
-            details = await getCoinDetailsByTickerFromCMC(baseAsset, coinmarketcapApiKey);
-            if(details) {
-                toast({ title: "Loaded from CoinMarketCap", description: "Asset intelligence is provided by CoinMarketCap." });
+        const [cmcDetails, cgDetails] = await Promise.all([
+          coinmarketcapApiKey ? getCoinDetailsByTickerFromCMC(baseAsset, coinmarketcapApiKey) : Promise.resolve(null),
+          getCoinDetailsByTicker(baseAsset, coingeckoApiKey) // Always fetch from CG for sentiment
+        ]);
+
+        let finalDetails: CoinDetails | null = null;
+
+        if (cmcDetails) {
+          // CMC is the primary source, enrich it with CoinGecko data
+          finalDetails = { ...cmcDetails };
+          if (cgDetails) {
+            finalDetails.sentimentUp = cgDetails.sentimentUp;
+            finalDetails.publicInterestScore = cgDetails.publicInterestScore;
+            // Use CoinGecko image if CMC one is missing
+            if (!finalDetails.image && cgDetails.image) {
+              finalDetails.image = cgDetails.image;
             }
-        } 
-        // Fallback to CoinGecko if CMC fails or key is not present
-        if (!details) {
-            details = await getCoinDetailsByTicker(baseAsset, coingeckoApiKey);
+          }
+          toast({ title: "Loaded from CoinMarketCap", description: "Asset intelligence enriched with CoinGecko data." });
+        } else if (cgDetails) {
+          // Fallback to CoinGecko if CMC fails or is not configured
+          finalDetails = cgDetails;
+          toast({ title: "Loaded from CoinGecko", description: "Using CoinGecko as the data source." });
         }
-        setCoinDetails(details);
+        
+        setCoinDetails(finalDetails);
+
       } catch (e) {
         console.error("Failed to fetch coin details", e);
+        toast({ title: "Error", description: "Could not fetch asset intelligence.", variant: "destructive" });
       } finally {
         setIsFetchingDetails(false);
       }
     };
+
     fetchDetails();
   }, [baseAsset, coingeckoApiKey, coinmarketcapApiKey, toast]);
   
