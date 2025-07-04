@@ -275,7 +275,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 toast({
                   title: "Trade Signal Invalidated",
                   description: "Market structure has changed. The trade idea is now void.",
-                  variant: "destructive"
+                  variant: "default"
                 });
              }, 0);
             addManualLog(`SIGNAL INVALIDATED: ${invalidationReason}`);
