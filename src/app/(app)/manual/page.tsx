@@ -376,19 +376,17 @@ export default function ManualTradingPage() {
                             </div>
                         </div>
                         
-                        {useAIPrediction && (
-                            <>
-                                <Separator />
-                                <div className="space-y-2">
-                                    <h4 className="text-sm font-medium">AI Analysis</h4>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-muted-foreground">Confidence</span>
-                                        <span className="font-semibold">{(signal.confidence * 100).toFixed(1)}%</span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground pt-1">{signal.reasoning}</p>
+                        <Separator />
+                        <div className="space-y-2">
+                            <h4 className="text-sm font-medium">{useAIPrediction ? "AI Analysis" : "Signal Rationale"}</h4>
+                            {useAIPrediction && (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Confidence</span>
+                                    <span className="font-mono font-semibold">{(signal.confidence * 100).toFixed(1)}%</span>
                                 </div>
-                            </>
-                        )}
+                            )}
+                            <p className="text-xs text-muted-foreground pt-1">{signal.reasoning}</p>
+                        </div>
                     </div>
                 ) : (
                      <div className="flex items-center justify-center h-full text-muted-foreground text-center">
