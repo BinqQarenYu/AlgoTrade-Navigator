@@ -65,18 +65,20 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
 }
 
 
-export async function calculateVolumeDeltaSignals(data: HistoricalData[]): Promise<HistoricalData[]> {
-    const dataWithSignals = JSON.parse(JSON.stringify(data));
-    if (data.length < POC_LOOKBACK) return dataWithSignals;
+export async function calculateVolumeDeltaSignals(data: HistoricalData[], calculateSignals: boolean = true): Promise<HistoricalData[]> {
+    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    if (data.length < POC_LOOKBACK) return dataWithIndicators;
 
     const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data);
 
     for (let i = POC_LOOKBACK; i < data.length; i++) {
-        dataWithSignals[i].volumeDelta = volumeDelta[i];
-        dataWithSignals[i].cumulativeVolumeDelta = cumulativeVolumeDelta[i];
+        dataWithIndicators[i].volumeDelta = volumeDelta[i];
+        dataWithIndicators[i].cumulativeVolumeDelta = cumulativeVolumeDelta[i];
 
         const poc = findPOC(data, i, POC_LOOKBACK);
-        dataWithSignals[i].poc = poc;
+        dataWithIndicators[i].poc = poc;
+        
+        if (!calculateSignals) continue;
         
         if (!poc || !cumulativeVolumeDelta[i - 1] || !cumulativeVolumeDelta[i]) continue;
         
@@ -89,7 +91,7 @@ export async function calculateVolumeDeltaSignals(data: HistoricalData[]): Promi
             if (prevCumulativeDelta <= 0 && currentCumulativeDelta > 0) {
                  // Additional confirmation: the candle that signals is bullish
                 if (currentCandle.close > currentCandle.open) {
-                    dataWithSignals[i].buySignal = currentCandle.low;
+                    dataWithIndicators[i].buySignal = currentCandle.low;
                 }
             }
         }
@@ -99,11 +101,11 @@ export async function calculateVolumeDeltaSignals(data: HistoricalData[]): Promi
             if (prevCumulativeDelta >= 0 && currentCumulativeDelta < 0) {
                 // Additional confirmation: the candle that signals is bearish
                 if (currentCandle.close < currentCandle.open) {
-                     dataWithSignals[i].sellSignal = currentCandle.high;
+                     dataWithIndicators[i].sellSignal = currentCandle.high;
                 }
             }
         }
     }
 
-    return dataWithSignals;
+    return dataWithIndicators;
 }

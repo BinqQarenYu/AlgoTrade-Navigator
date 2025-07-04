@@ -53,13 +53,24 @@ export function findSwingHighs(data: HistoricalData[], lookaround: number): numb
 }
 
 
-export async function calculatePeakFormationFibSignals(data: HistoricalData[]): Promise<HistoricalData[]> {
-    const dataWithSignals = JSON.parse(JSON.stringify(data)); // Deep copy
-    if (data.length < EMA_LONG_PERIOD) return dataWithSignals;
+export async function calculatePeakFormationFibSignals(data: HistoricalData[], calculateSignals: boolean = true): Promise<HistoricalData[]> {
+    const dataWithIndicators = JSON.parse(JSON.stringify(data)); // Deep copy
+    if (data.length < EMA_LONG_PERIOD) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
     const ema13 = calculateEMA(closePrices, EMA_SHORT_PERIOD);
     const ema50 = calculateEMA(closePrices, EMA_LONG_PERIOD);
+    
+    // Attach indicators for display purposes
+    dataWithIndicators.forEach((d: HistoricalData, i: number) => {
+        d.ema_short = ema13[i];
+        d.ema_long = ema50[i];
+    });
+
+    if (!calculateSignals) {
+        return dataWithIndicators;
+    }
+
     const swingLows = findSwingLows(data, SWING_LOOKAROUND);
     const swingHighs = findSwingHighs(data, SWING_LOOKAROUND);
 
@@ -108,14 +119,14 @@ export async function calculatePeakFormationFibSignals(data: HistoricalData[]): 
                             
                             // Check if the current candle hits one of the fib levels
                             if (data[l].high >= fib50) {
-                                dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib50;
-                                dataWithSignals[l].stopLossLevel = peakHigh;
-                                dataWithSignals[l].peakPrice = peakHigh;
+                                dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
+                                dataWithIndicators[l].stopLossLevel = peakHigh;
+                                dataWithIndicators[l].peakPrice = peakHigh;
                             }
                             if (data[l].high >= fib618) {
-                                dataWithSignals[l].sellSignal = dataWithSignals[l].sellSignal ?? fib618;
-                                dataWithSignals[l].stopLossLevel = peakHigh;
-                                dataWithSignals[l].peakPrice = peakHigh;
+                                dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
+                                dataWithIndicators[l].stopLossLevel = peakHigh;
+                                dataWithIndicators[l].peakPrice = peakHigh;
                             }
                         }
                         break; // Stop looking for a BoS from this peak once one is found
@@ -163,14 +174,14 @@ export async function calculatePeakFormationFibSignals(data: HistoricalData[]): 
                             const fib618 = pullbackHigh - fibRange * FIB_LEVELS[1];
                              
                             if (data[l].low <= fib50) {
-                                dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib50;
-                                dataWithSignals[l].stopLossLevel = peakLow;
-                                dataWithSignals[l].peakPrice = peakLow;
+                                dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
+                                dataWithIndicators[l].stopLossLevel = peakLow;
+                                dataWithIndicators[l].peakPrice = peakLow;
                             }
                              if (data[l].low <= fib618) {
-                                dataWithSignals[l].buySignal = dataWithSignals[l].buySignal ?? fib618;
-                                dataWithSignals[l].stopLossLevel = peakLow;
-                                dataWithSignals[l].peakPrice = peakLow;
+                                dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
+                                dataWithIndicators[l].stopLossLevel = peakLow;
+                                dataWithIndicators[l].peakPrice = peakLow;
                             }
                         }
                         break; 
@@ -180,7 +191,7 @@ export async function calculatePeakFormationFibSignals(data: HistoricalData[]): 
         }
     }
 
-    return dataWithSignals;
+    return dataWithIndicators;
 };
 
 // Helper functions for the strategy

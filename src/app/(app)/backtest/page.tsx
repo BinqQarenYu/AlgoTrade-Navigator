@@ -55,6 +55,7 @@ export default function BacktestPage() {
   const [isClient, setIsClient] = useState(false)
   const [symbol, setSymbol] = useState<string>("BTCUSDT");
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [selectedStrategy, setSelectedStrategy] = useState<string>("sma-crossover");
@@ -83,6 +84,7 @@ export default function BacktestPage() {
     }
   }, [date])
   
+  // Effect to fetch raw data from the API
   useEffect(() => {
     if (!isClient || isTradingActive) return;
 
@@ -93,14 +95,15 @@ export default function BacktestPage() {
         }
         setIsFetchingData(true);
         setChartData([]);
+        setDataWithIndicators([]);
         setBacktestResults([]);
         setSummaryStats(null);
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
-            setChartData(klines);
-            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready for backtesting.` });
+            setChartData(klines); // This triggers the indicator calculation effect
+            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
         } catch (error: any)
 {
             console.error("Failed to fetch historical data:", error);
@@ -117,6 +120,56 @@ export default function BacktestPage() {
 
     fetchData();
   }, [symbol, date, interval, isConnected, isClient, toast, isTradingActive]);
+
+  // Effect to calculate and display indicators when strategy or data changes
+  useEffect(() => {
+    const calculateIndicators = async () => {
+      if (chartData.length === 0) {
+        setDataWithIndicators([]);
+        return;
+      }
+      
+      let dataWithIndicatorsTemp: HistoricalData[] = JSON.parse(JSON.stringify(chartData));
+      const closePrices = chartData.map(d => d.close);
+      
+      switch (selectedStrategy) {
+        case "sma-crossover": {
+          const sma_short = calculateSMA(closePrices, 20);
+          const sma_long = calculateSMA(closePrices, 50);
+          dataWithIndicatorsTemp.forEach((d, i) => {
+            d.sma_short = sma_short[i];
+            d.sma_long = sma_long[i];
+          });
+          break;
+        }
+        case "ema-crossover": {
+          const ema_short = calculateEMA(closePrices, 12);
+          const ema_long = calculateEMA(closePrices, 26);
+          dataWithIndicatorsTemp.forEach((d, i) => {
+            d.ema_short = ema_short[i];
+            d.ema_long = ema_long[i];
+          });
+          break;
+        }
+        case "rsi-divergence":
+          // RSI is not drawn on the main chart, so we don't need to pre-calculate it for display.
+          // The backtest will calculate it when needed.
+          break;
+        case "peak-formation-fib": {
+            dataWithIndicatorsTemp = await calculatePeakFormationFibSignals(dataWithIndicatorsTemp, false);
+            break;
+        }
+        case "volume-delta": {
+            dataWithIndicatorsTemp = await calculateVolumeDeltaSignals(dataWithIndicatorsTemp, false);
+            break;
+        }
+      }
+      setDataWithIndicators(dataWithIndicatorsTemp);
+    };
+    
+    calculateIndicators();
+  }, [chartData, selectedStrategy]);
+
 
   const handleRunBacktest = async (strategyOverride?: string) => {
     if (chartData.length === 0) {
@@ -148,89 +201,62 @@ export default function BacktestPage() {
         ? "AI is validating each signal. This may take time."
         : `Running ${strategyToRun} on ${interval} interval.`,
     })
-
-    const closePrices = chartData.map(d => d.close);
     
-    let dataWithSignals: HistoricalData[] = chartData.map(d => {
-      const { 
-        buySignal, sellSignal, 
-        sma_short, sma_long, 
-        ema_short, ema_long, 
-        rsi, 
-        stopLossLevel,
-        poc, volumeDelta, cumulativeVolumeDelta,
-        ...rest 
-      } = d as any;
-      return rest;
-    });
+    // Always start with fresh data for backtesting to ensure integrity
+    let dataWithSignals: HistoricalData[] = JSON.parse(JSON.stringify(chartData));
 
     switch (strategyToRun) {
       case "sma-crossover": {
-        const shortPeriod = 20;
-        const longPeriod = 50;
-        const sma_short = calculateSMA(closePrices, shortPeriod);
-        const sma_long = calculateSMA(closePrices, longPeriod);
+        const closePrices = dataWithSignals.map(d => d.close);
+        const sma_short = calculateSMA(closePrices, 20);
+        const sma_long = calculateSMA(closePrices, 50);
         
-        dataWithSignals = dataWithSignals.map((d, i) => {
-          const point: HistoricalData = { ...d, sma_short: sma_short[i], sma_long: sma_long[i] };
+        dataWithSignals.forEach((d, i) => {
+          d.sma_short = sma_short[i];
+          d.sma_long = sma_long[i];
           if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
-            if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) {
-              point.buySignal = d.low;
-            }
-            if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) {
-              point.sellSignal = d.high;
-            }
+            if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) d.buySignal = d.low;
+            if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) d.sellSignal = d.high;
           }
-          return point;
         });
         break;
       }
       case "ema-crossover": {
-        const shortPeriod = 12;
-        const longPeriod = 26;
-        const ema_short = calculateEMA(closePrices, shortPeriod);
-        const ema_long = calculateEMA(closePrices, longPeriod);
-        
-        dataWithSignals = dataWithSignals.map((d, i) => {
-          const point: HistoricalData = { ...d, ema_short: ema_short[i], ema_long: ema_long[i] };
-           if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
-            if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) {
-              point.buySignal = d.low;
-            }
-            if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) {
-              point.sellSignal = d.high;
-            }
+        const closePrices = dataWithSignals.map(d => d.close);
+        const ema_short = calculateEMA(closePrices, 12);
+        const ema_long = calculateEMA(closePrices, 26);
+
+        dataWithSignals.forEach((d, i) => {
+          d.ema_short = ema_short[i];
+          d.ema_long = ema_long[i];
+          if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
+            if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) d.buySignal = d.low;
+            if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) d.sellSignal = d.high;
           }
-          return point;
         });
         break;
       }
       case "rsi-divergence": {
-        const period = 14;
-        const rsi = calculateRSI(closePrices, period);
+        const closePrices = dataWithSignals.map(d => d.close);
+        const rsi = calculateRSI(closePrices, 14);
         const oversold = 30;
         const overbought = 70;
 
-        dataWithSignals = dataWithSignals.map((d, i) => {
-          const point: HistoricalData = { ...d, rsi: rsi[i] };
+        dataWithSignals.forEach((d, i) => {
+          d.rsi = rsi[i];
            if (i > 0 && rsi[i-1] && rsi[i]) {
-            if (rsi[i-1] <= oversold && rsi[i] > oversold) {
-              point.buySignal = d.low;
-            }
-            if (rsi[i-1] >= overbought && rsi[i] < overbought) {
-              point.sellSignal = d.high;
-            }
+            if (rsi[i-1] <= oversold && rsi[i] > oversold) d.buySignal = d.low;
+            if (rsi[i-1] >= overbought && rsi[i] < overbought) d.sellSignal = d.high;
           }
-          return point;
         });
         break;
       }
       case "peak-formation-fib": {
-        dataWithSignals = await calculatePeakFormationFibSignals(dataWithSignals);
+        dataWithSignals = await calculatePeakFormationFibSignals(dataWithSignals, true);
         break;
       }
       case "volume-delta": {
-        dataWithSignals = await calculateVolumeDeltaSignals(dataWithSignals);
+        dataWithSignals = await calculateVolumeDeltaSignals(dataWithSignals, true);
         break;
       }
     }
@@ -551,7 +577,7 @@ export default function BacktestPage() {
       totalReturnPercent: totalReturnPercent
     };
 
-    setChartData(dataWithSignals);
+    setDataWithIndicators(dataWithSignals);
     setBacktestResults(trades);
     setSummaryStats(summary);
 
@@ -607,18 +633,12 @@ export default function BacktestPage() {
 
   const handleSymbolChange = (newSymbol: string) => {
     setSymbol(newSymbol);
-    setChartData([]); // Clear chart data on symbol change
-    setBacktestResults([]);
-    setSummaryStats(null);
-    setSelectedTrade(null);
+    setChartData([]); // Clear raw data on symbol change
   }
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    setChartData([]); // Clear chart data on interval change
-    setBacktestResults([]);
-    setSummaryStats(null);
-    setSelectedTrade(null);
+    setChartData([]); // Clear raw data on interval change
   };
 
   return (
@@ -643,7 +663,7 @@ export default function BacktestPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
+        <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
