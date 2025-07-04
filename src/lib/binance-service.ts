@@ -146,3 +146,47 @@ export const getHistoricalKlines = async (
         }
     }
 };
+
+export const getLatestKlinesByLimit = async (
+    symbol: string,
+    interval: string,
+    limit: number
+): Promise<HistoricalData[]> => {
+    if (!symbol) {
+        console.error("getLatestKlinesByLimit was called without a symbol.");
+        return [];
+    }
+    const upperSymbol = symbol.toUpperCase();
+    console.log(`Fetching latest ${limit} klines for ${upperSymbol} (${interval})`);
+
+    try {
+        await binance.loadMarkets();
+        // Use CCXT's unified method to fetch OHLCV data.
+        // Providing 'undefined' for 'since' fetches the most recent candles.
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit);
+
+        if (!Array.isArray(ohlcv)) {
+            throw new Error('Unexpected data format from CCXT fetchOHLCV.');
+        }
+
+        // Map CCXT's array format [time, open, high, low, close, volume] to our HistoricalData object format
+        return ohlcv.map((kline: number[]): HistoricalData => ({
+            time: kline[0],
+            open: kline[1],
+            high: kline[2],
+            low: kline[3],
+            close: kline[4],
+            volume: kline[5],
+        }));
+
+    } catch (error: any) {
+        console.error(`Error fetching latest klines via CCXT:`, error);
+        if (error instanceof ccxt.NetworkError) {
+             throw new Error("Failed to connect to Binance. Please check your network connection.");
+        } else if (error instanceof ccxt.ExchangeError) {
+            throw new Error(`Binance Exchange Error: ${error.message}`);
+        } else {
+            throw new Error("An unexpected error occurred while fetching historical data.");
+        }
+    }
+}

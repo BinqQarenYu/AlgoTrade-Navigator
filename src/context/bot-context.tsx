@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useRe
 import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { getHistoricalKlines } from "@/lib/binance-service";
+import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from '@/lib/strategies';
 
@@ -95,9 +95,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     config: { symbol: string; interval: string; strategy: string; takeProfit: number; stopLoss: number; useAIPrediction: boolean }
   ): Promise<SignalResult> => {
     try {
-        const from = addDays(new Date(), -3).getTime();
-        const to = new Date().getTime();
-        const dataToAnalyze = await getHistoricalKlines(config.symbol, config.interval, from, to);
+        const dataToAnalyze = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
 
         if (dataToAnalyze.length < 50) {
             return { status: 'error', log: 'Not enough data.', signal: null };
@@ -184,9 +182,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     
     setLiveBotState(prev => ({...prev, isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: []}));
     try {
-      const from = addDays(new Date(), -1).getTime();
-      const to = new Date().getTime();
-      const klines = await getHistoricalKlines(config.symbol, config.interval, from, to);
+      const klines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
       setLiveBotState(prev => ({ ...prev, chartData: klines }));
       addLiveLog(`Loaded ${klines.length} initial candles for ${config.symbol}.`);
       
@@ -218,9 +214,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
     try {
-        const from = addDays(new Date(), -3).getTime();
-        const to = new Date().getTime();
-        const klines = await getHistoricalKlines(symbol, interval, from, to);
+        const klines = await getLatestKlinesByLimit(symbol, interval, 500);
         setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
     } catch (error: any) {
         toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
