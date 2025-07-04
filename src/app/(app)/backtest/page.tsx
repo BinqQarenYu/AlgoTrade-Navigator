@@ -604,7 +604,7 @@ export default function BacktestPage() {
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
+        <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} highlightedTrade={selectedTrade} />
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>

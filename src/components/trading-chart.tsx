@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -25,12 +25,14 @@ export function TradingChart({
   symbol, 
   interval, 
   tradeSignal = null,
+  highlightedTrade = null,
   onIntervalChange
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
   interval: string; 
   tradeSignal?: TradeSignal | null;
+  highlightedTrade?: BacktestResult | null;
   onIntervalChange?: (newInterval: string) => void;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -179,18 +181,36 @@ export function TradingChart({
             minMove: 1 / Math.pow(10, precision),
           },
         });
+        
+        const highlightColor = '#eab308'; // Amber-500, same as POC line
+        const candlestickChartData = uniqueData.map(d => {
+            const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+            return {
+                time: toTimestamp(d.time),
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close,
+                ...(isHighlighted && {
+                    color: highlightColor,
+                    wickColor: highlightColor
+                })
+            };
+        });
+        candlestickSeries.setData(candlestickChartData);
+        
+        const volumeChartData = uniqueData.map(d => {
+            const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+            const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
+            const highlightedVolumeColor = 'rgba(234, 179, 8, 0.4)'; // amber-500 with opacity
 
-        candlestickSeries.setData(uniqueData.map(d => ({
-          time: toTimestamp(d.time), open: d.open, high: d.high, low: d.low, close: d.close
-        })));
-
-        volumeSeries.setData(uniqueData.map(d => ({
-            time: toTimestamp(d.time),
-            value: d.volume,
-            color: d.volumeDelta && d.volumeDelta !== 0 
-                ? (d.volumeDelta > 0 ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)')
-                : (d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)'),
-        })));
+            return {
+                time: toTimestamp(d.time),
+                value: d.volume,
+                color: isHighlighted ? highlightedVolumeColor : originalColor,
+            };
+        });
+        volumeSeries.setData(volumeChartData);
         
         // Indicators
         const addLineSeries = (series: any, dataKey: keyof HistoricalData) => {
@@ -255,7 +275,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data]);
+  }, [data, highlightedTrade]);
 
    // Effect to draw signal lines
     useEffect(() => {
