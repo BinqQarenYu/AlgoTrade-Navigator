@@ -9,6 +9,7 @@ const SWING_LOOKAROUND = 3; // How many bars on each side to confirm a swing poi
 const EMA_SHORT_PERIOD = 13;
 const EMA_LONG_PERIOD = 50;
 const FIB_LEVELS = [0.5, 0.618]; // 50% and 61.8% retracement levels
+const MAX_LOOKAHEAD = 100; // Max bars to look for a Break of Structure and subsequent pullback
 
 /**
  * Finds swing lows in the data, which are essential for identifying breaks of structure.
@@ -87,7 +88,7 @@ const peakFormationFibStrategy: Strategy = {
                 const peakHigh = data[i].high;
                 const relevantSwingLowIndex = findLastSwingLowBefore(swingLows, i);
                 if (relevantSwingLowIndex !== null) {
-                    for (let k = i + 1; k < data.length; k++) {
+                    for (let k = i + 1; k < Math.min(i + MAX_LOOKAHEAD, data.length); k++) {
                         if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
 
                         const emaCrossed = ema13[k-1] >= ema50[k-1] && ema13[k] < ema50[k];
@@ -97,7 +98,7 @@ const peakFormationFibStrategy: Strategy = {
                             const bosIndex = k;
                             let pullbackLow = data[bosIndex].low;
 
-                            for (let l = bosIndex + 1; l < data.length; l++) {
+                            for (let l = bosIndex + 1; l < Math.min(bosIndex + MAX_LOOKAHEAD, data.length); l++) {
                                 if (data[l].low < pullbackLow) {
                                     pullbackLow = data[l].low;
                                 }
@@ -140,7 +141,7 @@ const peakFormationFibStrategy: Strategy = {
                 const peakLow = data[i].low;
                 const relevantSwingHighIndex = findLastSwingHighBefore(swingHighs, i);
                 if (relevantSwingHighIndex !== null) {
-                    for (let k = i + 1; k < data.length; k++) {
+                    for (let k = i + 1; k < Math.min(i + MAX_LOOKAHEAD, data.length); k++) {
                          if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
 
                         const emaCrossed = ema13[k-1] <= ema50[k-1] && ema13[k] > ema50[k];
@@ -150,7 +151,7 @@ const peakFormationFibStrategy: Strategy = {
                             const bosIndex = k;
                             let pullbackHigh = data[bosIndex].high;
 
-                            for (let l = bosIndex + 1; l < data.length; l++) {
+                            for (let l = bosIndex + 1; l < Math.min(bosIndex + MAX_LOOKAHEAD, data.length); l++) {
                                 if (data[l].high > pullbackHigh) {
                                     pullbackHigh = data[l].high;
                                 }
