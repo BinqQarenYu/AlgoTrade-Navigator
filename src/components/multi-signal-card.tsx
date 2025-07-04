@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +9,7 @@ import type { SignalResult } from "@/lib/types";
 import { Separator } from "./ui/separator";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
+import { parseSymbolString } from "@/lib/assets";
 
 interface MultiSignalCardProps {
   asset: string;
@@ -15,6 +17,11 @@ interface MultiSignalCardProps {
 }
 
 export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
+    const displaySymbol = useMemo(() => {
+        const parsed = parseSymbolString(asset);
+        return parsed ? `${parsed.base}/${parsed.quote}` : asset;
+    }, [asset]);
+    
     const renderContent = () => {
         if (!result) {
             return (
@@ -100,7 +107,7 @@ export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                    <span>{asset.replace('USDT', '/USDT')}</span>
+                    <span>{displaySymbol}</span>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-normal text-muted-foreground capitalize">{result?.status?.replace('_', ' ') || 'Idle'}</span>
                         <span className={cn("h-2.5 w-2.5 rounded-full", getStatusColor(result?.status))} />

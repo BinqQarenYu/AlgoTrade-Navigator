@@ -34,7 +34,7 @@ import type { HistoricalData, TradeSignal } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { topAssetList } from "@/lib/assets"
+import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function LiveTradingPage() {
@@ -52,7 +52,11 @@ export default function LiveTradingPage() {
   const [isClient, setIsClient] = useState(false)
   
   // Local state for configuration UI
-  const [symbol, setSymbol] = useState<string>("BTCUSDT");
+  const [baseAsset, setBaseAsset] = useState<string>("BTC");
+  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
+  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
+
   const [selectedStrategy, setSelectedStrategy] = useState<string>(strategies[0].id);
   const [interval, setInterval] = useState<string>("1m");
   const [initialCapital, setInitialCapital] = useState<number>(100);
@@ -84,6 +88,14 @@ export default function LiveTradingPage() {
     fetchIp();
   }, [])
 
+  useEffect(() => {
+    const quotes = getAvailableQuotesForBase(baseAsset);
+    setAvailableQuotes(quotes);
+    if (!quotes.includes(quoteAsset)) {
+      setQuoteAsset(quotes[0] || '');
+    }
+  }, [baseAsset, quoteAsset]);
+
   // Sync local chart with bot's chart data when running
   useEffect(() => {
     if (isRunning) {
@@ -93,7 +105,7 @@ export default function LiveTradingPage() {
   
   // Effect to fetch initial chart data when bot is NOT running
   useEffect(() => {
-    if (!isClient || !isConnected || isRunning) {
+    if (!isClient || !isConnected || isRunning || !symbol) {
         if (!isRunning) setChartData([]);
         return;
     }
@@ -124,10 +136,17 @@ export default function LiveTradingPage() {
     fetchData();
   }, [symbol, interval, isConnected, isClient, toast, isRunning]);
 
-  const handleSymbolChange = (newSymbol: string) => {
-    setSymbol(newSymbol);
+  const handleBaseAssetChange = (newBase: string) => {
+    setBaseAsset(newBase);
     if (!isRunning) {
-        setChartData([]);
+      setChartData([]);
+    }
+  };
+
+  const handleQuoteAssetChange = (newQuote: string) => {
+    setQuoteAsset(newQuote);
+    if (!isRunning) {
+      setChartData([]);
     }
   };
 
@@ -246,16 +265,25 @@ export default function LiveTradingPage() {
             <CardDescription>Configure and manage your live trading bot.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={isRunning}>
-                    <SelectTrigger id="symbol">
-                      <SelectValue placeholder="Select asset" />
-                    </SelectTrigger>
+                  <Label htmlFor="base-asset">Base</Label>
+                  <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}>
+                    <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {topAssetList.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
+                      {topBases.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quote-asset">Quote</Label>
+                  <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning || availableQuotes.length === 0}>
+                    <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {availableQuotes.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

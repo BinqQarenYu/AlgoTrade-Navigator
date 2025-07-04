@@ -37,8 +37,8 @@ import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } fro
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket } from "@/ai/flows/predict-market-flow"
-import { topAssetList } from "@/lib/assets"
-import { strategies, getStrategyById } from "@/lib/strategies"
+import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
+import { strategies } from "@/lib/strategies"
 
 interface DateRange {
   from?: Date;
@@ -51,7 +51,12 @@ export default function BacktestPage() {
   const { isTradingActive } = useBot();
   const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
-  const [symbol, setSymbol] = useState<string>("BTCUSDT");
+  const [baseAsset, setBaseAsset] = useState<string>("BTC");
+  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
+
+  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
+
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
@@ -81,10 +86,18 @@ export default function BacktestPage() {
         })
     }
   }, [date])
+
+  useEffect(() => {
+    const quotes = getAvailableQuotesForBase(baseAsset);
+    setAvailableQuotes(quotes);
+    if (!quotes.includes(quoteAsset)) {
+      setQuoteAsset(quotes[0] || '');
+    }
+  }, [baseAsset, quoteAsset]);
   
   // Effect to fetch raw data from the API
   useEffect(() => {
-    if (!isClient || isTradingActive) return;
+    if (!isClient || isTradingActive || !symbol) return;
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
@@ -544,11 +557,6 @@ export default function BacktestPage() {
     };
   }, [selectedTrade, selectedStrategy]);
 
-  const handleSymbolChange = (newSymbol: string) => {
-    setSymbol(newSymbol);
-    setChartData([]); // Clear raw data on symbol change
-  }
-
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
     setChartData([]); // Clear raw data on interval change
@@ -585,16 +593,29 @@ export default function BacktestPage() {
             <CardDescription>Configure your backtesting parameters.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={!isConnected || anyLoading}>
-                    <SelectTrigger id="symbol">
+                  <Label htmlFor="base-asset">Base</Label>
+                  <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading}>
+                    <SelectTrigger id="base-asset">
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent>
-                      {topAssetList.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
+                      {topBases.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quote-asset">Quote</Label>
+                  <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0}>
+                    <SelectTrigger id="quote-asset">
+                      <SelectValue placeholder="Select asset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableQuotes.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

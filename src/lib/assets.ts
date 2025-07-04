@@ -6,12 +6,58 @@ export const fullAssetList = [
     "MANAUSDT", "AXSUSDT", "GALAUSDT", "THETAUSDT", "XTZUSDT", "EOSUSDT", "KSMUSDT", "ZECUSDT", "DASHUSDT", "COMPUSDT",
     "CRVUSDT", "1INCHUSDT", "DYDXUSDT", "GMXUSDT", "SUSHIUSDT", "YFIUSDT", "IMXUSDT", "BLURUSDT", "CELOUSDT", "FLOKIUSDT",
     "MEMEUSDT", "ENAUSDT", "WUSDT", "JUPUSDT", "JTOUSDT", "PYTHUSDT", "BOMEUSDT", "ICPUSDT", "VETUSDT", "XLMUSDT",
-    "HBARUSDT", "ALGOUSDT", "EGLDUSDT", "FLOWUSDT", "CHZUSDT", "MINAUSDT"
+    "HBARUSDT", "ALGOUSDT", "EGLDUSDT", "FLOWUSDT", "CHZUSDT", "MINAUSDT",
+    // Add some pairs with other quotes
+    "ETHBTC", "BNBBTC", "SOLBTC", "XRPBTC", "ADABTC", "DOTBTC", "LINKBTC", "LTCBTC",
+    "BNBETH", "TRXETH", "SOLETH",
+    "BTCUSDC", "ETHUSDC", "SOLUSDC", "BNBUSDC",
 ];
 
+export interface AssetPair {
+    base: string;
+    quote: string;
+    symbol: string; // e.g. BTCUSDT
+}
+
+// Longer quotes first to avoid mis-parsing (e.g. BTC ends with C, but USDC is the quote)
+const KNOWN_QUOTES = ['USDT', 'USDC', 'FDUSD', 'TUSD', 'BUSD', 'BTC', 'ETH', 'BNB'];
+
+export function parseSymbolString(symbol: string): AssetPair | null {
+    for (const quote of KNOWN_QUOTES) {
+        if (symbol.endsWith(quote) && symbol.length > quote.length) {
+            const base = symbol.slice(0, -quote.length);
+            if (base) {
+                return { base, quote, symbol };
+            }
+        }
+    }
+    return null;
+}
+
+export const allPairs: AssetPair[] = fullAssetList.map(parseSymbolString).filter((p): p is AssetPair => p !== null);
+
+export const getAvailableQuotesForBase = (base: string): string[] => {
+    return allPairs.filter(p => p.base === base).map(p => p.quote).sort();
+};
+
+export const getAvailableBases = (): string[] => {
+    const bases = allPairs.map(p => p.base);
+    return [...new Set(bases)].sort();
+};
+
+export const pairsByBase = allPairs.reduce((acc, pair) => {
+    if (!acc[pair.base]) {
+        acc[pair.base] = [];
+    }
+    acc[pair.base].push(pair.quote);
+    acc[pair.base].sort();
+    return acc;
+}, {} as Record<string, string[]>);
+
+
 // A curated list of top assets for simpler dropdowns.
-export const topAssetList = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "DOTUSDT",
-    "LINKUSDT", "MATICUSDT", "LTCUSDT", "NEARUSDT", "UNIUSDT", "ATOMUSDT", "ETCUSDT", "FILUSDT", "APTUSDT", "SUIUSDT", "OPUSDT",
-    "PEPEUSDT", "WIFUSDT", "TONUSDT", "ORDIUSDT", "WLDUSDT"
-];
+export const topBases = [
+    "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT",
+    "LINK", "MATIC", "LTC", "NEAR", "UNI", "ATOM", "ETC", "FIL", "APT", "SUI", "OP",
+    "PEPE", "WIF", "TON", "ORDI", "WLD"
+].sort();

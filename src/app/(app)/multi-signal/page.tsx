@@ -16,7 +16,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
-import { fullAssetList } from "@/lib/assets"
+import { topBases, pairsByBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function MultiSignalPage() {
@@ -91,19 +91,34 @@ export default function MultiSignalPage() {
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
                             <Label>Assets to Monitor</Label>
-                            <ScrollArea className="h-40 w-full rounded-md border p-4">
-                                <div className="space-y-2">
-                                    {fullAssetList.map(asset => (
-                                        <div key={asset} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={asset}
-                                                checked={selectedAssets.includes(asset)}
-                                                onCheckedChange={() => handleAssetToggle(asset)}
-                                                disabled={isRunning}
-                                            />
-                                            <Label htmlFor={asset} className="font-normal">{asset.replace("USDT", "/USDT")}</Label>
-                                        </div>
-                                    ))}
+                            <ScrollArea className="h-60 w-full rounded-md border p-4">
+                                <div className="space-y-4">
+                                    {topBases.map((base) => {
+                                        const quotes = pairsByBase[base] || [];
+                                        if (quotes.length === 0) return null;
+
+                                        return (
+                                            <div key={base}>
+                                                <h4 className="font-medium text-sm mb-2">{base}</h4>
+                                                <div className="grid grid-cols-3 gap-x-4 gap-y-2 pl-2">
+                                                    {quotes.map(quote => {
+                                                        const symbol = `${base}${quote}`;
+                                                        return (
+                                                            <div key={symbol} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={symbol}
+                                                                    checked={selectedAssets.includes(symbol)}
+                                                                    onCheckedChange={() => handleAssetToggle(symbol)}
+                                                                    disabled={isRunning}
+                                                                />
+                                                                <Label htmlFor={symbol} className="font-normal text-muted-foreground">{quote}</Label>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
                                 </div>
                             </ScrollArea>
                         </div>

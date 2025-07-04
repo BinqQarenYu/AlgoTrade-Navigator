@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useCallback } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -31,7 +31,7 @@ import type { HistoricalData } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { topAssetList } from "@/lib/assets"
+import { topBases, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies } from "@/lib/strategies"
 
 export default function ManualTradingPage() {
@@ -48,7 +48,11 @@ export default function ManualTradingPage() {
   const { isAnalyzing, logs, signal, chartData } = manualTraderState;
   
   // Local state for UI configuration
-  const [symbol, setSymbol] = useState<string>("BTCUSDT");
+  const [baseAsset, setBaseAsset] = useState<string>("BTC");
+  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
+  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
+  
   const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
   const [interval, setInterval] = useState<string>("1h");
   const [initialCapital, setInitialCapital] = useState<number>(100);
@@ -57,6 +61,14 @@ export default function ManualTradingPage() {
   const [stopLoss, setStopLoss] = useState<number>(1);
   const [fee, setFee] = useState<number>(0.04);
   const [useAIPrediction, setUseAIPrediction] = useState(false);
+  
+  useEffect(() => {
+    const quotes = getAvailableQuotesForBase(baseAsset);
+    setAvailableQuotes(quotes);
+    if (!quotes.includes(quoteAsset)) {
+      setQuoteAsset(quotes[0] || '');
+    }
+  }, [baseAsset, quoteAsset]);
 
   const handleRunAnalysis = useCallback(() => {
     runManualAnalysis({
@@ -82,16 +94,18 @@ export default function ManualTradingPage() {
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    setManualChartData(symbol, newInterval);
   };
 
-  const handleSymbolChange = (newSymbol: string) => {
-    setSymbol(newSymbol);
-    setManualChartData(newSymbol, interval);
+  const handleBaseAssetChange = (newBase: string) => {
+    setBaseAsset(newBase);
+  };
+  
+  const handleQuoteAssetChange = (newQuote: string) => {
+    setQuoteAsset(newQuote);
   };
 
   useEffect(() => {
-    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null) {
+    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null && symbol) {
       setManualChartData(symbol, interval);
     }
   }, [isConnected, symbol, interval, setManualChartData, manualTraderState.isAnalyzing, manualTraderState.signal]);
@@ -161,26 +175,33 @@ export default function ManualTradingPage() {
             <CardDescription>Configure and generate a trade signal for manual execution.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="symbol">Asset</Label>
-                  <Select onValueChange={handleSymbolChange} value={symbol} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="symbol">
-                      <SelectValue placeholder="Select asset" />
-                    </SelectTrigger>
+                  <Label htmlFor="base-asset">Base Asset</Label>
+                  <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isAnalyzing || hasActiveSignal}>
+                    <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {topAssetList.map(asset => (
-                        <SelectItem key={asset} value={asset}>{asset.replace('USDT', '/USDT')}</SelectItem>
+                      {topBases.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                  <div className="space-y-2">
+                  <Label htmlFor="quote-asset">Quote Asset</Label>
+                  <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isAnalyzing || hasActiveSignal || availableQuotes.length === 0}>
+                    <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                       {availableQuotes.map(asset => (
+                        <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="interval">Interval</Label>
                   <Select onValueChange={handleIntervalChange} value={interval} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="interval">
-                      <SelectValue placeholder="Select interval" />
-                    </SelectTrigger>
+                    <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1m">1 Minute</SelectItem>
                       <SelectItem value="5m">5 Minutes</SelectItem>
@@ -191,12 +212,10 @@ export default function ManualTradingPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 md:col-span-2">
+                <div className="space-y-2">
                   <Label htmlFor="strategy">Strategy</Label>
                   <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isAnalyzing || hasActiveSignal}>
-                    <SelectTrigger id="strategy">
-                      <SelectValue placeholder="Select strategy" />
-                    </SelectTrigger>
+                    <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {strategies.map(strategy => (
                         <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>

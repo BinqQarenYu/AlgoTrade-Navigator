@@ -1,11 +1,12 @@
 
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
+import { parseSymbolString } from '@/lib/assets';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
@@ -262,7 +263,12 @@ export function TradingChart({
     }, [tradeSignal]);
 
 
-  const formattedSymbol = symbol ? symbol.replace('USDT', '/USDT') : 'No Asset Selected';
+  const formattedSymbol = useMemo(() => {
+    if (!symbol) return 'No Asset Selected';
+    const parsed = parseSymbolString(symbol);
+    return parsed ? `${parsed.base}/${parsed.quote}` : symbol;
+  }, [symbol]);
+
   const chartTitle = `${formattedSymbol} (${String(interval || '').toLocaleUpperCase()}) Price Chart`;
 
   return (
