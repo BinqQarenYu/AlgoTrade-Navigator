@@ -298,6 +298,29 @@ export function TradingChart({
 
     }, [tradeSignal]);
 
+    // Effect to focus on a specific trade
+    useEffect(() => {
+      if (!chartRef.current?.chart || !tradeSignal || !data || data.length < 2) return;
+
+      const { chart } = chartRef.current;
+      const timeScale = chart.timeScale();
+      
+      // Assuming data is sorted by time
+      const intervalMs = data[1].time - data[0].time;
+      const paddingMs = intervalMs * 20; // 20 bars padding
+
+      const fromVisible = toTimestamp(tradeSignal.timestamp.getTime() - paddingMs);
+      // If there's an exit time, pad after it. Otherwise, pad after the entry time.
+      const endTime = tradeSignal.exitTimestamp ? tradeSignal.exitTimestamp.getTime() : tradeSignal.timestamp.getTime();
+      const toVisible = toTimestamp(endTime + paddingMs * 2);
+
+      timeScale.setVisibleRange({
+          from: fromVisible,
+          to: toVisible,
+      });
+
+    }, [tradeSignal, data]);
+
 
   const formattedSymbol = useMemo(() => {
     if (!symbol) return 'No Asset Selected';

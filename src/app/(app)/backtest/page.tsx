@@ -571,9 +571,11 @@ export default function BacktestPage() {
       confidence: selectedTrade.confidence ?? 1,
       reasoning: selectedTrade.reasoning || `Trade from backtest. Closed due to ${selectedTrade.closeReason}.`,
       timestamp: new Date(selectedTrade.entryTime),
+      exitTimestamp: new Date(selectedTrade.exitTime),
       strategy: selectedStrategy,
+      asset: symbol,
     };
-  }, [selectedTrade, selectedStrategy]);
+  }, [selectedTrade, selectedStrategy, symbol]);
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);

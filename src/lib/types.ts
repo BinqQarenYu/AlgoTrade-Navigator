@@ -116,6 +116,7 @@ export type TradeSignal = {
   confidence: number;
   reasoning: string;
   timestamp: Date;
+  exitTimestamp?: Date;
   strategy: string;
   peakPrice?: number;
   asset: string;

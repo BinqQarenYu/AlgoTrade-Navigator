@@ -40,7 +40,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 export default function LiveTradingPage() {
   const { toast } = useToast()
-  const { isConnected } = useApi();
+  const { isConnected } from useApi();
   const { 
     liveBotState, 
     startLiveBot, 
@@ -218,6 +218,7 @@ export default function LiveTradingPage() {
       reasoning: `Live AI Prediction: ${prediction.reasoning}`,
       timestamp: new Date(),
       strategy: config.strategy,
+      asset: config.symbol,
     };
 }, [liveBotState]);
 
