@@ -61,7 +61,7 @@ export default function LiveTradingPage() {
   const [stopLoss, setStopLoss] = useState<number>(2);
   const [fee, setFee] = useState<number>(0.04);
   const [marginType, setMarginType] = useState<string>("isolated");
-  const [useAIPrediction, setUseAIPrediction] = useState(true);
+  const [useAIPrediction, setUseAIPrediction] = useState(false);
 
   // Local state for chart data, separate from the bot's data
   const [chartData, setChartData] = useState<HistoricalData[]>([]);

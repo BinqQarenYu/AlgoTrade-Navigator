@@ -35,7 +35,7 @@ export default function MultiSignalPage() {
     const [strategy, setStrategy] = useState("peak-formation-fib");
     const [takeProfit, setTakeProfit] = useState(2);
     const [stopLoss, setStopLoss] = useState(1);
-    const [useAIPrediction, setUseAIPrediction] = useState(true);
+    const [useAIPrediction, setUseAIPrediction] = useState(false);
 
     const handleAssetToggle = (asset: string) => {
         setSelectedAssets(prev => 

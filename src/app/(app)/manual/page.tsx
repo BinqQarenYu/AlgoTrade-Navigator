@@ -56,7 +56,7 @@ export default function ManualTradingPage() {
   const [takeProfit, setTakeProfit] = useState<number>(2);
   const [stopLoss, setStopLoss] = useState<number>(1);
   const [fee, setFee] = useState<number>(0.04);
-  const [useAIPrediction, setUseAIPrediction] = useState(true);
+  const [useAIPrediction, setUseAIPrediction] = useState(false);
 
   const handleRunAnalysis = useCallback(() => {
     runManualAnalysis({
