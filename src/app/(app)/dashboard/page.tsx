@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MarketSentiment } from "@/components/dashboard/market-sentiment";
+import { AIAnalyticsCard } from "@/components/dashboard/ai-analytics-card";
 
 export default function DashboardPage() {
   const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey, coinmarketcapApiKey } = useApi();
@@ -176,7 +177,8 @@ export default function DashboardPage() {
                 permissions={activeProfile?.permissions}
             />
         </div>
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
+            <AIAnalyticsCard />
             <MarketSentiment sentiments={sentiments} isLoading={isSentimentLoading} />
         </div>
         <div className="lg:col-span-3">
