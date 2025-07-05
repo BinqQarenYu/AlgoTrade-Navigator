@@ -59,6 +59,7 @@ export function OrderBook({ symbol }: { symbol: string }) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = useState(false);
     const [isCardOpen, setIsCardOpen] = useState(true);
+    const notifiedWallsRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
         // If the stream is meant to be inactive, ensure connection is closed.
@@ -77,6 +78,7 @@ export function OrderBook({ symbol }: { symbol: string }) {
         }
 
         setIsConnecting(true);
+        notifiedWallsRef.current.clear(); // Clear notifications on new stream
 
         // Close any existing connection before opening a new one
         if (wsRef.current) {
@@ -162,7 +164,7 @@ export function OrderBook({ symbol }: { symbol: string }) {
                 const price = parseFloat(level[0]);
                 const size = parseFloat(level[1]);
                 cumulativeTotal += size;
-                const isWall = (size / totalSize) > WALL_THRESHOLD_PERCENT;
+                const isWall = totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT;
                 return { price, size, total: cumulativeTotal, isWall };
             });
         };
@@ -185,6 +187,27 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
     }, [bids, asks]);
 
+    // Effect to check for new walls and send toast notifications.
+    useEffect(() => {
+        const checkAndNotify = (levels: FormattedOrderBookLevel[], type: 'Buy' | 'Sell') => {
+            if (!isStreamActive) return;
+
+            levels.forEach(level => {
+                if (level.isWall && !notifiedWallsRef.current.has(level.price)) {
+                    toast({
+                        title: `Large ${type} Wall Detected`,
+                        description: `A significant order wall of size ${level.size.toFixed(2)} was detected at $${level.price.toFixed(precision)}.`,
+                    });
+                    notifiedWallsRef.current.add(level.price);
+                }
+            });
+        };
+
+        checkAndNotify(formattedBids, 'Buy');
+        checkAndNotify(formattedAsks, 'Sell');
+
+    }, [formattedBids, formattedAsks, toast, isStreamActive, precision]);
+
     const handleToggleStream = () => {
         if (!isConnected) {
             toast({ title: "API Disconnected", description: "Please connect to the Binance API in settings to start the stream." });
@@ -200,9 +223,9 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
         return (
             <TableRow className={cn("relative font-mono text-xs", level.isWall && "bg-yellow-500/20 font-bold")}>
-                <TableCell className={cn("p-1 text-left relative", textColor)}>
+                <TableCell className={cn("p-1 text-left", textColor)}>
                     {level.price.toFixed(precision)}
-                    <div 
+                     <div 
                         className={cn("absolute top-0 bottom-0 -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
                         style={{ width: `${bgPercentage}%` }}
                     />
