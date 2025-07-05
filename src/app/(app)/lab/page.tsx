@@ -36,6 +36,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
+import { OrderBook } from "@/components/order-book"
 
 interface DateRange {
   from?: Date;
@@ -246,6 +247,8 @@ export default function LabPage() {
           </Card>
 
           <MarketHeatmap />
+
+          <OrderBook symbol={symbol} />
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
