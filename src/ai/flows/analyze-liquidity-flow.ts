@@ -19,20 +19,20 @@ const AnalyzeLiquidityInputSchema = z.object({
       'A JSON string representing an array of recent k-line/candlestick data.'
     ),
 });
-export type AnalyzeLiquidityInput = z.infer<typeof AnalyzeLiquidityInputSchema>;
+type AnalyzeLiquidityInput = z.infer<typeof AnalyzeLiquidityInputSchema>;
 
-export const LiquidityEventSchema = z.object({
+const LiquidityEventSchema = z.object({
   time: z.number().describe('The timestamp (milliseconds) of the candle where the liquidity grab occurred.'),
   priceLevel: z.number().describe('The approximate price level of the liquidity that was targeted.'),
   direction: z.enum(['bullish', 'bearish']).describe("The direction of the market move *after* the liquidity grab. 'bullish' means price moved up after grabbing lows. 'bearish' means price moved down after grabbing highs."),
   type: z.enum(['grab', 'sweep']).describe("The type of liquidity event. 'grab' implies a more significant reversal."),
 });
-export type LiquidityEvent = z.infer<typeof LiquidityEventSchema>;
+type LiquidityEvent = z.infer<typeof LiquidityEventSchema>;
 
 const AnalyzeLiquidityOutputSchema = z.object({
   events: z.array(LiquidityEventSchema).describe("An array of identified liquidity grab events."),
 });
-export type AnalyzeLiquidityOutput = z.infer<typeof AnalyzeLiquidityOutputSchema>;
+type AnalyzeLiquidityOutput = z.infer<typeof AnalyzeLiquidityOutputSchema>;
 
 export async function analyzeLiquidity(input: AnalyzeLiquidityInput): Promise<AnalyzeLiquidityOutput> {
   return analyzeLiquidityFlow(input);
