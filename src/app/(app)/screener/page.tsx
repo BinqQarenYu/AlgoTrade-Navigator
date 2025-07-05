@@ -44,6 +44,14 @@ export default function ScreenerPage() {
         );
     };
 
+    const handleSelectAllStrategies = () => {
+        if (selectedStrategies.length === strategies.length) {
+            setSelectedStrategies([]);
+        } else {
+            setSelectedStrategies(strategies.map(s => s.id));
+        }
+    };
+
     const handleRunScreener = () => {
         if (isRunning) {
             stopScreener();
@@ -114,7 +122,19 @@ export default function ScreenerPage() {
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label>Strategies for Ensemble</Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label>Strategies for Ensemble</Label>
+                                        <Button
+                                            variant="link"
+                                            size="sm"
+                                            className="h-auto p-0"
+                                            onClick={handleSelectAllStrategies}
+                                            disabled={isRunning}
+                                            type="button"
+                                        >
+                                            {selectedStrategies.length === strategies.length ? 'Deselect All' : 'Select All'}
+                                        </Button>
+                                    </div>
                                     <ScrollArea className="h-48 w-full rounded-md border p-4">
                                         <div className="space-y-2">
                                         {strategies.map((strategy) => (
