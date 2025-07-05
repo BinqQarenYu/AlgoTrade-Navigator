@@ -18,7 +18,7 @@ import { MarketSentiment } from "@/components/dashboard/market-sentiment";
 
 export default function DashboardPage() {
   const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey, coinmarketcapApiKey } = useApi();
-  const { isTradingActive } = useBot();
+  const { isTradingActive, closePosition } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
@@ -169,7 +169,12 @@ export default function DashboardPage() {
       />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-            <OpenPositions positions={positions} isLoading={isLoading && isConnected && !isTradingActive} />
+            <OpenPositions 
+                positions={positions} 
+                isLoading={isLoading && isConnected && !isTradingActive}
+                onClosePosition={closePosition}
+                permissions={activeProfile?.permissions}
+            />
         </div>
         <div className="lg:col-span-1">
             <MarketSentiment sentiments={sentiments} isLoading={isSentimentLoading} />

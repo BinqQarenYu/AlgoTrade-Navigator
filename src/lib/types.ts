@@ -307,4 +307,5 @@ export interface BotContextType {
   stopMultiSignalMonitor: () => void;
   startScreener: (config: ScreenerConfig) => void;
   stopScreener: () => void;
+  closePosition: (position: Position) => void;
 }

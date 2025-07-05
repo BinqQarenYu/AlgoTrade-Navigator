@@ -9,12 +9,27 @@ import type { Position } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, XCircle } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 type OpenPositionsProps = {
   positions: Position[];
   isLoading?: boolean;
+  onClosePosition: (position: Position) => void;
+  permissions?: 'ReadOnly' | 'FuturesTrading';
 };
 
 const OpenPositionsSkeleton = () => (
@@ -26,13 +41,14 @@ const OpenPositionsSkeleton = () => (
             <TableCell><Skeleton className="h-5 w-20" /></TableCell>
             <TableCell><Skeleton className="h-5 w-20" /></TableCell>
             <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-            <TableCell className="text-right"><Skeleton className="h-5 w-24 ml-auto" /></TableCell>
+            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+            <TableCell className="text-right"><Skeleton className="h-8 w-20 ml-auto" /></TableCell>
         </TableRow>
     ))
 );
 
 
-export function OpenPositions({ positions, isLoading }: OpenPositionsProps) {
+export function OpenPositions({ positions, isLoading, onClosePosition, permissions }: OpenPositionsProps) {
   const [isOpen, setIsOpen] = useState(true);
 
   return (
@@ -58,7 +74,8 @@ export function OpenPositions({ positions, isLoading }: OpenPositionsProps) {
                   <TableHead>Entry Price</TableHead>
                   <TableHead>Mark Price</TableHead>
                   <TableHead>Leverage</TableHead>
-                  <TableHead className="text-right">PNL (USD)</TableHead>
+                  <TableHead>PNL (USD)</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -80,11 +97,51 @@ export function OpenPositions({ positions, isLoading }: OpenPositionsProps) {
                         <TableCell className={`text-right font-medium ${pos.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                           {pos.pnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
                         </TableCell>
+                        <TableCell className="text-right">
+                          <AlertDialog>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="destructive"
+                                      size="sm"
+                                      disabled={permissions === 'ReadOnly'}
+                                      className="h-8"
+                                    >
+                                      <XCircle className="mr-2 h-4 w-4" />
+                                      Close
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                </TooltipTrigger>
+                                {permissions === 'ReadOnly' && (
+                                  <TooltipContent>
+                                    <p>A key with Futures Trading permissions is required.</p>
+                                  </TooltipContent>
+                                )}
+                              </Tooltip>
+                            </TooltipProvider>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Confirm Close Position</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will submit a market order to close your {pos.side} position of {pos.size} {pos.symbol}. This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onClosePosition(pos)}>
+                                  Confirm Close
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </TableCell>
                       </TableRow>
                     ))
                 ) : (
                     <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
                             No open positions
                         </TableCell>
                     </TableRow>

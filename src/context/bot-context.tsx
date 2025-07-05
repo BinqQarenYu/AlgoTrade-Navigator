@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
@@ -77,6 +77,7 @@ interface BotContextType {
   stopMultiSignalMonitor: () => void;
   startScreener: (config: ScreenerConfig) => void;
   stopScreener: () => void;
+  closePosition: (position: Position) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -753,6 +754,34 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     screenerRunningRef.current = false;
     setScreenerState(prev => ({...prev, isRunning: false}));
   }, [addScreenerLog]);
+  
+  const closePosition = useCallback(async (position: Position) => {
+    if (!activeProfile || !apiKey || !secretKey) {
+      toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
+      return;
+    }
+    if (activeProfile.permissions === 'ReadOnly') {
+      toast({ title: "Action Disabled", description: "Your active API key is Read-Only.", variant: "destructive" });
+      return;
+    }
+
+    const side: OrderSide = position.side === 'LONG' ? 'SELL' : 'BUY';
+    const symbol = position.symbol;
+    const quantity = position.size;
+
+    toast({ title: `Submitting close order...`, description: `${side} ${quantity} ${symbol}` });
+
+    try {
+        const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
+        
+        toast({
+            title: "Close Order Submitted (Simulated)",
+            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. Positions will update on next fetch.`
+        });
+    } catch (e: any) {
+        toast({ title: "Close Order Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
+    }
+  }, [apiKey, secretKey, toast, activeProfile]);
 
 
   // Cleanup on unmount
@@ -787,6 +816,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       stopMultiSignalMonitor,
       startScreener,
       stopScreener,
+      closePosition,
     }}>
       {children}
     </BotContext.Provider>
