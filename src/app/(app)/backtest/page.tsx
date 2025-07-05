@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -39,6 +39,7 @@ import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies, getStrategyById } from "@/lib/strategies"
+import { calculateHyperPeakFormationLogic } from "@/lib/strategies/hyper-peak-formation"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 interface DateRange {
@@ -76,6 +77,26 @@ export default function BacktestPage() {
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
   const [isControlsOpen, setControlsOpen] = useState(true);
+  const [isHyperParamsOpen, setHyperParamsOpen] = useState(false);
+
+  // State for Hyper Peak Formation parameters
+  const [pffParams, setPffParams] = useState({
+    peakLookaround: 5,
+    swingLookaround: 3,
+    emaShortPeriod: 13,
+    emaLongPeriod: 50,
+    fibLevel1: 0.5,
+    fibLevel2: 0.618,
+    maxLookahead: 100,
+  });
+
+  const handlePffParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setPffParams(prev => ({
+        ...prev,
+        [id]: id.includes('fib') ? parseFloat(value) : parseInt(value, 10)
+    }));
+  };
 
   useEffect(() => {
     setIsClient(true)
@@ -140,17 +161,27 @@ export default function BacktestPage() {
         return;
       }
       
-      const strategy = getStrategyById(selectedStrategy);
-      if (strategy) {
-        const dataWithInd = await strategy.calculate(chartData);
-        // Clear signals for display, we only want to see indicators, not past signals
-        const dataWithoutSignals = dataWithInd.map(d => ({...d, buySignal: undefined, sellSignal: undefined}));
-        setDataWithIndicators(dataWithoutSignals);
+      let dataWithInd: HistoricalData[];
+      if (selectedStrategy === 'hyper-peak-formation') {
+        dataWithInd = await calculateHyperPeakFormationLogic(chartData, {
+            ...pffParams,
+            fibLevels: [pffParams.fibLevel1, pffParams.fibLevel2]
+        });
+      } else {
+        const strategy = getStrategyById(selectedStrategy);
+        if (strategy) {
+          dataWithInd = await strategy.calculate(chartData);
+        } else {
+          dataWithInd = chartData;
+        }
       }
+      // Clear signals for display, we only want to see indicators, not past signals
+      const dataWithoutSignals = dataWithInd.map(d => ({...d, buySignal: undefined, sellSignal: undefined}));
+      setDataWithIndicators(dataWithoutSignals);
     };
     
     calculateAndSetIndicators();
-  }, [chartData, selectedStrategy]);
+  }, [chartData, selectedStrategy, pffParams]);
 
 
   const handleRunBacktest = async () => {
@@ -163,29 +194,42 @@ export default function BacktestPage() {
       return;
     }
 
-    const strategy = getStrategyById(selectedStrategy);
-    if (!strategy) {
-      toast({
-        title: "No Strategy Selected",
-        description: "Please select a strategy before running a backtest.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsBacktesting(true)
     setBacktestResults([]);
     setSummaryStats(null);
     setSelectedTrade(null);
-    toast({
-      title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
-      description: useAIValidation 
-        ? "AI is validating each signal. This may take time."
-        : `Running ${strategy.name} on ${interval} interval.`,
-    })
     
-    // Always start with fresh data for backtesting to ensure integrity
-    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)));
+    let dataWithSignals: HistoricalData[];
+    
+    if (selectedStrategy === 'hyper-peak-formation') {
+        toast({
+          title: "Hyper PFF Backtest Started",
+          description: "Running with custom parameters...",
+        });
+        dataWithSignals = await calculateHyperPeakFormationLogic(
+            JSON.parse(JSON.stringify(chartData)),
+            { ...pffParams, fibLevels: [pffParams.fibLevel1, pffParams.fibLevel2] }
+        );
+    } else {
+        const strategy = getStrategyById(selectedStrategy);
+        if (!strategy) {
+          toast({
+            title: "No Strategy Selected",
+            description: "Please select a strategy before running a backtest.",
+            variant: "destructive",
+          });
+          setIsBacktesting(false);
+          return;
+        }
+        toast({
+          title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
+          description: useAIValidation 
+            ? "AI is validating each signal. This may take time."
+            : `Running ${strategy.name} on ${interval} interval.`,
+        });
+        dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)));
+    }
+
 
     const trades: BacktestResult[] = [];
     const marginPerTrade = initialCapital;
@@ -364,6 +408,7 @@ export default function BacktestPage() {
 
         // --- ENTRY LOGIC ---
         if (positionType === null) {
+            const currentStrategyName = getStrategyById(selectedStrategy)?.name || "Strategy";
             if (d.buySignal) {
                 let openPosition = true;
                 let prediction: PredictMarketOutput | null = null;
@@ -402,9 +447,9 @@ export default function BacktestPage() {
                     positionType = 'long';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    entryReasoning = prediction?.reasoning ?? `Classic '${strategy.name}' buy signal triggered.`;
+                    entryReasoning = prediction?.reasoning ?? `Classic '${currentStrategyName}' buy signal triggered.`;
                     entryConfidence = prediction?.confidence ?? 1;
-                    if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
+                    if (d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 - (stopLoss || 0) / 100);
@@ -451,9 +496,9 @@ export default function BacktestPage() {
                     positionType = 'short';
                     entryPrice = d.close;
                     entryTime = d.time;
-                    entryReasoning = prediction?.reasoning ?? `Classic '${strategy.name}' sell signal triggered.`;
+                    entryReasoning = prediction?.reasoning ?? `Classic '${currentStrategyName}' sell signal triggered.`;
                     entryConfidence = prediction?.confidence ?? 1;
-                    if (strategy.id === 'peak-formation-fib' && d.stopLossLevel) {
+                    if (d.stopLossLevel) {
                         stopLossPrice = d.stopLossLevel;
                     } else {
                         stopLossPrice = entryPrice * (1 + (stopLoss || 0) / 100);
@@ -680,6 +725,52 @@ export default function BacktestPage() {
                       </Select>
                     </div>
                 </div>
+
+                {selectedStrategy === 'hyper-peak-formation' && (
+                  <Collapsible open={isHyperParamsOpen} onOpenChange={setHyperParamsOpen} className="space-y-2">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <BrainCircuit className="mr-2 h-4 w-4" />
+                        <span>Hyperparameters</span>
+                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isHyperParamsOpen && "rotate-180")} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="peakLookaround">Peak Lookaround</Label>
+                          <Input id="peakLookaround" type="number" value={pffParams.peakLookaround} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="swingLookaround">Swing Lookaround</Label>
+                          <Input id="swingLookaround" type="number" value={pffParams.swingLookaround} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="emaShortPeriod">EMA Short</Label>
+                          <Input id="emaShortPeriod" type="number" value={pffParams.emaShortPeriod} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="emaLongPeriod">EMA Long</Label>
+                          <Input id="emaLongPeriod" type="number" value={pffParams.emaLongPeriod} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="fibLevel1">Fib Level 1</Label>
+                          <Input id="fibLevel1" type="number" step="0.001" value={pffParams.fibLevel1} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="fibLevel2">Fib Level 2</Label>
+                          <Input id="fibLevel2" type="number" step="0.001" value={pffParams.fibLevel2} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                         <div className="space-y-2 col-span-2">
+                          <Label htmlFor="maxLookahead">Max Lookahead</Label>
+                          <Input id="maxLookahead" type="number" value={pffParams.maxLookahead} onChange={handlePffParamChange} disabled={anyLoading}/>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="initial-capital">Initial Capital ($)</Label>
