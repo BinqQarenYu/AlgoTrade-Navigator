@@ -3,9 +3,8 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
@@ -136,6 +135,62 @@ const KNOWN_INDICATORS = [
     'psar', 'psar_direction', 'momentum', 'awesome_oscillator', 'williams_r', 'cci',
     'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
 ];
+
+const getCodeBasedPrediction = (
+    inputs: StrategyAnalysisInput[], 
+    currentPrice: number
+): PricePredictionOutput => {
+    if (inputs.length === 0) {
+        return {
+            predictedPrice: currentPrice,
+            predictedDirection: 'NEUTRAL',
+            confidence: 0,
+            reasoning: 'No strategies were provided for analysis.'
+        };
+    }
+
+    let score = 0;
+    let buySignals = 0;
+    let sellSignals = 0;
+    let holdSignals = 0;
+
+    for (const input of inputs) {
+        if (input.signal === 'BUY') {
+            score++;
+            buySignals++;
+        } else if (input.signal === 'SELL') {
+            score--;
+            sellSignals++;
+        } else {
+            holdSignals++;
+        }
+    }
+
+    const totalSignals = inputs.length;
+    const confidence = totalSignals > 0 ? Math.abs(score) / totalSignals : 0;
+    let predictedDirection: 'UP' | 'DOWN' | 'NEUTRAL' = 'NEUTRAL';
+    let predictedPrice = currentPrice;
+    
+    const threshold = Math.max(1, totalSignals * 0.2); // Require at least 1 or 20% of signals to agree
+
+    if (score > threshold) {
+        predictedDirection = 'UP';
+        predictedPrice = currentPrice * (1 + (confidence * 0.001)); // Predict small move up based on confidence
+    } else if (score < -threshold) {
+        predictedDirection = 'DOWN';
+        predictedPrice = currentPrice * (1 - (confidence * 0.001)); // Predict small move down
+    }
+
+    const reasoning = `Analysis of ${totalSignals} strategies. Score: ${score} (Buys: ${buySignals}, Sells: ${sellSignals}, Holds: ${holdSignals}). The consensus suggests a ${predictedDirection.toLowerCase()} direction with ${(confidence*100).toFixed(1)}% confidence.`;
+
+    return {
+        predictedPrice,
+        predictedDirection,
+        confidence,
+        reasoning
+    };
+};
+
 
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
@@ -681,12 +736,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: "Multi-Signal Monitor Stopped" });
   }, [addMultiLog, toast]);
 
-  // --- AI Screener Logic ---
+  // --- Screener Logic ---
   const startScreener = useCallback(async (config: ScreenerConfig) => {
     screenerRunningRef.current = true;
     setScreenerState({ isRunning: true, config, prediction: null, logs: [], strategyInputs: [] });
-    addScreenerLog(`Starting ensemble analysis for ${config.asset}...`);
-    toast({ title: "Ensemble Analysis Started", description: "This may take a few moments." });
+    addScreenerLog(`Starting consensus analysis for ${config.asset}...`);
+    toast({ title: "Consensus Analysis Started", description: "This is a code-based process and does not use AI tokens." });
     
     try {
         addScreenerLog("Fetching historical data...");
@@ -729,37 +784,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         if (!screenerRunningRef.current) return;
 
-        addScreenerLog("All strategies analyzed. Calling AI meta-model for final prediction...");
+        addScreenerLog("All strategies analyzed. Calculating code-based prediction...");
         
-        if (!canUseAi()) {
-            addScreenerLog(`AI quota reached. Cannot generate final prediction.`);
-            toast({ title: "AI Quota Reached", description: "Screener stopped.", variant: "destructive" });
-            setScreenerState(prev => ({...prev, isRunning: false}));
-            screenerRunningRef.current = false;
-            return;
-        }
-        
-        const fng = await getFearAndGreedIndex();
-        const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-        
-        const prediction = await predictPrice({
-            asset: config.asset,
-            interval: config.interval,
-            currentPrice: lastCandle.close,
-            recentData: JSON.stringify(data.slice(-50).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-            strategyOutputs: strategyOutputs.map(s => ({
-                strategyName: s.name,
-                signal: s.signal as 'BUY' | 'SELL' | 'HOLD' | null,
-                indicatorValues: s.indicators
-            })),
-            marketContext
-        });
+        const prediction = getCodeBasedPrediction(strategyOutputs, lastCandle.close);
 
         if (!screenerRunningRef.current) return;
         
         setScreenerState(prev => ({...prev, prediction, isRunning: false}));
-        addScreenerLog(`AI prediction received: ${prediction.predictedPrice.toFixed(4)}`);
-        toast({ title: "Prediction Complete", description: `The AI predicts a price of ${prediction.predictedPrice.toFixed(4)}.` });
+        addScreenerLog(`Code-based prediction received: ${prediction.predictedDirection}`);
+        toast({ title: "Prediction Complete", description: `The code-based consensus predicts a direction of ${prediction.predictedDirection}.` });
 
     } catch (e: any) {
         addScreenerLog(`Analysis failed: ${e.message}`);
@@ -769,7 +802,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         screenerRunningRef.current = false;
     }
 
-  }, [addScreenerLog, toast, canUseAi]);
+  }, [addScreenerLog, toast]);
 
   const stopScreener = useCallback(() => {
     addScreenerLog("Stopping analysis...");

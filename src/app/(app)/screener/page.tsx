@@ -125,10 +125,10 @@ export default function ScreenerPage() {
         <div className="space-y-6">
             <div className="text-left">
                 <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                    <BrainCircuit size={32}/> Ensemble Price Predictor
+                    <BrainCircuit size={32}/> Strategy Consensus Predictor
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                    Use a meta-model to predict future price by combining multiple strategy outputs.
+                    Get a prediction based on a code-based consensus from multiple strategies.
                 </p>
             </div>
              {isTradingActive && !isThisPageRunning && (
@@ -148,7 +148,7 @@ export default function ScreenerPage() {
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
                                     <CardTitle>Configuration</CardTitle>
-                                    <CardDescription>Set up the ensemble model.</CardDescription>
+                                    <CardDescription>Set up the consensus model.</CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -171,7 +171,7 @@ export default function ScreenerPage() {
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <Label>Strategies for Ensemble</Label>
+                                            <Label>Strategies for Consensus</Label>
                                             <Button
                                                 variant="link"
                                                 size="sm"
@@ -258,9 +258,9 @@ export default function ScreenerPage() {
                         <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
-                                    <CardTitle>AI Price Prediction</CardTitle>
+                                    <CardTitle>Consensus Prediction</CardTitle>
                                     <CardDescription>
-                                        {isRunning ? "Analyzing... This may take a few moments." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
+                                        {isRunning ? "Analyzing... This is a code-based process." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
                                     </CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
@@ -306,7 +306,7 @@ export default function ScreenerPage() {
                                                 </div>
                                             </div>
                                              <div>
-                                                <Label className="text-sm text-muted-foreground">Reasoning</Label>
+                                                <Label className="text-sm text-muted-foreground">Consensus Details</Label>
                                                 <p className="text-sm text-foreground/80">{prediction.reasoning}</p>
                                             </div>
                                         </div>
@@ -324,7 +324,7 @@ export default function ScreenerPage() {
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
                                     <CardTitle>Strategy Inputs</CardTitle>
-                                    <CardDescription>The data fed to the AI from each selected strategy.</CardDescription>
+                                    <CardDescription>The data fed to the consensus model from each selected strategy.</CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -382,5 +382,3 @@ export default function ScreenerPage() {
         </div>
     );
 }
-
-    
