@@ -77,6 +77,8 @@ export default function SettingsPage() {
     setCoingeckoApiKey,
     coinmarketcapApiKey,
     setCoinmarketcapApiKey,
+    aiQuota,
+    setAiQuotaLimit,
   } = useApi()
 
   const [isConnecting, setIsConnecting] = useState(false)
@@ -86,13 +88,14 @@ export default function SettingsPage() {
   const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
   const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
+  const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
 
   // Collapsible states
   const [isConnectionOpen, setConnectionOpen] = useState(true);
   const [isIpOpen, setIpOpen] = useState(true);
   const [isIntegrationsOpen, setIntegrationsOpen] = useState(true);
   const [isRateLimitOpen, setRateLimitOpen] = useState(true);
-  const [isAiQuotaOpen, setIsAiQuotaOpen] = useState(true);
+  const [isAiQuotaOpen, setAiQuotaOpen] = useState(true);
   const [isProfilesOpen, setProfilesOpen] = useState(true);
 
 
@@ -103,6 +106,10 @@ export default function SettingsPage() {
   useEffect(() => {
     setCmcKeyValue(coinmarketcapApiKey || "");
   }, [coinmarketcapApiKey]);
+
+  useEffect(() => {
+    setAiQuotaLimitInput(aiQuota.limit);
+  }, [aiQuota.limit]);
 
 
   useEffect(() => {
@@ -194,6 +201,11 @@ export default function SettingsPage() {
     setCoinmarketcapApiKey(cmcKeyValue);
     toast({ title: "CoinMarketCap API Key Saved" });
   };
+  
+  const handleSaveAiQuota = () => {
+    setAiQuotaLimit(aiQuotaLimitInput);
+    toast({ title: "AI Quota Limit Updated", description: `Your new daily limit is ${aiQuotaLimitInput}.` });
+  }
 
   const openEditForm = (profile: ApiProfile) => {
     setEditingProfile(profile);
@@ -211,6 +223,14 @@ export default function SettingsPage() {
       : apiLimit.used >= rateLimitThreshold * 0.9
       ? "bg-yellow-500"
       : "bg-primary";
+
+  const aiProgressColorClass =
+    aiQuota.used >= aiQuota.limit
+        ? "bg-red-500"
+        : aiQuota.used >= aiQuota.limit * 0.9
+        ? "bg-yellow-500"
+        : "bg-primary";
+
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -419,12 +439,12 @@ export default function SettingsPage() {
       </Card>
       
       <Card>
-        <Collapsible open={isAiQuotaOpen} onOpenChange={setIsAiQuotaOpen}>
+        <Collapsible open={isAiQuotaOpen} onOpenChange={setAiQuotaOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Service Quotas</CardTitle>
+              <CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Quota Management</CardTitle>
               <CardDescription>
-                Usage limits for integrated AI services. Exceeding these may cause features to fail temporarily.
+                Set a custom daily limit for AI requests to manage your free tier quota.
               </CardDescription>
             </div>
             <CollapsibleTrigger asChild>
@@ -435,14 +455,33 @@ export default function SettingsPage() {
             </CollapsibleTrigger>
           </CardHeader>
           <CollapsibleContent>
-            <CardContent>
-              <Alert variant="destructive" className="bg-destructive/10">
-                  <ShieldAlert className="h-4 w-4 text-destructive" />
-                  <AlertTitle>Google AI - Free Tier Limit</AlertTitle>
-                  <AlertDescription>
-                      The application uses Google's Gemini 1.5 Flash model. Under the free tier, you are limited to <strong>50 requests per day</strong>. This limit applies to features like AI-powered market reports, signal validation, and strategy optimization. Once exceeded, these features will not work until the quota resets.
-                  </AlertDescription>
-              </Alert>
+            <CardContent className="space-y-6">
+              <div>
+                  <Label>Daily Usage</Label>
+                  <p className="text-2xl font-bold">{aiQuota.used} / {aiQuota.limit}</p>
+                  <Progress value={(aiQuota.used / aiQuota.limit) * 100} indicatorClassName={aiProgressColorClass} className="mt-2" />
+                  <p className="text-xs text-muted-foreground mt-1">Resets daily. Official free tier limit is 50 requests/day.</p>
+              </div>
+              <div className="max-w-xs">
+                  <Label htmlFor="ai-limit">Set Daily Limit</Label>
+                  <div className="flex items-center gap-2">
+                      <Input
+                          id="ai-limit"
+                          type="number"
+                          value={aiQuotaLimitInput}
+                          onChange={(e) => setAiQuotaLimitInput(parseInt(e.target.value, 10) || 0)}
+                          max={50}
+                          min={1}
+                      />
+                      <Button onClick={handleSaveAiQuota}>
+                          <Save className="mr-2 h-4 w-4" />
+                          Save
+                      </Button>
+                  </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Set a limit below 50 to avoid breaching your daily quota.
+                  </p>
+              </div>
             </CardContent>
           </CollapsibleContent>
         </Collapsible>

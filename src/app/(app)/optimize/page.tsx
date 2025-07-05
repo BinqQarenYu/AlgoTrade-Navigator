@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/context/api-context";
 
 const historicalDataPlaceholder = `Date,Open,High,Low,Close,Volume
 2023-01-01,16541.7,16632.4,16518.4,16625.1,149999
@@ -36,6 +37,7 @@ export default function OptimizePage() {
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
   const { isTradingActive } = useBot();
+  const { canUseAi } = useApi();
   const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(true);
   const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(true);
 
@@ -48,6 +50,7 @@ export default function OptimizePage() {
   });
 
   const onSubmit = (values: z.infer<typeof strategySchema>) => {
+    if (!canUseAi()) return;
     setResult(null);
     startTransition(async () => {
       try {

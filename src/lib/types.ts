@@ -1,6 +1,5 @@
 
 
-
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -296,6 +295,38 @@ export type LiquidityEvent = {
   direction: 'bullish' | 'bearish';
   type: 'grab' | 'sweep';
 };
+
+export interface ApiContextType {
+  profiles: ApiProfile[];
+  activeProfile: ApiProfile | null;
+  apiKey: string | null;
+  secretKey: string | null;
+  coingeckoApiKey: string | null;
+  coinmarketcapApiKey: string | null;
+  
+  addProfile: (profile: ApiProfile) => void;
+  updateProfile: (profile: ApiProfile) => void;
+  deleteProfile: (profileId: string) => void;
+  setActiveProfile: (profileId: string | null) => void;
+  setCoingeckoApiKey: (key: string | null) => void;
+  setCoinmarketcapApiKey: (key: string | null) => void;
+  
+  isConnected: boolean;
+  setIsConnected: (status: boolean) => void;
+  apiLimit: { used: number; limit: number };
+  setApiLimit: (limit: { used: number; limit: number }) => void;
+  rateLimitThreshold: number;
+  setRateLimitThreshold: (limit: number) => void;
+
+  aiQuota: {
+    used: number;
+    limit: number;
+    lastReset: string; // YYYY-MM-DD
+  };
+  setAiQuotaLimit: (newLimit: number) => void;
+  canUseAi: () => boolean;
+}
+
 
 export interface BotContextType {
   liveBotState: any;

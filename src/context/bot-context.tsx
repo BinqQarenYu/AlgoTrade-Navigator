@@ -140,7 +140,7 @@ const KNOWN_INDICATORS = [
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey, activeProfile } = useApi();
+  const { apiKey, secretKey, activeProfile, canUseAi } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -229,15 +229,22 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         const strategySignal: 'BUY' | 'SELL' = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
 
-        const prediction = config.useAIPrediction ? await predictMarket({
-            symbol: config.symbol,
-            recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
-            strategySignal
-        }) : {
+        const prediction = config.useAIPrediction ? (
+            canUseAi() ? await predictMarket({
+                symbol: config.symbol,
+                recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
+                strategySignal
+            }) : null
+        ) : {
             prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
             confidence: 1,
             reasoning: `Signal from '${config.strategy}' without AI validation.`
         };
+
+        if (!prediction) { // This will be true if canUseAi returned false
+            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
+        }
+        
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
         if (aiConfirms) {
@@ -261,7 +268,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         console.error(`Analysis failed for ${config.symbol}:`, e);
         return { status: 'error', log: e.message || 'Unknown error', signal: null };
     }
-  }, []);
+  }, [canUseAi]);
 
   // --- Live Bot Logic ---
   const runLiveBotPrediction = useCallback(async () => {
@@ -723,6 +730,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         if (!screenerRunningRef.current) return;
 
         addScreenerLog("All strategies analyzed. Calling AI meta-model for final prediction...");
+        
+        if (!canUseAi()) {
+            addScreenerLog(`AI quota reached. Cannot generate final prediction.`);
+            toast({ title: "AI Quota Reached", description: "Screener stopped.", variant: "destructive" });
+            setScreenerState(prev => ({...prev, isRunning: false}));
+            screenerRunningRef.current = false;
+            return;
+        }
+        
         const fng = await getFearAndGreedIndex();
         const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
         
@@ -753,7 +769,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         screenerRunningRef.current = false;
     }
 
-  }, [addScreenerLog, toast]);
+  }, [addScreenerLog, toast, canUseAi]);
 
   const stopScreener = useCallback(() => {
     addScreenerLog("Stopping analysis...");

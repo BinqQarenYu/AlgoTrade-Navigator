@@ -24,13 +24,14 @@ export function AIAnalyticsCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [prediction, setPrediction] = useState<PredictPriceOutput | null>(null);
   const { toast } = useToast();
-  const { isConnected } = useApi();
+  const { isConnected, canUseAi } = useApi();
 
   const handlePredict = useCallback(async () => {
     if (!isConnected) {
         toast({ title: "API Disconnected", description: "Please connect to the Binance API in settings.", variant: "destructive" });
         return;
     }
+    if (!canUseAi()) return;
 
     setIsLoading(true);
     setPrediction(null);
@@ -62,10 +63,12 @@ export function AIAnalyticsCard() {
 
         const fng = await getFearAndGreedIndex();
         const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
+        const lastCandle = data[data.length - 1];
 
         const predictionResult = await predictPrice({
             asset,
             interval,
+            currentPrice: lastCandle.close,
             recentData: JSON.stringify(data.slice(-50).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
             strategyOutputs: strategyOutputs,
             marketContext
@@ -79,7 +82,7 @@ export function AIAnalyticsCard() {
     } finally {
         setIsLoading(false);
     }
-  }, [asset, toast, isConnected]);
+  }, [asset, toast, isConnected, canUseAi]);
 
   return (
     <Card>

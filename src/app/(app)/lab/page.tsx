@@ -47,29 +47,38 @@ interface DateRange {
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const item = window.localStorage.getItem(key);
-    if (item) {
-      try {
-        setState(JSON.parse(item));
-      } catch (e) {
-        console.error('Failed to parse stored state', e);
-        localStorage.removeItem(key);
+    setIsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (isHydrated) {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        try {
+          setState(JSON.parse(item));
+        } catch (e) {
+          console.error('Failed to parse stored state', e);
+          localStorage.removeItem(key);
+        }
       }
     }
-  }, [key]);
+  }, [key, isHydrated]);
 
   useEffect(() => {
-    window.localStorage.setItem(key, JSON.stringify(state));
-  }, [key, state]);
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
 
   return [state, setState];
 };
 
 export default function LabPage() {
   const { toast } = useToast()
-  const { isConnected } = useApi();
+  const { isConnected, canUseAi } = useApi();
   const [isReportPending, startReportTransition] = React.useTransition();
   
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
@@ -88,7 +97,6 @@ export default function LabPage() {
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
-  const [isAnalyzingLiquidity, setIsAnalyzingLiquidity] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -115,6 +123,27 @@ export default function LabPage() {
     // When the symbol changes, clear out old wall data
     setWalls([]);
   }, [symbol]);
+
+  // Automated Liquidity Analysis
+  useEffect(() => {
+    if (chartData.length < 20) {
+      setLiquidityEvents([]);
+      return;
+    }
+    
+    const runAnalysis = async () => {
+        try {
+            const resultEvents = await findLiquidityGrabs(chartData);
+            setLiquidityEvents(resultEvents);
+        } catch (error: any) {
+            console.error("Error analyzing liquidity automatically:", error);
+            // Don't toast here to avoid spamming user
+        }
+    };
+    
+    runAnalysis();
+  }, [chartData]);
+
 
   useEffect(() => {
     if (!isClient || !symbol) return;
@@ -149,34 +178,13 @@ export default function LabPage() {
     fetchData();
   }, [symbol, date, interval, isConnected, isClient, toast]);
 
-  const handleAnalyzeLiquidity = async () => {
-    if (chartData.length < 20) {
-      toast({ title: "Not Enough Data", description: "Please load more market data to analyze liquidity.", variant: "destructive" });
-      return;
-    }
-    setIsAnalyzingLiquidity(true);
-    setLiquidityEvents([]);
-    try {
-        const resultEvents = await findLiquidityGrabs(chartData);
-        setLiquidityEvents(resultEvents);
-        toast({ title: "Analysis Complete", description: `${resultEvents.length} liquidity events found.`});
-    } catch (error: any) {
-        console.error("Error analyzing liquidity:", error);
-        toast({
-          title: "Analysis Failed",
-          description: error.message || "An error occurred during liquidity analysis.",
-          variant: "destructive",
-        });
-    } finally {
-        setIsAnalyzingLiquidity(false);
-    }
-  };
-
   const handleGenerateReport = () => {
     if (chartData.length < 20) {
       toast({ title: "Not Enough Data", description: "Please load more market data to generate a report.", variant: "destructive" });
       return;
     }
+    if (!canUseAi()) return;
+
     setReport(null);
     startReportTransition(async () => {
       try {
@@ -199,7 +207,7 @@ export default function LabPage() {
     });
   };
 
-  const anyLoading = isFetchingData || isReportPending || isAnalyzingLiquidity;
+  const anyLoading = isFetchingData || isReportPending;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
 
   return (
@@ -297,13 +305,6 @@ export default function LabPage() {
                   
                   <div className="space-y-2">
                     <Label>Chart Visuals & Analysis</Label>
-                     <Alert variant="destructive" className="bg-destructive/10">
-                        <ShieldAlert className="h-4 w-4 text-destructive" />
-                        <AlertTitle>AI Quota Notice</AlertTitle>
-                        <AlertDescription>
-                          AI-powered features like Market Reports use your daily free quota. Frequent use may lead to temporary rate limits.
-                        </AlertDescription>
-                    </Alert>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                         <div className="flex items-center space-x-2">
                             <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
@@ -317,13 +318,9 @@ export default function LabPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-2">
-                   <Button className="w-full" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
-                    {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
-                  </Button>
                   <Button className="w-full" variant="outline" onClick={handleGenerateReport} disabled={!canAnalyze}>
                     {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isReportPending ? "Generating Report..." : "Generate Market Report"}
+                    {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>

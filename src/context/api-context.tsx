@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import type { ApiProfile } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface ApiContextType {
   profiles: ApiProfile[];
@@ -25,11 +26,20 @@ interface ApiContextType {
   setApiLimit: (limit: { used: number; limit: number }) => void;
   rateLimitThreshold: number;
   setRateLimitThreshold: (limit: number) => void;
+
+  aiQuota: {
+    used: number;
+    limit: number;
+    lastReset: string; // YYYY-MM-DD
+  };
+  setAiQuotaLimit: (newLimit: number) => void;
+  canUseAi: () => boolean;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
 
 export const ApiProvider = ({ children }: { children: ReactNode }) => {
+  const { toast } = useToast();
   const [profiles, setProfiles] = useState<ApiProfile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -37,6 +47,11 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [rateLimitThreshold, setRateLimitThreshold] = useState<number>(1100);
   const [coingeckoApiKey, setCoingeckoApiKey] = useState<string | null>(null);
   const [coinmarketcapApiKey, setCoinmarketcapApiKey] = useState<string | null>(null);
+  const [aiQuota, setAiQuota] = useState({
+    used: 0,
+    limit: 49,
+    lastReset: new Date().toISOString().split('T')[0],
+  });
 
   // Load initial state from localStorage
   useEffect(() => {
@@ -46,6 +61,18 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedThreshold = localStorage.getItem('rateLimitThreshold');
     const storedCgKey = localStorage.getItem('coingeckoApiKey');
     const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
+    const storedAiQuota = localStorage.getItem('aiQuota');
+
+    if (storedAiQuota) {
+        const parsed = JSON.parse(storedAiQuota);
+        const today = new Date().toISOString().split('T')[0];
+        // Reset if it's a new day
+        if (parsed.lastReset !== today) {
+            setAiQuota({ ...parsed, used: 0, lastReset: today });
+        } else {
+            setAiQuota(parsed);
+        }
+    }
 
     let loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
     
@@ -129,6 +156,11 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isConnected]);
 
+  // Persist AI Quota
+  useEffect(() => {
+    localStorage.setItem('aiQuota', JSON.stringify(aiQuota));
+  }, [aiQuota]);
+
   // --- Profile Management Functions ---
   const addProfile = (profile: ApiProfile) => {
     setProfiles(prev => [...prev, profile]);
@@ -143,6 +175,35 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     if (activeProfileId === profileId) {
       setActiveProfile(null);
     }
+  };
+
+  // --- AI Quota Management ---
+  const setAiQuotaLimit = (newLimit: number) => {
+    setAiQuota(prev => ({ ...prev, limit: Math.max(1, Math.min(50, newLimit)) }));
+  };
+
+  const canUseAi = () => {
+    let currentQuota = { ...aiQuota };
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Check if we need to reset the quota for a new day
+    if (currentQuota.lastReset !== today) {
+      currentQuota = { ...currentQuota, used: 0, lastReset: today };
+    }
+
+    if (currentQuota.used >= currentQuota.limit) {
+      toast({
+        title: "AI Daily Quota Limit Reached",
+        description: `You have used your daily limit of ${currentQuota.limit} AI requests. The quota will reset tomorrow.`,
+        variant: "destructive",
+      });
+      setAiQuota(currentQuota); // Save the reset date even if limit is reached
+      return false;
+    }
+
+    const updatedQuota = { ...currentQuota, used: currentQuota.used + 1 };
+    setAiQuota(updatedQuota);
+    return true;
   };
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
@@ -167,6 +228,9 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       setApiLimit,
       rateLimitThreshold,
       setRateLimitThreshold,
+      aiQuota,
+      setAiQuotaLimit,
+      canUseAi,
     }}>
       {children}
     </ApiContext.Provider>

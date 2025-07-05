@@ -145,7 +145,7 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
 
 export default function BacktestPage() {
   const { toast } = useToast()
-  const { isConnected } = useApi();
+  const { isConnected, canUseAi } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams } = useBot();
 
   const [date, setDate] = useState<DateRange | undefined>()
@@ -458,19 +458,24 @@ export default function BacktestPage() {
           
           if (useAIValidation) {
             if (aiValidationCount < maxAiValidations) {
-              aiValidationCount++;
-              try {
-                prediction = await predictMarket({
-                    symbol: symbol,
-                    recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                    strategySignal: potentialSignal
-                });
-                if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
-                  isValidSignal = true;
+              if (canUseAi()) {
+                aiValidationCount++;
+                try {
+                  prediction = await predictMarket({
+                      symbol: symbol,
+                      recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                      strategySignal: potentialSignal
+                  });
+                  if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
+                    isValidSignal = true;
+                  }
+                } catch(e) {
+                  console.error("AI validation failed", e);
+                  isValidSignal = false; // Fail safe
                 }
-              } catch(e) {
-                console.error("AI validation failed", e);
-                isValidSignal = false; // Fail safe
+              } else {
+                toast({ title: "AI Quota Reached", description: "Skipping AI validation for this trade." });
+                isValidSignal = true; // Fallback to non-AI validation
               }
             } else if (!aiLimitReachedNotified) {
               toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed. Subsequent trades will not be AI-validated.` });
@@ -690,7 +695,7 @@ export default function BacktestPage() {
         </Alert>
     )}
     {isTradingActive && (
-        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
