@@ -203,9 +203,10 @@ export const get24hTickerStats = async (symbols: string[]): Promise<Record<strin
         if (error instanceof ccxt.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
         } else if (error instanceof ccxt.ExchangeError) {
-            // Some exchanges don't support fetchTickers for multiple symbols, fallback to individual calls
-            if (error.message.includes('not support')) { // More generic check
-                console.log('fetchTickers not supported for multiple symbols, falling back to individual fetchTicker calls.');
+            // Some exchanges don't support fetchTickers for multiple symbols, or have other constraints.
+            // Fallback to individual calls.
+            if (error.message.includes('not support') || error.message.includes('of the same type')) {
+                console.log('Batch fetchTickers failed, falling back to individual calls. Reason:', error.message);
                 const tickersObject: Record<string, Ticker> = {};
                 await Promise.all(symbols.map(async (symbol) => {
                     try {
