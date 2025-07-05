@@ -49,7 +49,7 @@ function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
 const liquidityOrderFlowStrategy: Strategy = {
   id: 'liquidity-order-flow',
   name: 'Liquidity & Order Flow',
-  description: 'A professional-grade strategy that identifies liquidity sweeps, waits for a market structure shift, and seeks entry on a pullback to a Fair Value Gap.',
+  description: 'A professional-grade strategy that identifies liquidity sweeps, confirms them with volume analysis, waits for a market structure shift, and seeks entry on a pullback to a Fair Value Gap.',
   
   async calculate(data: HistoricalData[], params: LiquidityOrderFlowParams = defaultLiquidityOrderFlowParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
@@ -72,11 +72,17 @@ const liquidityOrderFlowStrategy: Strategy = {
         const swingHighPrice = data[lastSwingHighIndex].high;
         for (let j = lastSwingHighIndex + 1; j < lastSwingHighIndex + params.maxLookahead && j < data.length; j++) {
           if (data[j].high > swingHighPrice) { // 1. Liquidity Grab
+            const sweepVolume = data[j].volume;
             const lastSwingLowBeforeGrab = swingLows.filter(sl => sl < j).pop();
             if (!lastSwingLowBeforeGrab) continue;
 
             for (let k = j + 1; k < j + params.maxLookahead && k < data.length; k++) {
               if (data[k].close < data[lastSwingLowBeforeGrab].low) { // 2. Market Structure Shift
+                const mssVolume = data[k].volume;
+
+                // Volume confirmation: reversal volume should be less than sweep volume
+                if (mssVolume >= sweepVolume) continue;
+
                 const bearishFvgs = fvgs.filter(f => f.type === 'bearish' && f.index > lastSwingLowBeforeGrab && f.index < k);
                 const relevantFvg = bearishFvgs.pop(); // Get the last FVG created
                 
@@ -104,11 +110,16 @@ const liquidityOrderFlowStrategy: Strategy = {
         const swingLowPrice = data[lastSwingLowIndex].low;
         for (let j = lastSwingLowIndex + 1; j < lastSwingLowIndex + params.maxLookahead && j < data.length; j++) {
           if (data[j].low < swingLowPrice) { // 1. Liquidity Grab
+            const sweepVolume = data[j].volume;
             const lastSwingHighBeforeGrab = swingHighs.filter(sh => sh < j).pop();
             if (!lastSwingHighBeforeGrab) continue;
 
             for (let k = j + 1; k < j + params.maxLookahead && k < data.length; k++) {
               if (data[k].close > data[lastSwingHighBeforeGrab].high) { // 2. Market Structure Shift
+                const mssVolume = data[k].volume;
+                // Volume confirmation: reversal volume should be less than sweep volume
+                if (mssVolume >= sweepVolume) continue;
+
                 const bullishFvgs = fvgs.filter(f => f.type === 'bullish' && f.index > lastSwingHighBeforeGrab && f.index < k);
                 const relevantFvg = bullishFvgs.pop();
                 
