@@ -38,6 +38,7 @@ import { analyzeLiquidity } from "@/ai/flows/analyze-liquidity-flow"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
+import { Switch } from "@/components/ui/switch"
 
 interface DateRange {
   from?: Date;
@@ -63,6 +64,9 @@ export default function LabPage() {
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
+
+  const [showWalls, setShowWalls] = useState(true);
+  const [showLiquidity, setShowLiquidity] = useState(true);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -205,7 +209,7 @@ export default function LabPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 flex flex-col h-[600px]">
-          <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={walls} liquidityEvents={liquidityEvents} />
+          <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
         </div>
 
         <div className="xl:col-span-2 space-y-6">
@@ -273,6 +277,20 @@ export default function LabPage() {
                           />
                         </PopoverContent>
                       </Popover>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Chart Visuals</Label>
+                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
+                            <Label htmlFor="show-walls" className="flex-1 cursor-pointer">Show Order Book Walls</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
+                            <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer">Show Liquidity Grabs</Label>
+                        </div>
+                    </div>
                   </div>
                 </CardContent>
                 <CardFooter className="grid grid-cols-2 gap-2">
