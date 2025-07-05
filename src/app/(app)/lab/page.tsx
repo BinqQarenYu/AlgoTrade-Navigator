@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2 } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -46,21 +46,22 @@ interface DateRange {
 }
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(() => {
-    if (typeof window === 'undefined') return defaultValue;
-    try {
-      const item = window.localStorage.getItem(key);
-      return item ? JSON.parse(item) : defaultValue;
-    } catch (error) {
-      console.error(error);
-      return defaultValue;
-    }
-  });
+  const [state, setState] = useState<T>(defaultValue);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(key, JSON.stringify(state));
+    const item = window.localStorage.getItem(key);
+    if (item) {
+      try {
+        setState(JSON.parse(item));
+      } catch (e) {
+        console.error('Failed to parse stored state', e);
+        localStorage.removeItem(key);
+      }
     }
+  }, [key]);
+
+  useEffect(() => {
+    window.localStorage.setItem(key, JSON.stringify(state));
   }, [key, state]);
 
   return [state, setState];
@@ -87,6 +88,7 @@ export default function LabPage() {
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
+  const [isAnalyzingLiquidity, setIsAnalyzingLiquidity] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -147,29 +149,28 @@ export default function LabPage() {
     fetchData();
   }, [symbol, date, interval, isConnected, isClient, toast]);
 
-  // Automatically analyze liquidity when chart data changes
-  useEffect(() => {
+  const handleAnalyzeLiquidity = async () => {
     if (chartData.length < 20) {
-      setLiquidityEvents([]); // Clear events if not enough data
+      toast({ title: "Not Enough Data", description: "Please load more market data to analyze liquidity.", variant: "destructive" });
       return;
     }
-
-    const analyze = async () => {
-      try {
+    setIsAnalyzingLiquidity(true);
+    setLiquidityEvents([]);
+    try {
         const resultEvents = await findLiquidityGrabs(chartData);
         setLiquidityEvents(resultEvents);
-      } catch (error: any) {
+        toast({ title: "Analysis Complete", description: `${resultEvents.length} liquidity events found.`});
+    } catch (error: any) {
         console.error("Error analyzing liquidity:", error);
         toast({
-          title: "Liquidity Analysis Failed",
-          description: error.message || "An error occurred during the analysis.",
+          title: "Analysis Failed",
+          description: error.message || "An error occurred during liquidity analysis.",
           variant: "destructive",
         });
-      }
-    };
-    
-    analyze();
-  }, [chartData, toast]);
+    } finally {
+        setIsAnalyzingLiquidity(false);
+    }
+  };
 
   const handleGenerateReport = () => {
     if (chartData.length < 20) {
@@ -198,7 +199,7 @@ export default function LabPage() {
     });
   };
 
-  const anyLoading = isFetchingData || isReportPending;
+  const anyLoading = isFetchingData || isReportPending || isAnalyzingLiquidity;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
 
   return (
@@ -295,7 +296,14 @@ export default function LabPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label>Chart Visuals</Label>
+                    <Label>Chart Visuals & Analysis</Label>
+                     <Alert variant="destructive" className="bg-destructive/10">
+                        <ShieldAlert className="h-4 w-4 text-destructive" />
+                        <AlertTitle>AI Quota Notice</AlertTitle>
+                        <AlertDescription>
+                          AI-powered features like Market Reports use your daily free quota. Frequent use may lead to temporary rate limits.
+                        </AlertDescription>
+                    </Alert>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                         <div className="flex items-center space-x-2">
                             <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
@@ -309,9 +317,13 @@ export default function LabPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-2">
-                  <Button className="w-full" onClick={handleGenerateReport} disabled={!canAnalyze}>
-                    {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isFetchingData ? "Loading Data..." : isReportPending ? "Generating Report..." : "Generate Market Report"}
+                   <Button className="w-full" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
+                    {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
+                  </Button>
+                  <Button className="w-full" variant="outline" onClick={handleGenerateReport} disabled={!canAnalyze}>
+                    {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    {isReportPending ? "Generating Report..." : "Generate Market Report"}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>
