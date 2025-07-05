@@ -45,11 +45,15 @@ export function TradingChart({
   const chartRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    const chartContainer = chartContainerRef.current;
+    if (!chartContainer) return;
 
     const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current?.chart) {
-        chartRef.current.chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      if (chartContainer && chartRef.current?.chart) {
+        chartRef.current.chart.applyOptions({ 
+          width: chartContainer.clientWidth,
+          height: chartContainer.clientHeight
+        });
       }
     };
     
@@ -81,7 +85,7 @@ export function TradingChart({
             senkouBColor: 'rgba(239, 83, 80, 0.2)',
         };
         
-        const chart = createChart(chartContainerRef.current, {
+        const chart = createChart(chartContainer, {
           layout: {
             background: { type: ColorType.Solid, color: chartColors.background },
             textColor: chartColors.textColor,
@@ -90,8 +94,8 @@ export function TradingChart({
             vertLines: { color: chartColors.gridColor },
             horzLines: { color: chartColors.gridColor },
           },
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
+          width: chartContainer.clientWidth,
+          height: chartContainer.clientHeight,
           timeScale: {
             borderColor: chartColors.gridColor,
             timeVisible: true,
@@ -148,13 +152,19 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
         };
-        
-        window.addEventListener('resize', handleResize);
+    }
+    
+    // Use ResizeObserver to handle container size changes
+    const resizeObserver = new ResizeObserver(handleResize);
+    if (chartContainer) {
+      resizeObserver.observe(chartContainer);
     }
     
     // Cleanup on unmount
     return () => {
-      window.removeEventListener('resize', handleResize);
+      if (chartContainer) {
+        resizeObserver.unobserve(chartContainer);
+      }
       if (chartRef.current?.chart) {
           chartRef.current.chart.remove();
           chartRef.current = null;
