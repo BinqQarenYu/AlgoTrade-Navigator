@@ -50,7 +50,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -463,6 +463,7 @@ export default function SettingsPage() {
                         <TableRow>
                             <TableHead className="w-[180px]">Profile Name</TableHead>
                             <TableHead>API Key</TableHead>
+                            <TableHead>Permissions</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right w-[200px]">Actions</TableHead>
                         </TableRow>
@@ -473,6 +474,15 @@ export default function SettingsPage() {
                                 <TableRow key={profile.id} className={cn(activeProfile?.id === profile.id && "bg-muted/50")}>
                                     <TableCell className="font-medium">{profile.name}</TableCell>
                                     <TableCell className="font-mono text-xs">{`${profile.apiKey.substring(0, 6)}...${profile.apiKey.slice(-4)}`}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={profile.permissions === 'FuturesTrading' ? 'default' : 'secondary'}>
+                                            {profile.permissions === 'FuturesTrading' ? 
+                                                <Send className="mr-1 h-3 w-3"/> :
+                                                <BookOpen className="mr-1 h-3 w-3"/>
+                                            }
+                                            {profile.permissions === 'FuturesTrading' ? 'Trading' : 'Read-Only'}
+                                        </Badge>
+                                    </TableCell>
                                     <TableCell>
                                         {activeProfile?.id === profile.id && (
                                             <Badge variant="default" className="bg-green-600 hover:bg-green-600">
@@ -518,7 +528,7 @@ export default function SettingsPage() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                                     No API profiles found. Add one to get started.
                                 </TableCell>
                             </TableRow>

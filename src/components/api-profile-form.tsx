@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Save, QrCode } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import type { ApiProfile } from "@/lib/types"
@@ -20,6 +21,9 @@ export const profileSchema = z.object({
   name: z.string().min(1, "Profile name is required."),
   apiKey: z.string().min(10, "API Key seems too short."),
   secretKey: z.string().min(10, "Secret Key seems too short."),
+  permissions: z.enum(['ReadOnly', 'FuturesTrading'], {
+    required_error: "You need to select the API key permissions.",
+  }),
 })
 
 interface ApiProfileFormProps {
@@ -38,6 +42,7 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
       name: defaultValues?.name || "",
       apiKey: defaultValues?.apiKey || "",
       secretKey: defaultValues?.secretKey || "",
+      permissions: defaultValues?.permissions || "ReadOnly",
     },
   })
 
@@ -121,6 +126,40 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
               <FormLabel>Binance Secret Key</FormLabel>
               <FormControl>
                 <Input type="password" placeholder="Enter your Secret Key" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+         <FormField
+          control={form.control}
+          name="permissions"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormLabel>API Key Permissions</FormLabel>
+              <FormControl>
+                <RadioGroup
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                  className="flex flex-col space-y-1"
+                >
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="ReadOnly" />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Read-Only (Enables fetching data, backtesting)
+                    </FormLabel>
+                  </FormItem>
+                  <FormItem className="flex items-center space-x-3 space-y-0">
+                    <FormControl>
+                      <RadioGroupItem value="FuturesTrading" />
+                    </FormControl>
+                    <FormLabel className="font-normal">
+                      Enable Futures Trading (Allows trade execution)
+                    </FormLabel>
+                  </FormItem>
+                </RadioGroup>
               </FormControl>
               <FormMessage />
             </FormItem>

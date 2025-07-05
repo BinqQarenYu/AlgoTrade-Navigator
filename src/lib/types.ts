@@ -145,6 +145,7 @@ export type ApiProfile = {
   name: string;
   apiKey: string;
   secretKey: string;
+  permissions: 'ReadOnly' | 'FuturesTrading';
 };
 
 export type TradeSignal = {

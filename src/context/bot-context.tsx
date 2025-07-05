@@ -139,7 +139,7 @@ const KNOWN_INDICATORS = [
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey } = useApi();
+  const { apiKey, secretKey, activeProfile } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -339,9 +339,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
 
   const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number) => {
-    if (!apiKey || !secretKey) {
-        toast({ title: "Execution Failed", description: "API keys are not configured.", variant: "destructive" });
-        return;
+    if (!activeProfile || !apiKey || !secretKey) {
+      toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
+      return;
     }
     if (!signal) {
         toast({ title: "Execution Failed", description: "No valid signal to execute.", variant: "destructive" });
@@ -349,7 +349,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setManualTraderState(prev => ({ ...prev, isExecuting: true }));
-    addManualLog(`Executing ${signal.action === 'UP' ? 'BUY' : 'SELL'} order for ${signal.asset}...`);
+    
+    if (activeProfile.permissions === 'ReadOnly') {
+        addManualLog(`Read-only key detected. Simulating trade locally for ${signal.asset}...`);
+        toast({
+            title: "Read-Only API Key",
+            description: "Simulating trade execution locally. No real order will be placed."
+        });
+    } else {
+        addManualLog(`Futures key detected. Executing ${signal.action === 'UP' ? 'BUY' : 'SELL'} order for ${signal.asset}...`);
+    }
 
     try {
         const positionValue = capital * leverage;
@@ -372,7 +381,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setManualTraderState(prev => ({ ...prev, isExecuting: false }));
     }
-  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal]);
+  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile]);
 
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
     // This function is for loading the initial chart data on the manual page.

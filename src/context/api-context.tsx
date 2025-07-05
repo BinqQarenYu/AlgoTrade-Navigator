@@ -47,7 +47,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedCgKey = localStorage.getItem('coingeckoApiKey');
     const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
 
-    const loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
+    let loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
+    
+    // Simple migration for old profiles without permissions
+    loadedProfiles = loadedProfiles.map((p: any) => ({
+        ...p,
+        permissions: p.permissions || 'ReadOnly'
+    }));
+
     setProfiles(loadedProfiles);
     
     if (storedCgKey) {
