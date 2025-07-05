@@ -1,21 +1,27 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateElderRay, calculateEMA } from '@/lib/indicators';
+
+export interface ElderRayIndexParams {
+  period: number;
+}
+
+export const defaultElderRayIndexParams: ElderRayIndexParams = {
+  period: 13,
+};
 
 const elderRayStrategy: Strategy = {
   id: 'elder-ray-index',
   name: 'Elder-Ray Index',
   description: 'Uses Bull and Bear Power oscillators to gauge market sentiment, with an EMA for trend direction.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: ElderRayIndexParams = defaultElderRayIndexParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 13;
 
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
-    const ema = calculateEMA(closePrices, period);
-    const { bullPower, bearPower } = calculateElderRay(data, period);
+    const ema = calculateEMA(closePrices, params.period);
+    const { bullPower, bearPower } = calculateElderRay(data, params.period);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.ema_short = ema[i];

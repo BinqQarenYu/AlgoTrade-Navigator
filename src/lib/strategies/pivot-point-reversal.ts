@@ -1,19 +1,25 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculatePivotPoints } from '@/lib/indicators';
+
+export interface PivotPointReversalParams {
+  period: number;
+}
+
+export const defaultPivotPointReversalParams: PivotPointReversalParams = {
+  period: 24,
+};
 
 const pivotPointReversalStrategy: Strategy = {
   id: 'pivot-point-reversal',
   name: 'Pivot Point Reversal',
   description: 'Trades reversals off of calculated support (S1, S2, S3) and resistance (R1, R2, R3) levels.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: PivotPointReversalParams = defaultPivotPointReversalParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 24; // Use a rolling 24-bar period to simulate daily pivots on an hourly chart
+    
+    if (data.length < params.period) return dataWithIndicators;
 
-    if (data.length < period) return dataWithIndicators;
-
-    const { pp, s1, s2, s3, r1, r2, r3 } = calculatePivotPoints(data, period);
+    const { pp, s1, s2, s3, r1, r2, r3 } = calculatePivotPoints(data, params.period);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
         d.pivot_point = pp[i];

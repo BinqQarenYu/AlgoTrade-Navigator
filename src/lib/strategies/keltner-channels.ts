@@ -1,20 +1,27 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateKeltnerChannels } from '@/lib/indicators';
+
+export interface KeltnerChannelsParams {
+  period: number;
+  multiplier: number;
+}
+
+export const defaultKeltnerChannelsParams: KeltnerChannelsParams = {
+  period: 20,
+  multiplier: 2,
+};
 
 const keltnerChannelsStrategy: Strategy = {
   id: 'keltner-channels',
   name: 'Keltner Channels Breakout',
   description: 'A volatility-based strategy using Keltner Channels to trade breakouts.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: KeltnerChannelsParams = defaultKeltnerChannelsParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 20;
-    const multiplier = 2;
 
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
     
-    const { upper, middle, lower } = calculateKeltnerChannels(data, period, multiplier);
+    const { upper, middle, lower } = calculateKeltnerChannels(data, params.period, params.multiplier);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.keltner_upper = upper[i];

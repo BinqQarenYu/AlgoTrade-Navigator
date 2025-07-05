@@ -1,21 +1,29 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateStochastic } from '@/lib/indicators';
+
+export interface StochasticCrossoverParams {
+  period: number;
+  smoothK: number;
+  smoothD: number;
+}
+
+export const defaultStochasticCrossoverParams: StochasticCrossoverParams = {
+  period: 14,
+  smoothK: 3,
+  smoothD: 3,
+};
 
 const stochasticCrossoverStrategy: Strategy = {
   id: 'stochastic-crossover',
   name: 'Stochastic Crossover',
   description: 'A momentum strategy based on the Stochastic Oscillator %K line crossing over or under the %D line.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: StochasticCrossoverParams = defaultStochasticCrossoverParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 14;
-    const smoothK = 3;
-    const smoothD = 3;
+    
+    if (data.length < params.period + params.smoothK + params.smoothD) return dataWithIndicators;
 
-    if (data.length < period + smoothK + smoothD) return dataWithIndicators;
-
-    const { k, d: stochD } = calculateStochastic(data, period, smoothK, smoothD);
+    const { k, d: stochD } = calculateStochastic(data, params.period, params.smoothK, params.smoothD);
 
     dataWithIndicators.forEach((dItem: HistoricalData, i: number) => {
       dItem.stoch_k = k[i];

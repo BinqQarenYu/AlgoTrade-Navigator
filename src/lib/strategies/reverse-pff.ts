@@ -1,15 +1,27 @@
-
 'use client';
 
 import type { HistoricalData, Strategy } from '../types';
 import { calculateEMA } from '../indicators';
 
-const PEAK_LOOKAROUND = 5; // How many bars on each side to confirm a peak
-const SWING_LOOKAROUND = 3; // How many bars on each side to confirm a swing point for BoS
-const EMA_SHORT_PERIOD = 13;
-const EMA_LONG_PERIOD = 50;
-const FIB_LEVELS = [0.5, 0.618]; // 50% and 61.8% retracement levels
-const MAX_LOOKAHEAD = 100; // Max bars to look for a Break of Structure and subsequent pullback
+export interface ReversePffParams {
+    peakLookaround: number;
+    swingLookaround: number;
+    emaShortPeriod: number;
+    emaLongPeriod: number;
+    fibLevel1: number;
+    fibLevel2: number;
+    maxLookahead: number;
+}
+
+export const defaultReversePffParams: ReversePffParams = {
+    peakLookaround: 5,
+    swingLookaround: 3,
+    emaShortPeriod: 13,
+    emaLongPeriod: 50,
+    fibLevel1: 0.5,
+    fibLevel2: 0.618,
+    maxLookahead: 100,
+};
 
 /**
  * Finds swing lows in the data, which are essential for identifying breaks of structure.
@@ -57,27 +69,27 @@ const reversePffStrategy: Strategy = {
     id: 'reverse-pff',
     name: 'Reverse PFF',
     description: 'A contrarian strategy that shorts PFF long signals and longs PFF short signals.',
-    async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], params: ReversePffParams = defaultReversePffParams): Promise<HistoricalData[]> {
         const dataWithIndicators = JSON.parse(JSON.stringify(data)); // Deep copy
-        if (data.length < EMA_LONG_PERIOD) return dataWithIndicators;
+        if (data.length < params.emaLongPeriod) return dataWithIndicators;
 
         const closePrices = data.map(d => d.close);
-        const ema13 = calculateEMA(closePrices, EMA_SHORT_PERIOD);
-        const ema50 = calculateEMA(closePrices, EMA_LONG_PERIOD);
+        const ema13 = calculateEMA(closePrices, params.emaShortPeriod);
+        const ema50 = calculateEMA(closePrices, params.emaLongPeriod);
         
         dataWithIndicators.forEach((d: HistoricalData, i: number) => {
             d.ema_short = ema13[i];
             d.ema_long = ema50[i];
         });
 
-        const swingLows = findSwingLows(data, SWING_LOOKAROUND);
-        const swingHighs = findSwingHighs(data, SWING_LOOKAROUND);
+        const swingLows = findSwingLows(data, params.swingLookaround);
+        const swingHighs = findSwingHighs(data, params.swingLookaround);
 
-        for (let i = PEAK_LOOKAROUND; i < data.length - PEAK_LOOKAROUND; i++) {
+        for (let i = params.peakLookaround; i < data.length - params.peakLookaround; i++) {
             
             // --- Look for a PFH to generate a LONG signal (REVERSE LOGIC) ---
             let isPFH = true;
-            for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
+            for (let j = 1; j <= params.peakLookaround; j++) {
                 if (data[i].high <= data[i - j].high || data[i].high <= data[i + j].high) {
                     isPFH = false;
                     break;
@@ -88,7 +100,7 @@ const reversePffStrategy: Strategy = {
                 const peakHigh = data[i].high;
                 const relevantSwingLowIndex = findLastSwingLowBefore(swingLows, i);
                 if (relevantSwingLowIndex !== null) {
-                    for (let k = i + 1; k < Math.min(i + MAX_LOOKAHEAD, data.length); k++) {
+                    for (let k = i + 1; k < Math.min(i + params.maxLookahead, data.length); k++) {
                         if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
 
                         const emaCrossed = ema13[k-1] >= ema50[k-1] && ema13[k] < ema50[k];
@@ -98,7 +110,7 @@ const reversePffStrategy: Strategy = {
                             const bosIndex = k;
                             let pullbackLow = data[bosIndex].low;
 
-                            for (let l = bosIndex + 1; l < Math.min(bosIndex + MAX_LOOKAHEAD, data.length); l++) {
+                            for (let l = bosIndex + 1; l < Math.min(bosIndex + params.maxLookahead, data.length); l++) {
                                 if (data[l].low < pullbackLow) {
                                     pullbackLow = data[l].low;
                                 }
@@ -108,8 +120,8 @@ const reversePffStrategy: Strategy = {
                                 }
                                 
                                 const fibRange = peakHigh - pullbackLow;
-                                const fib50 = pullbackLow + fibRange * FIB_LEVELS[0];
-                                const fib618 = pullbackLow + fibRange * FIB_LEVELS[1];
+                                const fib50 = pullbackLow + fibRange * params.fibLevel1;
+                                const fib618 = pullbackLow + fibRange * params.fibLevel2;
                                 
                                 if (data[l].high >= fib50) {
                                     dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
@@ -130,7 +142,7 @@ const reversePffStrategy: Strategy = {
 
             // --- Look for a PFL to generate a SHORT signal (REVERSE LOGIC) ---
             let isPFL = true;
-            for (let j = 1; j <= PEAK_LOOKAROUND; j++) {
+            for (let j = 1; j <= params.peakLookaround; j++) {
                 if (data[i].low >= data[i - j].low || data[i].low >= data[i + j].low) {
                     isPFL = false;
                     break;
@@ -141,7 +153,7 @@ const reversePffStrategy: Strategy = {
                 const peakLow = data[i].low;
                 const relevantSwingHighIndex = findLastSwingHighBefore(swingHighs, i);
                 if (relevantSwingHighIndex !== null) {
-                    for (let k = i + 1; k < Math.min(i + MAX_LOOKAHEAD, data.length); k++) {
+                    for (let k = i + 1; k < Math.min(i + params.maxLookahead, data.length); k++) {
                          if (!ema13[k-1] || !ema50[k-1] || !ema13[k] || !ema50[k]) continue;
 
                         const emaCrossed = ema13[k-1] <= ema50[k-1] && ema13[k] > ema50[k];
@@ -151,7 +163,7 @@ const reversePffStrategy: Strategy = {
                             const bosIndex = k;
                             let pullbackHigh = data[bosIndex].high;
 
-                            for (let l = bosIndex + 1; l < Math.min(bosIndex + MAX_LOOKAHEAD, data.length); l++) {
+                            for (let l = bosIndex + 1; l < Math.min(bosIndex + params.maxLookahead, data.length); l++) {
                                 if (data[l].high > pullbackHigh) {
                                     pullbackHigh = data[l].high;
                                 }
@@ -161,8 +173,8 @@ const reversePffStrategy: Strategy = {
                                 }
 
                                 const fibRange = pullbackHigh - peakLow;
-                                const fib50 = pullbackHigh - fibRange * FIB_LEVELS[0];
-                                const fib618 = pullbackHigh - fibRange * FIB_LEVELS[1];
+                                const fib50 = pullbackHigh - fibRange * params.fibLevel1;
+                                const fib618 = pullbackHigh - fibRange * params.fibLevel2;
                                  
                                 if (data[l].low <= fib50) {
                                     dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;

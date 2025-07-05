@@ -2,17 +2,27 @@
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA } from '@/lib/indicators';
 
+export interface EmaCrossoverParams {
+  shortPeriod: number;
+  longPeriod: number;
+}
+
+export const defaultEmaCrossoverParams: EmaCrossoverParams = {
+  shortPeriod: 12,
+  longPeriod: 26,
+};
+
 const emaCrossoverStrategy: Strategy = {
   id: 'ema-crossover',
   name: 'EMA Crossover',
   description: 'A trend-following strategy using Exponential Moving Averages, which give more weight to recent prices.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: EmaCrossoverParams = defaultEmaCrossoverParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    if (data.length < 26) return dataWithIndicators;
+    if (data.length < params.longPeriod) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
-    const ema_short = calculateEMA(closePrices, 12);
-    const ema_long = calculateEMA(closePrices, 26);
+    const ema_short = calculateEMA(closePrices, params.shortPeriod);
+    const ema_long = calculateEMA(closePrices, params.longPeriod);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.ema_short = ema_short[i];

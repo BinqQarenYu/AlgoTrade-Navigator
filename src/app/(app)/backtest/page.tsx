@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect, useMemo } from "react"
@@ -39,8 +38,34 @@ import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategies, getStrategyById } from "@/lib/strategies"
-import { calculateHyperPeakFormationLogic } from "@/lib/strategies/hyper-peak-formation"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+
+// Import default parameters from all strategies
+import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
+import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
+import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
+import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow"
+import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve"
+import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels"
+import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
+import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
+import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
+import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
+import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
+import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
+import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross"
+import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
+import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
+import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
+import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
+import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
+import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
+import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
+import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
+import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 
 interface DateRange {
   from?: Date;
@@ -77,24 +102,45 @@ export default function BacktestPage() {
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
   const [isControlsOpen, setControlsOpen] = useState(true);
-  const [isHyperParamsOpen, setHyperParamsOpen] = useState(false);
+  const [isParamsOpen, setParamsOpen] = useState(false);
 
-  // State for Hyper Peak Formation parameters
-  const [pffParams, setPffParams] = useState({
-    peakLookaround: 5,
-    swingLookaround: 3,
-    emaShortPeriod: 13,
-    emaLongPeriod: 50,
-    fibLevel1: 0.5,
-    fibLevel2: 0.618,
-    maxLookahead: 100,
+  // State for ALL strategy parameters
+  const [strategyParams, setStrategyParams] = useState<Record<string, any>>({
+    'awesome-oscillator': defaultAwesomeOscillatorParams,
+    'bollinger-bands': defaultBollingerBandsParams,
+    'cci-reversion': defaultCciReversionParams,
+    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
+    'coppock-curve': defaultCoppockCurveParams,
+    'donchian-channels': defaultDonchianChannelsParams,
+    'elder-ray-index': defaultElderRayIndexParams,
+    'ema-crossover': defaultEmaCrossoverParams,
+    'hyper-peak-formation': defaultHyperPFFParams,
+    'ichimoku-cloud': defaultIchimokuCloudParams,
+    'keltner-channels': defaultKeltnerChannelsParams,
+    'macd-crossover': defaultMacdCrossoverParams,
+    'momentum-cross': defaultMomentumCrossParams,
+    'obv-divergence': defaultObvDivergenceParams,
+    'parabolic-sar-flip': defaultParabolicSarFlipParams,
+    'peak-formation-fib': defaultPffParams,
+    'pivot-point-reversal': defaultPivotPointReversalParams,
+    'reverse-pff': defaultReversePffParams,
+    'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
+    'stochastic-crossover': defaultStochasticCrossoverParams,
+    'supertrend': defaultSupertrendParams,
+    'volume-delta': defaultVolumeDeltaParams,
+    'vwap-cross': defaultVwapCrossParams,
+    'williams-r': defaultWilliamsRParams,
   });
 
-  const handlePffParamChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
-    setPffParams(prev => ({
+  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
+    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+    setStrategyParams(prev => ({
         ...prev,
-        [id]: id.includes('fib') ? parseFloat(value) : parseInt(value, 10)
+        [strategyId]: {
+            ...prev[strategyId],
+            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
+        }
     }));
   };
 
@@ -161,27 +207,23 @@ export default function BacktestPage() {
         return;
       }
       
+      const strategy = getStrategyById(selectedStrategy);
       let dataWithInd: HistoricalData[];
-      if (selectedStrategy === 'hyper-peak-formation') {
-        dataWithInd = await calculateHyperPeakFormationLogic(chartData, {
-            ...pffParams,
-            fibLevels: [pffParams.fibLevel1, pffParams.fibLevel2]
-        });
+
+      if (strategy) {
+          const paramsForStrategy = strategyParams[selectedStrategy];
+          dataWithInd = await strategy.calculate(chartData, paramsForStrategy);
       } else {
-        const strategy = getStrategyById(selectedStrategy);
-        if (strategy) {
-          dataWithInd = await strategy.calculate(chartData);
-        } else {
           dataWithInd = chartData;
-        }
       }
+
       // Clear signals for display, we only want to see indicators, not past signals
       const dataWithoutSignals = dataWithInd.map(d => ({...d, buySignal: undefined, sellSignal: undefined}));
       setDataWithIndicators(dataWithoutSignals);
     };
     
     calculateAndSetIndicators();
-  }, [chartData, selectedStrategy, pffParams]);
+  }, [chartData, selectedStrategy, strategyParams]);
 
 
   const handleRunBacktest = async () => {
@@ -201,36 +243,26 @@ export default function BacktestPage() {
     
     let dataWithSignals: HistoricalData[];
     
-    if (selectedStrategy === 'hyper-peak-formation') {
-        toast({
-          title: "Hyper PFF Backtest Started",
-          description: "Running with custom parameters...",
-        });
-        dataWithSignals = await calculateHyperPeakFormationLogic(
-            JSON.parse(JSON.stringify(chartData)),
-            { ...pffParams, fibLevels: [pffParams.fibLevel1, pffParams.fibLevel2] }
-        );
-    } else {
-        const strategy = getStrategyById(selectedStrategy);
-        if (!strategy) {
-          toast({
-            title: "No Strategy Selected",
-            description: "Please select a strategy before running a backtest.",
-            variant: "destructive",
-          });
-          setIsBacktesting(false);
-          return;
-        }
-        toast({
-          title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
-          description: useAIValidation 
-            ? "AI is validating each signal. This may take time."
-            : `Running ${strategy.name} on ${interval} interval.`,
-        });
-        dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)));
+    const strategy = getStrategyById(selectedStrategy);
+    if (!strategy) {
+      toast({
+        title: "No Strategy Selected",
+        description: "Please select a strategy before running a backtest.",
+        variant: "destructive",
+      });
+      setIsBacktesting(false);
+      return;
     }
-
-
+    toast({
+      title: useAIValidation ? "AI Backtest Started" : "Backtest Started",
+      description: useAIValidation 
+        ? "AI is validating each signal. This may take time."
+        : `Running ${strategy.name} on ${interval} interval.`,
+    });
+    
+    const paramsForStrategy = strategyParams[selectedStrategy];
+    dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy);
+    
     const trades: BacktestResult[] = [];
     const marginPerTrade = initialCapital;
     let positionType: 'long' | 'short' | null = null;
@@ -627,6 +659,28 @@ export default function BacktestPage() {
     setChartData([]); // Clear raw data on interval change
   };
 
+  const renderParameterControls = () => {
+    const params = strategyParams[selectedStrategy];
+    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+
+    const controls = Object.entries(params).map(([key, value]) => (
+      <div key={key} className="space-y-2">
+        <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
+        <Input 
+          id={key}
+          type="number"
+          value={value as number}
+          onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
+          step={String(value).includes('.') ? '0.001' : '1'}
+          disabled={anyLoading}
+        />
+      </div>
+    ));
+
+    return <div className="grid grid-cols-2 gap-4">{controls}</div>;
+  };
+
+
   return (
     <div className="flex flex-col h-full">
     {!isConnected && (
@@ -726,50 +780,18 @@ export default function BacktestPage() {
                     </div>
                 </div>
 
-                {selectedStrategy === 'hyper-peak-formation' && (
-                  <Collapsible open={isHyperParamsOpen} onOpenChange={setHyperParamsOpen} className="space-y-2">
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <BrainCircuit className="mr-2 h-4 w-4" />
-                        <span>Hyperparameters</span>
-                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isHyperParamsOpen && "rotate-180")} />
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="peakLookaround">Peak Lookaround</Label>
-                          <Input id="peakLookaround" type="number" value={pffParams.peakLookaround} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="swingLookaround">Swing Lookaround</Label>
-                          <Input id="swingLookaround" type="number" value={pffParams.swingLookaround} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="emaShortPeriod">EMA Short</Label>
-                          <Input id="emaShortPeriod" type="number" value={pffParams.emaShortPeriod} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="emaLongPeriod">EMA Long</Label>
-                          <Input id="emaLongPeriod" type="number" value={pffParams.emaLongPeriod} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="fibLevel1">Fib Level 1</Label>
-                          <Input id="fibLevel1" type="number" step="0.001" value={pffParams.fibLevel1} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="fibLevel2">Fib Level 2</Label>
-                          <Input id="fibLevel2" type="number" step="0.001" value={pffParams.fibLevel2} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                         <div className="space-y-2 col-span-2">
-                          <Label htmlFor="maxLookahead">Max Lookahead</Label>
-                          <Input id="maxLookahead" type="number" value={pffParams.maxLookahead} onChange={handlePffParamChange} disabled={anyLoading}/>
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-
+                <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen} className="space-y-2">
+                  <CollapsibleTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full">
+                      <BrainCircuit className="mr-2 h-4 w-4" />
+                      <span>Strategy Parameters</span>
+                      <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                    {renderParameterControls()}
+                  </CollapsibleContent>
+                </Collapsible>
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">

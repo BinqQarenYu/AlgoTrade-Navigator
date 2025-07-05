@@ -1,14 +1,22 @@
-
 'use client';
 
 import type { HistoricalData, Strategy } from '../types';
 
-const POC_LOOKBACK = 200; // Lookback period to determine the Point of Control
-const DELTA_LOOKBACK = 5; // Lookback for cumulative delta calculation
-const POC_PROXIMITY_PERCENT = 0.005; // How close price must get to POC (0.5%)
+export interface VolumeDeltaParams {
+  pocLookback: number;
+  deltaLookback: number;
+  pocProximityPercent: number;
+}
+
+export const defaultVolumeDeltaParams: VolumeDeltaParams = {
+  pocLookback: 200,
+  deltaLookback: 5,
+  pocProximityPercent: 0.005,
+};
+
 
 // Calculates a simplified volume delta for each candle
-function calculateVolumeDelta(data: HistoricalData[]): { volumeDelta: number[], cumulativeVolumeDelta: number[] } {
+function calculateVolumeDelta(data: HistoricalData[], deltaLookback: number): { volumeDelta: number[], cumulativeVolumeDelta: number[] } {
     const volumeDelta = data.map(d => {
         if (d.close > d.open) return d.volume; // Buying pressure
         if (d.close < d.open) return -d.volume; // Selling pressure
@@ -17,10 +25,10 @@ function calculateVolumeDelta(data: HistoricalData[]): { volumeDelta: number[], 
 
     const cumulativeVolumeDelta: (number | null)[] = [];
     for (let i = 0; i < data.length; i++) {
-        if (i < DELTA_LOOKBACK - 1) {
+        if (i < deltaLookback - 1) {
             cumulativeVolumeDelta.push(null);
         } else {
-            const sum = volumeDelta.slice(i - DELTA_LOOKBACK + 1, i + 1).reduce((a, b) => a + b, 0);
+            const sum = volumeDelta.slice(i - deltaLookback + 1, i + 1).reduce((a, b) => a + b, 0);
             cumulativeVolumeDelta.push(sum);
         }
     }
@@ -68,17 +76,17 @@ const volumeDeltaStrategy: Strategy = {
     id: 'volume-delta',
     name: 'Volume Delta Confirmation',
     description: 'A strategy that confirms trades by analyzing buying/selling pressure (delta) at significant price levels (POC).',
-    async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], params: VolumeDeltaParams = defaultVolumeDeltaParams): Promise<HistoricalData[]> {
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
-        if (data.length < POC_LOOKBACK) return dataWithIndicators;
+        if (data.length < params.pocLookback) return dataWithIndicators;
 
-        const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data);
+        const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data, params.deltaLookback);
 
-        for (let i = POC_LOOKBACK; i < data.length; i++) {
+        for (let i = params.pocLookback; i < data.length; i++) {
             dataWithIndicators[i].volumeDelta = volumeDelta[i];
             dataWithIndicators[i].cumulativeVolumeDelta = cumulativeVolumeDelta[i];
 
-            const poc = findPOC(data, i, POC_LOOKBACK);
+            const poc = findPOC(data, i, params.pocLookback);
             dataWithIndicators[i].poc = poc;
             
             if (!poc || !cumulativeVolumeDelta[i - 1] || !cumulativeVolumeDelta[i]) continue;
@@ -88,7 +96,7 @@ const volumeDeltaStrategy: Strategy = {
             const currentCumulativeDelta = cumulativeVolumeDelta[i]!;
 
             // LONG condition: Price tests POC from above and cumulative delta flips positive
-            if (currentCandle.low <= poc * (1 + POC_PROXIMITY_PERCENT) && currentCandle.close > poc) {
+            if (currentCandle.low <= poc * (1 + params.pocProximityPercent) && currentCandle.close > poc) {
                 if (prevCumulativeDelta <= 0 && currentCumulativeDelta > 0) {
                      // Additional confirmation: the candle that signals is bullish
                     if (currentCandle.close > currentCandle.open) {
@@ -98,7 +106,7 @@ const volumeDeltaStrategy: Strategy = {
             }
             
             // SHORT condition: Price tests POC from below and cumulative delta flips negative
-            if (currentCandle.high >= poc * (1 - POC_PROXIMITY_PERCENT) && currentCandle.close < poc) {
+            if (currentCandle.high >= poc * (1 - params.pocProximityPercent) && currentCandle.close < poc) {
                 if (prevCumulativeDelta >= 0 && currentCumulativeDelta < 0) {
                     // Additional confirmation: the candle that signals is bearish
                     if (currentCandle.close < currentCandle.open) {

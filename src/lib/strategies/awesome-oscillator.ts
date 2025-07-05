@@ -1,20 +1,27 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateAwesomeOscillator } from '@/lib/indicators';
+
+export interface AwesomeOscillatorParams {
+  shortPeriod: number;
+  longPeriod: number;
+}
+
+export const defaultAwesomeOscillatorParams: AwesomeOscillatorParams = {
+  shortPeriod: 5,
+  longPeriod: 34,
+};
 
 const awesomeOscillatorStrategy: Strategy = {
   id: 'awesome-oscillator',
   name: 'Awesome Oscillator Cross',
   description: 'Uses the Awesome Oscillator to identify bullish or bearish momentum by crossing the zero line.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: AwesomeOscillatorParams = defaultAwesomeOscillatorParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const shortPeriod = 5;
-    const longPeriod = 34;
 
-    if (data.length < longPeriod) return dataWithIndicators;
+    if (data.length < params.longPeriod) return dataWithIndicators;
 
-    const ao = calculateAwesomeOscillator(data, shortPeriod, longPeriod);
+    const ao = calculateAwesomeOscillator(data, params.shortPeriod, params.longPeriod);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.awesome_oscillator = ao[i];

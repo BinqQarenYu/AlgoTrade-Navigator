@@ -1,21 +1,27 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateDonchianChannels } from '@/lib/indicators';
+
+export interface DonchianChannelsParams {
+  period: number;
+}
+
+export const defaultDonchianChannelsParams: DonchianChannelsParams = {
+  period: 20,
+};
 
 const donchianChannelStrategy: Strategy = {
   id: 'donchian-channels',
   name: 'Donchian Channel Breakout',
   description: 'A volatility breakout strategy that buys on a close above the recent highest high and sells on a close below the recent lowest low.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: DonchianChannelsParams = defaultDonchianChannelsParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 20;
 
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
 
     const highs = data.map(d => d.high);
     const lows = data.map(d => d.low);
-    const { upper, middle, lower } = calculateDonchianChannels(highs, lows, period);
+    const { upper, middle, lower } = calculateDonchianChannels(highs, lows, params.period);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.donchian_upper = upper[i];

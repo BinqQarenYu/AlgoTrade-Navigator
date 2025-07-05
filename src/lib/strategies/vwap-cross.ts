@@ -1,19 +1,25 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateVWAP } from '@/lib/indicators';
+
+export interface VwapCrossParams {
+  period: number;
+}
+
+export const defaultVwapCrossParams: VwapCrossParams = {
+  period: 20,
+};
 
 const vwapCrossStrategy: Strategy = {
   id: 'vwap-cross',
   name: 'VWAP Cross',
   description: 'Uses a moving Volume-Weighted Average Price (VWAP) to generate signals when the price crosses it.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: VwapCrossParams = defaultVwapCrossParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 20;
 
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
 
-    const vwap = calculateVWAP(data, period);
+    const vwap = calculateVWAP(data, params.period);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.vwap = vwap[i];

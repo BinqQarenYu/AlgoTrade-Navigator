@@ -1,23 +1,32 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateIchimokuCloud } from '@/lib/indicators';
+
+export interface IchimokuCloudParams {
+  tenkanPeriod: number;
+  kijunPeriod: number;
+  senkouBPeriod: number;
+  displacement: number;
+}
+
+export const defaultIchimokuCloudParams: IchimokuCloudParams = {
+  tenkanPeriod: 9,
+  kijunPeriod: 26,
+  senkouBPeriod: 52,
+  displacement: 26,
+};
 
 const ichimokuCloudStrategy: Strategy = {
   id: 'ichimoku-cloud',
   name: 'Ichimoku Cloud',
   description: 'A comprehensive trend-following system. This strategy uses the Tenkan/Kijun cross confirmed by the Kumo (cloud).',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: IchimokuCloudParams = defaultIchimokuCloudParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const tenkanPeriod = 9;
-    const kijunPeriod = 26;
-    const senkouBPeriod = 52;
-    const displacement = 26;
 
-    if (data.length < senkouBPeriod + displacement) return dataWithIndicators;
+    if (data.length < params.senkouBPeriod + params.displacement) return dataWithIndicators;
     
     // Calculate all components for visualization
-    const ichimoku = calculateIchimokuCloud(data, tenkanPeriod, kijunPeriod, senkouBPeriod, displacement);
+    const ichimoku = calculateIchimokuCloud(data, params.tenkanPeriod, params.kijunPeriod, params.senkouBPeriod, params.displacement);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.tenkan_sen = ichimoku.tenkan[i];
@@ -28,7 +37,7 @@ const ichimokuCloudStrategy: Strategy = {
     });
 
     // Strategy Logic (requires looking back for Kumo)
-    for (let i = kijunPeriod + displacement; i < data.length; i++) {
+    for (let i = params.kijunPeriod + params.displacement; i < data.length; i++) {
         const d = dataWithIndicators[i];
         const prev_d = dataWithIndicators[i - 1];
 

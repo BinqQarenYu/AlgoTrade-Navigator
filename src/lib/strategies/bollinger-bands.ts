@@ -2,26 +2,34 @@
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateBollingerBands } from '@/lib/indicators';
 
+export interface BollingerBandsParams {
+  period: number;
+  stdDev: number;
+}
+
+export const defaultBollingerBandsParams: BollingerBandsParams = {
+  period: 20,
+  stdDev: 2,
+};
+
 const bollingerBandsStrategy: Strategy = {
   id: 'bollinger-bands',
   name: 'Bollinger Bands Reversion',
   description: 'A mean-reversion strategy that enters trades when price touches an outer band and then reverts towards the middle band.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: BollingerBandsParams = defaultBollingerBandsParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = 20;
-    const stdDev = 2;
 
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
-    const { upper, middle, lower } = calculateBollingerBands(closePrices, period, stdDev);
+    const { upper, middle, lower } = calculateBollingerBands(closePrices, params.period, params.stdDev);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.bb_upper = upper[i];
       d.bb_middle = middle[i];
       d.bb_lower = lower[i];
       
-      if (i > 0 && upper[i-1] && lower[i-1]) {
+      if (i > 0 && upper[i-1] && lower[i-1] && upper[i] && lower[i]) {
         const prevBar = data[i-1];
         const currentBar = d;
 

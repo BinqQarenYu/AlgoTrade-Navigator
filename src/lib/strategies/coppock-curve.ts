@@ -1,23 +1,31 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateCoppockCurve } from '@/lib/indicators';
+
+export interface CoppockCurveParams {
+  longRoC: number;
+  shortRoC: number;
+  wmaPeriod: number;
+}
+
+export const defaultCoppockCurveParams: CoppockCurveParams = {
+  longRoC: 14,
+  shortRoC: 11,
+  wmaPeriod: 10,
+};
 
 const coppockCurveStrategy: Strategy = {
   id: 'coppock-curve',
   name: 'Coppock Curve',
   description: 'A long-term momentum indicator. Signals are generated when the curve moves from negative to positive.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: CoppockCurveParams = defaultCoppockCurveParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const longRoC = 14;
-    const shortRoC = 11;
-    const wmaPeriod = 10;
-    const requiredData = longRoC + wmaPeriod;
+    const requiredData = params.longRoC + params.wmaPeriod;
 
     if (data.length < requiredData) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
-    const coppock = calculateCoppockCurve(closePrices, longRoC, shortRoC, wmaPeriod);
+    const coppock = calculateCoppockCurve(closePrices, params.longRoC, params.shortRoC, params.wmaPeriod);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.coppock = coppock[i];
