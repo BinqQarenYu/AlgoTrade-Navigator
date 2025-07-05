@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo, useTransition, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -26,9 +26,9 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
-import { cn } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, LiquidityEvent } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
@@ -69,9 +69,8 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const [isReportPending, startReportTransition] = useTransition();
-  const [isAnalyzingLiquidity, startLiquidityTransition] = useTransition();
-
+  const [isReportPending, startReportTransition] = React.useTransition();
+  
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("lab-quote-asset","USDT");
@@ -115,33 +114,6 @@ export default function LabPage() {
     setWalls([]);
   }, [symbol]);
 
-  const handleAnalyzeLiquidity = useCallback(() => {
-    if (chartData.length < 20) {
-      toast({ title: "Not Enough Data", description: "Please load more market data to run analysis.", variant: "destructive" });
-      return;
-    }
-    setLiquidityEvents([]);
-    startLiquidityTransition(async () => {
-      try {
-        const resultEvents = await findLiquidityGrabs(chartData);
-        if(resultEvents.length > 0){
-            setLiquidityEvents(resultEvents);
-            toast({ title: "Liquidity Analysis Complete", description: `Found ${resultEvents.length} potential liquidity grabs.` });
-        } else {
-            toast({ title: "No Significant Liquidity Events Found", description: "The analysis did not find any clear liquidity grabs in the selected data range." });
-        }
-      } catch (error: any) {
-        console.error("Error analyzing liquidity:", error);
-        toast({
-          title: "Liquidity Analysis Failed",
-          description: error.message || "An error occurred during the analysis.",
-          variant: "destructive",
-        });
-      }
-    });
-  }, [chartData, toast]);
-
-
   useEffect(() => {
     if (!isClient || !symbol) return;
 
@@ -175,6 +147,30 @@ export default function LabPage() {
     fetchData();
   }, [symbol, date, interval, isConnected, isClient, toast]);
 
+  // Automatically analyze liquidity when chart data changes
+  useEffect(() => {
+    if (chartData.length < 20) {
+      setLiquidityEvents([]); // Clear events if not enough data
+      return;
+    }
+
+    const analyze = async () => {
+      try {
+        const resultEvents = await findLiquidityGrabs(chartData);
+        setLiquidityEvents(resultEvents);
+      } catch (error: any) {
+        console.error("Error analyzing liquidity:", error);
+        toast({
+          title: "Liquidity Analysis Failed",
+          description: error.message || "An error occurred during the analysis.",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    analyze();
+  }, [chartData, toast]);
+
   const handleGenerateReport = () => {
     if (chartData.length < 20) {
       toast({ title: "Not Enough Data", description: "Please load more market data to generate a report.", variant: "destructive" });
@@ -202,7 +198,7 @@ export default function LabPage() {
     });
   };
 
-  const anyLoading = isFetchingData || isReportPending || isAnalyzingLiquidity;
+  const anyLoading = isFetchingData || isReportPending;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
 
   return (
@@ -316,10 +312,6 @@ export default function LabPage() {
                   <Button className="w-full" onClick={handleGenerateReport} disabled={!canAnalyze}>
                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isFetchingData ? "Loading Data..." : isReportPending ? "Generating Report..." : "Generate Market Report"}
-                  </Button>
-                   <Button className="w-full" variant="outline" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
-                    {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
-                    {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>
