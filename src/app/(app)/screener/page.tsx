@@ -48,6 +48,7 @@ const strategyIndicatorMap: Record<string, string[]> = {
   'volume-delta': ['Volume Delta', 'Point of Control (POC)'],
   'vwap-cross': ['VWAP'],
   'williams-r': ['Williams %R'],
+  'hyper-peak-formation': ['EMA'],
 };
 
 
@@ -57,7 +58,8 @@ export default function ScreenerPage() {
         screenerState, 
         startScreener, 
         stopScreener, 
-        isTradingActive 
+        isTradingActive,
+        strategyParams,
     } = useBot();
     const { isRunning, prediction, logs, config: runningConfig, strategyInputs } = screenerState;
 
@@ -111,6 +113,7 @@ export default function ScreenerPage() {
             startScreener({
                 asset: selectedAsset,
                 strategies: selectedStrategies,
+                strategyParams,
                 interval,
             });
         }

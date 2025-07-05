@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2 } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -42,7 +42,7 @@ import { strategies, getStrategyById } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
-// Import default parameters from all strategies
+// Import default parameters from all strategies to enable reset functionality
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
 import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
@@ -72,6 +72,34 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 interface DateRange {
   from?: Date;
   to?: Date;
+}
+
+const DEFAULT_PARAMS_MAP: Record<string, any> = {
+    'awesome-oscillator': defaultAwesomeOscillatorParams,
+    'bollinger-bands': defaultBollingerBandsParams,
+    'cci-reversion': defaultCciReversionParams,
+    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
+    'coppock-curve': defaultCoppockCurveParams,
+    'donchian-channels': defaultDonchianChannelsParams,
+    'elder-ray-index': defaultElderRayIndexParams,
+    'ema-crossover': defaultEmaCrossoverParams,
+    'hyper-peak-formation': defaultHyperPFFParams,
+    'ichimoku-cloud': defaultIchimokuCloudParams,
+    'keltner-channels': defaultKeltnerChannelsParams,
+    'macd-crossover': defaultMacdCrossoverParams,
+    'momentum-cross': defaultMomentumCrossParams,
+    'obv-divergence': defaultObvDivergenceParams,
+    'parabolic-sar-flip': defaultParabolicSarFlipParams,
+    'peak-formation-fib': defaultPffParams,
+    'pivot-point-reversal': defaultPivotPointReversalParams,
+    'reverse-pff': defaultReversePffParams,
+    'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
+    'stochastic-crossover': defaultStochasticCrossoverParams,
+    'supertrend': defaultSupertrendParams,
+    'volume-delta': defaultVolumeDeltaParams,
+    'vwap-cross': defaultVwapCrossParams,
+    'williams-r': defaultWilliamsRParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
@@ -118,7 +146,8 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
 export default function BacktestPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const { isTradingActive } = useBot();
+  const { isTradingActive, strategyParams, setStrategyParams } = useBot();
+
   const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = useState<string>("BTC");
@@ -148,35 +177,6 @@ export default function BacktestPage() {
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isParamsOpen, setParamsOpen] = useState(false);
 
-  // State for ALL strategy parameters
-  const [strategyParams, setStrategyParams] = useState<Record<string, any>>({
-    'awesome-oscillator': defaultAwesomeOscillatorParams,
-    'bollinger-bands': defaultBollingerBandsParams,
-    'cci-reversion': defaultCciReversionParams,
-    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
-    'coppock-curve': defaultCoppockCurveParams,
-    'donchian-channels': defaultDonchianChannelsParams,
-    'elder-ray-index': defaultElderRayIndexParams,
-    'ema-crossover': defaultEmaCrossoverParams,
-    'hyper-peak-formation': defaultHyperPFFParams,
-    'ichimoku-cloud': defaultIchimokuCloudParams,
-    'keltner-channels': defaultKeltnerChannelsParams,
-    'macd-crossover': defaultMacdCrossoverParams,
-    'momentum-cross': defaultMomentumCrossParams,
-    'obv-divergence': defaultObvDivergenceParams,
-    'parabolic-sar-flip': defaultParabolicSarFlipParams,
-    'peak-formation-fib': defaultPffParams,
-    'pivot-point-reversal': defaultPivotPointReversalParams,
-    'reverse-pff': defaultReversePffParams,
-    'rsi-divergence': defaultRsiDivergenceParams,
-    'sma-crossover': defaultSmaCrossoverParams,
-    'stochastic-crossover': defaultStochasticCrossoverParams,
-    'supertrend': defaultSupertrendParams,
-    'volume-delta': defaultVolumeDeltaParams,
-    'vwap-cross': defaultVwapCrossParams,
-    'williams-r': defaultWilliamsRParams,
-  });
-
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
     setStrategyParams(prev => ({
@@ -187,6 +187,14 @@ export default function BacktestPage() {
         }
     }));
   };
+  
+  const handleResetParams = () => {
+    const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
+    if (defaultParams) {
+        setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
+        toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset to their default values.`});
+    }
+  }
 
   useEffect(() => {
     setIsClient(true)
@@ -543,18 +551,25 @@ export default function BacktestPage() {
     ));
 
     const canOptimize = !!optimizationConfigs[selectedStrategy];
+    const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
 
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
-        {canOptimize && (
-          <div className="pt-2">
-            <Button onClick={handleAutoTune} disabled={anyLoading} variant="outline" className="w-full">
-              {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
-            </Button>
-          </div>
-        )}
+        <div className="pt-2 flex flex-col sm:flex-row gap-2">
+            {canReset && (
+                <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset to Default
+                </Button>
+            )}
+            {canOptimize && (
+              <Button onClick={handleAutoTune} disabled={anyLoading} variant="outline" className="w-full">
+                {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
+              </Button>
+            )}
+        </div>
       </div>
     );
   };

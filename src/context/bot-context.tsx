@@ -11,6 +11,33 @@ import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from '@/lib/strategies';
 
+import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
+import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
+import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
+import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow"
+import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve"
+import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels"
+import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
+import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
+import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
+import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
+import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
+import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
+import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross"
+import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
+import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
+import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
+import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
+import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
+import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
+import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
+import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
+import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+
+
 // --- State Types ---
 interface LiveBotState {
   isRunning: boolean;
@@ -34,6 +61,8 @@ interface BotContextType {
   manualTraderState: ManualTraderState;
   multiSignalState: MultiSignalState;
   screenerState: ScreenerState;
+  strategyParams: Record<string, any>;
+  setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
   startLiveBot: (config: LiveBotConfig) => void;
   stopLiveBot: () => void;
@@ -48,6 +77,34 @@ interface BotContextType {
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
+
+const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
+    'awesome-oscillator': defaultAwesomeOscillatorParams,
+    'bollinger-bands': defaultBollingerBandsParams,
+    'cci-reversion': defaultCciReversionParams,
+    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
+    'coppock-curve': defaultCoppockCurveParams,
+    'donchian-channels': defaultDonchianChannelsParams,
+    'elder-ray-index': defaultElderRayIndexParams,
+    'ema-crossover': defaultEmaCrossoverParams,
+    'hyper-peak-formation': defaultHyperPFFParams,
+    'ichimoku-cloud': defaultIchimokuCloudParams,
+    'keltner-channels': defaultKeltnerChannelsParams,
+    'macd-crossover': defaultMacdCrossoverParams,
+    'momentum-cross': defaultMomentumCrossParams,
+    'obv-divergence': defaultObvDivergenceParams,
+    'parabolic-sar-flip': defaultParabolicSarFlipParams,
+    'peak-formation-fib': defaultPffParams,
+    'pivot-point-reversal': defaultPivotPointReversalParams,
+    'reverse-pff': defaultReversePffParams,
+    'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
+    'stochastic-crossover': defaultStochasticCrossoverParams,
+    'supertrend': defaultSupertrendParams,
+    'volume-delta': defaultVolumeDeltaParams,
+    'vwap-cross': defaultVwapCrossParams,
+    'williams-r': defaultWilliamsRParams,
+};
 
 // Helper to convert interval string to milliseconds for timers
 const intervalToMs = (interval: string): number => {
@@ -109,7 +166,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   });
   const screenerRunningRef = useRef(false);
 
-  // --- Global Trading State ---
+  // --- Global State ---
+  const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
 
   useEffect(() => {
@@ -135,7 +193,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
-    config: { symbol: string; interval: string; strategy: string; takeProfit: number; stopLoss: number; useAIPrediction: boolean },
+    config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean },
     existingData?: HistoricalData[]
   ): Promise<SignalResult> => {
     try {
@@ -152,7 +210,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
         }
 
-        const dataWithSignals = await strategy.calculate(dataToAnalyze);
+        const dataWithSignals = await strategy.calculate(dataToAnalyze, config.strategyParams);
         const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
 
         if (!latestCandleWithSignal) {
@@ -576,7 +634,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const strategy = getStrategyById(strategyId);
             if (!strategy) continue;
 
-            const dataWithIndicators = await strategy.calculate(data);
+            const paramsForStrategy = config.strategyParams[strategyId];
+            const dataWithIndicators = await strategy.calculate(data, paramsForStrategy);
             const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
             
             let signal: string | null = null;
@@ -654,6 +713,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       manualTraderState,
       multiSignalState,
       screenerState,
+      strategyParams,
+      setStrategyParams,
       isTradingActive,
       startLiveBot,
       stopLiveBot,

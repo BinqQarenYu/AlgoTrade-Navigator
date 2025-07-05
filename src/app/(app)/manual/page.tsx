@@ -51,7 +51,8 @@ export default function ManualTradingPage() {
     cancelManualAnalysis,
     resetManualSignal,
     setManualChartData,
-    isTradingActive
+    isTradingActive,
+    strategyParams
   } = useBot();
 
   const { isAnalyzing, logs, signal, chartData } = manualTraderState;
@@ -162,6 +163,7 @@ export default function ManualTradingPage() {
         symbol,
         interval,
         strategy: selectedStrategy,
+        strategyParams: strategyParams[selectedStrategy],
         initialCapital,
         leverage,
         takeProfit,
@@ -169,7 +171,7 @@ export default function ManualTradingPage() {
         useAIPrediction,
         fee
     });
-  }, [runManualAnalysis, symbol, interval, selectedStrategy, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee]);
+  }, [runManualAnalysis, symbol, interval, selectedStrategy, strategyParams, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee]);
 
   const handleCancelAnalysis = useCallback(() => {
     cancelManualAnalysis();

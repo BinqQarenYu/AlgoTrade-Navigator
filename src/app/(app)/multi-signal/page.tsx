@@ -27,7 +27,8 @@ export default function MultiSignalPage() {
         multiSignalState, 
         startMultiSignalMonitor, 
         stopMultiSignalMonitor, 
-        isTradingActive 
+        isTradingActive,
+        strategyParams
     } = useBot();
     const { isRunning, results, config: runningConfig } = multiSignalState;
 
@@ -59,6 +60,7 @@ export default function MultiSignalPage() {
                 assets: selectedAssets,
                 interval,
                 strategy,
+                strategyParams: strategyParams[strategy],
                 takeProfit,
                 stopLoss,
                 useAIPrediction

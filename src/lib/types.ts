@@ -3,6 +3,7 @@
 
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -163,6 +164,7 @@ export type LiveBotConfig = {
     symbol: string;
     interval: string;
     strategy: string;
+    strategyParams: any;
     initialCapital: number;
     leverage: number;
     takeProfit: number;
@@ -176,6 +178,7 @@ export type ManualTraderConfig = {
     symbol: string;
     interval: string;
     strategy: string;
+    strategyParams: any;
     initialCapital: number;
     leverage: number;
     takeProfit: number;
@@ -188,6 +191,7 @@ export type MultiSignalConfig = {
     assets: string[];
     interval: string;
     strategy: string;
+    strategyParams: any;
     takeProfit: number;
     stopLoss: number;
     useAIPrediction: boolean;
@@ -209,6 +213,7 @@ export interface MultiSignalState {
 export type ScreenerConfig = {
   asset: string;
   strategies: string[];
+  strategyParams: Record<string, any>;
   interval: string;
 };
 

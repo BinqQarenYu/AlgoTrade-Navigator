@@ -40,12 +40,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 export default function LiveTradingPage() {
   const { toast } = useToast()
-  const { isConnected } from useApi();
+  const { isConnected } = useApi();
   const { 
     liveBotState, 
     startLiveBot, 
     stopLiveBot,
-    isTradingActive
+    isTradingActive,
+    strategyParams,
   } = useBot();
 
   const { isRunning, logs, prediction, isPredicting, chartData: botChartData } = liveBotState;
@@ -175,6 +176,7 @@ export default function LiveTradingPage() {
             symbol,
             interval,
             strategy: selectedStrategy,
+            strategyParams: strategyParams[selectedStrategy],
             initialCapital,
             leverage,
             takeProfit,
