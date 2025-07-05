@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign, BrainCircuit } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -98,7 +98,7 @@ export default function LabPage() {
   useEffect(() => {
     if (!isClient || !symbol) return;
 
-    const fetchDataAndAnalyze = async () => {
+    const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
             setChartData([]);
             return;
@@ -106,34 +106,12 @@ export default function LabPage() {
         setIsFetchingData(true);
         setChartData([]);
         setReport(null);
-        setLiquidityEvents([]);
+        setLiquidityEvents([]); // Clear previous liquidity events on new data load
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
             setChartData(klines);
             toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
-            
-            // Automatically analyze liquidity after fetching data
-            if (klines.length >= 50) {
-              startLiquidityTransition(async () => {
-                try {
-                  const result = await analyzeLiquidity({
-                    historicalData: JSON.stringify(klines.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-                  });
-                  if(result.events.length > 0){
-                      setLiquidityEvents(result.events);
-                      toast({ title: "Liquidity Analysis Complete", description: `Found ${result.events.length} potential liquidity grabs.` });
-                  }
-                } catch (error) {
-                  console.error("Error analyzing liquidity:", error);
-                  toast({
-                    title: "Liquidity Analysis Failed",
-                    description: "An error occurred during the automatic liquidity analysis.",
-                    variant: "destructive",
-                  });
-                }
-              });
-            }
 
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
@@ -148,8 +126,8 @@ export default function LabPage() {
         }
     };
 
-    fetchDataAndAnalyze();
-  }, [symbol, date, interval, isConnected, isClient, toast, startLiquidityTransition]);
+    fetchData();
+  }, [symbol, date, interval, isConnected, isClient, toast]);
 
   const handleGenerateReport = () => {
     if (chartData.length < 20) {
@@ -172,6 +150,34 @@ export default function LabPage() {
         toast({
           title: "Report Failed",
           description: "An error occurred while generating the AI report.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
+  const handleAnalyzeLiquidity = () => {
+    if (chartData.length < 20) {
+      toast({ title: "Not Enough Data", description: "Please load more market data to run analysis.", variant: "destructive" });
+      return;
+    }
+    setLiquidityEvents([]);
+    startLiquidityTransition(async () => {
+      try {
+        const result = await analyzeLiquidity({
+          historicalData: JSON.stringify(chartData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+        });
+        if(result.events.length > 0){
+            setLiquidityEvents(result.events);
+            toast({ title: "Liquidity Analysis Complete", description: `Found ${result.events.length} potential liquidity grabs.` });
+        } else {
+            toast({ title: "No Significant Liquidity Events Found", description: "The AI did not find any clear liquidity grabs in the selected data range." });
+        }
+      } catch (error: any) {
+        console.error("Error analyzing liquidity:", error);
+        toast({
+          title: "Liquidity Analysis Failed",
+          description: error.message || "An error occurred during the analysis.",
           variant: "destructive",
         });
       }
@@ -287,11 +293,22 @@ export default function LabPage() {
                         </div>
                     </div>
                   </div>
+                  <Alert>
+                      <BrainCircuit className="h-4 w-4" />
+                      <AlertTitle>Free Tier AI Quota</AlertTitle>
+                      <AlertDescription>
+                          The AI analysis features use a service with a free daily limit. If you see a "Too Many Requests" error, you may have exceeded your quota for the day.
+                      </AlertDescription>
+                  </Alert>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex flex-col gap-2">
                   <Button className="w-full" onClick={handleGenerateReport} disabled={!canAnalyze}>
                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isFetchingData ? "Loading Data..." : isReportPending ? "Generating Report..." : "Generate Market Report"}
+                  </Button>
+                  <Button className="w-full" variant="outline" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
+                    {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
+                    {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>
