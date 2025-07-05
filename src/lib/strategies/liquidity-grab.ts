@@ -1,3 +1,4 @@
+
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 
@@ -44,20 +45,22 @@ const liquidityGrabStrategy: Strategy = {
 
     if (data.length < swingLookaround * 2 + confirmationCandles) return dataWithIndicators;
 
-    for (let i = swingLookaround; i < data.length - swingLookaround; i++) {
+    mainLoop: for (let i = swingLookaround; i < data.length - swingLookaround; i++) {
       // Bearish Setup: Sweep a swing high
       if (isSwingHigh(data, i, swingLookaround)) {
         const swingHighPrice = data[i].high;
-        // Look ahead for the sweep
-        for (let j = i + 1; j < data.length && j <= i + confirmationCandles; j++) {
+        // Look ahead for the sweep, up to 10 candles
+        for (let j = i + 1; j < data.length && j < i + 10; j++) {
           if (data[j].high > swingHighPrice) {
-            // Sweep occurred. Now check for a fast reclaim (close below the high).
-             if (data[j].close < swingHighPrice) {
-                dataWithIndicators[j].sellSignal = data[j].high;
-                dataWithIndicators[j].stopLossLevel = data[j].high; // SL above the sweep wick
-                dataWithIndicators[j].peakPrice = swingHighPrice; // The level that was swept
-                i = j; // Move index forward to avoid re-detecting
-                break; // Move to next potential setup
+            // Sweep occurred at index j. Now check for a reclaim within `confirmationCandles`.
+            for (let k = j + 1; k < j + 1 + confirmationCandles && k < data.length; k++) {
+              if (data[k].close < swingHighPrice) {
+                dataWithIndicators[k].sellSignal = data[k].high;
+                dataWithIndicators[k].stopLossLevel = data[j].high; // SL above the sweep wick
+                dataWithIndicators[k].peakPrice = swingHighPrice; // The level that was swept
+                i = k; // Move master loop index forward
+                continue mainLoop; // Restart search from the next candle
+              }
             }
           }
         }
@@ -67,15 +70,17 @@ const liquidityGrabStrategy: Strategy = {
       if (isSwingLow(data, i, swingLookaround)) {
         const swingLowPrice = data[i].low;
         // Look ahead for the sweep
-        for (let j = i + 1; j < data.length && j <= i + confirmationCandles; j++) {
+        for (let j = i + 1; j < data.length && j < i + 10; j++) {
           if (data[j].low < swingLowPrice) {
-            // Sweep occurred. Now check for a fast reclaim (close above the low).
-            if (data[j].close > swingLowPrice) {
-                dataWithIndicators[j].buySignal = data[j].low;
-                dataWithIndicators[j].stopLossLevel = data[j].low; // SL below the sweep wick
-                dataWithIndicators[j].peakPrice = swingLowPrice; // The level that was swept
-                i = j;
-                break;
+            // Sweep occurred. Now check for a reclaim.
+            for (let k = j + 1; k < j + 1 + confirmationCandles && k < data.length; k++) {
+               if (data[k].close > swingLowPrice) {
+                  dataWithIndicators[k].buySignal = data[k].low;
+                  dataWithIndicators[k].stopLossLevel = data[j].low; // SL below the sweep wick
+                  dataWithIndicators[k].peakPrice = swingLowPrice; // The level that was swept
+                  i = k;
+                  continue mainLoop;
+               }
             }
           }
         }

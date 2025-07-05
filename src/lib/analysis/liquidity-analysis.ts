@@ -5,11 +5,13 @@ import type { HistoricalData, LiquidityEvent } from '@/lib/types';
 
 interface LiquidityAnalysisParams {
     lookaround: number; // How many bars to look left and right to confirm a swing point
+    confirmationCandles: number; // How many bars to wait for a reclaim after a sweep
     maxLookahead: number; // How far to look for a sweep after a swing point
 }
 
 const defaultParams: LiquidityAnalysisParams = {
     lookaround: 5,
+    confirmationCandles: 3,
     maxLookahead: 50,
 };
 
@@ -43,25 +45,27 @@ export async function findLiquidityGrabs(
     const events: LiquidityEvent[] = [];
     if (data.length < params.lookaround * 2 + 1) return events;
 
-    for (let i = params.lookaround; i < data.length - params.maxLookahead; i++) {
+    mainLoop: for (let i = params.lookaround; i < data.length - params.maxLookahead; i++) {
 
         // Check for Bearish Liquidity Grab (sweeping a swing high)
         if (isSwingHigh(data, i, params.lookaround)) {
             const swingHighPrice = data[i].high;
+            // Look ahead for the sweep
             for (let j = i + 1; j < i + params.maxLookahead && j < data.length; j++) {
-                // Check for sweep
-                if (data[j].high > swingHighPrice) {
-                    // Check for reversal: candle closes back below the swing high
-                    if (data[j].close < swingHighPrice) {
-                        events.push({
-                            time: data[j].time,
-                            priceLevel: swingHighPrice,
-                            direction: 'bearish', // Price moved down after grabbing highs
-                            type: 'grab',
-                            volume: data[j].volume,
-                        });
-                        i = j; // Move past this event to avoid re-detecting
-                        break;
+                if (data[j].high > swingHighPrice) { // Sweep occurred at index j
+                    // Check for reversal: a *subsequent* candle closes back below the swing high
+                    for (let k = j + 1; k < j + 1 + params.confirmationCandles && k < data.length; k++) {
+                        if (data[k].close < swingHighPrice) {
+                            events.push({
+                                time: data[k].time,
+                                priceLevel: swingHighPrice,
+                                direction: 'bearish', // Price moved down after grabbing highs
+                                type: 'grab',
+                                volume: data[j].volume, // Volume from the sweep candle
+                            });
+                            i = k; // Move past this event to avoid re-detecting
+                            continue mainLoop;
+                        }
                     }
                 }
             }
@@ -70,20 +74,22 @@ export async function findLiquidityGrabs(
         // Check for Bullish Liquidity Grab (sweeping a swing low)
         if (isSwingLow(data, i, params.lookaround)) {
             const swingLowPrice = data[i].low;
+            // Look ahead for the sweep
             for (let j = i + 1; j < i + params.maxLookahead && j < data.length; j++) {
-                // Check for sweep
-                if (data[j].low < swingLowPrice) {
-                    // Check for reversal: candle closes back above the swing low
-                    if (data[j].close > swingLowPrice) {
-                         events.push({
-                            time: data[j].time,
-                            priceLevel: swingLowPrice,
-                            direction: 'bullish', // Price moved up after grabbing lows
-                            type: 'grab',
-                            volume: data[j].volume,
-                        });
-                        i = j; // Move past this event
-                        break;
+                if (data[j].low < swingLowPrice) { // Sweep occurred at index j
+                    // Check for reversal: a *subsequent* candle closes back above the swing low
+                    for (let k = j + 1; k < j + 1 + params.confirmationCandles && k < data.length; k++) {
+                        if (data[k].close > swingLowPrice) {
+                             events.push({
+                                time: data[k].time,
+                                priceLevel: swingLowPrice,
+                                direction: 'bullish', // Price moved up after grabbing lows
+                                type: 'grab',
+                                volume: data[j].volume, // Volume from the sweep candle
+                            });
+                            i = k; // Move past this event
+                            continue mainLoop;
+                        }
                     }
                 }
             }
