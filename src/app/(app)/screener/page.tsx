@@ -46,6 +46,8 @@ export default function ScreenerPage() {
     const [interval, setInterval] = useState("5m");
     
     const [isConfigOpen, setConfigOpen] = useState(true);
+    const [isPredictionOpen, setPredictionOpen] = useState(true);
+    const [isInputsOpen, setInputsOpen] = useState(true);
 
     const handleStrategyToggle = (strategyId: string) => {
         setSelectedStrategies(prev => 
@@ -195,88 +197,112 @@ export default function ScreenerPage() {
 
                 <div className="lg:col-span-3 space-y-6">
                     <Card>
-                        <CardHeader>
-                            <CardTitle>AI Price Prediction</CardTitle>
-                            <CardDescription>
-                                {isRunning ? "Analyzing... This may take a few moments." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {isRunning ? (
-                                <div className="flex items-center justify-center h-48 text-muted-foreground">
-                                    <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                                    <span>Synthesizing strategy data...</span>
+                        <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>AI Price Prediction</CardTitle>
+                                    <CardDescription>
+                                        {isRunning ? "Analyzing... This may take a few moments." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
+                                    </CardDescription>
                                 </div>
-                            ) : prediction ? (
-                                <div className="space-y-4">
-                                    <div>
-                                        <Label className="text-sm text-muted-foreground">Predicted Price</Label>
-                                        <p className="text-4xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
-                                    </div>
-                                    <div>
-                                        <Label className="text-sm text-muted-foreground">Confidence</Label>
-                                        <div className="flex items-center gap-4">
-                                            <Progress value={prediction.confidence * 100} className="w-full" />
-                                            <span className="font-semibold">{(prediction.confidence * 100).toFixed(1)}%</span>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isPredictionOpen && "rotate-180")} />
+                                        <span className="sr-only">Toggle</span>
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent>
+                                    {isRunning ? (
+                                        <div className="flex items-center justify-center h-48 text-muted-foreground">
+                                            <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                                            <span>Synthesizing strategy data...</span>
                                         </div>
-                                    </div>
-                                     <div>
-                                        <Label className="text-sm text-muted-foreground">Reasoning</Label>
-                                        <p className="text-sm text-foreground/80">{prediction.reasoning}</p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                                    <p>{logs.length > 0 ? logs[logs.length-1] : "Prediction results will appear here."}</p>
-                                </div>
-                            )}
-                        </CardContent>
+                                    ) : prediction ? (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <Label className="text-sm text-muted-foreground">Predicted Price</Label>
+                                                <p className="text-4xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
+                                            </div>
+                                            <div>
+                                                <Label className="text-sm text-muted-foreground">Confidence</Label>
+                                                <div className="flex items-center gap-4">
+                                                    <Progress value={prediction.confidence * 100} className="w-full" />
+                                                    <span className="font-semibold">{(prediction.confidence * 100).toFixed(1)}%</span>
+                                                </div>
+                                            </div>
+                                             <div>
+                                                <Label className="text-sm text-muted-foreground">Reasoning</Label>
+                                                <p className="text-sm text-foreground/80">{prediction.reasoning}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                                            <p>{logs.length > 0 ? logs[logs.length-1] : "Prediction results will appear here."}</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </Card>
                      <Card>
-                        <CardHeader>
-                            <CardTitle>Strategy Inputs</CardTitle>
-                            <CardDescription>The data fed to the AI from each selected strategy.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                             <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                    <TableHead>Strategy</TableHead>
-                                    <TableHead>Signal</TableHead>
-                                    <TableHead>Key Indicators</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isRunning && strategyInputs.length === 0 ? (
-                                        Array.from({length: selectedStrategies.length}).map((_, i) => (
-                                            <TableRow key={`skel-${i}`}>
-                                                <TableCell><Skeleton className="h-5 w-32"/></TableCell>
-                                                <TableCell><Skeleton className="h-5 w-16"/></TableCell>
-                                                <TableCell><Skeleton className="h-5 w-48"/></TableCell>
+                        <Collapsible open={isInputsOpen} onOpenChange={setInputsOpen}>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Strategy Inputs</CardTitle>
+                                    <CardDescription>The data fed to the AI from each selected strategy.</CardDescription>
+                                </div>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isInputsOpen && "rotate-180")} />
+                                        <span className="sr-only">Toggle</span>
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent>
+                                     <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                            <TableHead>Strategy</TableHead>
+                                            <TableHead>Signal</TableHead>
+                                            <TableHead>Key Indicators</TableHead>
                                             </TableRow>
-                                        ))
-                                    ) : strategyInputs.length > 0 ? (
-                                        strategyInputs.map((input) => (
-                                            <TableRow key={input.name}>
-                                                <TableCell className="font-medium">{input.name}</TableCell>
-                                                <TableCell>{input.signal || 'None'}</TableCell>
-                                                <TableCell className="text-xs font-mono">
-                                                    {Object.entries(input.indicators).map(([key, value]) => (
-                                                        <div key={key}>{key}: {typeof value === 'number' ? value.toFixed(4) : String(value)}</div>
-                                                    ))}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
-                                            Run analysis to see strategy inputs.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {isRunning && strategyInputs.length === 0 ? (
+                                                Array.from({length: selectedStrategies.length}).map((_, i) => (
+                                                    <TableRow key={`skel-${i}`}>
+                                                        <TableCell><Skeleton className="h-5 w-32"/></TableCell>
+                                                        <TableCell><Skeleton className="h-5 w-16"/></TableCell>
+                                                        <TableCell><Skeleton className="h-5 w-48"/></TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : strategyInputs.length > 0 ? (
+                                                strategyInputs.map((input) => (
+                                                    <TableRow key={input.name}>
+                                                        <TableCell className="font-medium">{input.name}</TableCell>
+                                                        <TableCell>{input.signal || 'None'}</TableCell>
+                                                        <TableCell className="text-xs font-mono">
+                                                            {Object.entries(input.indicators).map(([key, value]) => (
+                                                                <div key={key}>{key}: {typeof value === 'number' ? value.toFixed(4) : String(value)}</div>
+                                                            ))}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                                                    Run analysis to see strategy inputs.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </Card>
                 </div>
             </div>
