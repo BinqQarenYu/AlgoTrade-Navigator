@@ -46,6 +46,10 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         smoothK: { min: 3, max: 5, step: 1 },
         smoothD: { min: 3, max: 5, step: 1 },
     },
+    'liquidity-grab': {
+        swingLookaround: { min: 5, max: 15, step: 2 },
+        confirmationCandles: { min: 1, max: 5, step: 1 },
+    },
     // Adding the rest of the strategies
     'peak-formation-fib': {
         peakLookaround: { min: 3, max: 10, step: 1 },

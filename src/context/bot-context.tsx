@@ -38,6 +38,7 @@ import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
+import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 
 
 // --- State Types ---
@@ -111,6 +112,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
 };
 
 // Helper to convert interval string to milliseconds for timers

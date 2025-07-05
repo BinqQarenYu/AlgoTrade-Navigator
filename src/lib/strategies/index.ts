@@ -28,6 +28,7 @@ import vwapCrossStrategy from './vwap-cross';
 import williamsRStrategy from './williams-percent-r';
 import hyperPeakFormationStrategy from './hyper-peak-formation';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
+import liquidityGrabStrategy from './liquidity-grab';
 
 
 export const strategies: Strategy[] = [
@@ -35,6 +36,7 @@ export const strategies: Strategy[] = [
   reversePffStrategy,
   hyperPeakFormationStrategy,
   liquidityOrderFlowStrategy,
+  liquidityGrabStrategy,
   volumeDeltaStrategy,
   smaCrossoverStrategy,
   emaCrossoverStrategy,
