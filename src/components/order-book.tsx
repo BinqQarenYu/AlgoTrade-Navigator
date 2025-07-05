@@ -22,6 +22,31 @@ interface FormattedOrderBookLevel {
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
 
+// Aggregates raw order book levels into larger price buckets
+const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel[] => {
+    if (grouping <= 0) return levels;
+
+    const aggregated: { [key: string]: number } = {};
+    const precision = Math.max(0, -Math.floor(Math.log10(grouping)));
+    
+    for (const [priceStr, quantityStr] of levels) {
+        const price = parseFloat(priceStr);
+        const quantity = parseFloat(quantityStr);
+        // Group price levels into buckets (e.g., group 65123.45 into 65120 for a grouping of 10)
+        const groupedPrice = Math.floor(price / grouping) * grouping;
+        const key = groupedPrice.toFixed(precision);
+
+        if (aggregated[key]) {
+            aggregated[key] += quantity;
+        } else {
+            aggregated[key] = quantity;
+        }
+    }
+
+    return Object.entries(aggregated).map(([price, quantity]) => [price, String(quantity)]);
+};
+
+
 export function OrderBook({ symbol }: { symbol: string }) {
     const { isConnected } = useApi();
     const { toast } = useToast();
@@ -95,32 +120,61 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
     }, [symbol, isConnected, toast]);
     
-    const formatLevels = (levels: OrderBookLevel[], isBids: boolean): FormattedOrderBookLevel[] => {
-        const sortedLevels = [...levels].sort((a, b) => {
-            const priceA = parseFloat(a[0]);
-            const priceB = parseFloat(b[0]);
-            return isBids ? priceB - priceA : priceA - priceB;
-        }).slice(0, 15); // Show top 15 levels
+    const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
+        const lastBid = bids.length > 0 ? parseFloat(bids[0][0]) : 0;
+        const firstAsk = asks.length > 0 ? parseFloat(asks[0][0]) : 0;
+        const midPrice = lastBid > 0 && firstAsk > 0 ? (lastBid + firstAsk) / 2 : 0;
+        const calculatedSpread = firstAsk > 0 && lastBid > 0 ? firstAsk - lastBid : 0;
 
-        const totalSize = sortedLevels.reduce((sum, level) => sum + parseFloat(level[1]), 0);
-        let cumulativeTotal = 0;
+        let grouping = 1.0;
+        if (midPrice > 50000) grouping = 10;
+        else if (midPrice > 2000) grouping = 1;
+        else if (midPrice > 100) grouping = 0.5;
+        else if (midPrice > 10) grouping = 0.1;
+        else if (midPrice > 0.1) grouping = 0.01;
+        else grouping = 0.001;
 
-        return sortedLevels.map(level => {
-            const price = parseFloat(level[0]);
-            const size = parseFloat(level[1]);
-            cumulativeTotal += size;
-            const isWall = (size / totalSize) > WALL_THRESHOLD_PERCENT;
-            return { price, size, total: cumulativeTotal, isWall };
-        });
-    };
+        const calculatedPrecision = Math.max(0, -Math.floor(Math.log10(grouping)));
 
-    const formattedBids = useMemo(() => formatLevels(bids, true), [bids]);
-    const formattedAsks = useMemo(() => formatLevels(asks, false), [asks]);
+        const aggregatedBids = groupLevels(bids, grouping);
+        const aggregatedAsks = groupLevels(asks, grouping);
+        
+        const format = (levels: OrderBookLevel[], isBids: boolean): FormattedOrderBookLevel[] => {
+            const sortedLevels = [...levels].sort((a, b) => {
+                const priceA = parseFloat(a[0]);
+                const priceB = parseFloat(b[0]);
+                return isBids ? priceB - priceA : priceA - priceB;
+            }).slice(0, 15); // Show top 15 levels
 
-    const maxTotal = Math.max(
-        formattedBids[formattedBids.length - 1]?.total || 0,
-        formattedAsks[formattedAsks.length - 1]?.total || 0
-    );
+            const totalSize = sortedLevels.reduce((sum, level) => sum + parseFloat(level[1]), 0);
+            let cumulativeTotal = 0;
+
+            return sortedLevels.map(level => {
+                const price = parseFloat(level[0]);
+                const size = parseFloat(level[1]);
+                cumulativeTotal += size;
+                const isWall = (size / totalSize) > WALL_THRESHOLD_PERCENT;
+                return { price, size, total: cumulativeTotal, isWall };
+            });
+        };
+
+        const fmtdBids = format(aggregatedBids, true);
+        const fmtdAsks = format(aggregatedAsks, false);
+        const calculatedMaxTotal = Math.max(
+            fmtdBids[fmtdBids.length - 1]?.total || 0,
+            fmtdAsks[fmtdAsks.length - 1]?.total || 0
+        );
+
+        return {
+            formattedBids: fmtdBids,
+            formattedAsks: fmtdAsks,
+            spread: calculatedSpread,
+            groupingSize: grouping,
+            maxTotal: calculatedMaxTotal,
+            precision: calculatedPrecision,
+        };
+
+    }, [bids, asks]);
 
     const OrderBookRow = ({ level, type }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask' }) => {
         const bgPercentage = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
@@ -129,7 +183,7 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
         return (
             <TableRow className={cn("relative font-mono text-xs", level.isWall && "bg-yellow-500/20 font-bold")}>
-                 <TableCell className={cn("p-1 text-left", textColor)}>{level.price.toFixed(2)}</TableCell>
+                 <TableCell className={cn("p-1 text-left", textColor)}>{level.price.toFixed(precision)}</TableCell>
                 <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
                 <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
                 <div 
@@ -144,7 +198,9 @@ export function OrderBook({ symbol }: { symbol: string }) {
         <Card>
             <CardHeader>
                 <CardTitle>Live Order Book</CardTitle>
-                <CardDescription>Real-time market depth for {symbol}.</CardDescription>
+                <CardDescription>
+                    {`Live depth for ${symbol}. Spread: $${spread.toFixed(precision)}. Grouping: ${groupingSize}`}
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
