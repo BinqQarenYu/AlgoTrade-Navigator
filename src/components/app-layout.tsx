@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -72,11 +71,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
            <div className="flex items-center gap-3">
               <Avatar>
                 <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" data-ai-hint="profile avatar" />
-                <AvatarFallback>AN</AvatarFallback>
+                <AvatarFallback>BT</AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">Alex Nomad</span>
-                <span className="text-xs text-muted-foreground">alex.nomad@example.com</span>
+                <span className="text-sm font-medium">Bingkl Tech</span>
+                <span className="text-xs text-muted-foreground">letstopfraudscam@gmail.com</span>
               </div>
             </div>
         </SidebarFooter>
