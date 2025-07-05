@@ -59,6 +59,11 @@ export const strategies: Strategy[] = [
   williamsRStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));
 
+export const strategyMetadatas = strategies.map(({ id, name }) => ({
+  id,
+  name,
+}));
+
 export const getStrategyById = (id: string): Strategy | undefined => {
   return strategies.find(s => s.id === id);
 }

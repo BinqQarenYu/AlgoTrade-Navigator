@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Sparkles, Play, StopCircle, ChevronDown, BrainCircuit, Loader2 } from "lucide-react"
 import { topAssets } from "@/lib/assets"
-import { strategies } from "@/lib/strategies"
+import { strategyMetadatas } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -91,10 +91,10 @@ export default function ScreenerPage() {
     };
 
     const handleSelectAllStrategies = () => {
-        if (selectedStrategies.length === strategies.length) {
+        if (selectedStrategies.length === strategyMetadatas.length) {
             setSelectedStrategies([]);
         } else {
-            setSelectedStrategies(strategies.map(s => s.id));
+            setSelectedStrategies(strategyMetadatas.map(s => s.id));
         }
     };
 
@@ -180,12 +180,12 @@ export default function ScreenerPage() {
                                                 disabled={isRunning}
                                                 type="button"
                                             >
-                                                {selectedStrategies.length === strategies.length ? 'Deselect All' : 'Select All'}
+                                                {selectedStrategies.length === strategyMetadatas.length ? 'Deselect All' : 'Select All'}
                                             </Button>
                                         </div>
                                         <ScrollArea className="h-48 w-full rounded-md border p-4">
                                             <div className="space-y-2">
-                                            {strategies.map((strategy) => (
+                                            {strategyMetadatas.map((strategy) => (
                                                 <div key={strategy.id} className="flex items-center space-x-2">
                                                     <Checkbox id={`strat-${strategy.id}`} checked={selectedStrategies.includes(strategy.id)} onCheckedChange={() => handleStrategyToggle(strategy.id)} disabled={isRunning}/>
                                                     <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>

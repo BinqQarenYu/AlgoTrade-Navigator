@@ -32,7 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategies, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
@@ -274,7 +274,8 @@ export default function ManualTradingPage() {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
         setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
-        toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset to their default values.`});
+        const strategyName = getStrategyById(selectedStrategy)?.name || 'the strategy';
+        toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
     }
   }
 
@@ -440,7 +441,7 @@ export default function ManualTradingPage() {
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
                         <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {strategies.map(strategy => (
+                          {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
                         </SelectContent>

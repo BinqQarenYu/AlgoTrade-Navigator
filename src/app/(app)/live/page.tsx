@@ -35,7 +35,7 @@ import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategies, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -114,7 +114,7 @@ export default function LiveTradingPage() {
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
-  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategies[0].id);
+  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategyMetadatas[0].id);
   const [interval, setInterval] = useState<string>("1m");
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
@@ -151,7 +151,8 @@ export default function LiveTradingPage() {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
         setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
-        toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset to their default values.`});
+        const strategyName = getStrategyById(selectedStrategy)?.name || 'the strategy';
+        toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
     }
   }
 
@@ -356,7 +357,7 @@ export default function LiveTradingPage() {
         </Alert>
     )}
      {isTradingActive && !isRunning && (
-        <Alert variant="default" className="mb-4 bg-primary/10 border-primary/20 text-primary">
+        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
             <AlertDescription>
@@ -424,7 +425,7 @@ export default function LiveTradingPage() {
                           <SelectValue placeholder="Select strategy" />
                         </SelectTrigger>
                         <SelectContent>
-                          {strategies.map(strategy => (
+                          {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
                         </SelectContent>

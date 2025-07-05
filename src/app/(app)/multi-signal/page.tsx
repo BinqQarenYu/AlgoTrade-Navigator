@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle, ChevronDown } from "lucide-react"
 import { MultiSignalCard } from "@/components/multi-signal-card"
 import { topBases, pairsByBase, assetInfo } from "@/lib/assets"
-import { strategies } from "@/lib/strategies"
+import { strategyMetadatas } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 
@@ -157,7 +157,7 @@ export default function MultiSignalPage() {
                                     <Select onValueChange={setStrategy} value={strategy} disabled={isRunning}>
                                         <SelectTrigger id="strategy"><SelectValue/></SelectTrigger>
                                         <SelectContent>
-                                            {strategies.map(strategy => (
+                                            {strategyMetadatas.map(strategy => (
                                                 <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                                             ))}
                                         </SelectContent>

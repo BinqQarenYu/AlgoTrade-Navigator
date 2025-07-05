@@ -38,7 +38,7 @@ import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategies, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
@@ -161,7 +161,7 @@ export default function BacktestPage() {
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategies[0].id);
+  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategyMetadatas[0].id);
   const [interval, setInterval] = useState<string>("1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
@@ -192,7 +192,8 @@ export default function BacktestPage() {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
         setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
-        toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset to their default values.`});
+        const strategyName = getStrategyById(selectedStrategy)?.name || 'the strategy';
+        toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
     }
   }
 
@@ -507,7 +508,7 @@ export default function BacktestPage() {
     const wins = trades.filter(t => t.pnl > 0);
     const losses = trades.filter(t => t.pnl <= 0);
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-    const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
+    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
     const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
     const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
 
@@ -752,7 +753,7 @@ export default function BacktestPage() {
                           <SelectValue placeholder="Select strategy" />
                         </SelectTrigger>
                         <SelectContent>
-                          {strategies.map(strategy => (
+                          {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
                         </SelectContent>
