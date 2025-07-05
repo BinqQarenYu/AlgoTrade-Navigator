@@ -7,4 +7,6 @@ import '@/ai/flows/analyze-pine-script.ts';
 import '@/ai/flows/predict-market-flow.ts';
 import '@/ai/flows/predict-price-flow.ts';
 import '@/ai/flows/generate-market-report.ts';
+import '@/ai/flows/analyze-liquidity-flow.ts';
+
 

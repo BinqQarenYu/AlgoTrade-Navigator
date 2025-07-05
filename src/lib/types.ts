@@ -1,5 +1,6 @@
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -287,6 +288,13 @@ export type CoinDetails = CoinSentimentData & {
 export type FearAndGreedIndex = {
     value: number;
     valueClassification: 'Extreme Fear' | 'Fear' | 'Neutral' | 'Greed' | 'Extreme Greed';
+};
+
+export type LiquidityEvent = {
+  time: number;
+  priceLevel: number;
+  direction: 'bullish' | 'bearish';
+  type: 'grab' | 'sweep';
 };
 
 export interface BotContextType {

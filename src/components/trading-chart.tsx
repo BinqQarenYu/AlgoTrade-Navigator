@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -28,7 +28,8 @@ export function TradingChart({
   tradeSignal = null,
   highlightedTrade = null,
   onIntervalChange,
-  wallLevels = []
+  wallLevels = [],
+  liquidityEvents = [],
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -37,6 +38,7 @@ export function TradingChart({
   highlightedTrade?: BacktestResult | null;
   onIntervalChange?: (newInterval: string) => void;
   wallLevels?: { price: number; type: 'bid' | 'ask' }[];
+  liquidityEvents?: LiquidityEvent[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -251,7 +253,7 @@ export function TradingChart({
         addLineSeries(senkouBSeries, 'senkou_b');
 
         // Markers
-        const markers = uniqueData
+        const signalMarkers = uniqueData
           .map(d => {
             if (d.buySignal) {
               return { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
@@ -261,8 +263,20 @@ export function TradingChart({
             }
             return null;
           })
-          .filter(m => m !== null);
-        candlestickSeries.setMarkers(markers as any);
+          .filter((m): m is any => m !== null);
+          
+        const liquidityMarkers = liquidityEvents.map(event => {
+            return {
+                time: toTimestamp(event.time),
+                position: event.direction === 'bullish' ? 'belowBar' : 'aboveBar',
+                color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
+                shape: 'circle',
+                text: '$',
+                size: 1.2
+            }
+        });
+
+        candlestickSeries.setMarkers([...signalMarkers, ...liquidityMarkers]);
 
         chart.timeScale().fitContent();
 
@@ -283,7 +297,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade]);
+  }, [data, highlightedTrade, liquidityEvents]);
 
    // Effect to draw signal lines
     useEffect(() => {

@@ -26,14 +26,15 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2 } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
+import { analyzeLiquidity } from "@/ai/flows/analyze-liquidity-flow"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
@@ -46,7 +47,8 @@ interface DateRange {
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const [isPending, startTransition] = useTransition();
+  const [isReportPending, startReportTransition] = useTransition();
+  const [isAnalyzingLiquidity, startLiquidityTransition] = useTransition();
 
   const [date, setDate] = useState<DateRange | undefined>()
   const [isClient, setIsClient] = useState(false)
@@ -60,6 +62,7 @@ export default function LabPage() {
   const [interval, setInterval] = useState<string>("1h");
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
+  const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -99,6 +102,7 @@ export default function LabPage() {
         setIsFetchingData(true);
         setChartData([]);
         setReport(null);
+        setLiquidityEvents([]);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
@@ -126,7 +130,7 @@ export default function LabPage() {
       return;
     }
     setReport(null);
-    startTransition(async () => {
+    startReportTransition(async () => {
       try {
         const reportData = await generateMarketReport({
           symbol,
@@ -147,8 +151,36 @@ export default function LabPage() {
     });
   };
 
-  const anyLoading = isFetchingData || isPending;
-  const canGenerateReport = !anyLoading && isConnected && chartData.length > 0;
+  const handleAnalyzeLiquidity = () => {
+    if (chartData.length < 50) {
+      toast({ title: "Not Enough Data", description: "Please load at least 50 candles to analyze liquidity.", variant: "destructive" });
+      return;
+    }
+    setLiquidityEvents([]);
+    startLiquidityTransition(async () => {
+      try {
+        const result = await analyzeLiquidity({
+          historicalData: JSON.stringify(chartData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+        });
+        if(result.events.length > 0){
+            setLiquidityEvents(result.events);
+            toast({ title: "Liquidity Analysis Complete", description: `Found ${result.events.length} potential liquidity grabs.` });
+        } else {
+            toast({ title: "No Significant Events Found", description: "The AI did not find any clear liquidity grabs in this data range." });
+        }
+      } catch (error) {
+        console.error("Error analyzing liquidity:", error);
+        toast({
+          title: "Analysis Failed",
+          description: "An error occurred during liquidity analysis.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
+  const anyLoading = isFetchingData || isReportPending || isAnalyzingLiquidity;
+  const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
 
   return (
     <div className="space-y-6">
@@ -173,7 +205,7 @@ export default function LabPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 flex flex-col h-[600px]">
-          <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={walls} />
+          <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={walls} liquidityEvents={liquidityEvents} />
         </div>
 
         <div className="xl:col-span-2 space-y-6">
@@ -243,10 +275,14 @@ export default function LabPage() {
                       </Popover>
                   </div>
                 </CardContent>
-                <CardFooter>
-                  <Button className="w-full" onClick={handleGenerateReport} disabled={!canGenerateReport}>
-                    {anyLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isFetchingData ? "Loading Data..." : isPending ? "Generating..." : "Generate AI Report"}
+                <CardFooter className="grid grid-cols-2 gap-2">
+                  <Button className="w-full" onClick={handleGenerateReport} disabled={!canAnalyze}>
+                    {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                    {isFetchingData ? "Loading..." : isReportPending ? "Generating..." : "Generate Report"}
+                  </Button>
+                  <Button className="w-full" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze} variant="outline">
+                    {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
+                    {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>
@@ -272,7 +308,7 @@ export default function LabPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent>
-                    {isPending ? (
+                    {isReportPending ? (
                       <div className="space-y-4">
                         <Skeleton className="h-6 w-3/4" />
                         <Skeleton className="h-4 w-full" />
