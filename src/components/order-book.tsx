@@ -183,13 +183,15 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
         return (
             <TableRow className={cn("relative font-mono text-xs", level.isWall && "bg-yellow-500/20 font-bold")}>
-                 <TableCell className={cn("p-1 text-left", textColor)}>{level.price.toFixed(precision)}</TableCell>
+                <TableCell className={cn("p-1 text-left", textColor)}>
+                    {level.price.toFixed(precision)}
+                    <div 
+                        className={cn("absolute top-0 bottom-0 -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
+                        style={{ width: `${bgPercentage}%` }}
+                    />
+                </TableCell>
                 <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
                 <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
-                <div 
-                    className={cn("absolute top-0 bottom-0 -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
-                    style={{ width: `${bgPercentage}%` }}
-                />
             </TableRow>
         );
     }
