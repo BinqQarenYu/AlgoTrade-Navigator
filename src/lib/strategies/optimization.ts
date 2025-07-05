@@ -71,6 +71,11 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
     },
+    'liquidity-order-flow': {
+        swingLookaround: { min: 3, max: 10, step: 1 },
+        emaTrendPeriod: { min: 100, max: 200, step: 50 },
+        maxLookahead: { min: 25, max: 75, step: 25 },
+    },
     'volume-delta': {
         pocLookback: { min: 100, max: 300, step: 50 },
         deltaLookback: { min: 3, max: 10, step: 2 },

@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
@@ -36,6 +37,7 @@ import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 
 
 // --- State Types ---
@@ -107,6 +109,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'volume-delta': defaultVolumeDeltaParams,
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 };
 
 // Helper to convert interval string to milliseconds for timers

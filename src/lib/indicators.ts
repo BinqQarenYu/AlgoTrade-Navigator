@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { HistoricalData } from './types';
@@ -591,3 +592,22 @@ export const calculateElderRay = (data: HistoricalData[], period: number): { bul
     const bearPower = data.map((d, i) => ema[i] !== null ? d.low - ema[i]! : null);
     return { bullPower, bearPower };
 };
+
+export const findFVGs = (data: HistoricalData[]): { index: number, top: number, bottom: number, type: 'bullish' | 'bearish' }[] => {
+  const fvgs = [];
+  for (let i = 1; i < data.length - 1; i++) {
+    const prev = data[i - 1];
+    const curr = data[i];
+    const next = data[i + 1];
+
+    // Bearish FVG (gap between low of prev and high of next)
+    if (prev.low > next.high) {
+      fvgs.push({ index: i, top: prev.low, bottom: next.high, type: 'bearish' });
+    }
+    // Bullish FVG (gap between high of prev and low of next)
+    if (prev.high < next.low) {
+      fvgs.push({ index: i, top: next.low, bottom: prev.high, type: 'bullish' });
+    }
+  }
+  return fvgs;
+}

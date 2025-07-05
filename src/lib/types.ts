@@ -1,5 +1,7 @@
 
 
+
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -96,6 +98,9 @@ export type HistoricalData = {
   coppock?: number | null;
   bull_power?: number | null;
   bear_power?: number | null;
+  // For Liquidity & Order Flow Strategy
+  fvg_top?: number | null;
+  fvg_bottom?: number | null;
 };
 
 export type Portfolio = {

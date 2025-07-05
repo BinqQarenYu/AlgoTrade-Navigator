@@ -27,12 +27,14 @@ import stochasticCrossoverStrategy from './stochastic-crossover';
 import vwapCrossStrategy from './vwap-cross';
 import williamsRStrategy from './williams-percent-r';
 import hyperPeakFormationStrategy from './hyper-peak-formation';
+import liquidityOrderFlowStrategy from './liquidity-order-flow';
 
 
 export const strategies: Strategy[] = [
   peakFormationFibStrategy,
   reversePffStrategy,
   hyperPeakFormationStrategy,
+  liquidityOrderFlowStrategy,
   volumeDeltaStrategy,
   smaCrossoverStrategy,
   emaCrossoverStrategy,

@@ -49,6 +49,7 @@ const strategyIndicatorMap: Record<string, string[]> = {
   'vwap-cross': ['VWAP'],
   'williams-r': ['Williams %R'],
   'hyper-peak-formation': ['EMA'],
+  'liquidity-order-flow': ['EMA'],
 };
 
 
