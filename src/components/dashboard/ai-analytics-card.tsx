@@ -1,27 +1,140 @@
 
 "use client";
 
-import Link from "next/link";
+import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { BrainCircuit, ArrowRight } from "lucide-react";
+import { BrainCircuit, Loader2, Sparkles } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from '@/hooks/use-toast';
+import { topAssets } from '@/lib/assets';
+import { getLatestKlinesByLimit } from '@/lib/binance-service';
+import { getFearAndGreedIndex } from '@/lib/fear-greed-service';
+import { predictPrice, type PredictPriceOutput, type StrategyOutput } from '@/ai/flows/predict-price-flow';
+import emaCrossoverStrategy, { defaultEmaCrossoverParams } from '@/lib/strategies/ema-crossover';
+import rsiDivergenceStrategy, { defaultRsiDivergenceParams } from '@/lib/strategies/rsi-divergence';
+import { cn, formatPrice } from '@/lib/utils';
+import { useApi } from '@/context/api-context';
 
 export function AIAnalyticsCard() {
+  const [asset, setAsset] = useState('BTCUSDT');
+  const [isLoading, setIsLoading] = useState(false);
+  const [prediction, setPrediction] = useState<PredictPriceOutput | null>(null);
+  const { toast } = useToast();
+  const { isConnected } = useApi();
+
+  const handlePredict = useCallback(async () => {
+    if (!isConnected) {
+        toast({ title: "API Disconnected", description: "Please connect to the Binance API in settings.", variant: "destructive" });
+        return;
+    }
+
+    setIsLoading(true);
+    setPrediction(null);
+
+    try {
+        const interval = '1h'; // Using a fixed interval for dashboard simplicity
+        const data = await getLatestKlinesByLimit(asset, interval, 100);
+        if (data.length < 50) throw new Error("Not enough historical data to analyze.");
+
+        // Run a couple of simple strategies to get inputs
+        const emaData = await emaCrossoverStrategy.calculate(data, defaultEmaCrossoverParams);
+        const rsiData = await rsiDivergenceStrategy.calculate(data, defaultRsiDivergenceParams);
+        
+        const lastEma = emaData[emaData.length - 1];
+        const lastRsi = rsiData[rsiData.length - 1];
+
+        const strategyOutputs: StrategyOutput[] = [
+            {
+                strategyName: 'EMA Crossover',
+                signal: lastEma.buySignal ? 'BUY' : lastEma.sellSignal ? 'SELL' : 'HOLD',
+                indicatorValues: { 'ema_short': lastEma.ema_short ?? 0, 'ema_long': lastEma.ema_long ?? 0 }
+            },
+            {
+                strategyName: 'RSI Divergence',
+                signal: lastRsi.buySignal ? 'BUY' : lastRsi.sellSignal ? 'SELL' : 'HOLD',
+                indicatorValues: { 'rsi': lastRsi.rsi ?? 50 }
+            }
+        ];
+
+        const fng = await getFearAndGreedIndex();
+        const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
+
+        const predictionResult = await predictPrice({
+            asset,
+            interval,
+            recentData: JSON.stringify(data.slice(-50).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+            strategyOutputs: strategyOutputs,
+            marketContext
+        });
+
+        setPrediction(predictionResult);
+        toast({ title: "Prediction Complete", description: `AI analysis for ${asset} is ready.` });
+
+    } catch (e: any) {
+        toast({ title: "Analysis Failed", description: e.message || "An unknown error occurred.", variant: "destructive"});
+    } finally {
+        setIsLoading(false);
+    }
+  }, [asset, toast, isConnected]);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><BrainCircuit /> AI Price Prediction</CardTitle>
+        <CardTitle className="flex items-center gap-2"><Sparkles /> AI Price Prediction</CardTitle>
         <CardDescription>
-          Use an AI ensemble model to predict future price by synthesizing signals from multiple technical analysis strategies.
+          Get an AI-powered price prediction for the next 1-hour candle.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Button asChild className="w-full">
-          <Link href="/screener">
-            Go to AI Screener
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Link>
-        </Button>
+      <CardContent className="space-y-4">
+        <div className="flex gap-2">
+            <Select onValueChange={setAsset} value={asset} disabled={isLoading}>
+                <SelectTrigger id="asset-select"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                    {topAssets.map(a => (
+                        <SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.ticker}/USDT</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Button onClick={handlePredict} disabled={isLoading || !isConnected} className="flex-shrink-0">
+                {isLoading ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
+                {isLoading ? 'Analyzing...' : 'Predict'}
+            </Button>
+        </div>
+        
+        <div className="min-h-[140px] pt-4">
+            {isLoading ? (
+                <div className="space-y-4">
+                    <Skeleton className="h-8 w-1/2" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-3/4" />
+                </div>
+            ) : prediction ? (
+                <div className="space-y-4">
+                    <div>
+                        <Label className="text-sm text-muted-foreground">Predicted Price for {asset}</Label>
+                        <p className="text-3xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
+                    </div>
+                     <div>
+                        <Label className="text-sm text-muted-foreground">Confidence</Label>
+                        <div className="flex items-center gap-4">
+                            <Progress value={prediction.confidence * 100} className="w-full" />
+                            <span className="font-semibold">{(prediction.confidence * 100).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                     <div>
+                        <Label className="text-sm text-muted-foreground">Reasoning</Label>
+                        <p className="text-xs text-foreground/80">{prediction.reasoning}</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                    <p>Select an asset and click "Predict" to run the analysis.</p>
+                </div>
+            )}
+        </div>
       </CardContent>
     </Card>
   );

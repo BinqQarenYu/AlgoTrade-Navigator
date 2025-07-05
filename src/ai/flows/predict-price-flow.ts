@@ -17,6 +17,7 @@ const StrategyOutputSchema = z.object({
   signal: z.enum(['BUY', 'SELL', 'HOLD']).nullable().describe('The final signal from the strategy (if any).'),
   indicatorValues: z.record(z.any()).describe('A key-value map of the latest indicator values from this strategy.'),
 });
+export type StrategyOutput = z.infer<typeof StrategyOutputSchema>;
 
 const PredictPriceInputSchema = z.object({
   asset: z.string().describe("The asset symbol, e.g., BTCUSDT."),
