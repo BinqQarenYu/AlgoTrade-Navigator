@@ -1,6 +1,7 @@
 
 
 
+
 export type Position = {
   symbol: string;
   side: 'LONG' | 'SHORT';
@@ -57,6 +58,35 @@ export type HistoricalData = {
   senkou_a?: number | null;
   senkou_b?: number | null;
   chikou_span?: number | null;
+  // New indicators for 14 new strategies
+  stoch_k?: number | null;
+  stoch_d?: number | null;
+  keltner_upper?: number | null;
+  keltner_middle?: number | null;
+  keltner_lower?: number | null;
+  vwap?: number | null;
+  psar?: number | null;
+  psar_direction?: number | null;
+  momentum?: number | null;
+  awesome_oscillator?: number | null;
+  williams_r?: number | null;
+  cci?: number | null;
+  ha_open?: number;
+  ha_high?: number;
+  ha_low?: number;
+  ha_close?: number;
+  pivot_point?: number | null;
+  s1?: number | null;
+  s2?: number | null;
+  s3?: number | null;
+  r1?: number | null;
+  r2?: number | null;
+  r3?: number | null;
+  obv?: number | null;
+  cmf?: number | null;
+  coppock?: number | null;
+  bull_power?: number | null;
+  bear_power?: number | null;
 };
 
 export type Portfolio = {

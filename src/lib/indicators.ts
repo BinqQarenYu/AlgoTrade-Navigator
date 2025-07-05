@@ -325,3 +325,269 @@ export const calculateIchimokuCloud = (
 
   return result;
 };
+
+// New indicators
+export const calculateStochastic = (data: HistoricalData[], period: number, smoothK: number, smoothD: number): { k: (number | null)[], d: (number | null)[] } => {
+    const stochK: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            stochK.push(null);
+            continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const lowestLow = Math.min(...slice.map(d => d.low));
+        const highestHigh = Math.max(...slice.map(d => d.high));
+        const k = ((data[i].close - lowestLow) / (highestHigh - lowestLow)) * 100;
+        stochK.push(isNaN(k) ? 50 : k); // Handle division by zero
+    }
+    const smoothedK = calculateSMA(stochK.filter(v => v !== null) as number[], smoothK);
+    const kWithPadding = [...Array(data.length - smoothedK.length).fill(null), ...smoothedK];
+    const smoothedD = calculateSMA(smoothedK.filter(v => v !== null) as number[], smoothD);
+    const dWithPadding = [...Array(data.length - smoothedD.length).fill(null), ...smoothedD];
+    return { k: kWithPadding, d: dWithPadding };
+};
+
+export const calculateKeltnerChannels = (data: HistoricalData[], period: number, multiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
+    const closePrices = data.map(d => d.close);
+    const middle = calculateEMA(closePrices, period);
+    const atr = calculateATR(data, period);
+    const upper = middle.map((val, i) => val !== null && atr[i] !== null ? val + (atr[i]! * multiplier) : null);
+    const lower = middle.map((val, i) => val !== null && atr[i] !== null ? val - (atr[i]! * multiplier) : null);
+    return { upper, middle, lower };
+};
+
+export const calculateVWAP = (data: HistoricalData[], period: number): (number | null)[] => {
+    const vwap: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            vwap.push(null);
+            continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const totalPV = slice.reduce((sum, d) => sum + ((d.high + d.low + d.close) / 3) * d.volume, 0);
+        const totalVolume = slice.reduce((sum, d) => sum + d.volume, 0);
+        vwap.push(totalVolume > 0 ? totalPV / totalVolume : null);
+    }
+    return vwap;
+};
+
+export const calculateParabolicSAR = (data: HistoricalData[], afStart: number, afIncrement: number, afMax: number): { psar: (number | null)[], direction: (number | null)[] } => {
+    const psar: (number | null)[] = [];
+    const direction: (number | null)[] = [];
+    let isRising = true;
+    let af = afStart;
+    let ep = data[0].high;
+    let sar = data[0].low;
+
+    for (let i = 1; i < data.length; i++) {
+        psar.push(sar);
+        direction.push(isRising ? 1 : -1);
+
+        if (isRising) {
+            sar = sar + af * (ep - sar);
+            if (data[i].low < sar) {
+                isRising = false;
+                sar = ep;
+                ep = data[i].low;
+                af = afStart;
+            } else {
+                if (data[i].high > ep) {
+                    ep = data[i].high;
+                    af = Math.min(afMax, af + afIncrement);
+                }
+            }
+        } else {
+            sar = sar - af * (ep - sar);
+            if (data[i].high > sar) {
+                isRising = true;
+                sar = ep;
+                ep = data[i].high;
+                af = afStart;
+            } else {
+                if (data[i].low < ep) {
+                    ep = data[i].low;
+                    af = Math.min(afMax, af + afIncrement);
+                }
+            }
+        }
+    }
+    psar.push(sar); // last value
+    direction.push(isRising ? 1 : -1);
+    return { psar, direction };
+};
+
+export const calculateMomentum = (data: number[], period: number): (number | null)[] => {
+    const momentum: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period) {
+            momentum.push(null);
+        } else {
+            momentum.push(data[i] - data[i - period]);
+        }
+    }
+    return momentum;
+};
+
+export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: number, longPeriod: number): (number | null)[] => {
+    const medianPrices = data.map(d => (d.high + d.low) / 2);
+    const smaShort = calculateSMA(medianPrices, shortPeriod);
+    const smaLong = calculateSMA(medianPrices, longPeriod);
+    return smaShort.map((val, i) => val !== null && smaLong[i] !== null ? val - smaLong[i]! : null);
+};
+
+export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
+    const williamsR: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            williamsR.push(null);
+            continue;
+        }
+        const slice = data.slice(i - period + 1, i + 1);
+        const highestHigh = Math.max(...slice.map(d => d.high));
+        const lowestLow = Math.min(...slice.map(d => d.low));
+        const r = ((highestHigh - data[i].close) / (highestHigh - lowestLow)) * -100;
+        williamsR.push(isNaN(r) ? -50 : r);
+    }
+    return williamsR;
+};
+
+export const calculateCCI = (data: HistoricalData[], period: number): (number | null)[] => {
+    const cci: (number | null)[] = [];
+    const typicalPrices = data.map(d => (d.high + d.low + d.close) / 3);
+    const smaTp = calculateSMA(typicalPrices, period);
+
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            cci.push(null);
+            continue;
+        }
+        const slice = typicalPrices.slice(i - period + 1, i + 1);
+        const meanDeviation = slice.reduce((sum, val) => sum + Math.abs(val - smaTp[i]!), 0) / period;
+        const val = (typicalPrices[i] - smaTp[i]!) / (0.015 * meanDeviation);
+        cci.push(meanDeviation > 0 ? val : 0);
+    }
+    return cci;
+};
+
+export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] => {
+    const haData: HistoricalData[] = [];
+    for (let i = 0; i < data.length; i++) {
+        const d = data[i];
+        const haClose = (d.open + d.high + d.low + d.close) / 4;
+        const haOpen = i > 0 ? (haData[i-1].ha_open! + haData[i-1].ha_close!) / 2 : (d.open + d.close) / 2;
+        const haHigh = Math.max(d.high, haOpen, haClose);
+        const haLow = Math.min(d.low, haOpen, haClose);
+        
+        haData.push({
+            ...d,
+            ha_open: haOpen,
+            ha_high: haHigh,
+            ha_low: haLow,
+            ha_close: haClose
+        });
+    }
+    return haData;
+};
+
+export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
+    const result = { pp: [], s1: [], s2: [], s3: [], r1: [], r2: [], r3: [] } as Record<string, (number|null)[]>;
+    for (let i = 0; i < data.length; i++) {
+        if (i < period) {
+            Object.keys(result).forEach(k => result[k].push(null));
+        } else {
+            const slice = data.slice(i - period, i); // Use previous period's data
+            const high = Math.max(...slice.map(d => d.high));
+            const low = Math.min(...slice.map(d => d.low));
+            const close = slice[slice.length - 1].close;
+
+            const pp = (high + low + close) / 3;
+            const r1 = (2 * pp) - low;
+            const s1 = (2 * pp) - high;
+            const r2 = pp + (high - low);
+            const s2 = pp - (high - low);
+            const r3 = high + 2 * (pp - low);
+            const s3 = low - 2 * (high - pp);
+
+            result.pp.push(pp);
+            result.r1.push(r1);
+            result.s1.push(s1);
+            result.r2.push(r2);
+            result.s2.push(s2);
+            result.r3.push(r3);
+            result.s3.push(s3);
+        }
+    }
+    return result;
+};
+
+export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
+    const obv: (number | null)[] = [0];
+    for (let i = 1; i < data.length; i++) {
+        if (data[i].close > data[i-1].close) {
+            obv.push(obv[i-1]! + data[i].volume);
+        } else if (data[i].close < data[i-1].close) {
+            obv.push(obv[i-1]! - data[i].volume);
+        } else {
+            obv.push(obv[i-1]);
+        }
+    }
+    return obv;
+};
+
+export const calculateCMF = (data: HistoricalData[], period: number): (number | null)[] => {
+    const cmf: (number | null)[] = [];
+    const moneyFlowVolumes: number[] = [];
+    const volumes: number[] = [];
+
+    for (let i = 0; i < data.length; i++) {
+        const d = data[i];
+        const range = d.high - d.low;
+        const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
+        const mfv = multiplier * d.volume;
+        
+        moneyFlowVolumes.push(mfv);
+        volumes.push(d.volume);
+
+        if (i < period - 1) {
+            cmf.push(null);
+        } else {
+            const sumMfv = moneyFlowVolumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+            const sumVol = volumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+            cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
+        }
+    }
+    return cmf;
+};
+
+export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC: number, wmaPeriod: number): (number | null)[] => {
+    const roc1 = calculateMomentum(data.map(p => (p / data[0] - 1) * 100), longRoC);
+    const roc2 = calculateMomentum(data.map(p => (p / data[0] - 1) * 100), shortRoC);
+    
+    const sumRoc = roc1.map((val, i) => val !== null && roc2[i] !== null ? val + roc2[i]! : null);
+    
+    const validSumRoc = sumRoc.filter((v): v is number => v !== null);
+    const padding = sumRoc.length - validSumRoc.length;
+
+    const wma: (number | null)[] = [];
+    if (validSumRoc.length >= wmaPeriod) {
+        for (let i = wmaPeriod - 1; i < validSumRoc.length; i++) {
+            const slice = validSumRoc.slice(i - wmaPeriod + 1, i + 1);
+            let num = 0, den = 0;
+            for (let j = 0; j < slice.length; j++) {
+                num += slice[j] * (j + 1);
+                den += (j + 1);
+            }
+            wma.push(den > 0 ? num / den : null);
+        }
+    }
+    
+    return [...Array(padding + wmaPeriod - 1).fill(null), ...wma];
+};
+
+export const calculateElderRay = (data: HistoricalData[], period: number): { bullPower: (number | null)[], bearPower: (number | null)[] } => {
+    const closePrices = data.map(d => d.close);
+    const ema = calculateEMA(closePrices, period);
+    const bullPower = data.map((d, i) => ema[i] !== null ? d.high - ema[i]! : null);
+    const bearPower = data.map((d, i) => ema[i] !== null ? d.low - ema[i]! : null);
+    return { bullPower, bearPower };
+};

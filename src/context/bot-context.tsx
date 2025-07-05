@@ -69,7 +69,11 @@ const KNOWN_INDICATORS = [
     'peakPrice', 'poc', 'volumeDelta', 'cumulativeVolumeDelta', 'bb_upper', 'bb_middle',
     'bb_lower', 'macd', 'macd_signal', 'macd_hist', 'supertrend', 'supertrend_direction',
     'atr', 'donchian_upper', 'donchian_middle', 'donchian_lower', 'tenkan_sen',
-    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span'
+    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span',
+    // New indicators
+    'stoch_k', 'stoch_d', 'keltner_upper', 'keltner_middle', 'keltner_lower', 'vwap',
+    'psar', 'psar_direction', 'momentum', 'awesome_oscillator', 'williams_r', 'cci',
+    'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
 ];
 
 // --- Provider Component ---
