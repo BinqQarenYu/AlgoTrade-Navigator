@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye } from "lucide-react"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -97,7 +97,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
 }
 
 export default function ManualTradingPage() {
-  const { isConnected, coingeckoApiKey, coinmarketcapApiKey } = useApi();
+  const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile } = useApi();
   const { toast } = useToast();
   const { 
     manualTraderState,
@@ -278,9 +278,9 @@ export default function ManualTradingPage() {
     }
   }
 
-  const handleExecuteTrade = () => {
+  const handleExecuteTrade = (isSimulation: boolean) => {
     if (signal) {
-      executeManualTrade(signal, initialCapital, leverage);
+      executeManualTrade(signal, initialCapital, leverage, isSimulation);
     }
   };
 
@@ -805,16 +805,27 @@ export default function ManualTradingPage() {
                {signal && !isAnalyzing && (
                     <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
                         <Button
-                            onClick={handleExecuteTrade}
-                            disabled={isExecuting}
+                            onClick={() => handleExecuteTrade(false)}
+                            disabled={isExecuting || activeProfile?.permissions !== 'FuturesTrading'}
                             className={cn(signal.action === 'UP' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
+                            title={activeProfile?.permissions !== 'FuturesTrading' ? 'A key with Futures Trading permissions is required.' : `Execute ${signal.action} on Binance`}
                         >
                             {isExecuting ? <Loader2 className="animate-spin"/> : <Send/>}
-                            {isExecuting ? 'Submitting...' : `Execute ${signal.action === 'UP' ? 'LONG' : 'SHORT'}`}
+                            Execute Trade (Binance)
                         </Button>
+                        <Button
+                            onClick={() => handleExecuteTrade(true)}
+                            disabled={isExecuting}
+                            variant="secondary"
+                        >
+                            <Eye />
+                            Simulate on Chart
+                        </Button>
+                        <Separator />
                         <Button
                             onClick={handleResetSignal}
                             variant="ghost"
+                            size="sm"
                             disabled={isExecuting}
                         >
                             <XCircle/>

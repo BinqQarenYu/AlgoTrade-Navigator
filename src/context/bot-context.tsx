@@ -71,7 +71,7 @@ interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
-  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number) => void;
+  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;
   stopMultiSignalMonitor: () => void;
@@ -338,7 +338,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
   }, [toast]);
 
-  const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number) => {
+  const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => {
     if (!activeProfile || !apiKey || !secretKey) {
       toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
       return;
@@ -349,7 +349,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setManualTraderState(prev => ({ ...prev, isExecuting: true }));
-    
+
+    if (isSimulation) {
+        addManualLog(`SIMULATION: Starting simulated trade for ${signal.asset}...`);
+        toast({
+            title: "Simulation Started",
+            description: "The signal will remain on the chart. Dismiss it manually when you're done."
+        });
+        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
+        return; // End here for simulation
+    }
+
+    // --- Real Execution Logic ---
     if (activeProfile.permissions === 'ReadOnly') {
         addManualLog(`Read-only key detected. Simulating trade locally for ${signal.asset}...`);
         toast({
@@ -372,7 +383,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             description: `${side} order for ${orderResult.quantity.toFixed(5)} ${signal.asset} submitted. Order ID: ${orderResult.orderId}`
         });
 
-        // Reset the signal after successful execution
+        // Reset the signal only after successful REAL execution
         resetManualSignal();
 
     } catch (e: any) {

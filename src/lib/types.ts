@@ -1,4 +1,5 @@
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -286,3 +287,24 @@ export type FearAndGreedIndex = {
     value: number;
     valueClassification: 'Extreme Fear' | 'Fear' | 'Neutral' | 'Greed' | 'Extreme Greed';
 };
+
+export interface BotContextType {
+  liveBotState: any;
+  manualTraderState: ManualTraderState;
+  multiSignalState: MultiSignalState;
+  screenerState: ScreenerState;
+  strategyParams: Record<string, any>;
+  setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
+  isTradingActive: boolean;
+  startLiveBot: (config: LiveBotConfig) => void;
+  stopLiveBot: () => void;
+  runManualAnalysis: (config: ManualTraderConfig) => void;
+  cancelManualAnalysis: () => void;
+  resetManualSignal: () => void;
+  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
+  setManualChartData: (symbol: string, interval: string) => void;
+  startMultiSignalMonitor: (config: MultiSignalConfig) => void;
+  stopMultiSignalMonitor: () => void;
+  startScreener: (config: ScreenerConfig) => void;
+  stopScreener: () => void;
+}
