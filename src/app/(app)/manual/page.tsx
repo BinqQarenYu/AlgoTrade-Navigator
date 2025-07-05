@@ -135,11 +135,11 @@ export default function ManualTradingPage() {
   const [isFetchingFng, setIsFetchingFng] = useState(false);
 
   // Collapsible states
-  const [isGeneratorOpen, setGeneratorOpen] = useState(true);
+  const [isGeneratorOpen, setGeneratorOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
-  const [isIntelOpen, setIntelOpen] = useState(true);
-  const [isSignalOpen, setSignalOpen] = useState(true);
-  const [isLogsOpen, setLogsOpen] = useState(true);
+  const [isIntelOpen, setIntelOpen] = useState(false);
+  const [isSignalOpen, setSignalOpen] = useState(false);
+  const [isLogsOpen, setLogsOpen] = useState(false);
   
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
