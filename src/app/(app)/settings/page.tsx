@@ -50,7 +50,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -92,6 +92,7 @@ export default function SettingsPage() {
   const [isIpOpen, setIpOpen] = useState(true);
   const [isIntegrationsOpen, setIntegrationsOpen] = useState(true);
   const [isRateLimitOpen, setRateLimitOpen] = useState(true);
+  const [isAiQuotaOpen, setIsAiQuotaOpen] = useState(true);
   const [isProfilesOpen, setProfilesOpen] = useState(true);
 
 
@@ -417,6 +418,36 @@ export default function SettingsPage() {
         </Collapsible>
       </Card>
       
+      <Card>
+        <Collapsible open={isAiQuotaOpen} onOpenChange={setIsAiQuotaOpen}>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Service Quotas</CardTitle>
+              <CardDescription>
+                Usage limits for integrated AI services. Exceeding these may cause features to fail temporarily.
+              </CardDescription>
+            </div>
+            <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <ChevronDown className={cn("h-4 w-4 transition-transform", isAiQuotaOpen && "rotate-180")} />
+                    <span className="sr-only">Toggle</span>
+                </Button>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              <Alert variant="destructive" className="bg-destructive/10">
+                  <ShieldAlert className="h-4 w-4 text-destructive" />
+                  <AlertTitle>Google AI - Free Tier Limit</AlertTitle>
+                  <AlertDescription>
+                      The application uses Google's Gemini 1.5 Flash model. Under the free tier, you are limited to <strong>50 requests per day</strong>. This limit applies to features like AI-powered market reports, signal validation, and strategy optimization. Once exceeded, these features will not work until the quota resets.
+                  </AlertDescription>
+              </Alert>
+            </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+
       <Card>
         <Collapsible open={isProfilesOpen} onOpenChange={setProfilesOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
