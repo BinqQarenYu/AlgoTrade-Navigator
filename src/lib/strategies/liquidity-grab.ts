@@ -9,9 +9,9 @@ export interface LiquidityGrabParams {
 }
 
 export const defaultLiquidityGrabParams: LiquidityGrabParams = {
-  swingLookaround: 10,
+  swingLookaround: 5,
   confirmationCandles: 3,
-  maxSweepLookahead: 10,
+  maxSweepLookahead: 50,
 };
 
 function isSwingHigh(data: HistoricalData[], index: number, lookaround: number): boolean {

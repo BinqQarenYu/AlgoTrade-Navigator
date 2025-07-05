@@ -49,7 +49,7 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
     'liquidity-grab': {
         swingLookaround: { min: 5, max: 15, step: 2 },
         confirmationCandles: { min: 1, max: 5, step: 1 },
-        maxSweepLookahead: { min: 5, max: 20, step: 5 },
+        maxSweepLookahead: { min: 10, max: 50, step: 10 },
     },
     // Adding the rest of the strategies
     'peak-formation-fib': {
