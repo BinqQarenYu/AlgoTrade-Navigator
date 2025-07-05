@@ -72,6 +72,7 @@ interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
+  cleanManualChart: () => void;
   executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;
@@ -254,6 +255,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
   const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
   
+  const cleanManualChart = useCallback(() => {
+    setManualTraderState(prev => {
+        if (!prev.chartData) return prev;
+        const cleaned = prev.chartData.map(({ time, open, high, low, close, volume }) => ({ time, open, high, low, close, volume }));
+        return { ...prev, chartData: cleaned };
+    });
+    addManualLog("Cleared indicators from chart.");
+  }, [addManualLog]);
+
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
     config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean },
@@ -868,6 +878,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       runManualAnalysis,
       cancelManualAnalysis,
       resetManualSignal,
+      cleanManualChart,
       executeManualTrade,
       setManualChartData,
       startMultiSignalMonitor,

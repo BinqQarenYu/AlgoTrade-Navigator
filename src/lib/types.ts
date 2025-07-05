@@ -2,6 +2,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -347,6 +348,7 @@ export interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
+  cleanManualChart: () => void;
   executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;

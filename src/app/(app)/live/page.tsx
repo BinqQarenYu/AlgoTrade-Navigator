@@ -270,6 +270,10 @@ export default function LiveTradingPage() {
     if (isRunning) {
         stopLiveBot();
     } else {
+        if (selectedStrategy === 'none') {
+            toast({ title: "No Strategy Selected", description: "Please select a strategy to run the live bot.", variant: "destructive"});
+            return;
+        }
         if (!isConnected) {
             toast({ title: "Cannot start bot", description: "Please connect to the API first.", variant: "destructive"});
             return;
@@ -459,6 +463,7 @@ export default function LiveTradingPage() {
                           <SelectValue placeholder="Select strategy" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">None (Candles Only)</SelectItem>
                           {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
@@ -578,7 +583,7 @@ export default function LiveTradingPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
+                <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning) || selectedStrategy === 'none'} variant={isRunning ? "destructive" : "default"}>
                   {isRunning ? <StopCircle /> : <Play />}
                   {isRunning ? "Stop Bot" : "Start Bot"}
                 </Button>

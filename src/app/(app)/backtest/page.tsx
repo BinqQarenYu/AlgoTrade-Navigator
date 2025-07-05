@@ -175,7 +175,7 @@ export default function BacktestPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
-  const [isControlsOpen, setControlsOpen] = useState(true);
+  const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
@@ -792,6 +792,7 @@ export default function BacktestPage() {
                           <SelectValue placeholder="Select strategy" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">None (Candles Only)</SelectItem>
                           {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
@@ -994,7 +995,7 @@ export default function BacktestPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive}>
+                <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
                   {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Backtest"}
                 </Button>

@@ -109,6 +109,7 @@ export default function ManualTradingPage() {
     strategyParams,
     setStrategyParams,
     executeManualTrade,
+    cleanManualChart,
   } = useBot();
 
   const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
@@ -141,6 +142,12 @@ export default function ManualTradingPage() {
   const [isIntelOpen, setIntelOpen] = useState(false);
   const [isSignalOpen, setSignalOpen] = useState(false);
   const [isLogsOpen, setLogsOpen] = useState(false);
+
+  useEffect(() => {
+    if (selectedStrategy === 'none') {
+      cleanManualChart();
+    }
+  }, [selectedStrategy, cleanManualChart]);
   
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -475,6 +482,7 @@ export default function ManualTradingPage() {
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
                         <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="none">None (Candles Only)</SelectItem>
                           {strategyMetadatas.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                           ))}
@@ -573,7 +581,7 @@ export default function ManualTradingPage() {
                         hasActiveSignal ? handleResetSignal : 
                         handleRunAnalysis
                     }
-                    disabled={!isConnected || (isTradingActive && !isThisPageTrading)}
+                    disabled={!isConnected || (isTradingActive && !isThisPageTrading) || (!isAnalyzing && !hasActiveSignal && selectedStrategy === 'none')}
                     variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
                 >
                     {isAnalyzing ? (

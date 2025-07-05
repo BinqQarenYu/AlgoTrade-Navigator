@@ -126,7 +126,9 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
       console.error('Failed to parse stored state', e);
       localStorage.removeItem(key);
     } finally {
-      setIsHydrated(true);
+      if (isMounted) {
+        setIsHydrated(true);
+      }
     }
     return () => { isMounted = false; };
   }, [key]);
@@ -137,7 +139,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     }
   }, [key, state, isHydrated]);
 
-  return [state, setState];
+  return [isHydrated ? state : defaultValue, setState];
 };
 
 export default function LabPage() {
@@ -549,6 +551,7 @@ export default function LabPage() {
                     <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
                       <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="none">None (Candles Only)</SelectItem>
                         {strategyMetadatas.map(strategy => (
                           <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                         ))}
@@ -647,4 +650,3 @@ export default function LabPage() {
     </div>
   )
 }
-
