@@ -65,7 +65,7 @@ export default function ScreenerPage() {
 
     // UI State
     const [selectedAsset, setSelectedAsset] = useState<string>("BTCUSDT");
-    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(["peak-formation-fib", "ema-crossover"]);
+    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(strategyMetadatas.map(s => s.id));
     const [interval, setInterval] = useState("5m");
     
     const [isConfigOpen, setConfigOpen] = useState(true);
@@ -367,3 +367,5 @@ export default function ScreenerPage() {
         </div>
     );
 }
+
+    
