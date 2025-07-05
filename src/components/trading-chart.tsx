@@ -27,7 +27,8 @@ export function TradingChart({
   interval, 
   tradeSignal = null,
   highlightedTrade = null,
-  onIntervalChange
+  onIntervalChange,
+  wallLevels = []
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -35,6 +36,7 @@ export function TradingChart({
   tradeSignal?: TradeSignal | null;
   highlightedTrade?: BacktestResult | null;
   onIntervalChange?: (newInterval: string) => void;
+  wallLevels?: { price: number; type: 'bid' | 'ask' }[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -135,6 +137,7 @@ export function TradingChart({
             senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
             senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
             priceLines: [],
+            wallPriceLines: [],
         };
         
         window.addEventListener('resize', handleResize);
@@ -341,6 +344,34 @@ export function TradingChart({
       });
 
     }, [tradeSignal, data]);
+
+    // Effect to draw wall lines from Order Book
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { candlestickSeries } = chartRef.current;
+
+        // Clear previous wall lines
+        if (chartRef.current.wallPriceLines) {
+            chartRef.current.wallPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+        }
+        
+        const newLines: any[] = [];
+        if (wallLevels && wallLevels.length > 0) {
+            wallLevels.forEach(wall => {
+                const line = candlestickSeries.createPriceLine({
+                    price: wall.price,
+                    color: wall.type === 'bid' ? '#22c55e' : '#ef4444',
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dotted,
+                    axisLabelVisible: true,
+                    title: ` ${wall.type.toUpperCase()} WALL`,
+                });
+                newLines.push(line);
+            });
+        }
+        chartRef.current.wallPriceLines = newLines;
+
+    }, [wallLevels]);
 
 
   const formattedSymbol = useMemo(() => {

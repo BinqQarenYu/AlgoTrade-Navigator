@@ -23,6 +23,11 @@ interface FormattedOrderBookLevel {
     isWall: boolean;
 }
 
+interface OrderBookProps {
+    symbol: string;
+    onWallsUpdate: (walls: { price: number; type: 'bid' | 'ask' }[]) => void;
+}
+
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
 
 // Aggregates raw order book levels into larger price buckets
@@ -50,7 +55,7 @@ const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel
 };
 
 
-export function OrderBook({ symbol }: { symbol: string }) {
+export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
@@ -59,7 +64,6 @@ export function OrderBook({ symbol }: { symbol: string }) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = useState(false);
     const [isCardOpen, setIsCardOpen] = useState(true);
-    const notifiedWallsRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
         // If the stream is meant to be inactive, ensure connection is closed.
@@ -78,8 +82,7 @@ export function OrderBook({ symbol }: { symbol: string }) {
         }
 
         setIsConnecting(true);
-        notifiedWallsRef.current.clear(); // Clear notifications on new stream
-
+        
         // Close any existing connection before opening a new one
         if (wsRef.current) {
             wsRef.current.close();
@@ -187,26 +190,31 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
     }, [bids, asks]);
 
-    // Effect to check for new walls and send toast notifications.
+    // Effect to report walls back to the parent component.
     useEffect(() => {
-        const checkAndNotify = (levels: FormattedOrderBookLevel[], type: 'Buy' | 'Sell') => {
-            if (!isStreamActive) return;
+        if (!isStreamActive) {
+            onWallsUpdate([]);
+            return;
+        }
 
-            levels.forEach(level => {
-                if (level.isWall && !notifiedWallsRef.current.has(level.price)) {
-                    toast({
-                        title: `Large ${type} Wall Detected`,
-                        description: `A significant order wall of size ${level.size.toFixed(2)} was detected at $${level.price.toFixed(precision)}.`,
-                    });
-                    notifiedWallsRef.current.add(level.price);
-                }
-            });
-        };
+        const currentWalls: { price: number, type: 'bid' | 'ask' }[] = [];
+        
+        formattedBids.forEach(level => {
+            if (level.isWall) {
+                currentWalls.push({ price: level.price, type: 'bid' });
+            }
+        });
+        
+        formattedAsks.forEach(level => {
+            if (level.isWall) {
+                currentWalls.push({ price: level.price, type: 'ask' });
+            }
+        });
+        
+        onWallsUpdate(currentWalls);
 
-        checkAndNotify(formattedBids, 'Buy');
-        checkAndNotify(formattedAsks, 'Sell');
+    }, [formattedBids, formattedAsks, isStreamActive, onWallsUpdate]);
 
-    }, [formattedBids, formattedAsks, toast, isStreamActive, precision]);
 
     const handleToggleStream = () => {
         if (!isConnected) {
@@ -223,10 +231,10 @@ export function OrderBook({ symbol }: { symbol: string }) {
 
         return (
             <TableRow className={cn("relative font-mono text-xs", level.isWall && "bg-yellow-500/20 font-bold")}>
-                <TableCell className={cn("p-1 text-left", textColor)}>
+                <TableCell className={cn("p-1 text-left relative", textColor)}>
                     {level.price.toFixed(precision)}
                      <div 
-                        className={cn("absolute top-0 bottom-0 -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
+                        className={cn("absolute top-0 bottom-0 h-full -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
                         style={{ width: `${bgPercentage}%` }}
                     />
                 </TableCell>
