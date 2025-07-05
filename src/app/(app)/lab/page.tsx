@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -115,27 +115,26 @@ export default function LabPage() {
     const [isHydrated, setIsHydrated] = useState(false);
 
     useEffect(() => {
-      setIsHydrated(true);
-    }, []);
-
-    useEffect(() => {
-      if (isHydrated) {
-        const item = window.localStorage.getItem(key);
-        if (item) {
-          try {
-            const parsed = JSON.parse(item);
-            if (key === 'lab-date-range' && parsed) {
-              if (parsed.from) parsed.from = new Date(parsed.from);
-              if (parsed.to) parsed.to = new Date(parsed.to);
-            }
-            setState(parsed);
-          } catch (e) {
-            console.error('Failed to parse stored state', e);
-            localStorage.removeItem(key);
+      let isMounted = true;
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        try {
+          const parsed = JSON.parse(item);
+          if (key === 'lab-date-range' && parsed) {
+            if (parsed.from) parsed.from = new Date(parsed.from);
+            if (parsed.to) parsed.to = new Date(parsed.to);
           }
+          if (isMounted) {
+            setState(parsed);
+          }
+        } catch (e) {
+          console.error('Failed to parse stored state', e);
+          localStorage.removeItem(key);
         }
       }
-    }, [key, isHydrated]);
+      setIsHydrated(true);
+      return () => { isMounted = false; };
+    }, [key]);
 
     useEffect(() => {
       if (isHydrated) {
@@ -153,6 +152,7 @@ export default function LabPage() {
   const [showWalls, setShowWalls] = usePersistentState<boolean>('lab-show-walls', true);
   const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab-show-liquidity', true);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('lab-selected-strategy', 'liquidity-order-flow');
+  const [chartHeight, setChartHeight] = usePersistentState<number>('lab-chart-height', 600);
 
   
   const [isClient, setIsClient] = useState(false)
@@ -189,6 +189,31 @@ export default function LabPage() {
         toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
     }
   }
+
+  const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownEvent.preventDefault();
+    const startHeight = chartHeight;
+    const startPosition = mouseDownEvent.clientY;
+
+    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
+      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
+      if (newHeight >= 400 && newHeight <= 1200) {
+        setChartHeight(newHeight);
+      }
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+  }, [chartHeight, setChartHeight]);
 
 
   useEffect(() => {
@@ -377,8 +402,16 @@ export default function LabPage() {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 flex flex-col h-[600px]">
-          <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
+        <div className="xl:col-span-3 relative pb-4">
+          <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
+          </div>
+          <div
+              onMouseDown={startChartResize}
+              className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+          >
+              <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+          </div>
         </div>
 
         <div className="xl:col-span-2 space-y-6">
@@ -460,7 +493,7 @@ export default function LabPage() {
                     </Select>
                   </div>
 
-                  <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen} className="space-y-2">
+                  <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
                     <CollapsibleTrigger asChild>
                       <Button variant="outline" size="sm" className="w-full">
                         <BrainCircuit className="mr-2 h-4 w-4" />

@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -153,6 +153,7 @@ export default function BacktestPage() {
   const [baseAsset, setBaseAsset] = useState<string>("BTC");
   const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
+  const [chartHeight, setChartHeight] = useState(600);
 
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
@@ -174,7 +175,7 @@ export default function BacktestPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
-  const [isControlsOpen, setControlsOpen] = useState(false);
+  const [isControlsOpen, setControlsOpen] = useState(true);
   const [isParamsOpen, setParamsOpen] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
@@ -196,6 +197,31 @@ export default function BacktestPage() {
         toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
     }
   }
+
+  const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownEvent.preventDefault();
+    const startHeight = chartHeight;
+    const startPosition = mouseDownEvent.clientY;
+
+    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
+      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
+      if (newHeight >= 400 && newHeight <= 1200) {
+        setChartHeight(newHeight);
+      }
+    };
+
+    const onMouseUp = () => {
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+  }, [chartHeight]);
 
   useEffect(() => {
     setIsClient(true)
@@ -704,8 +730,16 @@ export default function BacktestPage() {
         </Alert>
     )}
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <div className="xl:col-span-3 flex flex-col h-[600px]">
-        <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} highlightedTrade={selectedTrade} />
+      <div className="xl:col-span-3 relative pb-4">
+        <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} highlightedTrade={selectedTrade} />
+        </div>
+        <div
+            onMouseDown={startChartResize}
+            className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+        >
+            <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+        </div>
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -782,7 +816,7 @@ export default function BacktestPage() {
                     </div>
                 </div>
 
-                <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen} className="space-y-2">
+                <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
                   <CollapsibleTrigger asChild>
                     <Button variant="outline" size="sm" className="w-full">
                       <BrainCircuit className="mr-2 h-4 w-4" />
