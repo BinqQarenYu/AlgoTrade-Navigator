@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo, useTransition } from "react"
+import React, { useState, useEffect, useMemo, useTransition, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign, BrainCircuit } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, DollarSign } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -34,7 +34,7 @@ import type { HistoricalData, LiquidityEvent } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
-import { analyzeLiquidity } from "@/ai/flows/analyze-liquidity-flow"
+import { findLiquidityGrabs } from "@/lib/analysis/liquidity-analysis"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
@@ -45,28 +45,49 @@ interface DateRange {
   to?: Date;
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(() => {
+    if (typeof window === 'undefined') return defaultValue;
+    try {
+      const item = window.localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.error(error);
+      return defaultValue;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state]);
+
+  return [state, setState];
+};
+
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
   const [isReportPending, startReportTransition] = useTransition();
   const [isAnalyzingLiquidity, startLiquidityTransition] = useTransition();
 
-  const [date, setDate] = useState<DateRange | undefined>()
+  const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
+  const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
+  const [quoteAsset, setQuoteAsset] = usePersistentState<string>("lab-quote-asset","USDT");
+  const [interval, setInterval] = usePersistentState<string>("lab-interval","1h");
+  const [showWalls, setShowWalls] = usePersistentState<boolean>('lab-show-walls', true);
+  const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab-show-liquidity', true);
+  
   const [isClient, setIsClient] = useState(false)
-  const [baseAsset, setBaseAsset] = useState<string>("BTC");
-  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
-  const [interval, setInterval] = useState<string>("1h");
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
-
-  const [showWalls, setShowWalls] = useState(true);
-  const [showLiquidity, setShowLiquidity] = useState(true);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -79,7 +100,7 @@ export default function LabPage() {
             to: new Date(),
         })
     }
-  }, [date])
+  }, [date, setDate])
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -87,12 +108,38 @@ export default function LabPage() {
     if (!quotes.includes(quoteAsset)) {
       setQuoteAsset(quotes[0] || '');
     }
-  }, [baseAsset, quoteAsset]);
+  }, [baseAsset, quoteAsset, setQuoteAsset]);
 
   useEffect(() => {
     // When the symbol changes, clear out old wall data
     setWalls([]);
   }, [symbol]);
+
+  const handleAnalyzeLiquidity = useCallback(() => {
+    if (chartData.length < 20) {
+      toast({ title: "Not Enough Data", description: "Please load more market data to run analysis.", variant: "destructive" });
+      return;
+    }
+    setLiquidityEvents([]);
+    startLiquidityTransition(async () => {
+      try {
+        const resultEvents = await findLiquidityGrabs(chartData);
+        if(resultEvents.length > 0){
+            setLiquidityEvents(resultEvents);
+            toast({ title: "Liquidity Analysis Complete", description: `Found ${resultEvents.length} potential liquidity grabs.` });
+        } else {
+            toast({ title: "No Significant Liquidity Events Found", description: "The analysis did not find any clear liquidity grabs in the selected data range." });
+        }
+      } catch (error: any) {
+        console.error("Error analyzing liquidity:", error);
+        toast({
+          title: "Liquidity Analysis Failed",
+          description: error.message || "An error occurred during the analysis.",
+          variant: "destructive",
+        });
+      }
+    });
+  }, [chartData, toast]);
 
 
   useEffect(() => {
@@ -106,13 +153,12 @@ export default function LabPage() {
         setIsFetchingData(true);
         setChartData([]);
         setReport(null);
-        setLiquidityEvents([]); // Clear previous liquidity events on new data load
+        setLiquidityEvents([]);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
             setChartData(klines);
             toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
-
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
             toast({
@@ -150,34 +196,6 @@ export default function LabPage() {
         toast({
           title: "Report Failed",
           description: "An error occurred while generating the AI report.",
-          variant: "destructive",
-        });
-      }
-    });
-  };
-
-  const handleAnalyzeLiquidity = () => {
-    if (chartData.length < 20) {
-      toast({ title: "Not Enough Data", description: "Please load more market data to run analysis.", variant: "destructive" });
-      return;
-    }
-    setLiquidityEvents([]);
-    startLiquidityTransition(async () => {
-      try {
-        const result = await analyzeLiquidity({
-          historicalData: JSON.stringify(chartData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-        });
-        if(result.events.length > 0){
-            setLiquidityEvents(result.events);
-            toast({ title: "Liquidity Analysis Complete", description: `Found ${result.events.length} potential liquidity grabs.` });
-        } else {
-            toast({ title: "No Significant Liquidity Events Found", description: "The AI did not find any clear liquidity grabs in the selected data range." });
-        }
-      } catch (error: any) {
-        console.error("Error analyzing liquidity:", error);
-        toast({
-          title: "Liquidity Analysis Failed",
-          description: error.message || "An error occurred during the analysis.",
           variant: "destructive",
         });
       }
@@ -293,20 +311,13 @@ export default function LabPage() {
                         </div>
                     </div>
                   </div>
-                  <Alert>
-                      <BrainCircuit className="h-4 w-4" />
-                      <AlertTitle>Free Tier AI Quota</AlertTitle>
-                      <AlertDescription>
-                          The AI analysis features use a service with a free daily limit. If you see a "Too Many Requests" error, you may have exceeded your quota for the day.
-                      </AlertDescription>
-                  </Alert>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-2">
                   <Button className="w-full" onClick={handleGenerateReport} disabled={!canAnalyze}>
                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isFetchingData ? "Loading Data..." : isReportPending ? "Generating Report..." : "Generate Market Report"}
                   </Button>
-                  <Button className="w-full" variant="outline" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
+                   <Button className="w-full" variant="outline" onClick={handleAnalyzeLiquidity} disabled={!canAnalyze}>
                     {isAnalyzingLiquidity ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DollarSign className="mr-2 h-4 w-4" />}
                     {isAnalyzingLiquidity ? "Analyzing..." : "Analyze Liquidity"}
                   </Button>
