@@ -26,9 +26,9 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
-import { cn, formatPrice } from "@/lib/utils"
+import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, LiquidityEvent } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
@@ -39,15 +39,75 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+
+import { useBot } from "@/context/bot-context"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
+import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
+import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
+import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
+import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow"
+import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve"
+import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels"
+import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
+import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
+import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
+import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
+import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
+import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
+import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross"
+import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
+import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
+import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
+import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
+import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
+import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
+import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
+import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
+import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 
 interface DateRange {
   from?: Date;
   to?: Date;
 }
 
+const DEFAULT_PARAMS_MAP: Record<string, any> = {
+    'awesome-oscillator': defaultAwesomeOscillatorParams,
+    'bollinger-bands': defaultBollingerBandsParams,
+    'cci-reversion': defaultCciReversionParams,
+    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
+    'coppock-curve': defaultCoppockCurveParams,
+    'donchian-channels': defaultDonchianChannelsParams,
+    'elder-ray-index': defaultElderRayIndexParams,
+    'ema-crossover': defaultEmaCrossoverParams,
+    'hyper-peak-formation': defaultHyperPFFParams,
+    'ichimoku-cloud': defaultIchimokuCloudParams,
+    'keltner-channels': defaultKeltnerChannelsParams,
+    'macd-crossover': defaultMacdCrossoverParams,
+    'momentum-cross': defaultMomentumCrossParams,
+    'obv-divergence': defaultObvDivergenceParams,
+    'parabolic-sar-flip': defaultParabolicSarFlipParams,
+    'peak-formation-fib': defaultPffParams,
+    'pivot-point-reversal': defaultPivotPointReversalParams,
+    'reverse-pff': defaultReversePffParams,
+    'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
+    'stochastic-crossover': defaultStochasticCrossoverParams,
+    'supertrend': defaultSupertrendParams,
+    'volume-delta': defaultVolumeDeltaParams,
+    'vwap-cross': defaultVwapCrossParams,
+    'williams-r': defaultWilliamsRParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
+}
+
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected, canUseAi } = useApi();
+  const { strategyParams, setStrategyParams } = useBot();
   const [isReportPending, startReportTransition] = React.useTransition();
   
   const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -64,7 +124,6 @@ export default function LabPage() {
         if (item) {
           try {
             const parsed = JSON.parse(item);
-            // When retrieving from localStorage, dates are strings. We need to convert them back to Date objects.
             if (key === 'lab-date-range' && parsed) {
               if (parsed.from) parsed.from = new Date(parsed.from);
               if (parsed.to) parsed.to = new Date(parsed.to);
@@ -93,19 +152,44 @@ export default function LabPage() {
   const [interval, setInterval] = usePersistentState<string>("lab-interval","1h");
   const [showWalls, setShowWalls] = usePersistentState<boolean>('lab-show-walls', true);
   const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab-show-liquidity', true);
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('lab-selected-strategy', 'liquidity-order-flow');
+
   
   const [isClient, setIsClient] = useState(false)
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
 
   const [isControlsOpen, setControlsOpen] = useState(false);
+  const [isParamsOpen, setParamsOpen] = useState(false);
   const [isReportOpen, setReportOpen] = useState(false);
+
+  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
+    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+    setStrategyParams(prev => ({
+        ...prev,
+        [strategyId]: {
+            ...prev[strategyId],
+            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
+        }
+    }));
+  };
+  
+  const handleResetParams = () => {
+    const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
+    if (defaultParams) {
+        setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
+        const strategyName = getStrategyById(selectedStrategy)?.name || 'the strategy';
+        toast({ title: "Parameters Reset", description: `The parameters for ${strategyName} have been reset to their default values.`});
+    }
+  }
+
 
   useEffect(() => {
     setIsClient(true)
@@ -143,7 +227,6 @@ export default function LabPage() {
             setLiquidityEvents(resultEvents);
         } catch (error: any) {
             console.error("Error analyzing liquidity automatically:", error);
-            // Don't toast here to avoid spamming user
         }
     };
     
@@ -183,6 +266,27 @@ export default function LabPage() {
 
     fetchData();
   }, [symbol, date, interval, isConnected, isClient, toast]);
+  
+  // Effect to calculate and display indicators when strategy or data changes
+  useEffect(() => {
+    const calculateAndSetIndicators = async () => {
+      if (chartData.length === 0) {
+        setDataWithIndicators([]);
+        return;
+      }
+      
+      const strategy = getStrategyById(selectedStrategy);
+      if (strategy) {
+          const paramsForStrategy = strategyParams[selectedStrategy] || {};
+          const calculatedData = await strategy.calculate(chartData, paramsForStrategy);
+          setDataWithIndicators(calculatedData);
+      } else {
+          setDataWithIndicators(chartData);
+      }
+    };
+    
+    calculateAndSetIndicators();
+  }, [chartData, selectedStrategy, strategyParams]);
 
   const handleGenerateReport = () => {
     if (chartData.length < 20) {
@@ -215,6 +319,41 @@ export default function LabPage() {
 
   const anyLoading = isFetchingData || isReportPending;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
+  
+  const renderParameterControls = () => {
+    const params = strategyParams[selectedStrategy];
+    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+
+    const controls = Object.entries(params).map(([key, value]) => (
+      <div key={key} className="space-y-2">
+        <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
+        <Input 
+          id={key}
+          type="number"
+          value={value as number}
+          onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
+          step={String(value).includes('.') ? '0.001' : '1'}
+          disabled={anyLoading}
+        />
+      </div>
+    ));
+
+    const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
+
+    return (
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">{controls}</div>
+        <div className="pt-2 flex flex-col sm:flex-row gap-2">
+            {canReset && (
+                <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Reset to Default
+                </Button>
+            )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -239,7 +378,7 @@ export default function LabPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 flex flex-col h-[600px]">
-          <TradingChart data={chartData} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
+          <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
         </div>
 
         <div className="xl:col-span-2 space-y-6">
@@ -309,6 +448,31 @@ export default function LabPage() {
                       </Popover>
                   </div>
                   
+                  <div className="space-y-2">
+                    <Label htmlFor="strategy">Strategy to Visualize</Label>
+                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                      <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {strategyMetadatas.map(strategy => (
+                          <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen} className="space-y-2">
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <BrainCircuit className="mr-2 h-4 w-4" />
+                        <span>Strategy Parameters</span>
+                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                      {renderParameterControls()}
+                    </CollapsibleContent>
+                  </Collapsible>
+
                   <div className="space-y-2">
                     <Label>Chart Visuals & Analysis</Label>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
