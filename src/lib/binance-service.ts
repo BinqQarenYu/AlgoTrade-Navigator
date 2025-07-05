@@ -2,6 +2,7 @@
 'use server';
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
+import type { Ticker } from 'ccxt';
 import crypto from 'crypto';
 import ccxt from 'ccxt';
 
@@ -187,6 +188,38 @@ export const getLatestKlinesByLimit = async (
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
+        }
+    }
+}
+
+export const get24hTickerStats = async (symbols: string[]): Promise<Record<string, Ticker>> => {
+    if (symbols.length === 0) return {};
+    console.log(`Fetching 24h ticker stats for ${symbols.length} symbols...`);
+    try {
+        const tickers = await binance.fetchTickers(symbols);
+        return tickers;
+    } catch (error: any) {
+        console.error(`Error fetching tickers via CCXT:`, error);
+        if (error instanceof ccxt.NetworkError) {
+             throw new Error("Failed to connect to Binance. Please check your network connection.");
+        } else if (error instanceof ccxt.ExchangeError) {
+            // Some exchanges don't support fetchTickers for multiple symbols, fallback to individual calls
+            if (error.message.includes('not support')) { // More generic check
+                console.log('fetchTickers not supported for multiple symbols, falling back to individual fetchTicker calls.');
+                const tickersObject: Record<string, Ticker> = {};
+                await Promise.all(symbols.map(async (symbol) => {
+                    try {
+                        const ticker = await binance.fetchTicker(symbol);
+                        tickersObject[ticker.symbol] = ticker;
+                    } catch (e) {
+                        console.warn(`Could not fetch individual ticker for ${symbol}`, e);
+                    }
+                }));
+                return tickersObject;
+            }
+            throw new Error(`Binance Exchange Error: ${error.message}`);
+        } else {
+            throw new Error("An unexpected error occurred while fetching ticker data.");
         }
     }
 }

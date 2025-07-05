@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useTransition } from "react"
@@ -34,6 +35,7 @@ import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
 import { Skeleton } from "@/components/ui/skeleton"
+import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 
 interface DateRange {
   from?: Date;
@@ -242,6 +244,8 @@ export default function LabPage() {
               </CollapsibleContent>
             </Collapsible>
           </Card>
+
+          <MarketHeatmap />
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
