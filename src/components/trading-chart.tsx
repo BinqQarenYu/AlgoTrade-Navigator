@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
 import { Camera } from 'lucide-react';
+import { formatPrice } from '@/lib/utils';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
@@ -407,13 +408,14 @@ export function TradingChart({
         const newLines: any[] = [];
         if (liquidityEvents && liquidityEvents.length > 0) {
             liquidityEvents.forEach(event => {
+                const formattedPrice = formatPrice(event.priceLevel);
                 const line = candlestickSeries.createPriceLine({
                     price: event.priceLevel,
                     color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
                     lineWidth: 1,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
-                    title: event.direction === 'bullish' ? ' Sell-side Liquidity' : ' Buy-side Liquidity',
+                    title: event.direction === 'bullish' ? ` Sell-side Liquidity @ $${formattedPrice}` : ` Buy-side Liquidity @ $${formattedPrice}`,
                 });
                 newLines.push(line);
             });
