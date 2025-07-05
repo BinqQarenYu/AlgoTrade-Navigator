@@ -366,7 +366,7 @@ export default function BacktestPage() {
 
   const handleRunBacktest = async () => {
     if (chartData.length === 0) {
-       toast({
+      toast({
         title: "No Data",
         description: "Cannot run backtest without market data. Please connect your API and select a date range.",
         variant: "destructive",
@@ -374,65 +374,167 @@ export default function BacktestPage() {
       return;
     }
 
-    setIsBacktesting(true)
+    setIsBacktesting(true);
     setBacktestResults([]);
     setSummaryStats(null);
     setSelectedTrade(null);
-    
+
     const strategy = getStrategyById(selectedStrategy);
     if (!strategy) {
       toast({ title: "No Strategy Selected", variant: "destructive" });
       setIsBacktesting(false);
       return;
     }
-    
+
     toast({
       title: "Backtest Started",
-      description: `Running ${strategy.name} on ${interval} interval.`,
+      description: `Running ${strategy.name} on ${symbol} (${interval}).`,
     });
+
+    const paramsForStrategy = strategyParams[selectedStrategy];
+    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy);
     
-    // For now, we are not implementing the AI validation inside the simple silent backtest used for optimization.
-    // So the complex loop stays here. The silent one is simpler.
-    // In future, this could be refactored to share more code.
-    if (useAIValidation) {
-       // Logic for AI validation run
-      const paramsForStrategy = strategyParams[selectedStrategy];
-      let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy);
-      
-      const trades: BacktestResult[] = [];
-      const marginPerTrade = initialCapital;
-      let positionType: 'long' | 'short' | null = null;
-      let entryPrice = 0, entryTime = 0, stopLossPrice = 0, takeProfitPrice = 0, tradeQuantity = 0;
-      let aiValidationCount = 0, aiLimitReachedNotified = false;
-      let entryReasoning: string | undefined, entryConfidence: number | undefined;
-      
-      for (let i = 1; i < dataWithSignals.length; i++) {
-          const d = dataWithSignals[i];
-          // Complex AI-validated trading logic...
+    const trades: BacktestResult[] = [];
+    let positionType: 'long' | 'short' | null = null;
+    let entryPrice = 0;
+    let entryTime = 0;
+    let stopLossPrice = 0;
+    let takeProfitPrice = 0;
+    let tradeQuantity = 0;
+    let entryReasoning: string | undefined;
+    let entryConfidence: number | undefined;
+    let aiValidationCount = 0;
+    let aiLimitReachedNotified = false;
+
+    for (let i = 1; i < dataWithSignals.length; i++) {
+      const d = dataWithSignals[i];
+
+      // --- Exit Logic ---
+      if (positionType === 'long') {
+        let exitPrice: number | null = null;
+        let closeReason: BacktestResult['closeReason'] = 'signal';
+        if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+        else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+        else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+
+        if (exitPrice !== null) {
+          const entryFeeValue = entryPrice * tradeQuantity * (fee / 100);
+          const exitFeeValue = exitPrice * tradeQuantity * (fee / 100);
+          const pnl = (exitPrice - entryPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
+          trades.push({
+            id: `trade-${trades.length}`, type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
+            pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence,
+          });
+          positionType = null;
+        }
+      } else if (positionType === 'short') {
+        let exitPrice: number | null = null;
+        let closeReason: BacktestResult['closeReason'] = 'signal';
+        if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+        else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+        else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+
+        if (exitPrice !== null) {
+          const entryFeeValue = entryPrice * tradeQuantity * (fee / 100);
+          const exitFeeValue = exitPrice * tradeQuantity * (fee / 100);
+          const pnl = (entryPrice - exitPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
+          trades.push({
+            id: `trade-${trades.length}`, type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
+            pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence,
+          });
+          positionType = null;
+        }
       }
-      // ... same AI backtest logic as before
+
+      // --- Entry Logic ---
+      if (positionType === null) {
+        const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
+        if (potentialSignal) {
+          let isValidSignal = false;
+          let prediction: PredictMarketOutput | null = null;
+          
+          if (useAIValidation) {
+            if (aiValidationCount < maxAiValidations) {
+              aiValidationCount++;
+              try {
+                prediction = await predictMarket({
+                    symbol: symbol,
+                    recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+                    strategySignal: potentialSignal
+                });
+                if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
+                  isValidSignal = true;
+                }
+              } catch(e) {
+                console.error("AI validation failed", e);
+                isValidSignal = false; // Fail safe
+              }
+            } else if (!aiLimitReachedNotified) {
+              toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed. Subsequent trades will not be AI-validated.` });
+              aiLimitReachedNotified = true;
+              isValidSignal = true;
+            } else {
+              isValidSignal = true;
+            }
+          } else {
+            isValidSignal = true;
+          }
+          
+          if (isValidSignal) {
+            entryPrice = d.close;
+            entryTime = d.time;
+            entryReasoning = prediction?.reasoning ?? 'Classic strategy signal.';
+            entryConfidence = prediction?.confidence ?? 1;
+            tradeQuantity = (initialCapital * leverage) / entryPrice;
+
+            if (potentialSignal === 'BUY') {
+              positionType = 'long';
+              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
+              takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+            } else {
+              positionType = 'short';
+              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
+              takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+            }
+          }
+        }
+      }
     }
 
-    const { summary, dataWithSignals } = await runSilentBacktest(chartData, {
-        strategyId: selectedStrategy,
-        strategyParams: strategyParams[selectedStrategy],
-        initialCapital, leverage, takeProfit, stopLoss, fee
-    });
-    
-    // A full backtest needs to calculate the full trade log for display, which runSilentBacktest doesn't provide yet
-    // This part is simplified for brevity. The original full calculation would be here.
-    const trades = summary ? [] : []; // This would need to be properly calculated again
-    
+    // --- Summary Calculation ---
+    const wins = trades.filter(t => t.pnl > 0);
+    const losses = trades.filter(t => t.pnl <= 0);
+    const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+    const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
+    const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
+    const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
+
+    const summary: BacktestSummary = {
+      totalTrades: trades.length,
+      winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
+      totalPnl: totalPnl,
+      totalFees,
+      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
+      averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
+      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+      initialCapital,
+      endingBalance: initialCapital + totalPnl,
+      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
+    };
+
     setDataWithIndicators(dataWithSignals);
     setBacktestResults(trades);
     setSummaryStats(summary);
 
-    setIsBacktesting(false)
+    setIsBacktesting(false);
     toast({
       title: "Backtest Complete",
       description: "Strategy signals and results are now available.",
-    })
-  }
+    });
+  };
+
 
   const handleAutoTune = async () => {
     const optimizationConfig = optimizationConfigs[selectedStrategy];
