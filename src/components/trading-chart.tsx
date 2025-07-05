@@ -144,6 +144,7 @@ export function TradingChart({
             senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
             priceLines: [],
             wallPriceLines: [],
+            liquidityPriceLines: [],
         };
         
         window.addEventListener('resize', handleResize);
@@ -391,6 +392,34 @@ export function TradingChart({
         chartRef.current.wallPriceLines = newLines;
 
     }, [wallLevels]);
+
+    // Effect to draw liquidity grab lines
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { candlestickSeries } = chartRef.current;
+
+        // Clear previous liquidity lines
+        if (chartRef.current.liquidityPriceLines) {
+            chartRef.current.liquidityPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+        }
+        
+        const newLines: any[] = [];
+        if (liquidityEvents && liquidityEvents.length > 0) {
+            liquidityEvents.forEach(event => {
+                const line = candlestickSeries.createPriceLine({
+                    price: event.priceLevel,
+                    color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dotted,
+                    axisLabelVisible: true,
+                    title: ` Liquidity Level`,
+                });
+                newLines.push(line);
+            });
+        }
+        chartRef.current.liquidityPriceLines = newLines;
+
+    }, [liquidityEvents]);
 
 
   const formattedSymbol = useMemo(() => {
