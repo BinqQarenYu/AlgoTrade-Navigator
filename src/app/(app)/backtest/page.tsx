@@ -68,6 +68,7 @@ import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 
 interface DateRange {
   from?: Date;
@@ -100,6 +101,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'volume-delta': defaultVolumeDeltaParams,
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
@@ -430,6 +432,7 @@ export default function BacktestPage() {
     let tradeQuantity = 0;
     let entryReasoning: string | undefined;
     let entryConfidence: number | undefined;
+    let entryPeakPrice: number | undefined;
     let aiValidationCount = 0;
     let aiLimitReachedNotified = false;
 
@@ -451,7 +454,7 @@ export default function BacktestPage() {
           trades.push({
             id: `trade-${trades.length}`, type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
             pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence,
+            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
         }
@@ -469,7 +472,7 @@ export default function BacktestPage() {
           trades.push({
             id: `trade-${trades.length}`, type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
             pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence,
+            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
         }
@@ -519,6 +522,7 @@ export default function BacktestPage() {
             entryTime = d.time;
             entryReasoning = prediction?.reasoning ?? 'Classic strategy signal.';
             entryConfidence = prediction?.confidence ?? 1;
+            entryPeakPrice = d.peakPrice;
             tradeQuantity = (initialCapital * leverage) / entryPrice;
 
             if (potentialSignal === 'BUY') {
@@ -658,6 +662,7 @@ export default function BacktestPage() {
       exitTimestamp: new Date(selectedTrade.exitTime),
       strategy: selectedStrategy,
       asset: symbol,
+      peakPrice: selectedTrade.peakPrice,
     };
   }, [selectedTrade, selectedStrategy, symbol]);
 

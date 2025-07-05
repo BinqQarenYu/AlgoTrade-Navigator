@@ -3,6 +3,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -132,6 +133,7 @@ export type BacktestResult = {
   fee: number;
   reasoning?: string;
   confidence?: number;
+  peakPrice?: number;
 };
 
 export type BacktestSummary = {

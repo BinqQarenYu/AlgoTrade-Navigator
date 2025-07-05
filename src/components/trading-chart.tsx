@@ -159,6 +159,7 @@ export function TradingChart({
             senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
             senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
             priceLines: [],
+            liquidityLevelLine: null,
             wallPriceLines: [],
             liquidityPriceLines: [],
         };
@@ -333,6 +334,11 @@ export function TradingChart({
             chartRef.current.priceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
         chartRef.current.priceLines = [];
+        
+        if (chartRef.current.liquidityLevelLine) {
+            candlestickSeries.removePriceLine(chartRef.current.liquidityLevelLine);
+            chartRef.current.liquidityLevelLine = null;
+        }
 
         if (tradeSignal) {
             const entryLine = candlestickSeries.createPriceLine({
@@ -360,6 +366,17 @@ export function TradingChart({
                 title: 'SL',
             });
             chartRef.current.priceLines = [entryLine, tpLine, slLine];
+            
+            if (tradeSignal.peakPrice) {
+                chartRef.current.liquidityLevelLine = candlestickSeries.createPriceLine({
+                    price: tradeSignal.peakPrice,
+                    color: '#a8a29e', // stone-400
+                    lineWidth: 1,
+                    lineStyle: LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: ' Liquidity Level',
+                });
+            }
         }
 
     }, [tradeSignal]);
@@ -432,8 +449,8 @@ export function TradingChart({
                 const formattedTotal = formatLargeNumber(totalValue);
 
                 const title = event.direction === 'bullish'
-                    ? ` SS liq ($${formattedTotal})`
-                    : ` BS liq ($${formattedTotal})`;
+                    ? ` BS liq ($${formattedTotal})`
+                    : ` SS liq ($${formattedTotal})`;
 
                 const line = candlestickSeries.createPriceLine({
                     price: event.priceLevel,
