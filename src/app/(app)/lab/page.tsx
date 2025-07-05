@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo, useTransition, useRef } from "react"
+import React, { useState, useEffect, useMemo, useTransition } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -28,7 +28,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2 } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
-import { cn, formatPrice } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
@@ -60,7 +60,6 @@ export default function LabPage() {
   const [interval, setInterval] = useState<string>("1h");
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
-  const notifiedWallsRef = useRef<Set<number>>(new Set());
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(true);
@@ -87,24 +86,6 @@ export default function LabPage() {
     // When the symbol changes, clear out old wall data
     setWalls([]);
   }, [symbol]);
-
-  // Effect to handle notifications for new walls
-  useEffect(() => {
-    if (walls.length === 0) {
-      notifiedWallsRef.current.clear();
-      return;
-    }
-
-    walls.forEach(wall => {
-      if (!notifiedWallsRef.current.has(wall.price)) {
-        toast({
-          title: `Large ${wall.type === 'bid' ? 'Buy' : 'Sell'} Wall Detected`,
-          description: `A significant order wall was detected at $${formatPrice(wall.price)}.`,
-        });
-        notifiedWallsRef.current.add(wall.price);
-      }
-    });
-  }, [walls, toast]);
 
 
   useEffect(() => {
