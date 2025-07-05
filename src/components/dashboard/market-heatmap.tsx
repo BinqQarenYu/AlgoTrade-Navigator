@@ -56,7 +56,7 @@ export function MarketHeatmap() {
                     symbol: ticker.symbol,
                     base: ticker.symbol.replace('USDT', ''),
                     percentage: ticker.percentage ?? 0,
-                })).sort((a, b) => b.percentage - a.percentage); // Sort by performance
+                })).sort((a, b) => Math.abs(b.percentage) - Math.abs(a.percentage)); // Sort by volatility (absolute change)
 
                 setHeatmapData(data);
             } catch (error: any) {
@@ -80,7 +80,7 @@ export function MarketHeatmap() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Market Heatmap</CardTitle>
-                        <CardDescription>24h performance of top assets.</CardDescription>
+                        <CardDescription>24h volatility of top assets.</CardDescription>
                     </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
