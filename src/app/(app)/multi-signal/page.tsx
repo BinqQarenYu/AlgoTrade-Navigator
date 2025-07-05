@@ -39,8 +39,8 @@ export default function MultiSignalPage() {
     const [takeProfit, setTakeProfit] = useState(2);
     const [stopLoss, setStopLoss] = useState(1);
     const [useAIPrediction, setUseAIPrediction] = useState(false);
-    const [isConfigOpen, setConfigOpen] = useState(true);
-    const [isDashboardOpen, setDashboardOpen] = useState(true);
+    const [isConfigOpen, setConfigOpen] = useState(false);
+    const [isDashboardOpen, setDashboardOpen] = useState(false);
 
     const handleAssetToggle = (asset: string) => {
         setSelectedAssets(prev => 

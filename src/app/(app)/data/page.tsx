@@ -28,8 +28,8 @@ export default function DataPage() {
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
     const { isTradingActive } = useBot();
-    const [isStreamCardOpen, setStreamCardOpen] = useState(true);
-    const [isSavedCardOpen, setSavedCardOpen] = useState(true);
+    const [isStreamCardOpen, setStreamCardOpen] = useState(false);
+    const [isSavedCardOpen, setSavedCardOpen] = useState(false);
     
     // Batch UI updates to prevent freezing from high-frequency messages
     useEffect(() => {

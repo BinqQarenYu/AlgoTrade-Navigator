@@ -20,7 +20,7 @@ interface MultiSignalCardProps {
 }
 
 export function MultiSignalCard({ asset, result }: MultiSignalCardProps) {
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
 
     const displaySymbol = useMemo(() => {
         const parsed = parseSymbolString(asset);

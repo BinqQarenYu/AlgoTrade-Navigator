@@ -31,7 +31,7 @@ const SentimentSkeleton = () => (
 );
 
 export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Card>

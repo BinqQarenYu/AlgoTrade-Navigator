@@ -104,8 +104,8 @@ export default function LabPage() {
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
 
-  const [isControlsOpen, setControlsOpen] = useState(true);
-  const [isReportOpen, setReportOpen] = useState(true);
+  const [isControlsOpen, setControlsOpen] = useState(false);
+  const [isReportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     setIsClient(true)

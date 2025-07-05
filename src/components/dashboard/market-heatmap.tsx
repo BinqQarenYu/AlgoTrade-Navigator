@@ -34,7 +34,7 @@ const getHeatmapColor = (percentage: number) => {
 export function MarketHeatmap() {
     const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isOpen, setIsOpen] = useState(true);
+    const [isOpen, setIsOpen] = useState(false);
     const { isConnected } = useApi();
     const { toast } = useToast();
 

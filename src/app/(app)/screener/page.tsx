@@ -68,10 +68,10 @@ export default function ScreenerPage() {
     const [selectedStrategies, setSelectedStrategies] = useState<string[]>(strategyMetadatas.map(s => s.id));
     const [interval, setInterval] = useState("5m");
     
-    const [isConfigOpen, setConfigOpen] = useState(true);
-    const [isPredictionOpen, setPredictionOpen] = useState(true);
-    const [isInputsOpen, setInputsOpen] = useState(true);
-    const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(true);
+    const [isConfigOpen, setConfigOpen] = useState(false);
+    const [isPredictionOpen, setPredictionOpen] = useState(false);
+    const [isInputsOpen, setInputsOpen] = useState(false);
+    const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false);
 
     const activeIndicators = useMemo(() => {
         const indicators = new Set<string>();

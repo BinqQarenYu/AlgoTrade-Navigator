@@ -38,8 +38,8 @@ export default function OptimizePage() {
   const { toast } = useToast();
   const { isTradingActive } = useBot();
   const { canUseAi } = useApi();
-  const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(true);
-  const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(true);
+  const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(false);
+  const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(false);
 
   const form = useForm<z.infer<typeof strategySchema>>({
     resolver: zodResolver(strategySchema),

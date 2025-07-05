@@ -49,7 +49,7 @@ const OpenPositionsSkeleton = () => (
 
 
 export function OpenPositions({ positions, isLoading, onClosePosition, permissions }: OpenPositionsProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Card>

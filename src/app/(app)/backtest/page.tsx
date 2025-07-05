@@ -174,7 +174,7 @@ export default function BacktestPage() {
   const [fee, setFee] = useState<number>(0.04);
   const [useAIValidation, setUseAIValidation] = useState(false);
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
-  const [isControlsOpen, setControlsOpen] = useState(true);
+  const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {

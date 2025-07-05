@@ -63,7 +63,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [asks, setAsks] = useState<OrderBookLevel[]>([]);
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = useState(false);
-    const [isCardOpen, setIsCardOpen] = useState(true);
+    const [isCardOpen, setIsCardOpen] = useState(false);
 
     useEffect(() => {
         // If the stream is meant to be inactive, ensure connection is closed.

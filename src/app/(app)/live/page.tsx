@@ -131,10 +131,10 @@ export default function LiveTradingPage() {
   const [ipAddress, setIpAddress] = useState<string | null>(null);
 
   // Collapsible states
-  const [isControlsOpen, setControlsOpen] = useState(true);
+  const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
-  const [isPredictionOpen, setPredictionOpen] = useState(true);
-  const [isLogsOpen, setLogsOpen] = useState(true);
+  const [isPredictionOpen, setPredictionOpen] = useState(false);
+  const [isLogsOpen, setLogsOpen] = useState(false);
   
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);

@@ -17,9 +17,9 @@ type PortfolioSummaryProps = {
 };
 
 export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, isLoading }: PortfolioSummaryProps) {
-  const [isBalanceOpen, setBalanceOpen] = useState(true);
-  const [isPnlOpen, setPnlOpen] = useState(true);
-  const [isVolumeOpen, setVolumeOpen] = useState(true);
+  const [isBalanceOpen, setBalanceOpen] = useState(false);
+  const [isPnlOpen, setPnlOpen] = useState(false);
+  const [isVolumeOpen, setVolumeOpen] = useState(false);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {

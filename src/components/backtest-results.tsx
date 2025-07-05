@@ -50,7 +50,7 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
 };
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [logHeight, setLogHeight] = useState(288); // Corresponds to h-72
 
   const startResizing = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {

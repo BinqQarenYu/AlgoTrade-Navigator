@@ -91,12 +91,12 @@ export default function SettingsPage() {
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
 
   // Collapsible states
-  const [isConnectionOpen, setConnectionOpen] = useState(true);
-  const [isIpOpen, setIpOpen] = useState(true);
-  const [isIntegrationsOpen, setIntegrationsOpen] = useState(true);
-  const [isRateLimitOpen, setRateLimitOpen] = useState(true);
-  const [isAiQuotaOpen, setAiQuotaOpen] = useState(true);
-  const [isProfilesOpen, setProfilesOpen] = useState(true);
+  const [isConnectionOpen, setConnectionOpen] = useState(false);
+  const [isIpOpen, setIpOpen] = useState(false);
+  const [isIntegrationsOpen, setIntegrationsOpen] = useState(false);
+  const [isRateLimitOpen, setRateLimitOpen] = useState(false);
+  const [isAiQuotaOpen, setAiQuotaOpen] = useState(false);
+  const [isProfilesOpen, setProfilesOpen] = useState(false);
 
 
   useEffect(() => {

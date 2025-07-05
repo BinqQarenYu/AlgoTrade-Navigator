@@ -15,7 +15,7 @@ type PineScriptEditorProps = {
 };
 
 export function PineScriptEditor({ onLoadScript, isLoading }: PineScriptEditorProps) {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [script, setScript] = React.useState(`// Paste your Pine Script here
 // Example: Simple Moving Average Crossover
 //@version=5
