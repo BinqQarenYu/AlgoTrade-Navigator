@@ -124,9 +124,10 @@ export function TradingChart({
           wickUpColor: chartColors.wickUpColor,
           wickDownColor: chartColors.wickDownColor,
           borderVisible: false,
+          priceScaleId: 'left',
         });
         
-        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false };
+        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
 
         chartRef.current = {
             chart,
@@ -134,7 +135,7 @@ export function TradingChart({
             volumeSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
-            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false }),
+            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
             donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
             donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
             donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
@@ -412,7 +413,7 @@ export function TradingChart({
                     lineWidth: 1,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
-                    title: ` Liquidity Level`,
+                    title: event.direction === 'bullish' ? ' Sell-side Liquidity' : ' Buy-side Liquidity',
                 });
                 newLines.push(line);
             });
