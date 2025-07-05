@@ -1,8 +1,14 @@
 
+export type OrderSide = 'BUY' | 'SELL';
 
-
-
-
+export type OrderResult = {
+  orderId: string;
+  symbol: string;
+  side: OrderSide;
+  quantity: number;
+  price: number; // For market orders, this would be the fill price
+  timestamp: number;
+};
 
 export type Position = {
   symbol: string;
@@ -185,6 +191,14 @@ export type ManualTraderConfig = {
     stopLoss: number;
     useAIPrediction: boolean;
     fee: number;
+}
+
+export interface ManualTraderState {
+  isAnalyzing: boolean;
+  isExecuting: boolean;
+  logs: string[];
+  signal: TradeSignal | null;
+  chartData: HistoricalData[];
 }
 
 export type MultiSignalConfig = {

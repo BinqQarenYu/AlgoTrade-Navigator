@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle } from "lucide-react"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -107,10 +107,11 @@ export default function ManualTradingPage() {
     setManualChartData,
     isTradingActive,
     strategyParams,
-    setStrategyParams
+    setStrategyParams,
+    executeManualTrade,
   } = useBot();
 
-  const { isAnalyzing, logs, signal, chartData } = manualTraderState;
+  const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
   
   // Local state for UI configuration
   const [baseAsset, setBaseAsset] = useState<string>("BTC");
@@ -276,6 +277,12 @@ export default function ManualTradingPage() {
         toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset to their default values.`});
     }
   }
+
+  const handleExecuteTrade = () => {
+    if (signal) {
+      executeManualTrade(signal, initialCapital, leverage);
+    }
+  };
 
   // Derived state for signal card
   const positionValue = initialCapital * leverage;
@@ -795,6 +802,26 @@ export default function ManualTradingPage() {
                       </div>
                   )}
               </CardContent>
+               {signal && !isAnalyzing && (
+                    <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
+                        <Button
+                            onClick={handleExecuteTrade}
+                            disabled={isExecuting}
+                            className={cn(signal.action === 'UP' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
+                        >
+                            {isExecuting ? <Loader2 className="animate-spin"/> : <Send/>}
+                            {isExecuting ? 'Submitting...' : `Execute ${signal.action === 'UP' ? 'LONG' : 'SHORT'}`}
+                        </Button>
+                        <Button
+                            onClick={handleResetSignal}
+                            variant="ghost"
+                            disabled={isExecuting}
+                        >
+                            <XCircle/>
+                            Dismiss Signal
+                        </Button>
+                    </CardFooter>
+                )}
             </CollapsibleContent>
           </Collapsible>
         </Card>
@@ -833,5 +860,3 @@ export default function ManualTradingPage() {
     </div>
   )
 }
-
-    

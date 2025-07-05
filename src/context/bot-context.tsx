@@ -6,10 +6,11 @@ import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
-import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service";
+import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from '@/lib/strategies';
+import { useApi } from './api-context';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -50,6 +51,7 @@ interface LiveBotState {
 
 interface ManualTraderState {
   isAnalyzing: boolean;
+  isExecuting: boolean;
   logs: string[];
   signal: TradeSignal | null;
   chartData: HistoricalData[];
@@ -69,6 +71,7 @@ interface BotContextType {
   runManualAnalysis: (config: ManualTraderConfig) => void;
   cancelManualAnalysis: () => void;
   resetManualSignal: () => void;
+  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number) => void;
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;
   stopMultiSignalMonitor: () => void;
@@ -136,6 +139,7 @@ const KNOWN_INDICATORS = [
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
+  const { apiKey, secretKey } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -145,7 +149,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Manual Trader State ---
   const [manualTraderState, setManualTraderState] = useState<ManualTraderState>({
-    isAnalyzing: false, logs: [], signal: null, chartData: []
+    isAnalyzing: false, isExecuting: false, logs: [], signal: null, chartData: []
   });
   const manualWsRef = useRef<WebSocket | null>(null);
   const manualAnalysisCancelRef = useRef(false);
@@ -333,6 +337,42 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
   }, [toast]);
+
+  const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number) => {
+    if (!apiKey || !secretKey) {
+        toast({ title: "Execution Failed", description: "API keys are not configured.", variant: "destructive" });
+        return;
+    }
+    if (!signal) {
+        toast({ title: "Execution Failed", description: "No valid signal to execute.", variant: "destructive" });
+        return;
+    }
+
+    setManualTraderState(prev => ({ ...prev, isExecuting: true }));
+    addManualLog(`Executing ${signal.action === 'UP' ? 'BUY' : 'SELL'} order for ${signal.asset}...`);
+
+    try {
+        const positionValue = capital * leverage;
+        const quantity = positionValue / signal.entryPrice;
+        const side = signal.action === 'UP' ? 'BUY' : 'SELL';
+
+        const orderResult = await placeOrder(signal.asset, side, quantity, apiKey, secretKey);
+        
+        toast({
+            title: "Order Placed (Simulated)",
+            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${signal.asset} submitted. Order ID: ${orderResult.orderId}`
+        });
+
+        // Reset the signal after successful execution
+        resetManualSignal();
+
+    } catch (e: any) {
+        toast({ title: "Execution Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
+        addManualLog(`Execution failed: ${e.message}`);
+    } finally {
+        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
+    }
+  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal]);
 
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
     // This function is for loading the initial chart data on the manual page.
@@ -721,6 +761,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       runManualAnalysis,
       cancelManualAnalysis,
       resetManualSignal,
+      executeManualTrade,
       setManualChartData,
       startMultiSignalMonitor,
       stopMultiSignalMonitor,
@@ -739,4 +780,3 @@ export const useBot = () => {
   }
   return context;
 };
- 

@@ -1,7 +1,7 @@
 
 'use server';
 
-import type { Portfolio, Position, Trade, HistoricalData } from './types';
+import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
 import crypto from 'crypto';
 import ccxt from 'ccxt';
 
@@ -190,3 +190,38 @@ export const getLatestKlinesByLimit = async (
         }
     }
 }
+
+export const placeOrder = async (
+  symbol: string, 
+  side: OrderSide, 
+  quantity: number, 
+  apiKey: string, 
+  secretKey: string
+): Promise<OrderResult> => {
+  console.log(`--- SIMULATING TRADE EXECUTION ---`);
+  console.log(`- Profile: Active`);
+  console.log(`- Timestamp: ${new Date().toISOString()}`);
+  console.log(`- Symbol: ${symbol}`);
+  console.log(`- Side: ${side}`);
+  console.log(`- Quantity: ${quantity.toFixed(5)}`);
+  console.log(`---------------------------------`);
+
+  // In a real application, this would make an authenticated POST request to /fapi/v1/order
+  // For this prototype, we'll just return a mock success response.
+  
+  // Simulate network delay
+  await new Promise(resolve => setTimeout(resolve, 1500));
+
+  if (!apiKey || !secretKey) {
+      throw new Error("API keys are not configured. Cannot place order.");
+  }
+  
+  return {
+    orderId: `mock_${Date.now()}`,
+    symbol,
+    side,
+    quantity,
+    price: 12345.67, // This would be the actual fill price in a real response
+    timestamp: Date.now(),
+  };
+};
