@@ -20,6 +20,15 @@ import { cn, formatPrice } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+
+const availableIndicators = [
+  "Awesome Oscillator", "ATR", "Bollinger Bands", "CCI", "Chaikin Money Flow",
+  "Coppock Curve", "Donchian Channels", "Elder-Ray Index", "EMA", "Heikin-Ashi",
+  "Ichimoku Cloud", "Keltner Channels", "MACD", "Momentum", "OBV", "Parabolic SAR",
+  "Pivot Points", "Point of Control (POC)", "RSI", "SMA", "Stochastic Oscillator",
+  "Supertrend", "Volume Delta", "VWAP", "Williams %R"
+].sort();
 
 export default function ScreenerPage() {
     const { toast } = useToast();
@@ -146,6 +155,20 @@ export default function ScreenerPage() {
                                         </div>
                                     </ScrollArea>
                                 </div>
+                                
+                                <div className="space-y-2">
+                                    <Label>Indicators Used in Ensemble</Label>
+                                    <ScrollArea className="h-24 w-full rounded-md border p-2">
+                                        <div className="flex flex-wrap gap-1">
+                                            {availableIndicators.map(indicator => (
+                                                <Badge key={indicator} variant="secondary" className="font-normal">
+                                                    {indicator}
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    </ScrollArea>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label htmlFor="interval">Interval</Label>
                                     <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
