@@ -279,9 +279,24 @@ export default function ScreenerPage() {
                                         </div>
                                     ) : prediction ? (
                                         <div className="space-y-4">
-                                            <div>
-                                                <Label className="text-sm text-muted-foreground">Predicted Price</Label>
-                                                <p className="text-4xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
+                                            <div className="flex items-end gap-4">
+                                                <div>
+                                                    <Label className="text-sm text-muted-foreground">Predicted Price</Label>
+                                                    <p className="text-4xl font-bold text-primary">${formatPrice(prediction.predictedPrice)}</p>
+                                                </div>
+                                                <Badge
+                                                    variant={
+                                                        prediction.predictedDirection === 'UP' ? 'default' :
+                                                        prediction.predictedDirection === 'DOWN' ? 'destructive' : 'secondary'
+                                                    }
+                                                    className={cn(
+                                                        "text-lg px-4 py-1",
+                                                        prediction.predictedDirection === 'UP' && 'bg-green-600 hover:bg-green-700',
+                                                        prediction.predictedDirection === 'DOWN' && 'bg-red-600 hover:bg-red-700'
+                                                    )}
+                                                >
+                                                    {prediction.predictedDirection}
+                                                </Badge>
                                             </div>
                                             <div>
                                                 <Label className="text-sm text-muted-foreground">Confidence</Label>

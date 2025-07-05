@@ -686,6 +686,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const data = await getLatestKlinesByLimit(config.asset, config.interval, 500);
 
         if (!screenerRunningRef.current) return;
+        
+        const lastCandle = data[data.length - 1];
+        if (!lastCandle) {
+            throw new Error('Could not get latest candle to determine current price.');
+        }
 
         addScreenerLog(`Analyzing with ${config.strategies.length} strategies...`);
         const strategyOutputs: StrategyAnalysisInput[] = [];
@@ -697,17 +702,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
             const paramsForStrategy = config.strategyParams[strategyId];
             const dataWithIndicators = await strategy.calculate(data, paramsForStrategy);
-            const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
+            const lastCandleWithIndicators = dataWithIndicators[dataWithIndicators.length - 1];
             
             let signal: string | null = null;
-            if (lastCandle.buySignal) signal = 'BUY';
-            else if (lastCandle.sellSignal) signal = 'SELL';
+            if (lastCandleWithIndicators.buySignal) signal = 'BUY';
+            else if (lastCandleWithIndicators.sellSignal) signal = 'SELL';
             else signal = 'HOLD';
 
             const indicators: Record<string, any> = {};
             for (const key of KNOWN_INDICATORS) {
-                if (key in lastCandle && lastCandle[key as keyof HistoricalData] !== null && lastCandle[key as keyof HistoricalData] !== undefined) {
-                    indicators[key] = lastCandle[key as keyof HistoricalData];
+                if (key in lastCandleWithIndicators && lastCandleWithIndicators[key as keyof HistoricalData] !== null && lastCandleWithIndicators[key as keyof HistoricalData] !== undefined) {
+                    indicators[key] = lastCandleWithIndicators[key as keyof HistoricalData];
                 }
             }
 
@@ -724,6 +729,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const prediction = await predictPrice({
             asset: config.asset,
             interval: config.interval,
+            currentPrice: lastCandle.close,
             recentData: JSON.stringify(data.slice(-50).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
             strategyOutputs: strategyOutputs.map(s => ({
                 strategyName: s.name,

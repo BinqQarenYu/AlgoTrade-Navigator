@@ -235,6 +235,7 @@ export type ScreenerConfig = {
 
 export type PricePredictionOutput = {
     predictedPrice: number;
+    predictedDirection: 'UP' | 'DOWN' | 'NEUTRAL';
     confidence: number;
     reasoning: string;
 };
