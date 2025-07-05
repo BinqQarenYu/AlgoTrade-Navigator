@@ -294,6 +294,7 @@ export type LiquidityEvent = {
   priceLevel: number;
   direction: 'bullish' | 'bearish';
   type: 'grab' | 'sweep';
+  volume?: number;
 };
 
 export interface ApiContextType {

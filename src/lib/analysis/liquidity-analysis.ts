@@ -58,6 +58,7 @@ export async function findLiquidityGrabs(
                             priceLevel: swingHighPrice,
                             direction: 'bearish', // Price moved down after grabbing highs
                             type: 'grab',
+                            volume: data[j].volume,
                         });
                         i = j; // Move past this event to avoid re-detecting
                         break;
@@ -79,6 +80,7 @@ export async function findLiquidityGrabs(
                             priceLevel: swingLowPrice,
                             direction: 'bullish', // Price moved up after grabbing lows
                             type: 'grab',
+                            volume: data[j].volume,
                         });
                         i = j; // Move past this event
                         break;
