@@ -110,6 +110,16 @@ export function TradingChart({
           crosshair: {
             mode: 1, // Magnet
           },
+          // Add zoom and scroll options for clarity and to ensure they are enabled
+          handleScroll: {
+            mouseWheel: true,
+            pressedMouseMove: true,
+          },
+          handleScale: {
+            axisPressedMouseMove: true,
+            mouseWheel: true,
+            pinch: true,
+          },
         });
 
         // Volume series on a separate pane-like area
