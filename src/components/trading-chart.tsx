@@ -353,15 +353,14 @@ export function TradingChart({
     if (!chartRef.current?.chart) return;
 
     const chart = chartRef.current.chart;
-    chart.takeScreenshot().then((canvas: HTMLCanvasElement) => {
-      const dataUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `chart-snapshot-${symbol}-${interval}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
+    const canvas = chart.takeScreenshot();
+    const dataUrl = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `chart-snapshot-${symbol}-${interval}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const chartTitle = `${formattedSymbol} (${String(interval || '').toLocaleUpperCase()}) Price Chart`;
