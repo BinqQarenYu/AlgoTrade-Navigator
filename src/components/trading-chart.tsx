@@ -94,6 +94,10 @@ export function TradingChart({
             timeVisible: true,
           },
           rightPriceScale: {
+            visible: false,
+          },
+          leftPriceScale: {
+            visible: true,
             borderColor: chartColors.gridColor,
           },
           crosshair: {
