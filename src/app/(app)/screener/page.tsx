@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useMemo } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
@@ -22,13 +22,34 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 
-const availableIndicators = [
-  "Awesome Oscillator", "ATR", "Bollinger Bands", "CCI", "Chaikin Money Flow",
-  "Coppock Curve", "Donchian Channels", "Elder-Ray Index", "EMA", "Heikin-Ashi",
-  "Ichimoku Cloud", "Keltner Channels", "MACD", "Momentum", "OBV", "Parabolic SAR",
-  "Pivot Points", "Point of Control (POC)", "RSI", "SMA", "Stochastic Oscillator",
-  "Supertrend", "Volume Delta", "VWAP", "Williams %R"
-].sort();
+const strategyIndicatorMap: Record<string, string[]> = {
+  'awesome-oscillator': ['Awesome Oscillator'],
+  'bollinger-bands': ['Bollinger Bands'],
+  'cci-reversion': ['CCI'],
+  'chaikin-money-flow': ['Chaikin Money Flow'],
+  'coppock-curve': ['Coppock Curve'],
+  'donchian-channels': ['Donchian Channels'],
+  'elder-ray-index': ['Elder-Ray Index', 'EMA'],
+  'ema-crossover': ['EMA'],
+  'heikin-ashi-trend': ['Heikin-Ashi'],
+  'ichimoku-cloud': ['Ichimoku Cloud'],
+  'keltner-channels': ['Keltner Channels', 'ATR'],
+  'macd-crossover': ['MACD', 'EMA'],
+  'momentum-cross': ['Momentum'],
+  'obv-divergence': ['OBV', 'SMA'],
+  'parabolic-sar-flip': ['Parabolic SAR'],
+  'peak-formation-fib': ['EMA'],
+  'pivot-point-reversal': ['Pivot Points'],
+  'reverse-pff': ['EMA'],
+  'rsi-divergence': ['RSI'],
+  'sma-crossover': ['SMA'],
+  'stochastic-crossover': ['Stochastic Oscillator'],
+  'supertrend': ['Supertrend', 'ATR'],
+  'volume-delta': ['Volume Delta', 'Point of Control (POC)'],
+  'vwap-cross': ['VWAP'],
+  'williams-r': ['Williams %R'],
+};
+
 
 export default function ScreenerPage() {
     const { toast } = useToast();
@@ -48,6 +69,18 @@ export default function ScreenerPage() {
     const [isConfigOpen, setConfigOpen] = useState(true);
     const [isPredictionOpen, setPredictionOpen] = useState(true);
     const [isInputsOpen, setInputsOpen] = useState(true);
+    const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(true);
+
+    const activeIndicators = useMemo(() => {
+        const indicators = new Set<string>();
+        selectedStrategies.forEach(strategyId => {
+            const strategyIndicators = strategyIndicatorMap[strategyId];
+            if (strategyIndicators) {
+                strategyIndicators.forEach(indicator => indicators.add(indicator));
+            }
+        });
+        return Array.from(indicators).sort();
+    }, [selectedStrategies]);
 
     const handleStrategyToggle = (strategyId: string) => {
         setSelectedStrategies(prev => 
@@ -106,94 +139,116 @@ export default function ScreenerPage() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-                <Card className="lg:col-span-1">
-                    <Collapsible open={isConfigOpen} onOpenChange={setConfigOpen}>
-                        <CardHeader className="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle>Configuration</CardTitle>
-                                <CardDescription>Set up the ensemble model.</CardDescription>
-                            </div>
-                            <CollapsibleTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
-                                </Button>
-                            </CollapsibleTrigger>
-                        </CardHeader>
-                        <CollapsibleContent>
-                            <CardContent className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>Asset to Analyze</Label>
-                                    <Select onValueChange={setSelectedAsset} value={selectedAsset} disabled={isRunning}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                            {topAssets.map(asset => (
-                                                <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                <div className="lg:col-span-1 space-y-6">
+                    <Card>
+                        <Collapsible open={isConfigOpen} onOpenChange={setConfigOpen}>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Configuration</CardTitle>
+                                    <CardDescription>Set up the ensemble model.</CardDescription>
                                 </div>
-                                <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <Label>Strategies for Ensemble</Label>
-                                        <Button
-                                            variant="link"
-                                            size="sm"
-                                            className="h-auto p-0"
-                                            onClick={handleSelectAllStrategies}
-                                            disabled={isRunning}
-                                            type="button"
-                                        >
-                                            {selectedStrategies.length === strategies.length ? 'Deselect All' : 'Select All'}
-                                        </Button>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>Asset to Analyze</Label>
+                                        <Select onValueChange={setSelectedAsset} value={selectedAsset} disabled={isRunning}>
+                                            <SelectTrigger><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                {topAssets.map(asset => (
+                                                    <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
-                                    <ScrollArea className="h-48 w-full rounded-md border p-4">
-                                        <div className="space-y-2">
-                                        {strategies.map((strategy) => (
-                                            <div key={strategy.id} className="flex items-center space-x-2">
-                                                <Checkbox id={`strat-${strategy.id}`} checked={selectedStrategies.includes(strategy.id)} onCheckedChange={() => handleStrategyToggle(strategy.id)} disabled={isRunning}/>
-                                                <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
-                                            </div>
-                                        ))}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <Label>Strategies for Ensemble</Label>
+                                            <Button
+                                                variant="link"
+                                                size="sm"
+                                                className="h-auto p-0"
+                                                onClick={handleSelectAllStrategies}
+                                                disabled={isRunning}
+                                                type="button"
+                                            >
+                                                {selectedStrategies.length === strategies.length ? 'Deselect All' : 'Select All'}
+                                            </Button>
                                         </div>
-                                    </ScrollArea>
-                                </div>
-                                
-                                <div className="space-y-2">
-                                    <Label>Indicators Used in Ensemble</Label>
-                                    <ScrollArea className="h-24 w-full rounded-md border p-2">
-                                        <div className="flex flex-wrap gap-1">
-                                            {availableIndicators.map(indicator => (
-                                                <Badge key={indicator} variant="secondary" className="font-normal">
-                                                    {indicator}
-                                                </Badge>
+                                        <ScrollArea className="h-48 w-full rounded-md border p-4">
+                                            <div className="space-y-2">
+                                            {strategies.map((strategy) => (
+                                                <div key={strategy.id} className="flex items-center space-x-2">
+                                                    <Checkbox id={`strat-${strategy.id}`} checked={selectedStrategies.includes(strategy.id)} onCheckedChange={() => handleStrategyToggle(strategy.id)} disabled={isRunning}/>
+                                                    <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
+                                                </div>
                                             ))}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="interval">Interval</Label>
+                                        <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
+                                            <SelectTrigger id="interval"><SelectValue/></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="1m">1 Minute</SelectItem>
+                                                <SelectItem value="5m">5 Minutes</SelectItem>
+                                                <SelectItem value="15m">15 Minutes</SelectItem>
+                                                <SelectItem value="1h">1 Hour</SelectItem>
+                                                <SelectItem value="4h">4 Hours</SelectItem>
+                                                <SelectItem value="1d">1 Day</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
+                                        {isRunning ? <StopCircle /> : <Play />}
+                                        {isRunning ? "Stop Analysis" : "Predict Price"}
+                                    </Button>
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Collapsible>
+                    </Card>
+                    <Card>
+                        <Collapsible open={isIndicatorsOpen} onOpenChange={setIsIndicatorsOpen}>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>Active Indicators</CardTitle>
+                                    <CardDescription>From selected strategies.</CardDescription>
+                                </div>
+                                <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isIndicatorsOpen && "rotate-180")} />
+                                    </Button>
+                                </CollapsibleTrigger>
+                            </CardHeader>
+                            <CollapsibleContent>
+                                <CardContent>
+                                    <ScrollArea className="h-24 w-full">
+                                        <div className="flex flex-wrap gap-1 p-1">
+                                            {activeIndicators.length > 0 ? (
+                                                activeIndicators.map(indicator => (
+                                                    <Badge key={indicator} variant="secondary" className="font-normal">
+                                                        {indicator}
+                                                    </Badge>
+                                                ))
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground p-2">No strategies selected.</p>
+                                            )}
                                         </div>
                                     </ScrollArea>
-                                </div>
+                                </CardContent>
+                            </CollapsibleContent>
+                        </Collapsible>
+                    </Card>
+                </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="interval">Interval</Label>
-                                    <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
-                                        <SelectTrigger id="interval"><SelectValue/></SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1m">1 Minute</SelectItem>
-                                            <SelectItem value="5m">5 Minutes</SelectItem>
-                                            <SelectItem value="15m">15 Minutes</SelectItem>
-                                            <SelectItem value="1h">1 Hour</SelectItem>
-                                            <SelectItem value="4h">4 Hours</SelectItem>
-                                            <SelectItem value="1d">1 Day</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                
-                                <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
-                                    {isRunning ? <StopCircle /> : <Play />}
-                                    {isRunning ? "Stop Analysis" : "Predict Price"}
-                                </Button>
-                            </CardContent>
-                        </CollapsibleContent>
-                    </Collapsible>
-                </Card>
 
                 <div className="lg:col-span-3 space-y-6">
                     <Card>
