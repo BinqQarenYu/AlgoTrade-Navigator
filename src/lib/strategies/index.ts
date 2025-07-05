@@ -26,11 +26,13 @@ import pivotPointReversalStrategy from './pivot-point-reversal';
 import stochasticCrossoverStrategy from './stochastic-crossover';
 import vwapCrossStrategy from './vwap-cross';
 import williamsRStrategy from './williams-percent-r';
+import hyperPeakFormationStrategy from './hyper-peak-formation';
 
 
 export const strategies: Strategy[] = [
   peakFormationFibStrategy,
   reversePffStrategy,
+  hyperPeakFormationStrategy,
   volumeDeltaStrategy,
   smaCrossoverStrategy,
   emaCrossoverStrategy,
