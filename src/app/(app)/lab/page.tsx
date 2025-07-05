@@ -45,42 +45,48 @@ interface DateRange {
   to?: Date;
 }
 
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (isHydrated) {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        try {
-          setState(JSON.parse(item));
-        } catch (e) {
-          console.error('Failed to parse stored state', e);
-          localStorage.removeItem(key);
-        }
-      }
-    }
-  }, [key, isHydrated]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [state, setState];
-};
-
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected, canUseAi } = useApi();
   const [isReportPending, startReportTransition] = React.useTransition();
   
+  const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+    const [state, setState] = useState<T>(defaultValue);
+    const [isHydrated, setIsHydrated] = useState(false);
+
+    useEffect(() => {
+      setIsHydrated(true);
+    }, []);
+
+    useEffect(() => {
+      if (isHydrated) {
+        const item = window.localStorage.getItem(key);
+        if (item) {
+          try {
+            const parsed = JSON.parse(item);
+            // When retrieving from localStorage, dates are strings. We need to convert them back to Date objects.
+            if (key === 'lab-date-range' && parsed) {
+              if (parsed.from) parsed.from = new Date(parsed.from);
+              if (parsed.to) parsed.to = new Date(parsed.to);
+            }
+            setState(parsed);
+          } catch (e) {
+            console.error('Failed to parse stored state', e);
+            localStorage.removeItem(key);
+          }
+        }
+      }
+    }, [key, isHydrated]);
+
+    useEffect(() => {
+      if (isHydrated) {
+        window.localStorage.setItem(key, JSON.stringify(state));
+      }
+    }, [key, state, isHydrated]);
+
+    return [state, setState];
+  };
+
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("lab-quote-asset","USDT");
