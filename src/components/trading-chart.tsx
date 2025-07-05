@@ -276,7 +276,8 @@ export function TradingChart({
             }
         });
 
-        candlestickSeries.setMarkers([...signalMarkers, ...liquidityMarkers]);
+        const allMarkers = [...signalMarkers, ...liquidityMarkers].sort((a, b) => a.time - b.time);
+        candlestickSeries.setMarkers(allMarkers);
 
         chart.timeScale().fitContent();
 
