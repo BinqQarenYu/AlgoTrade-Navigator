@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -104,47 +104,48 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (key === 'lab-date-range' && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      setIsHydrated(true);
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
+
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected, canUseAi } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
   const [isReportPending, startReportTransition] = React.useTransition();
   
-  const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-    const [state, setState] = useState<T>(defaultValue);
-    const [isHydrated, setIsHydrated] = useState(false);
-
-    useEffect(() => {
-      let isMounted = true;
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        try {
-          const parsed = JSON.parse(item);
-          if (key === 'lab-date-range' && parsed) {
-            if (parsed.from) parsed.from = new Date(parsed.from);
-            if (parsed.to) parsed.to = new Date(parsed.to);
-          }
-          if (isMounted) {
-            setState(parsed);
-          }
-        } catch (e) {
-          console.error('Failed to parse stored state', e);
-          localStorage.removeItem(key);
-        }
-      }
-      setIsHydrated(true);
-      return () => { isMounted = false; };
-    }, [key]);
-
-    useEffect(() => {
-      if (isHydrated) {
-        window.localStorage.setItem(key, JSON.stringify(state));
-      }
-    }, [key, state, isHydrated]);
-
-    return [state, setState];
-  };
-
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("lab-quote-asset","USDT");
@@ -165,6 +166,7 @@ export default function LabPage() {
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
+  const [isStreamActive, setIsStreamActive] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
@@ -260,7 +262,7 @@ export default function LabPage() {
 
 
   useEffect(() => {
-    if (!isClient || !symbol) return;
+    if (!isClient || !symbol || isStreamActive) return;
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
@@ -290,8 +292,61 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast]);
+  }, [symbol, date, interval, isConnected, isClient, toast, isStreamActive]);
   
+  // Effect for live data stream
+  useEffect(() => {
+    if (!isStreamActive || !symbol || !interval) return;
+
+    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
+
+    ws.onopen = () => {
+      console.log(`Lab stream connected for ${symbol}`);
+      toast({ title: "Live Update Started", description: `Continuously updating liquidity analysis for ${symbol}.` });
+    };
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.e !== 'kline') return;
+
+      const kline = message.k;
+      const newCandle: HistoricalData = {
+        time: kline.t,
+        open: parseFloat(kline.o),
+        high: parseFloat(kline.h),
+        low: parseFloat(kline.l),
+        close: parseFloat(kline.c),
+        volume: parseFloat(kline.v),
+      };
+
+      setChartData(prevData => {
+        const updatedData = [...prevData];
+        const lastCandle = updatedData[updatedData.length - 1];
+        if (lastCandle && lastCandle.time === newCandle.time) {
+          updatedData[updatedData.length - 1] = newCandle;
+        } else {
+          updatedData.push(newCandle);
+        }
+        return updatedData.slice(-1000); // Keep data array from growing indefinitely
+      });
+    };
+
+    ws.onerror = () => {
+      console.error("Lab stream WebSocket error.");
+      toast({ title: "Stream Error", variant: "destructive" });
+      setIsStreamActive(false);
+    };
+
+    ws.onclose = () => {
+      console.log("Lab stream disconnected.");
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [isStreamActive, symbol, interval, toast]);
+
+
   // Effect to calculate and display indicators when strategy or data changes
   useEffect(() => {
     const calculateAndSetIndicators = async () => {
@@ -340,6 +395,14 @@ export default function LabPage() {
         });
       }
     });
+  };
+
+  const handleToggleStream = () => {
+    if (!isConnected) {
+        toast({ title: "API Disconnected", description: "Cannot start stream.", variant: "destructive" });
+        return;
+    }
+    setIsStreamActive(prev => !prev);
   };
 
   const anyLoading = isFetchingData || isReportPending;
@@ -433,7 +496,7 @@ export default function LabPage() {
                   <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="base-asset">Base</Label>
-                        <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading}>
+                        <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
                           <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>
                             {topAssets.map(asset => (
@@ -444,7 +507,7 @@ export default function LabPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="quote-asset">Quote</Label>
-                        <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0}>
+                        <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isStreamActive}>
                           <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>
                             {availableQuotes.map(asset => (
@@ -462,7 +525,7 @@ export default function LabPage() {
                           <Button
                             variant={"outline"}
                             className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
-                            disabled={!isConnected || anyLoading}
+                            disabled={!isConnected || anyLoading || isStreamActive}
                           >
                             <CalendarIcon className="mr-2 h-4 w-4" />
                             {isClient && date?.from ? (
@@ -521,7 +584,11 @@ export default function LabPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-2">
-                  <Button className="w-full" variant="outline" onClick={handleGenerateReport} disabled={!canAnalyze}>
+                   <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full">
+                        {isStreamActive ? <StopCircle /> : <Play />}
+                        {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
+                    </Button>
+                  <Button className="w-full" variant="outline" onClick={handleGenerateReport} disabled={!canAnalyze || isStreamActive}>
                     {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
                   </Button>
@@ -580,3 +647,4 @@ export default function LabPage() {
     </div>
   )
 }
+
