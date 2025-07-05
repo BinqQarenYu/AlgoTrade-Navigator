@@ -7,6 +7,7 @@ import type { HistoricalData, TradeSignal, BacktestResult } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
+import { Camera } from 'lucide-react';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
@@ -348,27 +349,53 @@ export function TradingChart({
     return parsed ? `${parsed.base}/${parsed.quote}` : symbol;
   }, [symbol]);
 
+  const handleTakeSnapshot = () => {
+    if (!chartRef.current?.chart) return;
+
+    const chart = chartRef.current.chart;
+    chart.takeScreenshot().then((canvas: HTMLCanvasElement) => {
+      const dataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `chart-snapshot-${symbol}-${interval}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  };
+
   const chartTitle = `${formattedSymbol} (${String(interval || '').toLocaleUpperCase()}) Price Chart`;
 
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>{chartTitle}</CardTitle>
-        {onIntervalChange && (
-          <div className="flex items-center gap-1 rounded-md bg-muted p-1">
-            {intervals.map((item) => (
-              <Button
-                key={item.value}
-                variant={interval === item.value ? 'default' : 'ghost'}
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={() => onIntervalChange(item.value)}
+        <div className="flex items-center gap-2">
+            {onIntervalChange && (
+              <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                {intervals.map((item) => (
+                  <Button
+                    key={item.value}
+                    variant={interval === item.value ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => onIntervalChange(item.value)}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+             <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleTakeSnapshot}
+                title="Take Snapshot"
               >
-                {item.label}
+                <Camera className="h-4 w-4" />
               </Button>
-            ))}
-          </div>
-        )}
+        </div>
       </CardHeader>
       <CardContent className="flex-grow p-0">
         <div ref={chartContainerRef} className="w-full h-full" />
