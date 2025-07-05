@@ -82,7 +82,9 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     const ranges = keys.map(key => {
         const { min, max, step } = config[key];
         const values = [];
-        for (let i = min; i <= max; i += step) {
+        // Handle floating point inaccuracies by fixing precision
+        const precision = (String(step).split('.')[1] || '').length;
+        for (let i = min; i <= max; i = parseFloat((i + step).toFixed(precision))) {
             values.push(i);
         }
         return values;
