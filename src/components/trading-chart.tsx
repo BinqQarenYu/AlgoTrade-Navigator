@@ -151,13 +151,12 @@ export function TradingChart({
           priceScaleId: 'left',
         });
 
-        const blueColor = '#3b82f6'; // A standard blue color
-        const futureTargetLineSeries = chart.addCandlestickSeries({
+        const blueColor = '#3b82f6';
+        const targetZoneSeries = chart.addCandlestickSeries({
           priceScaleId: 'left',
           upColor: 'transparent',
           downColor: 'transparent',
-          wickUpColor: 'transparent',
-          wickDownColor: 'transparent',
+          wickVisible: false,
           borderVisible: true,
           borderUpColor: blueColor,
           borderDownColor: blueColor,
@@ -185,7 +184,7 @@ export function TradingChart({
               lastValueVisible: false,
               priceLineVisible: false,
               crosshairMarkerVisible: true,
-              crosshairMarkerRadius: 8,
+              crosshairMarkerRadius: 10,
               crosshairMarkerBorderColor: '#000000',
               crosshairMarkerBackgroundColor: '#FFEB3B', // A bright yellow
             }),
@@ -200,7 +199,7 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
             targetPriceLines: [],
-            futureTargetLineSeries,
+            targetZoneSeries,
         };
     }
     
@@ -328,7 +327,7 @@ export function TradingChart({
           })
           .filter((m): m is any => m !== null) : [];
           
-        const liquidityMarkers = liquidityEvents.map(event => {
+        const liquidityMarkers = showAnalysis ? liquidityEvents.map(event => {
             return {
                 time: toTimestamp(event.time),
                 position: event.direction === 'bullish' ? 'belowBar' : 'aboveBar',
@@ -337,7 +336,7 @@ export function TradingChart({
                 text: '$',
                 size: 1.2
             }
-        });
+        }) : [];
 
         const allMarkers = [...signalMarkers, ...liquidityMarkers].sort((a, b) => a.time - b.time);
         candlestickSeries.setMarkers(allMarkers);
@@ -480,7 +479,7 @@ export function TradingChart({
         }
         
         const newLines: any[] = [];
-        if (wallLevels && wallLevels.length > 0) {
+        if (showAnalysis && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
@@ -495,31 +494,19 @@ export function TradingChart({
         }
         chartRef.current.wallPriceLines = newLines;
 
-    }, [wallLevels, lineWidth]);
+    }, [wallLevels, lineWidth, showAnalysis]);
 
-    // Effect to draw liquidity grab markers (without lines)
-    useEffect(() => {
-        if (!chartRef.current?.chart) return;
-        
-        if (chartRef.current.liquidityPriceLines) {
-            chartRef.current.liquidityPriceLines.forEach((line: any) => chartRef.current.candlestickSeries.removePriceLine(line));
-        }
-        chartRef.current.liquidityPriceLines = [];
-
-    }, [liquidityEvents]);
-    
-    // Effect to draw future liquidity target lines
+    // Effect to draw historical liquidity target lines
     useEffect(() => {
         if (!chartRef.current?.chart) return;
         const { candlestickSeries } = chartRef.current;
 
-        // Clear previous target lines
         if (chartRef.current.targetPriceLines) {
             chartRef.current.targetPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
         
         const newLines: any[] = [];
-        if (liquidityTargets && liquidityTargets.length > 0) {
+        if (showAnalysis && liquidityTargets && liquidityTargets.length > 0) {
             liquidityTargets.forEach(target => {
                 const isBuySide = target.type === 'buy-side';
                 const line = candlestickSeries.createPriceLine({
@@ -535,55 +522,63 @@ export function TradingChart({
         }
         chartRef.current.targetPriceLines = newLines;
 
-    }, [liquidityTargets, lineWidth]);
+    }, [liquidityTargets, lineWidth, showAnalysis]);
 
-    // Effect to draw the future vertical line connecting targets
+    // Effect to draw the target zone box
     useEffect(() => {
-      if (!chartRef.current?.chart || !data || data.length < 2) {
-        if (chartRef.current?.futureTargetLineSeries) {
-          chartRef.current.futureTargetLineSeries.setData([]);
+        if (!chartRef.current?.chart || !data || data.length < 2) {
+            if (chartRef.current?.targetZoneSeries) {
+                chartRef.current.targetZoneSeries.setData([]);
+            }
+            return;
         }
-        return;
-      }
-  
-      const { futureTargetLineSeries } = chartRef.current;
-      if (!futureTargetLineSeries) return;
-  
-      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
-      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
-  
-      if (buySideTarget && sellSideTarget) {
-        const lastCandle = data[data.length - 1];
-        const secondLastCandle = data[data.length - 2];
-        const intervalMs = lastCandle.time - secondLastCandle.time;
-        const futureBarOffset = 10; // Center of the 20-bar rightOffset
-        const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
+
+        const { targetZoneSeries } = chartRef.current;
+        if (!targetZoneSeries) return;
+
+        const firstGrabEvent = liquidityEvents.length > 0 ? liquidityEvents.sort((a,b) => a.time - b.time)[0] : null;
+        const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+        const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
         
-        const price1 = buySideTarget.priceLevel;
-        const price2 = sellSideTarget.priceLevel;
-  
-        const lineData = [{
-          time: futureTime,
-          open: Math.min(price1, price2),
-          high: Math.max(price1, price2),
-          low: Math.min(price1, price2),
-          close: Math.max(price1, price2),
-        }];
-  
-        futureTargetLineSeries.setData(lineData);
-      } else {
-        futureTargetLineSeries.setData([]);
-      }
-    }, [data, liquidityTargets]);
+        if (showAnalysis && firstGrabEvent && buySideTarget && sellSideTarget) {
+            const startTime = toTimestamp(firstGrabEvent.time);
+            const lastCandle = data[data.length - 1];
+            const intervalMs = data[1].time - data[0].time;
+            const futureBars = 20;
+
+            const topPrice = buySideTarget.priceLevel;
+            const bottomPrice = sellSideTarget.priceLevel;
+
+            const boxData = [];
+            
+            // Add candles for the historical part of the box
+            for(const candle of data) {
+                const candleTime = toTimestamp(candle.time);
+                if (candleTime >= startTime) {
+                    boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+                }
+            }
+            
+            // Add candles for the future part of the box
+            let lastTime = toTimestamp(lastCandle.time);
+            for(let i = 1; i <= futureBars; i++) {
+                const futureTime = lastTime + i * (intervalMs / 1000);
+                 boxData.push({ time: futureTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+            }
+
+            targetZoneSeries.setData(boxData);
+        } else {
+            targetZoneSeries.setData([]);
+        }
+
+    }, [data, liquidityEvents, liquidityTargets, showAnalysis]);
+
 
     // Effect to draw consensus price dot and arrow
     useEffect(() => {
       if (!chartRef.current?.chart || !data || data.length < 2) {
         if (chartRef.current?.consensusPointSeries) {
           chartRef.current.consensusPointSeries.setData([]);
-        }
-        if (chartRef.current?.consensusArrowSeries) {
-          chartRef.current.consensusArrowSeries.setData([]);
           chartRef.current.consensusArrowSeries.setMarkers([]);
         }
         return;
@@ -594,15 +589,12 @@ export function TradingChart({
 
       if (consensusResult && showAnalysis) {
         const lastCandle = data[data.length - 1];
-        const secondLastCandle = data[data.length - 2];
-        const intervalMs = lastCandle.time - secondLastCandle.time;
-        const futureBarOffset = 10;
+        const intervalMs = data[1].time - data[0].time;
+        const futureBarOffset = 10; // Center of the 20-bar rightOffset
         const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
         
-        // Update the dot series
         consensusPointSeries.setData([{ time: futureTime, value: consensusResult.price }]);
 
-        // Create and set the arrow marker
         const arrowMarker = {
             time: futureTime,
             position: consensusResult.direction === 'UP' ? 'belowBar' : 'aboveBar',
@@ -611,14 +603,12 @@ export function TradingChart({
             size: 2,
         };
 
-        // The series needs a data point at that time to anchor the marker
         consensusArrowSeries.setData([{ time: futureTime, value: consensusResult.price }]);
         consensusArrowSeries.setMarkers([arrowMarker]);
 
       } else {
-        consensusPointSeries.setData([]);
-        consensusArrowSeries.setData([]);
-        consensusArrowSeries.setMarkers([]);
+        if (consensusPointSeries.setData) consensusPointSeries.setData([]);
+        if (consensusArrowSeries.setMarkers) consensusArrowSeries.setMarkers([]);
       }
     }, [consensusResult, data, showAnalysis]);
 
