@@ -245,7 +245,7 @@ export default function LabPage() {
             to: new Date(),
         })
     }
-  }, [date, setDate])
+  }, [date, setDate]);
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -462,7 +462,7 @@ export default function LabPage() {
     );
   };
 
-  const handleRunConsensus = async () => {
+  const handleRunConsensus = useCallback(async () => {
     if (chartData.length < 50 || selectedConsensusStrategies.length === 0) {
       toast({ title: "Cannot Run Consensus", description: "Not enough data or no strategies selected for consensus.", variant: "destructive" });
       return;
@@ -502,8 +502,17 @@ export default function LabPage() {
     }
 
     setIsConsensusRunning(false);
-  };
+  }, [chartData, selectedConsensusStrategies, strategyParams, toast]);
 
+  const handleShowAnalysisChange = (checked: boolean) => {
+    setShowAnalysis(checked);
+    if (checked) {
+      handleDrawNow();
+      handleRunConsensus();
+    } else {
+      setConsensusResult(null);
+    }
+  };
 
   const anyLoading = isFetchingData || isReportPending;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
@@ -749,7 +758,7 @@ export default function LabPage() {
                   <CardContent className="space-y-4">
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                         <div className="flex items-center space-x-2">
-                            <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} />
+                            <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
                             <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show All Analysis Drawings</Label>
                         </div>
                         {showAnalysis && (
@@ -784,17 +793,6 @@ export default function LabPage() {
                             disabled={anyLoading}
                         />
                     </div>
-                    <Separator/>
-                    <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
-                        <Brush className="mr-2 h-4 w-4" />
-                        Draw Now
-                    </Button>
-                    <Separator/>
-                      <Label>Local Price Consensus</Label>
-                      <Button className="w-full" variant="secondary" onClick={handleRunConsensus} disabled={isConsensusRunning || !canAnalyze || isStreamActive}>
-                          {isConsensusRunning ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
-                          {isConsensusRunning ? 'Calculating...' : 'Run Local Consensus'}
-                      </Button>
                   </CardContent>
                 </CollapsibleContent>
             </Collapsible>
@@ -850,3 +848,5 @@ export default function LabPage() {
     </div>
   )
 }
+
+    
