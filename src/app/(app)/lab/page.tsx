@@ -41,7 +41,6 @@ import { OrderBook } from "@/components/order-book"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Separator } from "@/components/ui/separator"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -656,14 +655,22 @@ export default function LabPage() {
                       {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                       {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
                     </Button>
-                    <Separator className="my-1" />
-                    <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
-                        <Brush className="mr-2 h-4 w-4" />
-                        Draw Now
-                    </Button>
                 </CardFooter>
               </CollapsibleContent>
             </Collapsible>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Brush/> Draw</CardTitle>
+              <CardDescription>Manually re-draw all indicators and analysis on the chart.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
+                  <Brush className="mr-2 h-4 w-4" />
+                  Draw Now
+              </Button>
+            </CardContent>
           </Card>
 
           <MarketHeatmap />
