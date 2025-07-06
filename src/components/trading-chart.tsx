@@ -637,7 +637,7 @@ export function TradingChart({
           if (startIndex > -1 && endIndex > -1) {
               const relevantCandles = data.slice(startIndex, endIndex + 1);
               const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
-              const volumeText = `Vol (Sweep): ${formatLargeNumber(totalVolume, 2)}`;
+              const volumeText = `Vol (Up-Leg): ${formatLargeNumber(totalVolume, 2)}`;
               const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
               
               // Create the text label on the price axis
