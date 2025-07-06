@@ -13,18 +13,19 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatPrice(price: number): string {
   if (price === 0) return '0.00';
-  if (price >= 100) {
+  if (price >= 1000) { // e.g. BTC
     return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-  if (price >= 1) {
+  if (price >= 10) { // e.g. SOL, LINK
     return price.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
   }
-  if (price >= 0.01) {
-    return price.toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+  if (price >= 0.1) { // e.g. ADA, DOGE, SAHARA
+    return price.toLocaleString('en-US', { minimumFractionDigits: 5, maximumFractionDigits: 5 });
   }
-  // For low-value assets like SHIB, PEPE
+  // For prices < 0.1, like SHIB, PEPE
   return price.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 });
 }
+
 
 /**
  * Formats a large number into a human-readable string with metric prefixes (K, M, B, T).

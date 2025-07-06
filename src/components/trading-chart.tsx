@@ -232,13 +232,15 @@ export function TradingChart({
         if (uniqueData.length === 0) return;
 
         const firstPrice = uniqueData[0].close;
-        let precision = 2; // Default for >= 100
-        if (firstPrice < 0.01) {
-            precision = 8;
-        } else if (firstPrice < 1) {
-            precision = 6;
-        } else if (firstPrice < 100) {
+        let precision: number;
+        if (firstPrice >= 1000) { // e.g. BTC
+            precision = 2;
+        } else if (firstPrice >= 10) { // e.g. SOL, LINK
             precision = 4;
+        } else if (firstPrice >= 0.1) { // e.g. ADA, DOGE, SAHARA
+            precision = 5;
+        } else { // < 0.1
+            precision = 8;
         }
 
         candlestickSeries.applyOptions({
