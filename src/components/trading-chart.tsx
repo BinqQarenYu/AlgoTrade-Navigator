@@ -143,6 +143,15 @@ export function TradingChart({
           borderVisible: false,
           priceScaleId: 'left',
         });
+
+        const futureTargetLineSeries = chart.addCandlestickSeries({
+          priceScaleId: 'left',
+          upColor: 'rgba(148, 163, 184, 0.4)', // slate-400 with opacity
+          downColor: 'rgba(148, 163, 184, 0.4)',
+          wickUpColor: 'rgba(148, 163, 184, 0.4)',
+          wickDownColor: 'rgba(148, 163, 184, 0.4)',
+          borderVisible: false,
+        });
         
         const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
 
@@ -165,6 +174,7 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
             targetPriceLines: [],
+            futureTargetLineSeries,
         };
     }
     
@@ -438,14 +448,24 @@ export function TradingChart({
         if (!chartRef.current?.chart) return;
         const { candlestickSeries } = chartRef.current;
 
-        // Clear previous liquidity lines
         if (chartRef.current.liquidityPriceLines) {
             chartRef.current.liquidityPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
         chartRef.current.liquidityPriceLines = [];
 
-        // Based on user request, we are no longer drawing horizontal lines for historical grabs,
-        // only the markers ($ signs) will be shown. The logic to create the lines has been removed.
+        const newLines: any[] = [];
+        liquidityEvents.forEach(event => {
+            const line = candlestickSeries.createPriceLine({
+                price: event.priceLevel,
+                color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
+                lineWidth: 1,
+                lineStyle: LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: event.direction === 'bullish' ? ' Sell-Side Liquidity' : ' Buy-Side Liquidity',
+            });
+            newLines.push(line);
+        });
+        chartRef.current.liquidityPriceLines = newLines;
 
     }, [liquidityEvents]);
     
@@ -477,6 +497,44 @@ export function TradingChart({
         chartRef.current.targetPriceLines = newLines;
 
     }, [liquidityTargets]);
+
+    // Effect to draw the future vertical line connecting targets
+    useEffect(() => {
+      if (!chartRef.current?.chart || !data || data.length < 2) {
+        if (chartRef.current?.futureTargetLineSeries) {
+          chartRef.current.futureTargetLineSeries.setData([]);
+        }
+        return;
+      }
+  
+      const { futureTargetLineSeries } = chartRef.current;
+      if (!futureTargetLineSeries) return;
+  
+      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+  
+      if (buySideTarget && sellSideTarget) {
+        const lastCandle = data[data.length - 1];
+        const secondLastCandle = data[data.length - 2];
+        const intervalMs = lastCandle.time - secondLastCandle.time;
+        const futureTime = toTimestamp(lastCandle.time + (4 * intervalMs));
+        
+        const price1 = buySideTarget.priceLevel;
+        const price2 = sellSideTarget.priceLevel;
+  
+        const lineData = [{
+          time: futureTime,
+          open: Math.min(price1, price2),
+          high: Math.max(price1, price2),
+          low: Math.min(price1, price2),
+          close: Math.max(price1, price2),
+        }];
+  
+        futureTargetLineSeries.setData(lineData);
+      } else {
+        futureTargetLineSeries.setData([]);
+      }
+    }, [data, liquidityTargets]);
 
 
   const formattedSymbol = useMemo(() => {
