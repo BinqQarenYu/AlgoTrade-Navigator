@@ -383,7 +383,7 @@ export function TradingChart({
 
     // Effect to focus on a specific trade
     useEffect(() => {
-      if (!chartRef.current?.chart || !tradeSignal || !data || data.length < 2) return;
+      if (!chartRef.current?.chart || !highlightedTrade || !data || data.length < 2) return;
 
       const { chart } = chartRef.current;
       const timeScale = chart.timeScale();
@@ -392,17 +392,15 @@ export function TradingChart({
       const intervalMs = data[1].time - data[0].time;
       const paddingMs = intervalMs * 20; // 20 bars padding
 
-      const fromVisible = toTimestamp(tradeSignal.timestamp.getTime() - paddingMs);
-      // If there's an exit time, pad after it. Otherwise, pad after the entry time.
-      const endTime = tradeSignal.exitTimestamp ? tradeSignal.exitTimestamp.getTime() : tradeSignal.timestamp.getTime();
-      const toVisible = toTimestamp(endTime + paddingMs * 2);
+      const fromVisible = toTimestamp(highlightedTrade.entryTime - paddingMs);
+      const toVisible = toTimestamp(highlightedTrade.exitTime + paddingMs);
 
       timeScale.setVisibleRange({
           from: fromVisible,
           to: toVisible,
       });
 
-    }, [tradeSignal, data]);
+    }, [highlightedTrade, data]);
 
     // Effect to draw wall lines from Order Book
     useEffect(() => {
@@ -448,15 +446,17 @@ export function TradingChart({
                 const totalValue = event.priceLevel * (event.volume || 0);
                 const formattedTotal = formatLargeNumber(totalValue);
 
+                // A bullish direction means sell-side liquidity was taken below a low.
+                // A bearish direction means buy-side liquidity was taken above a high.
                 const title = event.direction === 'bullish'
-                    ? ` BS liq ($${formattedTotal})`
-                    : ` SS liq ($${formattedTotal})`;
+                    ? ` Sell-Side Liq. ($${formattedTotal})`
+                    : ` Buy-Side Liq. ($${formattedTotal})`;
 
                 const line = candlestickSeries.createPriceLine({
                     price: event.priceLevel,
                     color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
-                    lineWidth: 1,
-                    lineStyle: LineStyle.Dotted,
+                    lineWidth: 2,
+                    lineStyle: LineStyle.Dashed,
                     axisLabelVisible: true,
                     title: title,
                 });
