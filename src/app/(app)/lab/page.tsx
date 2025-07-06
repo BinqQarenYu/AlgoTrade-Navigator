@@ -258,17 +258,19 @@ export default function LabPage() {
     const getDynamicParams = () => {
         switch(interval) {
             case '1m':
+                return { lookaround: 6, confirmationCandles: 2, maxLookahead: 50 };
             case '5m':
+                return { lookaround: 7, confirmationCandles: 3, maxLookahead: 60 };
             case '15m':
-                return { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 };
-            case '1h':
                 return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+            case '1h':
+                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
             case '4h':
-                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 100 };
-            case '1d':
                 return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
+            case '1d':
+                return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
             default:
-                return { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 };
+                return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
         }
     }
 
