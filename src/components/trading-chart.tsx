@@ -233,11 +233,14 @@ export function TradingChart({
 
         const firstPrice = uniqueData[0].close;
         let precision = 2;
-        if (firstPrice < 0.1) {
+        if (firstPrice < 0.01) {
             precision = 8;
-        } else if (firstPrice < 10) {
-            precision = 4;
+        } else if (firstPrice < 1) {
+            precision = 5;
+        } else if (firstPrice < 1000) {
+            precision = 3;
         }
+
 
         candlestickSeries.applyOptions({
           priceFormat: {
