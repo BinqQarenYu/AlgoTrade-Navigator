@@ -41,6 +41,7 @@ import { OrderBook } from "@/components/order-book"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Slider } from "@/components/ui/slider"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -160,6 +161,7 @@ export default function LabPage() {
   const [showTargets, setShowTargets] = usePersistentState<boolean>('lab-show-targets', true);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('lab-selected-strategy', 'liquidity-order-flow');
   const [chartHeight, setChartHeight] = usePersistentState<number>('lab-chart-height', 600);
+  const [lineWidth, setLineWidth] = usePersistentState<number>('lab-line-width', 2);
 
   
   const [isClient, setIsClient] = useState(false)
@@ -302,7 +304,7 @@ export default function LabPage() {
     if (chartData.length > 0) {
       refreshChartAnalysis();
     }
-  }, [refreshChartAnalysis]);
+  }, [chartData, refreshChartAnalysis]);
 
 
   useEffect(() => {
@@ -521,7 +523,7 @@ export default function LabPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} />
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} />
           </div>
           <div
               onMouseDown={startChartResize}
@@ -663,9 +665,21 @@ export default function LabPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Brush/> Draw</CardTitle>
-              <CardDescription>Manually re-draw all indicators and analysis on the chart.</CardDescription>
+              <CardDescription>Manually adjust and re-draw all analysis on the chart.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                  <Label htmlFor="line-width">Line Thickness</Label>
+                  <Slider
+                      id="line-width"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={[lineWidth]}
+                      onValueChange={(value) => setLineWidth(value[0])}
+                      disabled={anyLoading}
+                  />
+              </div>
               <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
                   <Brush className="mr-2 h-4 w-4" />
                   Draw Now

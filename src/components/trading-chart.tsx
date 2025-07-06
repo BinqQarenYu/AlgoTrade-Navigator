@@ -32,6 +32,7 @@ export function TradingChart({
   wallLevels = [],
   liquidityEvents = [],
   liquidityTargets = [],
+  lineWidth = 2,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -42,6 +43,7 @@ export function TradingChart({
   wallLevels?: { price: number; type: 'bid' | 'ask' }[];
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
+  lineWidth?: number;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -357,7 +359,7 @@ export function TradingChart({
             const entryLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.entryPrice,
                 color: '#3b82f6', // blue-500
-                lineWidth: 2,
+                lineWidth: lineWidth,
                 lineStyle: LineStyle.Dashed,
                 axisLabelVisible: true,
                 title: 'Entry',
@@ -365,7 +367,7 @@ export function TradingChart({
             const tpLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.takeProfit,
                 color: '#22c55e', // green-500
-                lineWidth: 2,
+                lineWidth: lineWidth,
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
                 title: 'TP',
@@ -373,7 +375,7 @@ export function TradingChart({
             const slLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.stopLoss,
                 color: '#ef4444', // red-500
-                lineWidth: 2,
+                lineWidth: lineWidth,
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
                 title: 'SL',
@@ -392,7 +394,35 @@ export function TradingChart({
             }
         }
 
-    }, [tradeSignal]);
+    }, [tradeSignal, lineWidth]);
+    
+    // Effect to update line thickness on indicator series
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+
+        const {
+            smaShortSeries,
+            smaLongSeries,
+            donchianUpperSeries,
+            donchianMiddleSeries,
+            donchianLowerSeries,
+            tenkanSeries,
+            kijunSeries,
+            senkouASeries,
+            senkouBSeries,
+        } = chartRef.current;
+
+        const allSeries = [
+            smaShortSeries, smaLongSeries, donchianUpperSeries, donchianMiddleSeries,
+            donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries
+        ];
+        
+        allSeries.forEach(series => {
+            if (series) {
+                series.applyOptions({ lineWidth: lineWidth });
+            }
+        });
+    }, [lineWidth]);
 
     // Effect to focus on a specific trade
     useEffect(() => {
@@ -443,29 +473,14 @@ export function TradingChart({
 
     }, [wallLevels]);
 
-    // Effect to draw liquidity grab lines
+    // Effect to draw liquidity grab markers (without lines)
     useEffect(() => {
         if (!chartRef.current?.chart) return;
-        const { candlestickSeries } = chartRef.current;
-
+        
         if (chartRef.current.liquidityPriceLines) {
-            chartRef.current.liquidityPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+            chartRef.current.liquidityPriceLines.forEach((line: any) => chartRef.current.candlestickSeries.removePriceLine(line));
         }
         chartRef.current.liquidityPriceLines = [];
-
-        const newLines: any[] = [];
-        liquidityEvents.forEach(event => {
-            const line = candlestickSeries.createPriceLine({
-                price: event.priceLevel,
-                color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
-                lineWidth: 1,
-                lineStyle: LineStyle.Dashed,
-                axisLabelVisible: true,
-                title: event.direction === 'bullish' ? ' Sell-Side Liquidity' : ' Buy-Side Liquidity',
-            });
-            newLines.push(line);
-        });
-        chartRef.current.liquidityPriceLines = newLines;
 
     }, [liquidityEvents]);
     
