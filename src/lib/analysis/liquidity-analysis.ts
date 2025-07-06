@@ -45,7 +45,9 @@ export async function findLiquidityGrabs(
     const events: LiquidityEvent[] = [];
     if (data.length < params.lookaround * 2 + 1) return events;
 
-    mainLoop: for (let i = params.lookaround; i < data.length - params.maxLookahead; i++) {
+    // The main loop iterates through potential swing points.
+    // It should scan the whole dataset, respecting the lookaround boundaries.
+    mainLoop: for (let i = params.lookaround; i < data.length - params.lookaround; i++) {
 
         // Check for Bearish Liquidity Grab (sweeping a swing high)
         if (isSwingHigh(data, i, params.lookaround)) {
