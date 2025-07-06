@@ -41,6 +41,7 @@ import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 // Import default parameters from all strategies to enable reset functionality
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -186,7 +187,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function BacktestPage() {
   const { toast } = useToast()
-  const { isConnected, canUseAi } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams } = useBot();
 
   const [date, setDate] = usePersistentState<DateRange | undefined>('backtest-date-range', undefined);
@@ -218,6 +219,7 @@ export default function BacktestPage() {
   const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
   const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -432,7 +434,17 @@ export default function BacktestPage() {
     return { summary, dataWithSignals };
   }
 
-  const handleRunBacktest = async () => {
+  const handleRunBacktestClick = () => {
+    if (useAIValidation) {
+        if (canUseAi()) {
+            setIsConfirming(true);
+        }
+    } else {
+        runBacktest();
+    }
+  };
+
+  const runBacktest = async () => {
     if (chartData.length === 0) {
       toast({
         title: "No Data",
@@ -529,6 +541,7 @@ export default function BacktestPage() {
               if (canUseAi()) {
                 aiValidationCount++;
                 try {
+                  consumeAiCredit();
                   prediction = await predictMarket({
                       symbol: symbol,
                       recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
@@ -773,6 +786,22 @@ export default function BacktestPage() {
             </AlertDescription>
         </Alert>
     )}
+    <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm AI-Powered Backtest</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This backtest will use AI to validate trade signals. This may consume multiple AI credits from your daily quota, up to the maximum you have set ({maxAiValidations}). Are you sure you want to proceed?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setIsConfirming(false); runBacktest(); }}>
+                    Confirm & Run
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 relative pb-4">
         <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
@@ -1039,7 +1068,7 @@ export default function BacktestPage() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full bg-primary hover:bg-primary/90" onClick={() => handleRunBacktest()} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
+                <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
                   {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Backtest"}
                 </Button>

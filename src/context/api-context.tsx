@@ -34,6 +34,7 @@ interface ApiContextType {
   };
   setAiQuotaLimit: (newLimit: number) => void;
   canUseAi: () => boolean;
+  consumeAiCredit: () => void;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
@@ -182,28 +183,41 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     setAiQuota(prev => ({ ...prev, limit: Math.max(1, Math.min(50, newLimit)) }));
   };
 
-  const canUseAi = () => {
+  const canUseAi = (): boolean => {
     let currentQuota = { ...aiQuota };
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Check if we need to reset the quota for a new day
     if (currentQuota.lastReset !== today) {
-      currentQuota = { ...currentQuota, used: 0, lastReset: today };
+        const newQuota = { ...currentQuota, used: 0, lastReset: today };
+        setAiQuota(newQuota);
+        currentQuota = newQuota; // use the new value for the check below
     }
 
     if (currentQuota.used >= currentQuota.limit) {
       toast({
         title: "AI Daily Quota Limit Reached",
-        description: `You have used your daily limit of ${currentQuota.limit} AI requests. The quota will reset tomorrow.`,
+        description: `You have used ${currentQuota.used}/${currentQuota.limit} requests. The quota will reset tomorrow.`,
         variant: "destructive",
       });
-      setAiQuota(currentQuota); // Save the reset date even if limit is reached
       return false;
     }
-
-    const updatedQuota = { ...currentQuota, used: currentQuota.used + 1 };
-    setAiQuota(updatedQuota);
-    return true;
+    return true; // It's possible to use AI
+  };
+  
+  const consumeAiCredit = () => {
+    // This function assumes canUseAi() was already called and returned true.
+    const today = new Date().toISOString().split('T')[0];
+    setAiQuota(prev => {
+        if (prev.lastReset !== today) {
+            // This case should be handled by canUseAi, but as a fallback:
+            return { ...prev, used: 1, lastReset: today };
+        }
+        if (prev.used < prev.limit) {
+            return { ...prev, used: prev.used + 1 };
+        }
+        return prev; // Don't increment if limit is already reached
+    });
   };
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
@@ -231,6 +245,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       aiQuota,
       setAiQuotaLimit,
       canUseAi,
+      consumeAiCredit,
     }}>
       {children}
     </ApiContext.Provider>

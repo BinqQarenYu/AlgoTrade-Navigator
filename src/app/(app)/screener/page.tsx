@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo, useEffect, useRef } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { useApi } from "@/context/api-context"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 const strategyIndicatorMap: Record<string, string[]> = {
   'awesome-oscillator': ['Awesome Oscillator'],
@@ -94,7 +95,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function ScreenerPage() {
     const { toast } = useToast();
-    const { isConnected } = useApi();
+    const { isConnected, canUseAi, consumeAiCredit } = useApi();
     const { 
         screenerState, 
         startScreener, 
@@ -113,6 +114,7 @@ export default function ScreenerPage() {
     const [isPredictionOpen, setPredictionOpen] = useState(false);
     const [isInputsOpen, setInputsOpen] = useState(false);
     const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false);
+    const [isConfirming, setIsConfirming] = useState(false);
 
     const activeIndicators = useMemo(() => {
         const indicators = new Set<string>();
@@ -139,7 +141,7 @@ export default function ScreenerPage() {
         }
     };
 
-    const handleRunScreener = () => {
+    const handleRunScreenerClick = () => {
         if (isRunning) {
             stopScreener();
         } else {
@@ -151,14 +153,22 @@ export default function ScreenerPage() {
                 toast({ title: "No Strategies Selected", description: "Please select at least one strategy for the ensemble.", variant: "destructive"});
                 return;
             }
-            startScreener({
-                asset: selectedAsset,
-                strategies: selectedStrategies,
-                strategyParams,
-                interval,
-            });
+            if (canUseAi()) {
+                setIsConfirming(true);
+            }
         }
     };
+
+    const handleConfirmScreener = () => {
+        consumeAiCredit();
+        startScreener({
+            asset: selectedAsset,
+            strategies: selectedStrategies,
+            strategyParams,
+            interval,
+        });
+        setIsConfirming(false);
+    }
     
     const isThisPageRunning = isRunning;
 
@@ -181,6 +191,21 @@ export default function ScreenerPage() {
                     </AlertDescription>
                 </Alert>
             )}
+
+            <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action will use one AI credit to run the consensus prediction. Are you sure you want to proceed?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleConfirmScreener}>Confirm & Predict</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
                 <div className="lg:col-span-1 space-y-6">
@@ -251,7 +276,7 @@ export default function ScreenerPage() {
                                         </Select>
                                     </div>
                                     
-                                    <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning || !isConnected}>
+                                    <Button onClick={handleRunScreenerClick} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning || !isConnected}>
                                         {isRunning ? <StopCircle /> : <Play />}
                                         {isRunning ? "Stop Analysis" : "Run AI Prediction"}
                                     </Button>

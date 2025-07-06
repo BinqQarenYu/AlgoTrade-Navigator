@@ -18,21 +18,29 @@ import emaCrossoverStrategy, { defaultEmaCrossoverParams } from '@/lib/strategie
 import rsiDivergenceStrategy, { defaultRsiDivergenceParams } from '@/lib/strategies/rsi-divergence';
 import { cn, formatPrice } from '@/lib/utils';
 import { useApi } from '@/context/api-context';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export function AIAnalyticsCard() {
   const [asset, setAsset] = useState('BTCUSDT');
   const [isLoading, setIsLoading] = useState(false);
   const [prediction, setPrediction] = useState<PredictPriceOutput | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const { toast } = useToast();
-  const { isConnected, canUseAi } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit } = useApi();
 
-  const handlePredict = useCallback(async () => {
+  const handlePredictClick = () => {
     if (!isConnected) {
         toast({ title: "API Disconnected", description: "Please connect to the Binance API in settings.", variant: "destructive" });
         return;
     }
-    if (!canUseAi()) return;
+    if (canUseAi()) {
+        setIsConfirming(true);
+    }
+  };
 
+  const handleConfirmPredict = useCallback(async () => {
+    setIsConfirming(false);
+    consumeAiCredit();
     setIsLoading(true);
     setPrediction(null);
 
@@ -82,7 +90,7 @@ export function AIAnalyticsCard() {
     } finally {
         setIsLoading(false);
     }
-  }, [asset, toast, isConnected, canUseAi]);
+  }, [asset, toast, isConnected, consumeAiCredit]);
 
   return (
     <Card>
@@ -93,6 +101,20 @@ export function AIAnalyticsCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action will use one AI credit to generate a price prediction. Are you sure you want to proceed?
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmPredict}>Confirm & Predict</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
         <div className="flex gap-2">
             <Select onValueChange={setAsset} value={asset} disabled={isLoading}>
                 <SelectTrigger id="asset-select"><SelectValue /></SelectTrigger>
@@ -102,7 +124,7 @@ export function AIAnalyticsCard() {
                     ))}
                 </SelectContent>
             </Select>
-            <Button onClick={handlePredict} disabled={isLoading || !isConnected} className="flex-shrink-0">
+            <Button onClick={handlePredictClick} disabled={isLoading || !isConnected} className="flex-shrink-0">
                 {isLoading ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
                 {isLoading ? 'Analyzing...' : 'Predict'}
             </Button>

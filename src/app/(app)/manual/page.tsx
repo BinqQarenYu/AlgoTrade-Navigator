@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useCallback, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal } from "lucide-react"
-import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -41,6 +41,7 @@ import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -135,7 +136,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 };
 
 export default function ManualTradingPage() {
-  const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile } = useApi();
+  const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
   const { toast } = useToast();
   const { 
     manualTraderState,
@@ -180,6 +181,11 @@ export default function ManualTradingPage() {
   const [isIntelOpen, setIntelOpen] = useState(false);
   const [isSignalOpen, setSignalOpen] = useState(false);
   const [isLogsOpen, setLogsOpen] = useState(false);
+
+  // State for AI confirmation dialog
+  const [isConfirming, setIsConfirming] = useState(false);
+  const analysisConfigRef = useRef<ManualTraderConfig | null>(null);
+
 
   useEffect(() => {
     if (selectedStrategy === 'none') {
@@ -286,8 +292,8 @@ export default function ManualTradingPage() {
     fetchFng();
   }, []);
 
-  const handleRunAnalysis = useCallback(() => {
-    runManualAnalysis({
+  const handleRunAnalysisClick = useCallback(() => {
+     const config: ManualTraderConfig = {
         symbol,
         interval,
         strategy: selectedStrategy,
@@ -298,8 +304,25 @@ export default function ManualTradingPage() {
         stopLoss,
         useAIPrediction,
         fee
-    });
-  }, [runManualAnalysis, symbol, interval, selectedStrategy, strategyParams, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee]);
+    };
+
+    if (useAIPrediction) {
+      if(canUseAi()) {
+        analysisConfigRef.current = config;
+        setIsConfirming(true);
+      }
+    } else {
+      runManualAnalysis(config);
+    }
+  }, [symbol, interval, selectedStrategy, strategyParams, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee, canUseAi, runManualAnalysis]);
+
+  const handleConfirmAnalysis = () => {
+    if(analysisConfigRef.current) {
+        consumeAiCredit();
+        runManualAnalysis(analysisConfigRef.current);
+    }
+    setIsConfirming(false);
+  }
 
   const handleCancelAnalysis = useCallback(() => {
     cancelManualAnalysis();
@@ -444,6 +467,20 @@ export default function ManualTradingPage() {
             </AlertDescription>
         </Alert>
       )}
+    <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action will use one AI credit to validate the signal. Are you sure you want to proceed?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmAnalysis}>Confirm & Analyze</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 relative pb-4">
         <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
@@ -617,7 +654,7 @@ export default function ManualTradingPage() {
                     onClick={
                         isAnalyzing ? handleCancelAnalysis :
                         hasActiveSignal ? handleResetSignal : 
-                        handleRunAnalysis
+                        handleRunAnalysisClick
                     }
                     disabled={!isConnected || (isTradingActive && !isThisPageTrading) || (!isAnalyzing && !hasActiveSignal && selectedStrategy === 'none')}
                     variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}

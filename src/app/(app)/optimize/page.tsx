@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useRef } from "react";
 import Link from "next/link";
 import { validateStrategy, ValidateStrategyOutput } from "@/ai/flows/validate-strategy";
 import { useForm } from "react-hook-form";
@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/context/api-context";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const historicalDataPlaceholder = `Date,Open,High,Low,Close,Volume
 2023-01-01,16541.7,16632.4,16518.4,16625.1,149999
@@ -32,16 +33,20 @@ const strategySchema = z.object({
   historicalData: z.string().min(50, "Please provide sufficient historical data."),
 });
 
+type FormValues = z.infer<typeof strategySchema>;
+
 export default function OptimizePage() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
   const { isTradingActive } = useBot();
-  const { canUseAi } = useApi();
+  const { canUseAi, consumeAiCredit } = useApi();
   const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(false);
   const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const pendingFormValues = useRef<FormValues | null>(null);
 
-  const form = useForm<z.infer<typeof strategySchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(strategySchema),
     defaultValues: {
       strategyParameters: "Strategy: SMA Crossover. Parameters: short_window=14, long_window=28. Timeframe: 1h.",
@@ -49,24 +54,37 @@ export default function OptimizePage() {
     },
   });
 
-  const onSubmit = (values: z.infer<typeof strategySchema>) => {
-    if (!canUseAi()) return;
-    setResult(null);
-    startTransition(async () => {
-      try {
-        const validationResult = await validateStrategy(values);
-        setResult(validationResult);
-        setFeedbackCardOpen(true);
-      } catch (error) {
-        console.error("Error validating strategy:", error);
-        toast({
-          title: "Optimization Failed",
-          description: "An error occurred while analyzing the strategy. Please try again.",
-          variant: "destructive",
-        });
-      }
-    });
+  const handleFormSubmit = (values: FormValues) => {
+    if (canUseAi()) {
+        pendingFormValues.current = values;
+        setIsConfirming(true);
+    }
   };
+
+  const runOptimization = () => {
+    if (!pendingFormValues.current) return;
+    
+    consumeAiCredit();
+    setResult(null);
+
+    startTransition(async () => {
+        const values = pendingFormValues.current!;
+        try {
+            const validationResult = await validateStrategy(values);
+            setResult(validationResult);
+            setFeedbackCardOpen(true);
+        } catch (error) {
+            console.error("Error validating strategy:", error);
+            toast({
+            title: "Optimization Failed",
+            description: "An error occurred while analyzing the strategy. Please try again.",
+            variant: "destructive",
+            });
+        } finally {
+            pendingFormValues.current = null;
+        }
+    });
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -89,6 +107,21 @@ export default function OptimizePage() {
         </Alert>
       )}
 
+      <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      This action will use one AI credit to optimize your strategy. Are you sure you want to proceed?
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => pendingFormValues.current = null}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => { setIsConfirming(false); runOptimization(); }}>Confirm & Optimize</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+
       <Card>
         <Collapsible open={isAnalyzeCardOpen} onOpenChange={setAnalyzeCardOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -107,7 +140,7 @@ export default function OptimizePage() {
           </CardHeader>
           <CollapsibleContent>
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)}>
+              <form onSubmit={form.handleSubmit(handleFormSubmit)}>
                 <CardContent className="space-y-4">
                   <FormField
                     control={form.control}

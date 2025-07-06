@@ -40,6 +40,7 @@ import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -144,7 +145,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function LabPage() {
   const { toast } = useToast()
-  const { isConnected, canUseAi } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
   const [isReportPending, startReportTransition] = React.useTransition();
   
@@ -173,6 +174,7 @@ export default function LabPage() {
   const [isControlsOpen, setControlsOpen] = useState(false);
   const [isParamsOpen, setParamsOpen] = useState(false);
   const [isReportOpen, setReportOpen] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -370,13 +372,18 @@ export default function LabPage() {
     calculateAndSetIndicators();
   }, [chartData, selectedStrategy, strategyParams]);
 
-  const handleGenerateReport = () => {
+  const handleGenerateReportClick = () => {
     if (chartData.length < 20) {
       toast({ title: "Not Enough Data", description: "Please load more market data to generate a report.", variant: "destructive" });
       return;
     }
-    if (!canUseAi()) return;
+    if (canUseAi()) {
+        setIsConfirming(true);
+    }
+  };
 
+  const runGenerateReport = () => {
+    consumeAiCredit();
     setReport(null);
     startReportTransition(async () => {
       try {
@@ -465,6 +472,21 @@ export default function LabPage() {
               </AlertDescription>
           </Alert>
       )}
+
+      <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action will use one AI credit to generate the market report. Are you sure you want to proceed?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setIsConfirming(false); runGenerateReport(); }}>Confirm & Generate</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
@@ -591,7 +613,7 @@ export default function LabPage() {
                         {isStreamActive ? <StopCircle /> : <Play />}
                         {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
                     </Button>
-                  <Button className="w-full" variant="outline" onClick={handleGenerateReport} disabled={!canAnalyze || isStreamActive}>
+                  <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
                     {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
                   </Button>
