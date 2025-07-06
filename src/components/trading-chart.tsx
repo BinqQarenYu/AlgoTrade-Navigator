@@ -182,7 +182,7 @@ export function TradingChart({
               crosshairMarkerVisible: true,
               crosshairMarkerRadius: 6,
               crosshairMarkerBorderColor: '#000000',
-              crosshairMarkerBackgroundColor: '#facc15', // yellow-400
+              crosshairMarkerBackgroundColor: '#FFEB3B', // A bright yellow
             }),
             priceLines: [],
             liquidityLevelLine: null,
