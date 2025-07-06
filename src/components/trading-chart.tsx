@@ -582,9 +582,7 @@ export function TradingChart({
       const { consensusPointSeries } = chartRef.current;
       if (!consensusPointSeries) return;
 
-      const hasTargets = liquidityTargets.some(t => t.type === 'buy-side') && liquidityTargets.some(t => t.type === 'sell-side');
-
-      if (consensusPrice && hasTargets) {
+      if (consensusPrice) {
         const lastCandle = data[data.length - 1];
         const secondLastCandle = data[data.length - 2];
         const intervalMs = lastCandle.time - secondLastCandle.time;
@@ -595,7 +593,7 @@ export function TradingChart({
       } else {
         consensusPointSeries.setData([]);
       }
-    }, [consensusPrice, data, liquidityTargets]);
+    }, [consensusPrice, data]);
 
 
   const formattedSymbol = useMemo(() => {
