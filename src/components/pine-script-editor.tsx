@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -14,8 +14,40 @@ type PineScriptEditorProps = {
   isLoading: boolean;
 };
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
+
 export function PineScriptEditor({ onLoadScript, isLoading }: PineScriptEditorProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = usePersistentState<boolean>('backtest-pine-editor-open', false);
   const [script, setScript] = React.useState(`// Paste your Pine Script here
 // Example: Simple Moving Average Crossover
 //@version=5

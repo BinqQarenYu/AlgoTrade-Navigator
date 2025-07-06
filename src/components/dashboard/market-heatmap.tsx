@@ -21,6 +21,38 @@ interface HeatmapData {
     percentage: number;
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
+
 const getHeatmapColor = (percentage: number) => {
     if (percentage > 2.5) return 'bg-green-700 hover:bg-green-600';
     if (percentage > 1) return 'bg-green-600 hover:bg-green-500';
@@ -34,7 +66,7 @@ const getHeatmapColor = (percentage: number) => {
 export function MarketHeatmap() {
     const [heatmapData, setHeatmapData] = useState<HeatmapData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = usePersistentState<boolean>('dashboard-heatmap-open', true);
     const { isConnected } = useApi();
     const { toast } = useToast();
 

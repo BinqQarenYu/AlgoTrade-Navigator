@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Smile, Frown, ChevronDown } from "lucide-react";
@@ -15,6 +15,38 @@ interface MarketSentimentProps {
   sentiments: CoinSentimentData[];
   isLoading: boolean;
 }
+
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
 
 const SentimentSkeleton = () => (
     <div className="space-y-4">
@@ -31,7 +63,7 @@ const SentimentSkeleton = () => (
 );
 
 export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = usePersistentState<boolean>('dashboard-sentiment-open', true);
 
   return (
     <Card>

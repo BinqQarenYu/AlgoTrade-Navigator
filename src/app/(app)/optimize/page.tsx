@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import { validateStrategy, ValidateStrategyOutput } from "@/ai/flows/validate-strategy";
 import { useForm } from "react-hook-form";
@@ -35,14 +35,48 @@ const strategySchema = z.object({
 
 type FormValues = z.infer<typeof strategySchema>;
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 export default function OptimizePage() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<ValidateStrategyOutput | null>(null);
   const { toast } = useToast();
   const { isTradingActive } = useBot();
   const { canUseAi, consumeAiCredit } = useApi();
-  const [isAnalyzeCardOpen, setAnalyzeCardOpen] = useState(false);
-  const [isFeedbackCardOpen, setFeedbackCardOpen] = useState(false);
+  const [isAnalyzeCardOpen, setAnalyzeCardOpen] = usePersistentState<boolean>('optimize-analyze-open', true);
+  const [isFeedbackCardOpen, setFeedbackCardOpen] = usePersistentState<boolean>('optimize-feedback-open', true);
   const [isConfirming, setIsConfirming] = useState(false);
   const pendingFormValues = useRef<FormValues | null>(null);
 

@@ -74,11 +74,11 @@ export default function MultiSignalPage() {
     const [selectedAssets, setSelectedAssets] = usePersistentState<string[]>('multisignal-assets', ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
     const [interval, setInterval] = usePersistentState<string>('multisignal-interval', "1h");
     const [strategy, setStrategy] = usePersistentState<string>('multisignal-strategy', "peak-formation-fib");
-    const [takeProfit, setTakeProfit] = useState(2);
-    const [stopLoss, setStopLoss] = useState(1);
-    const [useAIPrediction, setUseAIPrediction] = useState(false);
-    const [isConfigOpen, setConfigOpen] = useState(false);
-    const [isDashboardOpen, setDashboardOpen] = useState(false);
+    const [takeProfit, setTakeProfit] = usePersistentState<number>('multisignal-tp', 2);
+    const [stopLoss, setStopLoss] = usePersistentState<number>('multisignal-sl', 1);
+    const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('multisignal-ai-prediction', false);
+    const [isConfigOpen, setConfigOpen] = usePersistentState<boolean>('multisignal-config-open', true);
+    const [isDashboardOpen, setDashboardOpen] = usePersistentState<boolean>('multisignal-dashboard-open', true);
 
     const handleAssetToggle = (asset: string) => {
         setSelectedAssets(prev => 

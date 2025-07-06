@@ -183,12 +183,12 @@ export default function LabPage() {
   const [consensusResult, setConsensusResult] = useState<{ price: number; direction: 'UP' | 'DOWN' } | null>(null);
   const [isConsensusRunning, setIsConsensusRunning] = useState(false);
 
-  const [isControlsOpen, setControlsOpen] = useState(true);
-  const [isParamsOpen, setParamsOpen] = useState(true);
-  const [isReportOpen, setReportOpen] = useState(false);
+  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('lab-controls-open', true);
+  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('lab-params-open', false);
+  const [isReportOpen, setReportOpen] = usePersistentState<boolean>('lab-report-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [isConsensusStratOpen, setIsConsensusStratOpen] = useState(false);
-  const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = useState(true);
+  const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
+  const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
 
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
@@ -846,6 +846,3 @@ export default function LabPage() {
     </div>
   )
 }
-
-    
-

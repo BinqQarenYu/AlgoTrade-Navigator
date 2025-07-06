@@ -30,6 +30,38 @@ interface OrderBookProps {
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
+
 // Aggregates raw order book levels into larger price buckets
 const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel[] => {
     if (grouping <= 0) return levels;
@@ -62,8 +94,8 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [bids, setBids] = useState<OrderBookLevel[]>([]);
     const [asks, setAsks] = useState<OrderBookLevel[]>([]);
     const [isConnecting, setIsConnecting] = useState(false);
-    const [isStreamActive, setIsStreamActive] = useState(false);
-    const [isCardOpen, setIsCardOpen] = useState(false);
+    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
+    const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
 
     useEffect(() => {
         // If the stream is meant to be inactive, ensure connection is closed.
@@ -132,7 +164,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             wsRef.current = null;
         };
 
-    }, [symbol, isConnected, toast, isStreamActive]);
+    }, [symbol, isConnected, toast, isStreamActive, setIsStreamActive]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
         const lastBid = bids.length > 0 ? parseFloat(bids[0][0]) : 0;

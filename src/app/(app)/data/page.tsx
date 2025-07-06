@@ -18,18 +18,52 @@ import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
     const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
     const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
-    const [symbol, setSymbol] = useState("btcusdt"); // lowercase for websocket
+    const [symbol, setSymbol] = usePersistentState("data-symbol", "btcusdt"); // lowercase for websocket
     const wsRef = useRef<WebSocket | null>(null);
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
     const { toast } = useToast();
     const { isTradingActive } = useBot();
-    const [isStreamCardOpen, setStreamCardOpen] = useState(false);
-    const [isSavedCardOpen, setSavedCardOpen] = useState(false);
+    const [isStreamCardOpen, setStreamCardOpen] = usePersistentState<boolean>('data-stream-open', true);
+    const [isSavedCardOpen, setSavedCardOpen] = usePersistentState<boolean>('data-saved-open', true);
     
     // Batch UI updates to prevent freezing from high-frequency messages
     useEffect(() => {

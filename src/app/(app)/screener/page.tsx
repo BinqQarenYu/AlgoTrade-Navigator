@@ -110,10 +110,10 @@ export default function ScreenerPage() {
     const [selectedStrategies, setSelectedStrategies] = usePersistentState<string[]>('screener-strategies', strategyMetadatas.map(s => s.id));
     const [interval, setInterval] = usePersistentState<string>('screener-interval', "5m");
     
-    const [isConfigOpen, setConfigOpen] = useState(false);
-    const [isPredictionOpen, setPredictionOpen] = useState(false);
-    const [isInputsOpen, setInputsOpen] = useState(false);
-    const [isIndicatorsOpen, setIsIndicatorsOpen] = useState(false);
+    const [isConfigOpen, setConfigOpen] = usePersistentState<boolean>('screener-config-open', true);
+    const [isPredictionOpen, setPredictionOpen] = usePersistentState<boolean>('screener-prediction-open', true);
+    const [isInputsOpen, setInputsOpen] = usePersistentState<boolean>('screener-inputs-open', false);
+    const [isIndicatorsOpen, setIsIndicatorsOpen] = usePersistentState<boolean>('screener-indicators-open', false);
     const [isConfirming, setIsConfirming] = useState(false);
 
     const activeIndicators = useMemo(() => {

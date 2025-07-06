@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DollarSign, TrendingUp, BarChart, ChevronDown } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,10 +16,42 @@ type PortfolioSummaryProps = {
   isLoading?: boolean;
 };
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
+};
+
 export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, isLoading }: PortfolioSummaryProps) {
-  const [isBalanceOpen, setBalanceOpen] = useState(false);
-  const [isPnlOpen, setPnlOpen] = useState(false);
-  const [isVolumeOpen, setVolumeOpen] = useState(false);
+  const [isBalanceOpen, setBalanceOpen] = usePersistentState<boolean>('dashboard-balance-open', true);
+  const [isPnlOpen, setPnlOpen] = usePersistentState<boolean>('dashboard-pnl-open', true);
+  const [isVolumeOpen, setVolumeOpen] = usePersistentState<boolean>('dashboard-volume-open', true);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", {

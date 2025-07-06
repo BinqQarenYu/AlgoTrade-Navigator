@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,38 @@ type BacktestResultsProps = {
   summary: BacktestSummary | null;
   onSelectTrade: (trade: BacktestResult) => void;
   selectedTradeId?: string | null;
+};
+
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        if (isMounted) {
+          setState(JSON.parse(item));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [state, setState];
 };
 
 const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: React.ReactNode, tooltipContent?: string }) => {
@@ -50,8 +82,8 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
 };
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [logHeight, setLogHeight] = useState(288); // Corresponds to h-72
+  const [isOpen, setIsOpen] = usePersistentState<boolean>('backtest-results-open', true);
+  const [logHeight, setLogHeight] = usePersistentState<number>('backtest-results-height', 288);
 
   const startResizing = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -76,7 +108,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [logHeight]);
+  }, [logHeight, setLogHeight]);
 
 
   if (!summary) {

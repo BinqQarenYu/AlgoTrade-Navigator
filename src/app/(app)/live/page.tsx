@@ -154,14 +154,14 @@ export default function LiveTradingPage() {
 
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('live-interval', "1m");
-  const [initialCapital, setInitialCapital] = useState<number>(100);
-  const [leverage, setLeverage] = useState<number>(10);
-  const [takeProfit, setTakeProfit] = useState<number>(5);
-  const [stopLoss, setStopLoss] = useState<number>(2);
-  const [fee, setFee] = useState<number>(0.04);
-  const [marginType, setMarginType] = useState<string>("isolated");
-  const [useAIPrediction, setUseAIPrediction] = useState(false);
-  const [chartHeight, setChartHeight] = useState(600);
+  const [initialCapital, setInitialCapital] = usePersistentState<number>('live-initial-capital', 100);
+  const [leverage, setLeverage] = usePersistentState<number>('live-leverage', 10);
+  const [takeProfit, setTakeProfit] = usePersistentState<number>('live-tp', 5);
+  const [stopLoss, setStopLoss] = usePersistentState<number>('live-sl', 2);
+  const [fee, setFee] = usePersistentState<number>('live-fee', 0.04);
+  const [marginType, setMarginType] = usePersistentState<string>("live-margin-type", "isolated");
+  const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
+  const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
 
   // Local state for chart data, separate from the bot's data
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -170,10 +170,10 @@ export default function LiveTradingPage() {
   const [ipAddress, setIpAddress] = useState<string | null>(null);
 
   // Collapsible states
-  const [isControlsOpen, setControlsOpen] = useState(false);
-  const [isParamsOpen, setParamsOpen] = useState(false);
-  const [isPredictionOpen, setPredictionOpen] = useState(false);
-  const [isLogsOpen, setLogsOpen] = useState(false);
+  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('live-controls-open', true);
+  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('live-params-open', false);
+  const [isPredictionOpen, setPredictionOpen] = usePersistentState<boolean>('live-prediction-open', true);
+  const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('live-logs-open', true);
   
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -218,7 +218,7 @@ export default function LiveTradingPage() {
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [chartHeight]);
+  }, [chartHeight, setChartHeight]);
 
   useEffect(() => {
     setIsClient(true)

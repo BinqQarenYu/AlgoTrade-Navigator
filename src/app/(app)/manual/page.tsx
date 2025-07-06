@@ -161,13 +161,13 @@ export default function ManualTradingPage() {
   
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('manual-strategy', "peak-formation-fib");
   const [interval, setInterval] = usePersistentState<string>('manual-interval', "1h");
-  const [initialCapital, setInitialCapital] = useState<number>(100);
-  const [leverage, setLeverage] = useState<number>(10);
-  const [takeProfit, setTakeProfit] = useState<number>(2);
-  const [stopLoss, setStopLoss] = useState<number>(1);
-  const [fee, setFee] = useState<number>(0.04);
-  const [useAIPrediction, setUseAIPrediction] = useState(false);
-  const [chartHeight, setChartHeight] = useState(600);
+  const [initialCapital, setInitialCapital] = usePersistentState<number>('manual-initial-capital', 100);
+  const [leverage, setLeverage] = usePersistentState<number>('manual-leverage', 10);
+  const [takeProfit, setTakeProfit] = usePersistentState<number>('manual-tp', 2);
+  const [stopLoss, setStopLoss] = usePersistentState<number>('manual-sl', 1);
+  const [fee, setFee] = usePersistentState<number>('manual-fee', 0.04);
+  const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('manual-ai-prediction', false);
+  const [chartHeight, setChartHeight] = usePersistentState<number>('manual-chart-height', 600);
 
   // State for external data
   const [coinDetails, setCoinDetails] = useState<CoinDetails | null>(null);
@@ -176,11 +176,11 @@ export default function ManualTradingPage() {
   const [isFetchingFng, setIsFetchingFng] = useState(false);
 
   // Collapsible states
-  const [isGeneratorOpen, setGeneratorOpen] = useState(false);
-  const [isParamsOpen, setParamsOpen] = useState(false);
-  const [isIntelOpen, setIntelOpen] = useState(false);
-  const [isSignalOpen, setSignalOpen] = useState(false);
-  const [isLogsOpen, setLogsOpen] = useState(false);
+  const [isGeneratorOpen, setGeneratorOpen] = usePersistentState<boolean>('manual-generator-open', true);
+  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('manual-params-open', false);
+  const [isIntelOpen, setIntelOpen] = usePersistentState<boolean>('manual-intel-open', true);
+  const [isSignalOpen, setSignalOpen] = usePersistentState<boolean>('manual-signal-open', true);
+  const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('manual-logs-open', true);
 
   // State for AI confirmation dialog
   const [isConfirming, setIsConfirming] = useState(false);
@@ -216,7 +216,7 @@ export default function ManualTradingPage() {
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [chartHeight]);
+  }, [chartHeight, setChartHeight]);
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);

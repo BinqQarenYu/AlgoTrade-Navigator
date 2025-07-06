@@ -195,7 +195,7 @@ export default function BacktestPage() {
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("backtest-quote-asset", "USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
-  const [chartHeight, setChartHeight] = useState(600);
+  const [chartHeight, setChartHeight] = usePersistentState<number>('backtest-chart-height', 600);
 
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
@@ -210,15 +210,15 @@ export default function BacktestPage() {
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
 
-  const [initialCapital, setInitialCapital] = useState<number>(100);
-  const [leverage, setLeverage] = useState<number>(10);
-  const [takeProfit, setTakeProfit] = useState<number>(5);
-  const [stopLoss, setStopLoss] = useState<number>(2);
-  const [fee, setFee] = useState<number>(0.04);
-  const [useAIValidation, setUseAIValidation] = useState(false);
-  const [maxAiValidations, setMaxAiValidations] = useState<number>(20);
-  const [isControlsOpen, setControlsOpen] = useState(false);
-  const [isParamsOpen, setParamsOpen] = useState(false);
+  const [initialCapital, setInitialCapital] = usePersistentState<number>('backtest-initial-capital', 100);
+  const [leverage, setLeverage] = usePersistentState<number>('backtest-leverage', 10);
+  const [takeProfit, setTakeProfit] = usePersistentState<number>('backtest-tp', 5);
+  const [stopLoss, setStopLoss] = usePersistentState<number>('backtest-sl', 2);
+  const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
+  const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
+  const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
+  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('backtest-controls-open', true);
+  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
@@ -264,7 +264,7 @@ export default function BacktestPage() {
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [chartHeight]);
+  }, [chartHeight, setChartHeight]);
 
   useEffect(() => {
     setIsClient(true)
