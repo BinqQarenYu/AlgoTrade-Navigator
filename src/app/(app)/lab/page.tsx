@@ -114,7 +114,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
       const item = window.localStorage.getItem(key);
       if (item) {
         const parsed = JSON.parse(item);
-        if (key === 'lab-date-range' && parsed) {
+        if (key.endsWith('-date-range') && parsed) {
           if (parsed.from) parsed.from = new Date(parsed.from);
           if (parsed.to) parsed.to = new Date(parsed.to);
         }

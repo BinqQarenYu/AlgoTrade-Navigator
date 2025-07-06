@@ -144,16 +144,55 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     return combinations;
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        // Special handling for date ranges, as they need to be rehydrated as Date objects
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 
 export default function BacktestPage() {
   const { toast } = useToast()
   const { isConnected, canUseAi } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams } = useBot();
 
-  const [date, setDate] = useState<DateRange | undefined>()
+  const [date, setDate] = usePersistentState<DateRange | undefined>('backtest-date-range', undefined);
   const [isClient, setIsClient] = useState(false)
-  const [baseAsset, setBaseAsset] = useState<string>("BTC");
-  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
+  const [quoteAsset, setQuoteAsset] = usePersistentState<string>("backtest-quote-asset", "USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const [chartHeight, setChartHeight] = useState(600);
 
@@ -164,8 +203,8 @@ export default function BacktestPage() {
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategyMetadatas[0].id);
-  const [interval, setInterval] = useState<string>("1h");
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
+  const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
@@ -233,7 +272,7 @@ export default function BacktestPage() {
             to: new Date(),
         })
     }
-  }, [date])
+  }, [date, setDate])
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -241,7 +280,7 @@ export default function BacktestPage() {
     if (!quotes.includes(quoteAsset)) {
       setQuoteAsset(quotes[0] || '');
     }
-  }, [baseAsset, quoteAsset]);
+  }, [baseAsset, quoteAsset, setQuoteAsset]);
   
   // Effect to fetch raw data from the API
   useEffect(() => {

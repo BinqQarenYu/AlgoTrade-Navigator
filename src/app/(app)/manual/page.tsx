@@ -96,6 +96,44 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'williams-r': defaultWilliamsRParams,
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 export default function ManualTradingPage() {
   const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile } = useApi();
   const { toast } = useToast();
@@ -115,13 +153,13 @@ export default function ManualTradingPage() {
   const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
   
   // Local state for UI configuration
-  const [baseAsset, setBaseAsset] = useState<string>("BTC");
-  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [baseAsset, setBaseAsset] = usePersistentState<string>('manual-base-asset', "BTC");
+  const [quoteAsset, setQuoteAsset] = usePersistentState<string>('manual-quote-asset', "USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
   
-  const [selectedStrategy, setSelectedStrategy] = useState<string>("peak-formation-fib");
-  const [interval, setInterval] = useState<string>("1h");
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('manual-strategy', "peak-formation-fib");
+  const [interval, setInterval] = usePersistentState<string>('manual-interval', "1h");
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(2);
@@ -180,7 +218,7 @@ export default function ManualTradingPage() {
     if (!quotes.includes(quoteAsset)) {
       setQuoteAsset(quotes[0] || '');
     }
-  }, [baseAsset, quoteAsset]);
+  }, [baseAsset, quoteAsset, setQuoteAsset]);
 
   // Fetch asset-specific details
   useEffect(() => {

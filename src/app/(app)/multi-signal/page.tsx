@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
@@ -21,6 +21,44 @@ import { strategyMetadatas } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 export default function MultiSignalPage() {
     const { toast } = useToast();
     const { 
@@ -33,9 +71,9 @@ export default function MultiSignalPage() {
     const { isRunning, results, config: runningConfig } = multiSignalState;
 
     // UI State
-    const [selectedAssets, setSelectedAssets] = useState<string[]>(["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
-    const [interval, setInterval] = useState("1h");
-    const [strategy, setStrategy] = useState("peak-formation-fib");
+    const [selectedAssets, setSelectedAssets] = usePersistentState<string[]>('multisignal-assets', ["BTCUSDT", "ETHUSDT", "SOLUSDT"]);
+    const [interval, setInterval] = usePersistentState<string>('multisignal-interval', "1h");
+    const [strategy, setStrategy] = usePersistentState<string>('multisignal-strategy', "peak-formation-fib");
     const [takeProfit, setTakeProfit] = useState(2);
     const [stopLoss, setStopLoss] = useState(1);
     const [useAIPrediction, setUseAIPrediction] = useState(false);

@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
@@ -52,6 +52,44 @@ const strategyIndicatorMap: Record<string, string[]> = {
   'liquidity-order-flow': ['EMA'],
 };
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 
 export default function ScreenerPage() {
     const { toast } = useToast();
@@ -65,9 +103,9 @@ export default function ScreenerPage() {
     const { isRunning, prediction, logs, config: runningConfig, strategyInputs } = screenerState;
 
     // UI State
-    const [selectedAsset, setSelectedAsset] = useState<string>("BTCUSDT");
-    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(strategyMetadatas.map(s => s.id));
-    const [interval, setInterval] = useState("5m");
+    const [selectedAsset, setSelectedAsset] = usePersistentState<string>('screener-asset', "BTCUSDT");
+    const [selectedStrategies, setSelectedStrategies] = usePersistentState<string[]>('screener-strategies', strategyMetadatas.map(s => s.id));
+    const [interval, setInterval] = usePersistentState<string>('screener-interval', "5m");
     
     const [isConfigOpen, setConfigOpen] = useState(false);
     const [isPredictionOpen, setPredictionOpen] = useState(false);

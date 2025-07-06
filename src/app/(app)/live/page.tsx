@@ -92,6 +92,44 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'williams-r': defaultWilliamsRParams,
 }
 
+const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
+  const [state, setState] = useState<T>(defaultValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    try {
+      const item = window.localStorage.getItem(key);
+      if (item) {
+        const parsed = JSON.parse(item);
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
+        if (isMounted) {
+          setState(parsed);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse stored state', e);
+      localStorage.removeItem(key);
+    } finally {
+      if (isMounted) {
+        setIsHydrated(true);
+      }
+    }
+    return () => { isMounted = false; };
+  }, [key]);
+
+  useEffect(() => {
+    if (isHydrated) {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    }
+  }, [key, state, isHydrated]);
+
+  return [isHydrated ? state : defaultValue, setState];
+};
+
 export default function LiveTradingPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
@@ -109,13 +147,13 @@ export default function LiveTradingPage() {
   const [isClient, setIsClient] = useState(false)
   
   // Local state for configuration UI
-  const [baseAsset, setBaseAsset] = useState<string>("BTC");
-  const [quoteAsset, setQuoteAsset] = useState<string>("USDT");
+  const [baseAsset, setBaseAsset] = usePersistentState<string>('live-base-asset', "BTC");
+  const [quoteAsset, setQuoteAsset] = usePersistentState<string>('live-quote-asset', "USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
-  const [selectedStrategy, setSelectedStrategy] = useState<string>(strategyMetadatas[0].id);
-  const [interval, setInterval] = useState<string>("1m");
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', strategyMetadatas[0].id);
+  const [interval, setInterval] = usePersistentState<string>('live-interval', "1m");
   const [initialCapital, setInitialCapital] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(10);
   const [takeProfit, setTakeProfit] = useState<number>(5);
@@ -203,7 +241,7 @@ export default function LiveTradingPage() {
     if (!quotes.includes(quoteAsset)) {
       setQuoteAsset(quotes[0] || '');
     }
-  }, [baseAsset, quoteAsset]);
+  }, [baseAsset, quoteAsset, setQuoteAsset]);
 
   // Sync local chart with bot's chart data when running
   useEffect(() => {
@@ -264,7 +302,7 @@ export default function LiveTradingPage() {
     if (!isRunning) {
         setChartData([]);
     }
-  }, [isRunning]);
+  }, [isRunning, setInterval]);
   
   const handleBotToggle = async () => {
     if (isRunning) {
