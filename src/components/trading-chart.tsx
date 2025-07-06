@@ -386,7 +386,7 @@ export function TradingChart({
                 chartRef.current.liquidityLevelLine = candlestickSeries.createPriceLine({
                     price: tradeSignal.peakPrice,
                     color: '#a8a29e', // stone-400
-                    lineWidth: 1,
+                    lineWidth: 1, // Keep this thin as it's a reference
                     lineStyle: LineStyle.Dashed,
                     axisLabelVisible: true,
                     title: ' Liquidity Level',
@@ -461,7 +461,7 @@ export function TradingChart({
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
                     color: wall.type === 'bid' ? '#22c55e' : '#ef4444',
-                    lineWidth: 1,
+                    lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
                     title: ` ${wall.type.toUpperCase()} WALL`,
@@ -471,7 +471,7 @@ export function TradingChart({
         }
         chartRef.current.wallPriceLines = newLines;
 
-    }, [wallLevels]);
+    }, [wallLevels, lineWidth]);
 
     // Effect to draw liquidity grab markers (without lines)
     useEffect(() => {
@@ -501,7 +501,7 @@ export function TradingChart({
                 const line = candlestickSeries.createPriceLine({
                     price: target.priceLevel,
                     color: isBuySide ? '#f43f5e' : '#10b981', // Red for potential resistance, Green for potential support
-                    lineWidth: 1,
+                    lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
                     title: isBuySide ? ` Buy-Side Target` : ` Sell-Side Target`,
@@ -511,7 +511,7 @@ export function TradingChart({
         }
         chartRef.current.targetPriceLines = newLines;
 
-    }, [liquidityTargets]);
+    }, [liquidityTargets, lineWidth]);
 
     // Effect to draw the future vertical line connecting targets
     useEffect(() => {
