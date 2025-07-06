@@ -70,6 +70,8 @@ import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
+import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 
 interface DateRange {
   from?: Date;
@@ -103,6 +105,8 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
     'liquidity-grab': defaultLiquidityGrabParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
+    'ema-cci-macd': defaultEmaCciMacdParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
