@@ -40,6 +40,7 @@ import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
+import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
 
 
 // --- State Types ---
@@ -114,6 +115,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'williams-r': defaultWilliamsRParams,
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'liquidity-grab': defaultLiquidityGrabParams,
+    'ema-cci-macd': defaultEmaCciMacdParams,
 };
 
 // Helper to convert interval string to milliseconds for timers

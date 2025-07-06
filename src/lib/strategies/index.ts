@@ -29,6 +29,7 @@ import williamsRStrategy from './williams-percent-r';
 import hyperPeakFormationStrategy from './hyper-peak-formation';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
+import emaCciMacdStrategy from './ema-cci-macd';
 
 
 export const strategies: Strategy[] = [
@@ -61,6 +62,7 @@ export const strategies: Strategy[] = [
   stochasticCrossoverStrategy,
   vwapCrossStrategy,
   williamsRStrategy,
+  emaCciMacdStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));
 
 export const strategyMetadatas = strategies.map(({ id, name }) => ({

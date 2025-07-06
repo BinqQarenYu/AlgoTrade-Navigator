@@ -136,5 +136,10 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         period: { min: 10, max: 20, step: 2 },
         overbought: { min: -30, max: -10, step: 5 },
         oversold: { min: -90, max: -70, step: 5 },
+    },
+    'ema-cci-macd': {
+        emaPeriod: { min: 50, max: 200, step: 25 },
+        cciPeriod: { min: 14, max: 28, step: 7 },
+        cciLevel: { min: 100, max: 150, step: 25 },
     }
 };
