@@ -119,7 +119,6 @@ export function TradingChart({
           crosshair: {
             mode: 1, // Magnet
           },
-          // Add zoom and scroll options for clarity and to ensure they are enabled
           handleScroll: {
             mouseWheel: true,
             pressedMouseMove: true,
@@ -131,15 +130,24 @@ export function TradingChart({
           },
         });
 
-        // Volume series on a separate pane-like area
         const volumeSeries = chart.addHistogramSeries({
           priceFormat: { type: 'volume' },
-          priceScaleId: '', // Set to empty string to prevent it from affecting the price scale
+          priceScaleId: '', 
           lastValueVisible: false,
           priceLineVisible: false,
         });
         volumeSeries.priceScale().applyOptions({
-            scaleMargins: { top: 0.8, bottom: 0 }, // Top 80% for price, bottom 20% for volume
+            scaleMargins: { top: 0.8, bottom: 0 },
+        });
+
+        const blueFillColor = 'rgba(59, 130, 246, 0.2)'; // semi-transparent blue
+        const targetZoneSeries = chart.addCandlestickSeries({
+            priceScaleId: 'left',
+            upColor: blueFillColor,
+            downColor: blueFillColor,
+            wickVisible: false,
+            borderVisible: false,
+            autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
         });
 
         const candlestickSeries = chart.addCandlestickSeries({
@@ -150,17 +158,6 @@ export function TradingChart({
           borderVisible: false,
           priceScaleId: 'left',
         });
-
-        const blueColor = '#3b82f6';
-        const targetZoneSeries = chart.addCandlestickSeries({
-          priceScaleId: 'left',
-          upColor: 'transparent',
-          downColor: 'transparent',
-          wickVisible: false,
-          borderVisible: true,
-          borderUpColor: blueColor,
-          borderDownColor: blueColor,
-        });
         
         const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
 
@@ -168,6 +165,7 @@ export function TradingChart({
             chart,
             candlestickSeries,
             volumeSeries,
+            targetZoneSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
@@ -186,7 +184,7 @@ export function TradingChart({
               crosshairMarkerVisible: true,
               crosshairMarkerRadius: 10,
               crosshairMarkerBorderColor: '#000000',
-              crosshairMarkerBackgroundColor: '#FFEB3B', // A bright yellow
+              crosshairMarkerBackgroundColor: '#FFEB3B',
             }),
             consensusArrowSeries: chart.addLineSeries({
               priceScaleId: 'left',
@@ -199,17 +197,14 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
             targetPriceLines: [],
-            targetZoneSeries,
         };
     }
     
-    // Use ResizeObserver to handle container size changes
     const resizeObserver = new ResizeObserver(handleResize);
     if (chartContainer) {
       resizeObserver.observe(chartContainer);
     }
     
-    // Cleanup on unmount
     return () => {
       if (chartContainer) {
         resizeObserver.unobserve(chartContainer);
@@ -226,16 +221,11 @@ export function TradingChart({
     
     const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
 
-    // Set candlestick and volume data
     if (data.length > 0) {
-        // Create a sorted copy of the data to avoid mutation and ensure ascending order for the chart.
         const sortedData = [...data].sort((a, b) => a.time - b.time);
-
-        // Defensively filter out any items with duplicate timestamps to prevent chart errors.
         const uniqueData = sortedData.filter((candle, index, self) =>
             index === 0 || candle.time > self[index - 1].time
         );
-
         if (uniqueData.length === 0) return;
 
         const firstPrice = uniqueData[0].close;
@@ -254,7 +244,7 @@ export function TradingChart({
           },
         });
         
-        const highlightColor = '#3b82f6'; // Blue-500 for highlighting trades
+        const highlightColor = '#3b82f6';
         const candlestickChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
             return {
@@ -274,7 +264,7 @@ export function TradingChart({
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
             const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
-            const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)'; // blue-500 with opacity
+            const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)';
 
             return {
                 time: toTimestamp(d.time),
@@ -284,7 +274,6 @@ export function TradingChart({
         });
         volumeSeries.setData(volumeChartData);
         
-        // Indicators
         const addLineSeries = (series: any, dataKey: keyof HistoricalData) => {
           if (showAnalysis && uniqueData.some(d => d[dataKey] != null)) {
             const lineData = uniqueData
@@ -296,25 +285,19 @@ export function TradingChart({
           }
         };
         
-        // Classic Indicators
         addLineSeries(smaShortSeries, 'sma_short');
-        addLineSeries(smaShortSeries, 'ema_short'); // Reuse same series for EMA
+        addLineSeries(smaShortSeries, 'ema_short');
         addLineSeries(smaLongSeries, 'sma_long');
-        addLineSeries(smaLongSeries, 'ema_long');   // Reuse same series for EMA
+        addLineSeries(smaLongSeries, 'ema_long');
         addLineSeries(pocSeries, 'poc');
-        
-        // Donchian Channels
         addLineSeries(donchianUpperSeries, 'donchian_upper');
         addLineSeries(donchianMiddleSeries, 'donchian_middle');
         addLineSeries(donchianLowerSeries, 'donchian_lower');
-        
-        // Ichimoku Cloud
         addLineSeries(tenkanSeries, 'tenkan_sen');
         addLineSeries(kijunSeries, 'kijun_sen');
         addLineSeries(senkouASeries, 'senkou_a');
         addLineSeries(senkouBSeries, 'senkou_b');
 
-        // Markers
         const signalMarkers = showAnalysis ? uniqueData
           .map(d => {
             if (d.buySignal) {
@@ -344,7 +327,6 @@ export function TradingChart({
         chart.timeScale().fitContent();
 
     } else {
-        // Clear all series data if no data is provided
         candlestickSeries.setData([]);
         volumeSeries.setData([]);
         smaShortSeries.setData([]);
@@ -367,7 +349,6 @@ export function TradingChart({
         if (!chartRef.current?.chart) return;
         const { candlestickSeries } = chartRef.current;
 
-        // Clear previous lines
         if (chartRef.current.priceLines) {
             chartRef.current.priceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
@@ -381,7 +362,7 @@ export function TradingChart({
         if (tradeSignal) {
             const entryLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.entryPrice,
-                color: '#3b82f6', // blue-500
+                color: '#3b82f6',
                 lineWidth: lineWidth,
                 lineStyle: LineStyle.Dashed,
                 axisLabelVisible: true,
@@ -389,7 +370,7 @@ export function TradingChart({
             });
             const tpLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.takeProfit,
-                color: '#22c55e', // green-500
+                color: '#22c55e',
                 lineWidth: lineWidth,
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
@@ -397,7 +378,7 @@ export function TradingChart({
             });
             const slLine = candlestickSeries.createPriceLine({
                 price: tradeSignal.stopLoss,
-                color: '#ef4444', // red-500
+                color: '#ef4444',
                 lineWidth: lineWidth,
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
@@ -408,8 +389,8 @@ export function TradingChart({
             if (tradeSignal.peakPrice) {
                 chartRef.current.liquidityLevelLine = candlestickSeries.createPriceLine({
                     price: tradeSignal.peakPrice,
-                    color: '#a8a29e', // stone-400
-                    lineWidth: 1, // Keep this thin as it's a reference
+                    color: '#a8a29e',
+                    lineWidth: 1,
                     lineStyle: LineStyle.Dashed,
                     axisLabelVisible: true,
                     title: ' Liquidity Level',
@@ -454,9 +435,8 @@ export function TradingChart({
       const { chart } = chartRef.current;
       const timeScale = chart.timeScale();
       
-      // Assuming data is sorted by time
       const intervalMs = data[1].time - data[0].time;
-      const paddingMs = intervalMs * 20; // 20 bars padding
+      const paddingMs = intervalMs * 20;
 
       const fromVisible = toTimestamp(highlightedTrade.entryTime - paddingMs);
       const toVisible = toTimestamp(highlightedTrade.exitTime + paddingMs);
@@ -473,7 +453,6 @@ export function TradingChart({
         if (!chartRef.current?.chart) return;
         const { candlestickSeries } = chartRef.current;
 
-        // Clear previous wall lines
         if (chartRef.current.wallPriceLines) {
             chartRef.current.wallPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
@@ -511,7 +490,7 @@ export function TradingChart({
                 const isBuySide = target.type === 'buy-side';
                 const line = candlestickSeries.createPriceLine({
                     price: target.priceLevel,
-                    color: isBuySide ? '#f43f5e' : '#10b981', // Red for potential resistance, Green for potential support
+                    color: isBuySide ? '#f43f5e' : '#10b981',
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
@@ -536,7 +515,6 @@ export function TradingChart({
         const { targetZoneSeries } = chartRef.current;
         if (!targetZoneSeries) return;
 
-        // Sort descending by time to get the most recent grab event
         const lastGrabEvent = liquidityEvents.length > 0 ? liquidityEvents.sort((a, b) => b.time - a.time)[0] : null;
         const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
         const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
@@ -552,7 +530,6 @@ export function TradingChart({
 
             const boxData = [];
             
-            // Add candles for the historical part of the box
             for(const candle of data) {
                 const candleTime = toTimestamp(candle.time);
                 if (candleTime >= startTime) {
@@ -560,7 +537,6 @@ export function TradingChart({
                 }
             }
             
-            // Add candles for the future part of the box
             let lastTime = toTimestamp(lastCandle.time);
             for(let i = 1; i <= futureBars; i++) {
                 const futureTime = lastTime + i * (intervalMs / 1000);
@@ -591,7 +567,7 @@ export function TradingChart({
       if (consensusResult && showAnalysis) {
         const lastCandle = data[data.length - 1];
         const intervalMs = data[1].time - data[0].time;
-        const futureBarOffset = 10; // Center of the 20-bar rightOffset
+        const futureBarOffset = 10;
         const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
         
         consensusPointSeries.setData([{ time: futureTime, value: consensusResult.price }]);
