@@ -442,31 +442,10 @@ export function TradingChart({
         if (chartRef.current.liquidityPriceLines) {
             chartRef.current.liquidityPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
-        
-        const newLines: any[] = [];
-        if (liquidityEvents && liquidityEvents.length > 0) {
-            liquidityEvents.forEach(event => {
-                const totalValue = event.priceLevel * (event.volume || 0);
-                const formattedTotal = formatLargeNumber(totalValue);
+        chartRef.current.liquidityPriceLines = [];
 
-                // A bullish direction means sell-side liquidity was taken below a low.
-                // A bearish direction means buy-side liquidity was taken above a high.
-                const title = event.direction === 'bullish'
-                    ? ` Sell-Side Liq. ($${formattedTotal})`
-                    : ` Buy-Side Liq. ($${formattedTotal})`;
-
-                const line = candlestickSeries.createPriceLine({
-                    price: event.priceLevel,
-                    color: event.direction === 'bullish' ? '#10b981' : '#f43f5e',
-                    lineWidth: 2,
-                    lineStyle: LineStyle.Dashed,
-                    axisLabelVisible: true,
-                    title: title,
-                });
-                newLines.push(line);
-            });
-        }
-        chartRef.current.liquidityPriceLines = newLines;
+        // Based on user request, we are no longer drawing horizontal lines for historical grabs,
+        // only the markers ($ signs) will be shown. The logic to create the lines has been removed.
 
     }, [liquidityEvents]);
     
