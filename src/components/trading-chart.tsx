@@ -185,7 +185,7 @@ export function TradingChart({
               lastValueVisible: false,
               priceLineVisible: false,
               crosshairMarkerVisible: true,
-              crosshairMarkerRadius: 6,
+              crosshairMarkerRadius: 8,
               crosshairMarkerBorderColor: '#000000',
               crosshairMarkerBackgroundColor: '#FFEB3B', // A bright yellow
             }),
@@ -608,7 +608,7 @@ export function TradingChart({
             position: consensusResult.direction === 'UP' ? 'belowBar' : 'aboveBar',
             color: consensusResult.direction === 'UP' ? '#22c55e' : '#ef4444',
             shape: consensusResult.direction === 'UP' ? 'arrowUp' : 'arrowDown',
-            size: 1.5,
+            size: 2,
         };
 
         // The series needs a data point at that time to anchor the marker
