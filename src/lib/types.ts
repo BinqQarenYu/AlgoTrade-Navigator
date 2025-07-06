@@ -5,6 +5,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -249,11 +250,13 @@ export type PricePredictionOutput = {
     reasoning: string;
 };
 
+// This is the input format for the AI meta-model flow
 export type StrategyAnalysisInput = {
     name: string;
-    signal: string | null;
-    indicators: Record<string, any>;
+    signal: 'BUY' | 'SELL' | 'HOLD' | null;
+    indicatorValues: Record<string, any>;
 };
+
 
 export interface ScreenerState {
   isRunning: boolean;

@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import { useApi } from "@/context/api-context"
 
 const strategyIndicatorMap: Record<string, string[]> = {
   'awesome-oscillator': ['Awesome Oscillator'],
@@ -93,6 +94,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function ScreenerPage() {
     const { toast } = useToast();
+    const { isConnected } = useApi();
     const { 
         screenerState, 
         startScreener, 
@@ -164,10 +166,10 @@ export default function ScreenerPage() {
         <div className="space-y-6">
             <div className="text-left">
                 <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                    <BrainCircuit size={32}/> Strategy Consensus Predictor
+                    <BrainCircuit size={32}/> AI Consensus Predictor
                 </h1>
                 <p className="text-muted-foreground mt-2">
-                    Get a prediction based on a code-based consensus from multiple strategies.
+                    Get an AI-powered prediction based on a consensus from multiple strategies.
                 </p>
             </div>
              {isTradingActive && !isThisPageRunning && (
@@ -187,7 +189,7 @@ export default function ScreenerPage() {
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
                                     <CardTitle>Configuration</CardTitle>
-                                    <CardDescription>Set up the consensus model.</CardDescription>
+                                    <CardDescription>Set up the AI consensus model.</CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -249,9 +251,9 @@ export default function ScreenerPage() {
                                         </Select>
                                     </div>
                                     
-                                    <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning}>
+                                    <Button onClick={handleRunScreener} className="w-full" variant={isRunning ? "destructive" : "default"} disabled={isTradingActive && !isRunning || !isConnected}>
                                         {isRunning ? <StopCircle /> : <Play />}
-                                        {isRunning ? "Stop Analysis" : "Predict Price"}
+                                        {isRunning ? "Stop Analysis" : "Run AI Prediction"}
                                     </Button>
                                 </CardContent>
                             </CollapsibleContent>
@@ -297,9 +299,9 @@ export default function ScreenerPage() {
                         <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
-                                    <CardTitle>Consensus Prediction</CardTitle>
+                                    <CardTitle>AI Consensus Prediction</CardTitle>
                                     <CardDescription>
-                                        {isRunning ? "Analyzing... This is a code-based process." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
+                                        {isRunning ? "Analyzing... The AI is synthesizing data from multiple strategies." : prediction ? `Prediction for ${runningConfig?.asset} on the next ${runningConfig?.interval} candle.` : "Run analysis to get a price prediction."}
                                     </CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
@@ -345,7 +347,7 @@ export default function ScreenerPage() {
                                                 </div>
                                             </div>
                                              <div>
-                                                <Label className="text-sm text-muted-foreground">Consensus Details</Label>
+                                                <Label className="text-sm text-muted-foreground">AI Reasoning</Label>
                                                 <p className="text-sm text-foreground/80">{prediction.reasoning}</p>
                                             </div>
                                         </div>
@@ -362,8 +364,8 @@ export default function ScreenerPage() {
                         <Collapsible open={isInputsOpen} onOpenChange={setInputsOpen}>
                             <CardHeader className="flex flex-row items-center justify-between">
                                 <div>
-                                    <CardTitle>Strategy Inputs</CardTitle>
-                                    <CardDescription>The data fed to the consensus model from each selected strategy.</CardDescription>
+                                    <CardTitle>Strategy Inputs to AI</CardTitle>
+                                    <CardDescription>The data fed to the AI model from each selected strategy.</CardDescription>
                                 </div>
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
