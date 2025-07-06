@@ -198,6 +198,8 @@ export function TradingChart({
             targetPriceLines: [],
             volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
             volumeLegTextPriceLine: null,
+            volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
+            volumeLeg2TextPriceLine: null,
         };
     }
     
@@ -593,7 +595,7 @@ export function TradingChart({
       }
     }, [consensusResult, data, showAnalysis]);
 
-     // Effect for volume leg line
+     // Effect for volume leg line (Green to Red)
      useEffect(() => {
       if (!chartRef.current?.chart) return;
       const { volumeLegLineSeries, candlestickSeries, volumeLegTextPriceLine } = chartRef.current;
@@ -634,7 +636,7 @@ export function TradingChart({
           if (startIndex > -1 && endIndex > -1) {
               const relevantCandles = data.slice(startIndex, endIndex + 1);
               const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
-              const volumeText = `Vol: ${formatLargeNumber(totalVolume, 2)}`;
+              const volumeText = `Vol (Sweep): ${formatLargeNumber(totalVolume, 2)}`;
               const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
               
               // Create the text label on the price axis
@@ -647,6 +649,54 @@ export function TradingChart({
               });
           }
       }
+    }, [data, liquidityEvents, showAnalysis]);
+
+    // Effect for volume leg line (Last 2 Grabs)
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { volumeLeg2LineSeries, candlestickSeries, volumeLeg2TextPriceLine } = chartRef.current;
+
+        // Clear existing lines
+        if (volumeLeg2LineSeries) volumeLeg2LineSeries.setData([]);
+        if (volumeLeg2TextPriceLine) {
+            candlestickSeries.removePriceLine(volumeLeg2TextPriceLine);
+            chartRef.current.volumeLeg2TextPriceLine = null;
+        }
+
+        if (!showAnalysis || data.length < 2 || liquidityEvents.length < 2) return;
+
+        const sortedEvents = [...liquidityEvents].sort((a, b) => a.time - b.time);
+        
+        const endEvent = sortedEvents[sortedEvents.length - 1];
+        const startEvent = sortedEvents[sortedEvents.length - 2];
+
+        if (startEvent && endEvent) {
+            // Draw the line
+            volumeLeg2LineSeries.setData([
+                { time: toTimestamp(startEvent.time), value: startEvent.priceLevel },
+                { time: toTimestamp(endEvent.time), value: endEvent.priceLevel },
+            ]);
+
+            // Calculate volume
+            const startIndex = data.findIndex(d => d.time >= startEvent.time);
+            const endIndex = data.findIndex(d => d.time >= endEvent.time);
+
+            if (startIndex > -1 && endIndex > -1 && startIndex <= endIndex) {
+                const relevantCandles = data.slice(startIndex, endIndex + 1);
+                const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
+                const volumeText = `Vol (Last 2): ${formatLargeNumber(totalVolume, 2)}`;
+                const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
+                
+                // Create the text label on the price axis
+                chartRef.current.volumeLeg2TextPriceLine = candlestickSeries.createPriceLine({
+                    price: midpointPrice,
+                    color: 'transparent',
+                    lineWidth: 0,
+                    axisLabelVisible: true,
+                    title: volumeText,
+                });
+            }
+        }
     }, [data, liquidityEvents, showAnalysis]);
 
 
