@@ -536,6 +536,10 @@ export function TradingChart({
         
         const price1 = buySideTarget.priceLevel;
         const price2 = sellSideTarget.priceLevel;
+
+        // Use the lineWidth to control opacity, simulating "thickness"
+        const opacity = (lineWidth + 1) / 10; // Range from 0.2 to 0.6
+        const lineColor = `rgba(148, 163, 184, ${opacity})`; // slate-400 with dynamic opacity
   
         const lineData = [{
           time: futureTime,
@@ -543,13 +547,15 @@ export function TradingChart({
           high: Math.max(price1, price2),
           low: Math.min(price1, price2),
           close: Math.max(price1, price2),
+          color: lineColor,
+          wickColor: lineColor,
         }];
   
         futureTargetLineSeries.setData(lineData);
       } else {
         futureTargetLineSeries.setData([]);
       }
-    }, [data, liquidityTargets]);
+    }, [data, liquidityTargets, lineWidth]);
 
 
   const formattedSymbol = useMemo(() => {
