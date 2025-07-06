@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -249,49 +249,60 @@ export default function LabPage() {
     setWalls([]);
   }, [symbol]);
 
-  // Automated Liquidity Analysis
-  useEffect(() => {
+  const refreshChartAnalysis = useCallback(async () => {
     if (chartData.length < 20) {
+      setDataWithIndicators([]);
       setLiquidityEvents([]);
+      setLiquidityTargets([]);
       return;
     }
-    
-    // Dynamically set analysis parameters based on the chart's interval
+
+    // Liquidity Analysis
     const getDynamicParams = () => {
         switch(interval) {
-            case '1m':
-                return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
-            case '5m':
-                 return { lookaround: 12, confirmationCandles: 3, maxLookahead: 60 };
-            case '15m':
-                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
-            case '1h':
-                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
-            case '4h':
-                return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
-            case '1d':
-                return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
-            default:
-                return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+            case '1m': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
+            case '5m': return { lookaround: 15, confirmationCandles: 3, maxLookahead: 60 };
+            case '15m': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
+            case '1h': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
+            case '4h': return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
+            case '1d': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
+            default: return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
         }
     }
+    try {
+        const dynamicParams = getDynamicParams();
+        const [resultEvents, targetEvents] = await Promise.all([
+            findLiquidityGrabs(chartData, dynamicParams),
+            findLiquidityTargets(chartData, dynamicParams.lookaround)
+        ]);
+        setLiquidityEvents(resultEvents);
+        setLiquidityTargets(targetEvents);
+    } catch (error: any) {
+        console.error("Error analyzing liquidity automatically:", error);
+    }
 
-    const runAnalysis = async () => {
-        try {
-            const dynamicParams = getDynamicParams();
-            const [resultEvents, targetEvents] = await Promise.all([
-                findLiquidityGrabs(chartData, dynamicParams),
-                findLiquidityTargets(chartData, dynamicParams.lookaround)
-            ]);
-            setLiquidityEvents(resultEvents);
-            setLiquidityTargets(targetEvents);
-        } catch (error: any) {
-            console.error("Error analyzing liquidity automatically:", error);
-        }
-    };
-    
-    runAnalysis();
-  }, [chartData, interval]);
+    // Indicator Calculation
+    const strategy = getStrategyById(selectedStrategy);
+    if (strategy) {
+        const paramsForStrategy = strategyParams[selectedStrategy] || {};
+        const calculatedData = await strategy.calculate(chartData, paramsForStrategy);
+        setDataWithIndicators(calculatedData);
+    } else {
+        setDataWithIndicators(chartData);
+    }
+  }, [chartData, interval, selectedStrategy, strategyParams]);
+
+  const handleDrawNow = useCallback(() => {
+    toast({ title: "Refreshing Analysis", description: "Redrawing indicators and liquidity levels." });
+    refreshChartAnalysis();
+  }, [refreshChartAnalysis, toast]);
+  
+  // Effect to run analysis when data or parameters change
+  useEffect(() => {
+    if (chartData.length > 0) {
+      refreshChartAnalysis();
+    }
+  }, [refreshChartAnalysis]);
 
 
   useEffect(() => {
@@ -385,27 +396,6 @@ export default function LabPage() {
     };
   }, [isStreamActive, symbol, interval, toast]);
 
-
-  // Effect to calculate and display indicators when strategy or data changes
-  useEffect(() => {
-    const calculateAndSetIndicators = async () => {
-      if (chartData.length === 0) {
-        setDataWithIndicators([]);
-        return;
-      }
-      
-      const strategy = getStrategyById(selectedStrategy);
-      if (strategy) {
-          const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          const calculatedData = await strategy.calculate(chartData, paramsForStrategy);
-          setDataWithIndicators(calculatedData);
-      } else {
-          setDataWithIndicators(chartData);
-      }
-    };
-    
-    calculateAndSetIndicators();
-  }, [chartData, selectedStrategy, strategyParams]);
 
   const handleGenerateReportClick = () => {
     if (chartData.length < 20) {
@@ -661,6 +651,10 @@ export default function LabPage() {
                         {isStreamActive ? <StopCircle /> : <Play />}
                         {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
                     </Button>
+                    <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
+                        <Brush className="mr-2 h-4 w-4" />
+                        Draw Now
+                    </Button>
                   <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
                     {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                     {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
@@ -720,3 +714,5 @@ export default function LabPage() {
     </div>
   )
 }
+
+    
