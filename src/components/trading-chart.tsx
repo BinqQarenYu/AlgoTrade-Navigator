@@ -34,6 +34,7 @@ export function TradingChart({
   liquidityTargets = [],
   lineWidth = 2,
   consensusResult = null,
+  showAnalysis = true,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -46,6 +47,7 @@ export function TradingChart({
   liquidityTargets?: LiquidityTarget[];
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
+  showAnalysis?: boolean;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -282,7 +284,7 @@ export function TradingChart({
         
         // Indicators
         const addLineSeries = (series: any, dataKey: keyof HistoricalData) => {
-          if (uniqueData.some(d => d[dataKey] != null)) {
+          if (showAnalysis && uniqueData.some(d => d[dataKey] != null)) {
             const lineData = uniqueData
               .filter(d => d[dataKey] != null)
               .map(d => ({ time: toTimestamp(d.time), value: d[dataKey] as number }))
@@ -311,7 +313,7 @@ export function TradingChart({
         addLineSeries(senkouBSeries, 'senkou_b');
 
         // Markers
-        const signalMarkers = uniqueData
+        const signalMarkers = showAnalysis ? uniqueData
           .map(d => {
             if (d.buySignal) {
               return { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
@@ -321,7 +323,7 @@ export function TradingChart({
             }
             return null;
           })
-          .filter((m): m is any => m !== null);
+          .filter((m): m is any => m !== null) : [];
           
         const liquidityMarkers = liquidityEvents.map(event => {
             return {
@@ -356,7 +358,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis]);
 
    // Effect to draw signal lines
     useEffect(() => {

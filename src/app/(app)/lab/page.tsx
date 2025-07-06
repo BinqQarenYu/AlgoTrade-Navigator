@@ -166,6 +166,7 @@ export default function LabPage() {
   const [chartHeight, setChartHeight] = usePersistentState<number>('lab-chart-height', 600);
   const [lineWidth, setLineWidth] = usePersistentState<number>('lab-line-width', 2);
   const [selectedConsensusStrategies, setSelectedConsensusStrategies] = usePersistentState<string[]>('lab-consensus-strategies', ['peak-formation-fib', 'rsi-divergence', 'ema-crossover']);
+  const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('lab-show-analysis', true);
   
   const [isClient, setIsClient] = useState(false)
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
@@ -581,7 +582,18 @@ export default function LabPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} consensusResult={consensusResult} />
+            <TradingChart
+                data={dataWithIndicators}
+                symbol={symbol}
+                interval={interval}
+                onIntervalChange={setInterval}
+                wallLevels={showAnalysis && showWalls ? walls : []}
+                liquidityEvents={showAnalysis && showLiquidity ? liquidityEvents : []}
+                liquidityTargets={showAnalysis && showTargets ? liquidityTargets : []}
+                lineWidth={lineWidth}
+                consensusResult={showAnalysis ? consensusResult : null}
+                showAnalysis={showAnalysis}
+            />
           </div>
           <div
               onMouseDown={startChartResize}
@@ -705,29 +717,6 @@ export default function LabPage() {
                       </ScrollArea>
                     </CollapsibleContent>
                   </Collapsible>
-
-
-                  <div className="space-y-2">
-                    <Label>Chart Visuals & Analysis</Label>
-                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
-                            <Label htmlFor="show-walls" className="flex-1 cursor-pointer">Show Order Book Walls</Label>
-                        </div>
-                        <div className="border-b -mx-3"></div>
-                        <Label className="text-xs text-muted-foreground pt-2 block">Liquidity Analysis</Label>
-                        <div className="pl-2 space-y-3">
-                            <div className="flex items-center space-x-2">
-                                <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                                <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer">Show Historical Grabs</Label>
-                            </div>
-                             <div className="flex items-center space-x-2">
-                                <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
-                                <Label htmlFor="show-targets" className="flex-1 cursor-pointer">Show Future Targets</Label>
-                            </div>
-                        </div>
-                    </div>
-                  </div>
                 </CardContent>
                 <CardFooter className="flex flex-col gap-2">
                    <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full">
@@ -747,8 +736,8 @@ export default function LabPage() {
             <Collapsible open={isAnalysisToolsOpen} onOpenChange={setIsAnalysisToolsOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2"><Brush/> Analysis & Drawing Tools</CardTitle>
-                    <CardDescription>Manually adjust and re-draw all analysis on the chart.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Brush/> Chart Analysis & Drawing</CardTitle>
+                    <CardDescription>Control analysis visibility and trigger updates.</CardDescription>
                   </div>
                    <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -758,6 +747,31 @@ export default function LabPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
+                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                        <div className="flex items-center space-x-2">
+                            <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} />
+                            <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show All Analysis Drawings</Label>
+                        </div>
+                        {showAnalysis && (
+                          <>
+                            <div className="border-b -mx-3"></div>
+                            <div className="pl-2 space-y-3 pt-2">
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
+                                    <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Show Order Book Walls</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
+                                    <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Show Historical Grabs</Label>
+                                </div>
+                                 <div className="flex items-center space-x-2">
+                                    <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
+                                    <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
+                                </div>
+                            </div>
+                          </>
+                        )}
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor="line-width">Line Thickness</Label>
                         <Slider
