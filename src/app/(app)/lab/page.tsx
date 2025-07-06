@@ -41,6 +41,7 @@ import { OrderBook } from "@/components/order-book"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Separator } from "@/components/ui/separator"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -651,14 +652,15 @@ export default function LabPage() {
                         {isStreamActive ? <StopCircle /> : <Play />}
                         {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
                     </Button>
+                    <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
+                      {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                      {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
+                    </Button>
+                    <Separator className="my-1" />
                     <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
                         <Brush className="mr-2 h-4 w-4" />
                         Draw Now
                     </Button>
-                  <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
-                    {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                    {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
-                  </Button>
                 </CardFooter>
               </CollapsibleContent>
             </Collapsible>
