@@ -103,11 +103,11 @@ export function TradingChart({
             timeVisible: true,
           },
           rightPriceScale: {
-            visible: false,
-          },
-          leftPriceScale: {
             visible: true,
             borderColor: chartColors.gridColor,
+          },
+          leftPriceScale: {
+            visible: false,
           },
           crosshair: {
             mode: 1, // Magnet
@@ -141,11 +141,11 @@ export function TradingChart({
           wickUpColor: chartColors.wickUpColor,
           wickDownColor: chartColors.wickDownColor,
           borderVisible: false,
-          priceScaleId: 'left',
+          priceScaleId: 'right',
         });
 
         const futureTargetLineSeries = chart.addCandlestickSeries({
-          priceScaleId: 'left',
+          priceScaleId: 'right',
           upColor: 'rgba(148, 163, 184, 0.4)', // slate-400 with opacity
           downColor: 'rgba(148, 163, 184, 0.4)',
           wickUpColor: 'rgba(148, 163, 184, 0.4)',
@@ -153,7 +153,7 @@ export function TradingChart({
           borderVisible: false,
         });
         
-        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
+        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' };
 
         chartRef.current = {
             chart,
@@ -161,7 +161,7 @@ export function TradingChart({
             volumeSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
-            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
+            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' }),
             donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
             donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
             donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
