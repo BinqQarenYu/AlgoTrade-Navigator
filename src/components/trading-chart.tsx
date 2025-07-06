@@ -33,7 +33,7 @@ export function TradingChart({
   liquidityEvents = [],
   liquidityTargets = [],
   lineWidth = 2,
-  consensusPrice = null,
+  consensusResult = null,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -45,7 +45,7 @@ export function TradingChart({
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
   lineWidth?: number;
-  consensusPrice?: number | null;
+  consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -183,6 +183,12 @@ export function TradingChart({
               crosshairMarkerRadius: 6,
               crosshairMarkerBorderColor: '#000000',
               crosshairMarkerBackgroundColor: '#FFEB3B', // A bright yellow
+            }),
+            consensusArrowSeries: chart.addLineSeries({
+              priceScaleId: 'left',
+              lineWidth: 0,
+              lastValueVisible: false,
+              priceLineVisible: false,
             }),
             priceLines: [],
             liquidityLevelLine: null,
@@ -570,30 +576,51 @@ export function TradingChart({
       }
     }, [data, liquidityTargets, lineWidth]);
 
-    // Effect to draw consensus price dot
+    // Effect to draw consensus price dot and arrow
     useEffect(() => {
       if (!chartRef.current?.chart || !data || data.length < 2) {
         if (chartRef.current?.consensusPointSeries) {
           chartRef.current.consensusPointSeries.setData([]);
         }
+        if (chartRef.current?.consensusArrowSeries) {
+          chartRef.current.consensusArrowSeries.setData([]);
+          chartRef.current.consensusArrowSeries.setMarkers([]);
+        }
         return;
       }
-  
-      const { consensusPointSeries } = chartRef.current;
-      if (!consensusPointSeries) return;
+    
+      const { consensusPointSeries, consensusArrowSeries } = chartRef.current;
+      if (!consensusPointSeries || !consensusArrowSeries) return;
 
-      if (consensusPrice) {
+      if (consensusResult) {
         const lastCandle = data[data.length - 1];
         const secondLastCandle = data[data.length - 2];
         const intervalMs = lastCandle.time - secondLastCandle.time;
         const futureBarOffset = 10;
         const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
         
-        consensusPointSeries.setData([{ time: futureTime, value: consensusPrice }]);
+        // Update the dot series
+        consensusPointSeries.setData([{ time: futureTime, value: consensusResult.price }]);
+
+        // Create and set the arrow marker
+        const arrowMarker = {
+            time: futureTime,
+            position: consensusResult.direction === 'UP' ? 'belowBar' : 'aboveBar',
+            color: consensusResult.direction === 'UP' ? '#22c55e' : '#ef4444',
+            shape: consensusResult.direction === 'UP' ? 'arrowUp' : 'arrowDown',
+            size: 1.5,
+        };
+
+        // The series needs a data point at that time to anchor the marker
+        consensusArrowSeries.setData([{ time: futureTime, value: consensusResult.price }]);
+        consensusArrowSeries.setMarkers([arrowMarker]);
+
       } else {
         consensusPointSeries.setData([]);
+        consensusArrowSeries.setData([]);
+        consensusArrowSeries.setMarkers([]);
       }
-    }, [consensusPrice, data]);
+    }, [consensusResult, data]);
 
 
   const formattedSymbol = useMemo(() => {

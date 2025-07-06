@@ -179,7 +179,7 @@ export default function LabPage() {
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [isStreamActive, setIsStreamActive] = useState(false);
-  const [consensusPrice, setConsensusPrice] = useState<number | null>(null);
+  const [consensusResult, setConsensusResult] = useState<{ price: number; direction: 'UP' | 'DOWN' } | null>(null);
   const [isConsensusRunning, setIsConsensusRunning] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
@@ -187,6 +187,8 @@ export default function LabPage() {
   const [isReportOpen, setReportOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [isConsensusStratOpen, setIsConsensusStratOpen] = useState(false);
+  const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = useState(true);
+
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -255,7 +257,7 @@ export default function LabPage() {
   useEffect(() => {
     // When the symbol changes, clear out old wall data
     setWalls([]);
-    setConsensusPrice(null); // Also clear prediction
+    setConsensusResult(null); // Also clear prediction
   }, [symbol]);
 
   const refreshChartAnalysis = useCallback(async () => {
@@ -465,7 +467,7 @@ export default function LabPage() {
       return;
     }
     setIsConsensusRunning(true);
-    setConsensusPrice(null);
+    setConsensusResult(null);
     toast({ title: "Running Local Consensus...", description: `Analyzing with ${selectedConsensusStrategies.length} strategies.` });
 
     const buyPrices: number[] = [];
@@ -487,14 +489,14 @@ export default function LabPage() {
 
     if (buyPrices.length > sellPrices.length) {
       const avgPrice = buyPrices.reduce((a, b) => a + b, 0) / buyPrices.length;
-      setConsensusPrice(avgPrice);
+      setConsensusResult({ price: avgPrice, direction: 'UP' });
       toast({ title: "Consensus: Bullish", description: `Predicted price: $${formatPrice(avgPrice)}` });
     } else if (sellPrices.length > buyPrices.length) {
       const avgPrice = sellPrices.reduce((a, b) => a + b, 0) / sellPrices.length;
-      setConsensusPrice(avgPrice);
+      setConsensusResult({ price: avgPrice, direction: 'DOWN' });
       toast({ title: "Consensus: Bearish", description: `Predicted price: $${formatPrice(avgPrice)}` });
     } else {
-      setConsensusPrice(null);
+      setConsensusResult(null);
       toast({ title: "Consensus: Neutral", description: "No clear direction from selected strategies." });
     }
 
@@ -579,7 +581,7 @@ export default function LabPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} consensusPrice={consensusPrice} />
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} consensusResult={consensusResult} />
           </div>
           <div
               onMouseDown={startChartResize}
@@ -742,34 +744,46 @@ export default function LabPage() {
           </Card>
           
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Brush/> Analysis & Drawing Tools</CardTitle>
-              <CardDescription>Manually adjust and re-draw all analysis on the chart.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                  <Label htmlFor="line-width">Line Thickness</Label>
-                  <Slider
-                      id="line-width"
-                      min={1}
-                      max={5}
-                      step={1}
-                      value={[lineWidth]}
-                      onValueChange={(value) => setLineWidth(value[0])}
-                      disabled={anyLoading}
-                  />
-              </div>
-              <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
-                  <Brush className="mr-2 h-4 w-4" />
-                  Draw Now
-              </Button>
-               <Separator className="my-4" />
-                <Label>Local Price Consensus</Label>
-                <Button className="w-full" variant="secondary" onClick={handleRunConsensus} disabled={isConsensusRunning || !canAnalyze || isStreamActive}>
-                    {isConsensusRunning ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
-                    {isConsensusRunning ? 'Calculating...' : 'Run Local Consensus'}
-                </Button>
-            </CardContent>
+            <Collapsible open={isAnalysisToolsOpen} onOpenChange={setIsAnalysisToolsOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Brush/> Analysis & Drawing Tools</CardTitle>
+                    <CardDescription>Manually adjust and re-draw all analysis on the chart.</CardDescription>
+                  </div>
+                   <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isAnalysisToolsOpen && "rotate-180")} />
+                        </Button>
+                    </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="line-width">Line Thickness</Label>
+                        <Slider
+                            id="line-width"
+                            min={1}
+                            max={5}
+                            step={1}
+                            value={[lineWidth]}
+                            onValueChange={(value) => setLineWidth(value[0])}
+                            disabled={anyLoading}
+                        />
+                    </div>
+                    <Separator/>
+                    <Button className="w-full" variant="secondary" onClick={handleDrawNow} disabled={!canAnalyze || isStreamActive}>
+                        <Brush className="mr-2 h-4 w-4" />
+                        Draw Now
+                    </Button>
+                    <Separator/>
+                      <Label>Local Price Consensus</Label>
+                      <Button className="w-full" variant="secondary" onClick={handleRunConsensus} disabled={isConsensusRunning || !canAnalyze || isStreamActive}>
+                          {isConsensusRunning ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
+                          {isConsensusRunning ? 'Calculating...' : 'Run Local Consensus'}
+                      </Button>
+                  </CardContent>
+                </CollapsibleContent>
+            </Collapsible>
           </Card>
 
           <MarketHeatmap />
