@@ -103,13 +103,14 @@ export function TradingChart({
           timeScale: {
             borderColor: chartColors.gridColor,
             timeVisible: true,
+            rightOffset: 20, // Add this to create future space
           },
           rightPriceScale: {
-            visible: true,
-            borderColor: chartColors.gridColor,
+            visible: false,
           },
           leftPriceScale: {
-            visible: false,
+            visible: true,
+            borderColor: chartColors.gridColor,
           },
           crosshair: {
             mode: 1, // Magnet
@@ -143,11 +144,11 @@ export function TradingChart({
           wickUpColor: chartColors.wickUpColor,
           wickDownColor: chartColors.wickDownColor,
           borderVisible: false,
-          priceScaleId: 'right',
+          priceScaleId: 'left',
         });
 
         const futureTargetLineSeries = chart.addCandlestickSeries({
-          priceScaleId: 'right',
+          priceScaleId: 'left',
           upColor: 'rgba(148, 163, 184, 0.4)', // slate-400 with opacity
           downColor: 'rgba(148, 163, 184, 0.4)',
           wickUpColor: 'rgba(148, 163, 184, 0.4)',
@@ -155,7 +156,7 @@ export function TradingChart({
           borderVisible: false,
         });
         
-        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' };
+        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
 
         chartRef.current = {
             chart,
@@ -163,7 +164,7 @@ export function TradingChart({
             volumeSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
-            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'right' }),
+            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
             donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
             donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
             donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
@@ -532,7 +533,8 @@ export function TradingChart({
         const lastCandle = data[data.length - 1];
         const secondLastCandle = data[data.length - 2];
         const intervalMs = lastCandle.time - secondLastCandle.time;
-        const futureTime = toTimestamp(lastCandle.time + (4 * intervalMs));
+        const futureBarOffset = 10; // Center of the 20-bar rightOffset
+        const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
         
         const price1 = buySideTarget.priceLevel;
         const price2 = sellSideTarget.priceLevel;
