@@ -175,8 +175,8 @@ export default function LabPage() {
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [isStreamActive, setIsStreamActive] = useState(false);
 
-  const [isControlsOpen, setControlsOpen] = useState(false);
-  const [isParamsOpen, setParamsOpen] = useState(false);
+  const [isControlsOpen, setControlsOpen] = useState(true);
+  const [isParamsOpen, setParamsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
 
