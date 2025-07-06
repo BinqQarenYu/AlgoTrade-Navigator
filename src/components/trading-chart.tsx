@@ -151,13 +151,16 @@ export function TradingChart({
           priceScaleId: 'left',
         });
 
+        const blueColor = '#3b82f6'; // A standard blue color
         const futureTargetLineSeries = chart.addCandlestickSeries({
           priceScaleId: 'left',
-          upColor: 'rgba(148, 163, 184, 0.4)', // slate-400 with opacity
-          downColor: 'rgba(148, 163, 184, 0.4)',
-          wickUpColor: 'rgba(148, 163, 184, 0.4)',
-          wickDownColor: 'rgba(148, 163, 184, 0.4)',
-          borderVisible: false,
+          upColor: 'transparent',
+          downColor: 'transparent',
+          wickUpColor: 'transparent',
+          wickDownColor: 'transparent',
+          borderVisible: true,
+          borderUpColor: blueColor,
+          borderDownColor: blueColor,
         });
         
         const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
@@ -558,9 +561,6 @@ export function TradingChart({
         
         const price1 = buySideTarget.priceLevel;
         const price2 = sellSideTarget.priceLevel;
-
-        const opacity = 0.5 + (lineWidth-1) * 0.125; // Range from 0.5 to 1.0
-        const lineColor = `rgba(148, 163, 184, ${opacity})`; // slate-400 with dynamic opacity
   
         const lineData = [{
           time: futureTime,
@@ -568,15 +568,13 @@ export function TradingChart({
           high: Math.max(price1, price2),
           low: Math.min(price1, price2),
           close: Math.max(price1, price2),
-          color: lineColor,
-          wickColor: lineColor,
         }];
   
         futureTargetLineSeries.setData(lineData);
       } else {
         futureTargetLineSeries.setData([]);
       }
-    }, [data, liquidityTargets, lineWidth]);
+    }, [data, liquidityTargets]);
 
     // Effect to draw consensus price dot and arrow
     useEffect(() => {
@@ -594,7 +592,7 @@ export function TradingChart({
       const { consensusPointSeries, consensusArrowSeries } = chartRef.current;
       if (!consensusPointSeries || !consensusArrowSeries) return;
 
-      if (consensusResult) {
+      if (consensusResult && showAnalysis) {
         const lastCandle = data[data.length - 1];
         const secondLastCandle = data[data.length - 2];
         const intervalMs = lastCandle.time - secondLastCandle.time;
@@ -622,7 +620,7 @@ export function TradingChart({
         consensusArrowSeries.setData([]);
         consensusArrowSeries.setMarkers([]);
       }
-    }, [consensusResult, data]);
+    }, [consensusResult, data, showAnalysis]);
 
 
   const formattedSymbol = useMemo(() => {
