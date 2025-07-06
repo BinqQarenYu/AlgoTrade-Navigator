@@ -307,7 +307,6 @@ export default function ScreenerPage() {
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
                                         <ChevronDown className={cn("h-4 w-4 transition-transform", isPredictionOpen && "rotate-180")} />
-                                        <span className="sr-only">Toggle</span>
                                     </Button>
                                 </CollapsibleTrigger>
                             </CardHeader>
@@ -370,7 +369,6 @@ export default function ScreenerPage() {
                                 <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="icon" className="h-8 w-8">
                                         <ChevronDown className={cn("h-4 w-4 transition-transform", isInputsOpen && "rotate-180")} />
-                                        <span className="sr-only">Toggle</span>
                                     </Button>
                                 </CollapsibleTrigger>
                             </CardHeader>
@@ -395,11 +393,11 @@ export default function ScreenerPage() {
                                                 ))
                                             ) : strategyInputs.length > 0 ? (
                                                 strategyInputs.map((input) => (
-                                                    <TableRow key={input.name}>
-                                                        <TableCell className="font-medium">{input.name}</TableCell>
+                                                    <TableRow key={input.strategyName}>
+                                                        <TableCell className="font-medium">{input.strategyName}</TableCell>
                                                         <TableCell>{input.signal || 'None'}</TableCell>
                                                         <TableCell className="text-xs font-mono">
-                                                            {Object.entries(input.indicators).map(([key, value]) => (
+                                                            {input.indicatorValues && Object.entries(input.indicatorValues).map(([key, value]) => (
                                                                 <div key={key}>{key}: {typeof value === 'number' ? value.toFixed(4) : String(value)}</div>
                                                             ))}
                                                         </TableCell>

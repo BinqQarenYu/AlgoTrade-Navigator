@@ -741,7 +741,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 }
             }
 
-            strategyOutputs.push({ name: strategy.name, signal, indicatorValues: indicators });
+            strategyOutputs.push({ strategyName: strategy.name, signal, indicatorValues: indicators });
             setScreenerState(prev => ({...prev, strategyInputs: [...strategyOutputs]}));
         }
         
@@ -804,7 +804,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         toast({
             title: "Close Order Submitted (Simulated)",
-            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. Positions will update on next fetch.`
+            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. Order ID: ${orderResult.orderId}`
         });
     } catch (e: any) {
         toast({ title: "Close Order Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });

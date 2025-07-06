@@ -252,7 +252,7 @@ export type PricePredictionOutput = {
 
 // This is the input format for the AI meta-model flow
 export type StrategyAnalysisInput = {
-    name: string;
+    strategyName: string;
     signal: 'BUY' | 'SELL' | 'HOLD' | null;
     indicatorValues: Record<string, any>;
 };
