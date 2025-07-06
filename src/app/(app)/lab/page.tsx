@@ -261,8 +261,44 @@ export default function LabPage() {
     setConsensusResult(null); // Also clear prediction
   }, [symbol]);
 
-  const refreshChartAnalysis = useCallback(async () => {
-    if (chartData.length < 20) {
+  const runConsensus = useCallback(async (currentChartData: HistoricalData[]) => {
+    if (currentChartData.length < 50 || selectedConsensusStrategies.length === 0) {
+      return; // Not enough data or no strategies selected
+    }
+    setIsConsensusRunning(true);
+    setConsensusResult(null);
+
+    const buyPrices: number[] = [];
+    const sellPrices: number[] = [];
+
+    for (const strategyId of selectedConsensusStrategies) {
+      const strategy = getStrategyById(strategyId);
+      if (!strategy) continue;
+
+      const paramsForStrategy = strategyParams[strategyId] || {};
+      const dataWithIndicators = await strategy.calculate(currentChartData, paramsForStrategy);
+      const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
+
+      if (lastCandle) {
+        if (lastCandle.buySignal) buyPrices.push(lastCandle.buySignal);
+        if (lastCandle.sellSignal) sellPrices.push(lastCandle.sellSignal);
+      }
+    }
+
+    if (buyPrices.length > sellPrices.length) {
+      const avgPrice = buyPrices.reduce((a, b) => a + b, 0) / buyPrices.length;
+      setConsensusResult({ price: avgPrice, direction: 'UP' });
+    } else if (sellPrices.length > buyPrices.length) {
+      const avgPrice = sellPrices.reduce((a, b) => a + b, 0) / sellPrices.length;
+      setConsensusResult({ price: avgPrice, direction: 'DOWN' });
+    } else {
+      setConsensusResult(null);
+    }
+    setIsConsensusRunning(false);
+  }, [selectedConsensusStrategies, strategyParams]);
+
+  const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
+    if (currentChartData.length < 20) {
       setDataWithIndicators([]);
       setLiquidityEvents([]);
       setLiquidityTargets([]);
@@ -284,8 +320,8 @@ export default function LabPage() {
     try {
         const dynamicParams = getDynamicParams();
         const [resultEvents, targetEvents] = await Promise.all([
-            findLiquidityGrabs(chartData, dynamicParams),
-            findLiquidityTargets(chartData, dynamicParams.lookaround)
+            findLiquidityGrabs(currentChartData, dynamicParams),
+            findLiquidityTargets(currentChartData, dynamicParams.lookaround)
         ]);
         setLiquidityEvents(resultEvents);
         setLiquidityTargets(targetEvents);
@@ -297,31 +333,25 @@ export default function LabPage() {
     const strategy = getStrategyById(selectedStrategy);
     if (strategy) {
         const paramsForStrategy = strategyParams[selectedStrategy] || {};
-        const calculatedData = await strategy.calculate(chartData, paramsForStrategy);
+        const calculatedData = await strategy.calculate(currentChartData, paramsForStrategy);
         setDataWithIndicators(calculatedData);
     } else {
-        setDataWithIndicators(chartData);
+        setDataWithIndicators(currentChartData);
     }
-  }, [chartData, interval, selectedStrategy, strategyParams]);
-
-  const handleDrawNow = useCallback(() => {
-    toast({ title: "Refreshing Analysis", description: "Redrawing indicators and liquidity levels." });
-    refreshChartAnalysis();
-  }, [refreshChartAnalysis, toast]);
+  }, [interval, selectedStrategy, strategyParams]);
   
-  // Effect to run analysis when data or parameters change
+  // Effect to run analysis when data changes
   useEffect(() => {
     if (chartData.length > 0) {
-      refreshChartAnalysis();
+      refreshChartAnalysis(chartData);
     }
   }, [chartData, refreshChartAnalysis]);
-
 
   useEffect(() => {
     if (!isClient || !symbol || isStreamActive) return;
 
     const fetchData = async () => {
-        if (!isConnected || !date?.from || !date?.to) {
+        if (!isConnected) {
             if(!isStreamActive) setChartData([]);
             return;
         }
@@ -364,21 +394,21 @@ export default function LabPage() {
 
     ws.onopen = () => {
       console.log(`Lab stream connected for ${symbol}`);
-      toast({ title: "Live Update Started", description: `Continuously updating liquidity analysis for ${symbol}.` });
+      toast({ title: "Live Update Started", description: `Continuously updating analysis for ${symbol}.` });
     };
 
     ws.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.e !== 'kline') return;
 
-      const kline = message.k;
+      const klineData = message.k;
       const newCandle: HistoricalData = {
-        time: kline.t,
-        open: parseFloat(kline.o),
-        high: parseFloat(kline.h),
-        low: parseFloat(kline.l),
-        close: parseFloat(kline.c),
-        volume: parseFloat(kline.v),
+        time: klineData.t,
+        open: parseFloat(klineData.o),
+        high: parseFloat(klineData.h),
+        low: parseFloat(klineData.l),
+        close: parseFloat(klineData.c),
+        volume: parseFloat(klineData.v),
       };
 
       setChartData(prevData => {
@@ -389,7 +419,15 @@ export default function LabPage() {
         } else {
           updatedData.push(newCandle);
         }
-        return updatedData.slice(-1000); // Keep data array from growing indefinitely
+        const finalData = updatedData.slice(-1000);
+
+        // If the candle just closed, re-run the consensus analysis
+        if (klineData.x) { // 'x' is true if the candle is closed
+            toast({ title: "New Candle", description: `Re-running consensus for ${symbol}.` });
+            runConsensus(finalData);
+        }
+
+        return finalData;
       });
     };
 
@@ -406,8 +444,7 @@ export default function LabPage() {
     return () => {
       ws.close();
     };
-  }, [isStreamActive, symbol, interval, toast]);
-
+  }, [isStreamActive, symbol, interval, toast, runConsensus]);
 
   const handleGenerateReportClick = () => {
     if (chartData.length < 20) {
@@ -453,6 +490,9 @@ export default function LabPage() {
 
     if (!willBeActive) {
       toast({ title: "Live Update Stopped", description: "The chart will no longer receive live data." });
+    } else {
+      // Run consensus once when starting the stream
+      runConsensus(chartData);
     }
   };
 
@@ -462,53 +502,11 @@ export default function LabPage() {
     );
   };
 
-  const handleRunConsensus = useCallback(async () => {
-    if (chartData.length < 50 || selectedConsensusStrategies.length === 0) {
-      toast({ title: "Cannot Run Consensus", description: "Not enough data or no strategies selected for consensus.", variant: "destructive" });
-      return;
-    }
-    setIsConsensusRunning(true);
-    setConsensusResult(null);
-    toast({ title: "Running Local Consensus...", description: `Analyzing with ${selectedConsensusStrategies.length} strategies.` });
-
-    const buyPrices: number[] = [];
-    const sellPrices: number[] = [];
-
-    for (const strategyId of selectedConsensusStrategies) {
-      const strategy = getStrategyById(strategyId);
-      if (!strategy) continue;
-
-      const paramsForStrategy = strategyParams[strategyId] || {};
-      const dataWithIndicators = await strategy.calculate(chartData, paramsForStrategy);
-      const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
-
-      if (lastCandle) {
-        if (lastCandle.buySignal) buyPrices.push(lastCandle.buySignal);
-        if (lastCandle.sellSignal) sellPrices.push(lastCandle.sellSignal);
-      }
-    }
-
-    if (buyPrices.length > sellPrices.length) {
-      const avgPrice = buyPrices.reduce((a, b) => a + b, 0) / buyPrices.length;
-      setConsensusResult({ price: avgPrice, direction: 'UP' });
-      toast({ title: "Consensus: Bullish", description: `Predicted price: $${formatPrice(avgPrice)}` });
-    } else if (sellPrices.length > buyPrices.length) {
-      const avgPrice = sellPrices.reduce((a, b) => a + b, 0) / sellPrices.length;
-      setConsensusResult({ price: avgPrice, direction: 'DOWN' });
-      toast({ title: "Consensus: Bearish", description: `Predicted price: $${formatPrice(avgPrice)}` });
-    } else {
-      setConsensusResult(null);
-      toast({ title: "Consensus: Neutral", description: "No clear direction from selected strategies." });
-    }
-
-    setIsConsensusRunning(false);
-  }, [chartData, selectedConsensusStrategies, strategyParams, toast]);
-
   const handleShowAnalysisChange = (checked: boolean) => {
     setShowAnalysis(checked);
     if (checked) {
-      handleDrawNow();
-      handleRunConsensus();
+      refreshChartAnalysis(chartData);
+      runConsensus(chartData);
     } else {
       setConsensusResult(null);
     }
@@ -850,3 +848,4 @@ export default function LabPage() {
 }
 
     
+
