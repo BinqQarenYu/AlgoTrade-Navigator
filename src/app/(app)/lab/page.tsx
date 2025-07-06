@@ -254,9 +254,28 @@ export default function LabPage() {
       return;
     }
     
+    // Dynamically set analysis parameters based on the chart's interval
+    const getDynamicParams = () => {
+        switch(interval) {
+            case '1m':
+            case '5m':
+            case '15m':
+                return { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 };
+            case '1h':
+                return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+            case '4h':
+                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 100 };
+            case '1d':
+                return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
+            default:
+                return { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 };
+        }
+    }
+
     const runAnalysis = async () => {
         try {
-            const resultEvents = await findLiquidityGrabs(chartData);
+            const dynamicParams = getDynamicParams();
+            const resultEvents = await findLiquidityGrabs(chartData, dynamicParams);
             setLiquidityEvents(resultEvents);
         } catch (error: any) {
             console.error("Error analyzing liquidity automatically:", error);
@@ -264,7 +283,7 @@ export default function LabPage() {
     };
     
     runAnalysis();
-  }, [chartData]);
+  }, [chartData, interval]);
 
 
   useEffect(() => {
@@ -272,33 +291,39 @@ export default function LabPage() {
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
-            setChartData([]);
+            if(!isStreamActive) setChartData([]);
             return;
         }
         setIsFetchingData(true);
-        setChartData([]);
-        setReport(null);
-        setLiquidityEvents([]);
-        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
+        if(!isStreamActive) {
+            setChartData([]);
+            setReport(null);
+            setLiquidityEvents([]);
+            toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
+        }
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
-            setChartData(klines);
-            toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
+            if(!isStreamActive) {
+                setChartData(klines);
+                toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
+            }
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
-            toast({
-                title: "Failed to Load Data",
-                description: error.message || "Could not retrieve historical data from Binance.",
-                variant: "destructive"
-            });
-            setChartData([]);
+            if(!isStreamActive) {
+                toast({
+                    title: "Failed to Load Data",
+                    description: error.message || "Could not retrieve historical data from Binance.",
+                    variant: "destructive"
+                });
+                setChartData([]);
+            }
         } finally {
             setIsFetchingData(false);
         }
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast]);
+  }, [symbol, date, interval, isConnected, isClient, toast, isStreamActive]);
   
   // Effect for live data stream
   useEffect(() => {
