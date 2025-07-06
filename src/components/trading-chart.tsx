@@ -538,7 +538,7 @@ export function TradingChart({
         const price2 = sellSideTarget.priceLevel;
 
         // Use the lineWidth to control opacity, simulating "thickness"
-        const opacity = (lineWidth + 1) / 10; // Range from 0.2 to 0.6
+        const opacity = (lineWidth + 3) / 8; // Range from 0.5 to 1.0
         const lineColor = `rgba(148, 163, 184, ${opacity})`; // slate-400 with dynamic opacity
   
         const lineData = [{
