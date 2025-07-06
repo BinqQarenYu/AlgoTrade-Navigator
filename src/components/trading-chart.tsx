@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -31,6 +31,7 @@ export function TradingChart({
   onIntervalChange,
   wallLevels = [],
   liquidityEvents = [],
+  liquidityTargets = [],
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -40,6 +41,7 @@ export function TradingChart({
   onIntervalChange?: (newInterval: string) => void;
   wallLevels?: { price: number; type: 'bid' | 'ask' }[];
   liquidityEvents?: LiquidityEvent[];
+  liquidityTargets?: LiquidityTarget[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -162,6 +164,7 @@ export function TradingChart({
             liquidityLevelLine: null,
             wallPriceLines: [],
             liquidityPriceLines: [],
+            targetPriceLines: [],
         };
     }
     
@@ -466,6 +469,35 @@ export function TradingChart({
         chartRef.current.liquidityPriceLines = newLines;
 
     }, [liquidityEvents]);
+    
+    // Effect to draw future liquidity target lines
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { candlestickSeries } = chartRef.current;
+
+        // Clear previous target lines
+        if (chartRef.current.targetPriceLines) {
+            chartRef.current.targetPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+        }
+        
+        const newLines: any[] = [];
+        if (liquidityTargets && liquidityTargets.length > 0) {
+            liquidityTargets.forEach(target => {
+                const isBuySide = target.type === 'buy-side';
+                const line = candlestickSeries.createPriceLine({
+                    price: target.priceLevel,
+                    color: isBuySide ? '#f43f5e' : '#10b981', // Red for potential resistance, Green for potential support
+                    lineWidth: 1,
+                    lineStyle: LineStyle.LargeDashed,
+                    axisLabelVisible: true,
+                    title: isBuySide ? ` Buy-Side Target` : ` Sell-Side Target`,
+                });
+                newLines.push(line);
+            });
+        }
+        chartRef.current.targetPriceLines = newLines;
+
+    }, [liquidityTargets]);
 
 
   const formattedSymbol = useMemo(() => {

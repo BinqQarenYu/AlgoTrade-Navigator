@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -308,6 +301,11 @@ export type LiquidityEvent = {
   type: 'grab' | 'sweep';
   volume?: number;
 };
+
+export interface LiquidityTarget {
+  priceLevel: number;
+  type: 'buy-side' | 'sell-side';
+}
 
 export interface ApiContextType {
   profiles: ApiProfile[];

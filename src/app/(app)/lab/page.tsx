@@ -30,11 +30,11 @@ import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, Shie
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData, LiquidityEvent } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
-import { findLiquidityGrabs } from "@/lib/analysis/liquidity-analysis"
+import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
 import { OrderBook } from "@/components/order-book"
@@ -157,6 +157,7 @@ export default function LabPage() {
   const [interval, setInterval] = usePersistentState<string>("lab-interval","1h");
   const [showWalls, setShowWalls] = usePersistentState<boolean>('lab-show-walls', true);
   const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab-show-liquidity', true);
+  const [showTargets, setShowTargets] = usePersistentState<boolean>('lab-show-targets', true);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('lab-selected-strategy', 'liquidity-order-flow');
   const [chartHeight, setChartHeight] = usePersistentState<number>('lab-chart-height', 600);
 
@@ -171,6 +172,7 @@ export default function LabPage() {
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
   const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
+  const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [isStreamActive, setIsStreamActive] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(false);
@@ -258,11 +260,11 @@ export default function LabPage() {
     const getDynamicParams = () => {
         switch(interval) {
             case '1m':
-                return { lookaround: 6, confirmationCandles: 2, maxLookahead: 50 };
+                return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
             case '5m':
-                return { lookaround: 7, confirmationCandles: 3, maxLookahead: 60 };
+                 return { lookaround: 12, confirmationCandles: 3, maxLookahead: 60 };
             case '15m':
-                return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+                return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
             case '1h':
                 return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
             case '4h':
@@ -277,8 +279,12 @@ export default function LabPage() {
     const runAnalysis = async () => {
         try {
             const dynamicParams = getDynamicParams();
-            const resultEvents = await findLiquidityGrabs(chartData, dynamicParams);
+            const [resultEvents, targetEvents] = await Promise.all([
+                findLiquidityGrabs(chartData, dynamicParams),
+                findLiquidityTargets(chartData, dynamicParams.lookaround)
+            ]);
             setLiquidityEvents(resultEvents);
+            setLiquidityTargets(targetEvents);
         } catch (error: any) {
             console.error("Error analyzing liquidity automatically:", error);
         }
@@ -525,7 +531,7 @@ export default function LabPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} />
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} />
           </div>
           <div
               onMouseDown={startChartResize}
@@ -635,9 +641,17 @@ export default function LabPage() {
                             <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
                             <Label htmlFor="show-walls" className="flex-1 cursor-pointer">Show Order Book Walls</Label>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                            <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer">Show Liquidity Grabs</Label>
+                        <div className="border-b -mx-3"></div>
+                        <Label className="text-xs text-muted-foreground pt-2 block">Liquidity Analysis</Label>
+                        <div className="pl-2 space-y-3">
+                            <div className="flex items-center space-x-2">
+                                <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
+                                <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer">Show Historical Grabs</Label>
+                            </div>
+                             <div className="flex items-center space-x-2">
+                                <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
+                                <Label htmlFor="show-targets" className="flex-1 cursor-pointer">Show Future Targets</Label>
+                            </div>
                         </div>
                     </div>
                   </div>
