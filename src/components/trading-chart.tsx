@@ -536,12 +536,13 @@ export function TradingChart({
         const { targetZoneSeries } = chartRef.current;
         if (!targetZoneSeries) return;
 
-        const firstGrabEvent = liquidityEvents.length > 0 ? liquidityEvents.sort((a,b) => a.time - b.time)[0] : null;
+        // Sort descending by time to get the most recent grab event
+        const lastGrabEvent = liquidityEvents.length > 0 ? liquidityEvents.sort((a, b) => b.time - a.time)[0] : null;
         const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
         const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
         
-        if (showAnalysis && firstGrabEvent && buySideTarget && sellSideTarget) {
-            const startTime = toTimestamp(firstGrabEvent.time);
+        if (showAnalysis && lastGrabEvent && buySideTarget && sellSideTarget) {
+            const startTime = toTimestamp(lastGrabEvent.time);
             const lastCandle = data[data.length - 1];
             const intervalMs = data[1].time - data[0].time;
             const futureBars = 20;
