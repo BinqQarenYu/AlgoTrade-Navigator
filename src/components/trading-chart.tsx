@@ -233,14 +233,17 @@ export function TradingChart({
 
         const firstPrice = uniqueData[0].close;
         let precision: number;
-        if (firstPrice >= 1000) { // e.g. BTC
+
+        if (firstPrice > 1000) { // e.g. BTC
             precision = 2;
-        } else if (firstPrice >= 10) { // e.g. SOL, LINK
+        } else if (firstPrice > 10) { // e.g. SOL, LINK
             precision = 4;
-        } else if (firstPrice >= 0.1) { // e.g. ADA, DOGE, SAHARA
+        } else if (firstPrice > 0.1) { // e.g. ADA, DOGE
             precision = 5;
-        } else { // < 0.1
+        } else if (firstPrice > 0.0001) { // e.g. SHIB
             precision = 8;
+        } else { // e.g. PEPE
+            precision = 10;
         }
 
         candlestickSeries.applyOptions({

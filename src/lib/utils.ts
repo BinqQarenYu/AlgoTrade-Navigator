@@ -13,17 +13,26 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatPrice(price: number): string {
   if (price === 0) return '0.00';
-  if (price >= 1000) { // e.g. BTC
-    return price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  let precision: number;
+  if (price > 1000) { // e.g. BTC
+    precision = 2;
+  } else if (price > 10) { // e.g. SOL
+    precision = 4;
+  } else if (price > 0.1) { // e.g. ADA
+    precision = 5;
+  } else if (price > 0.0001) { // e.g. SHIB
+    precision = 8;
+  } else { // e.g. PEPE
+    precision = 10;
   }
-  if (price >= 10) { // e.g. SOL, LINK
-    return price.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+
+  // Use toLocaleString for larger numbers for comma separators, but toFixed for small ones for accuracy.
+  if (price >= 1) {
+    return price.toLocaleString('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision });
+  } else {
+    return price.toFixed(precision);
   }
-  if (price >= 0.1) { // e.g. ADA, DOGE, SAHARA
-    return price.toLocaleString('en-US', { minimumFractionDigits: 5, maximumFractionDigits: 5 });
-  }
-  // For prices < 0.1, like SHIB, PEPE
-  return price.toLocaleString('en-US', { minimumFractionDigits: 8, maximumFractionDigits: 8 });
 }
 
 
