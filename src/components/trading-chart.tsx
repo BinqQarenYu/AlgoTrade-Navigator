@@ -328,6 +328,7 @@ export function TradingChart({
         candlestickSeries.setMarkers(allMarkers);
 
         chart.timeScale().fitContent();
+        chart.priceScale('left').applyOptions({ autoScale: true });
 
     } else {
         candlestickSeries.setData([]);
