@@ -140,11 +140,10 @@ export function TradingChart({
             scaleMargins: { top: 0.8, bottom: 0 },
         });
 
-        const blueFillColor = 'rgba(59, 130, 246, 0.2)'; // semi-transparent blue
         const targetZoneSeries = chart.addCandlestickSeries({
             priceScaleId: 'left',
-            upColor: blueFillColor,
-            downColor: blueFillColor,
+            upColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
+            downColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
             wickVisible: false,
             borderVisible: false,
             autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
@@ -197,6 +196,8 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
             targetPriceLines: [],
+            volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
+            volumeLegTextPriceLine: null,
         };
     }
     
@@ -505,50 +506,53 @@ export function TradingChart({
 
     // Effect to draw the target zone box
     useEffect(() => {
-        if (!chartRef.current?.chart || !data || data.length < 2) {
-            if (chartRef.current?.targetZoneSeries) {
-                chartRef.current.targetZoneSeries.setData([]);
-            }
-            return;
-        }
+      if (!chartRef.current?.chart || !data || data.length < 2) {
+          if (chartRef.current?.targetZoneSeries) {
+              chartRef.current.targetZoneSeries.setData([]);
+          }
+          return;
+      }
+  
+      const { targetZoneSeries } = chartRef.current;
+      if (!targetZoneSeries) return;
+  
+      const sortedEvents = [...liquidityEvents].sort((a,b) => a.time - b.time);
+      const lastGrabEvent = sortedEvents.length > 0 ? sortedEvents[sortedEvents.length - 1] : null;
+      
+      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+      
+      if (showAnalysis && lastGrabEvent && buySideTarget && sellSideTarget) {
+          const startTime = toTimestamp(lastGrabEvent.time);
+          const lastCandle = data[data.length - 1];
+          const intervalMs = data[1].time - data[0].time;
+          const futureBars = 20;
 
-        const { targetZoneSeries } = chartRef.current;
-        if (!targetZoneSeries) return;
+          const topPrice = buySideTarget.priceLevel;
+          const bottomPrice = sellSideTarget.priceLevel;
 
-        const lastGrabEvent = liquidityEvents.length > 0 ? liquidityEvents.sort((a, b) => b.time - a.time)[0] : null;
-        const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
-        const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
-        
-        if (showAnalysis && lastGrabEvent && buySideTarget && sellSideTarget) {
-            const startTime = toTimestamp(lastGrabEvent.time);
-            const lastCandle = data[data.length - 1];
-            const intervalMs = data[1].time - data[0].time;
-            const futureBars = 20;
+          const boxData = [];
+          
+          let lastTime = 0;
+          for(const candle of data) {
+              const candleTime = toTimestamp(candle.time);
+              if (candleTime >= startTime) {
+                  boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+              }
+              lastTime = candleTime;
+          }
+          
+          for(let i = 1; i <= futureBars; i++) {
+              const futureTime = lastTime + i * (intervalMs / 1000);
+               boxData.push({ time: futureTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+          }
 
-            const topPrice = buySideTarget.priceLevel;
-            const bottomPrice = sellSideTarget.priceLevel;
+          targetZoneSeries.setData(boxData);
+      } else {
+          targetZoneSeries.setData([]);
+      }
 
-            const boxData = [];
-            
-            for(const candle of data) {
-                const candleTime = toTimestamp(candle.time);
-                if (candleTime >= startTime) {
-                    boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
-                }
-            }
-            
-            let lastTime = toTimestamp(lastCandle.time);
-            for(let i = 1; i <= futureBars; i++) {
-                const futureTime = lastTime + i * (intervalMs / 1000);
-                 boxData.push({ time: futureTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
-            }
-
-            targetZoneSeries.setData(boxData);
-        } else {
-            targetZoneSeries.setData([]);
-        }
-
-    }, [data, liquidityEvents, liquidityTargets, showAnalysis]);
+  }, [data, liquidityEvents, liquidityTargets, showAnalysis]);
 
 
     // Effect to draw consensus price dot and arrow
@@ -588,6 +592,62 @@ export function TradingChart({
         if (consensusArrowSeries.setMarkers) consensusArrowSeries.setMarkers([]);
       }
     }, [consensusResult, data, showAnalysis]);
+
+     // Effect for volume leg line
+     useEffect(() => {
+      if (!chartRef.current?.chart) return;
+      const { volumeLegLineSeries, candlestickSeries, volumeLegTextPriceLine } = chartRef.current;
+
+      // Clear existing lines
+      volumeLegLineSeries.setData([]);
+      if (volumeLegTextPriceLine) {
+          candlestickSeries.removePriceLine(volumeLegTextPriceLine);
+          chartRef.current.volumeLegTextPriceLine = null;
+      }
+
+      if (!showAnalysis || data.length < 2 || liquidityEvents.length < 2) return;
+      
+      const sortedEvents = [...liquidityEvents].sort((a, b) => a.time - b.time);
+      let startEvent: LiquidityEvent | null = null;
+      let endEvent: LiquidityEvent | null = null;
+      
+      // Find the last green -> red sequence
+      for (let i = sortedEvents.length - 1; i > 0; i--) {
+          if (sortedEvents[i].direction === 'bearish' && sortedEvents[i-1].direction === 'bullish') {
+              startEvent = sortedEvents[i-1];
+              endEvent = sortedEvents[i];
+              break;
+          }
+      }
+      
+      if (startEvent && endEvent) {
+          // Draw the line
+          volumeLegLineSeries.setData([
+              { time: toTimestamp(startEvent.time), value: startEvent.priceLevel },
+              { time: toTimestamp(endEvent.time), value: endEvent.priceLevel },
+          ]);
+
+          // Calculate volume
+          const startIndex = data.findIndex(d => d.time >= startEvent!.time);
+          const endIndex = data.findIndex(d => d.time >= endEvent!.time);
+
+          if (startIndex > -1 && endIndex > -1) {
+              const relevantCandles = data.slice(startIndex, endIndex + 1);
+              const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
+              const volumeText = `Vol: ${formatLargeNumber(totalVolume, 2)}`;
+              const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
+              
+              // Create the text label on the price axis
+              chartRef.current.volumeLegTextPriceLine = candlestickSeries.createPriceLine({
+                  price: midpointPrice,
+                  color: 'transparent',
+                  lineWidth: 0,
+                  axisLabelVisible: true,
+                  title: volumeText,
+              });
+          }
+      }
+    }, [data, liquidityEvents, showAnalysis]);
 
 
   const formattedSymbol = useMemo(() => {
