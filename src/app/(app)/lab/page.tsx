@@ -70,6 +70,7 @@ import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
+import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 
 interface DateRange {
   from?: Date;
@@ -103,6 +104,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
 }
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -296,7 +298,7 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast, isStreamActive]);
+  }, [symbol, date, interval, isConnected, isClient, toast]);
   
   // Effect for live data stream
   useEffect(() => {
@@ -411,7 +413,12 @@ export default function LabPage() {
         toast({ title: "API Disconnected", description: "Cannot start stream.", variant: "destructive" });
         return;
     }
-    setIsStreamActive(prev => !prev);
+    const willBeActive = !isStreamActive;
+    setIsStreamActive(willBeActive);
+
+    if (!willBeActive) {
+      toast({ title: "Live Update Stopped", description: "The chart will no longer receive live data." });
+    }
   };
 
   const anyLoading = isFetchingData || isReportPending;
