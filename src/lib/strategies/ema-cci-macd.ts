@@ -1,3 +1,4 @@
+
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA, calculateCCI, calculateMACD } from '@/lib/indicators';
@@ -44,32 +45,39 @@ const emaCciMacdStrategy: Strategy = {
 
       const prevCci = cci[i - 1];
       const currentCci = cci[i];
-      const currentMacdHist = macdHistogram[i];
-      const currentPrice = d.close;
-      const currentTrendEma = trendEma[i];
+      const prevTrendEma = trendEma[i - 1];
+      const prevMacdHist = macdHistogram[i - 1];
       
-      if (prevCci === null || currentCci === null || currentMacdHist === null || currentTrendEma === null) {
+      if (prevCci === null || currentCci === null || prevTrendEma === null || prevMacdHist === null) {
         return;
       }
 
       // --- BUY Trade Logic ---
-      const isInUptrend = currentPrice > currentTrendEma;
-      const isMacdBullish = currentMacdHist > 0;
-      // Entry Signal: CCI crosses back ABOVE the -100 level
+      // Check for CCI crossing back up from oversold territory.
       const cciBuyCross = prevCci <= -params.cciLevel && currentCci > -params.cciLevel;
+      if (cciBuyCross) {
+        // Confirm the overall trend and momentum were bullish on the *previous* candle,
+        // just before the CCI cross, to ensure we are buying a pullback in an uptrend.
+        const wasInUptrend = data[i-1].close > prevTrendEma;
+        const wasMacdBullish = prevMacdHist > 0;
 
-      if (cciBuyCross && isInUptrend && isMacdBullish) {
-        d.buySignal = d.low;
+        if (wasInUptrend && wasMacdBullish) {
+          d.buySignal = d.low;
+        }
       }
       
       // --- SELL Trade Logic ---
-      const isInDowntrend = currentPrice < currentTrendEma;
-      const isMacdBearish = currentMacdHist < 0;
-      // Entry Signal: CCI crosses back BELOW the +100 level
+      // Check for CCI crossing back down from overbought territory.
       const cciSellCross = prevCci >= params.cciLevel && currentCci < params.cciLevel;
+       if (cciSellCross) {
+        // Confirm the overall trend and momentum were bearish on the *previous* candle,
+        // just before the CCI cross, to ensure we are selling a rally in a downtrend.
+        const wasInDowntrend = data[i-1].close < prevTrendEma;
+        const wasMacdBearish = prevMacdHist < 0;
 
-      if (cciSellCross && isInDowntrend && isMacdBearish) {
-        d.sellSignal = d.high;
+        if (wasInDowntrend && wasMacdBearish) {
+          d.sellSignal = d.high;
+        }
       }
     });
 
