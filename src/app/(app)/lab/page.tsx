@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines } from "@/lib/binance-service"
+import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -42,6 +42,9 @@ import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Slider } from "@/components/ui/slider"
+import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -162,7 +165,7 @@ export default function LabPage() {
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('lab-selected-strategy', 'liquidity-order-flow');
   const [chartHeight, setChartHeight] = usePersistentState<number>('lab-chart-height', 600);
   const [lineWidth, setLineWidth] = usePersistentState<number>('lab-line-width', 2);
-
+  const [selectedConsensusStrategies, setSelectedConsensusStrategies] = usePersistentState<string[]>('lab-consensus-strategies', ['peak-formation-fib', 'rsi-divergence', 'ema-crossover']);
   
   const [isClient, setIsClient] = useState(false)
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
@@ -176,11 +179,14 @@ export default function LabPage() {
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [isStreamActive, setIsStreamActive] = useState(false);
+  const [consensusPrice, setConsensusPrice] = useState<number | null>(null);
+  const [isConsensusRunning, setIsConsensusRunning] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = useState(true);
   const [isParamsOpen, setParamsOpen] = useState(true);
   const [isReportOpen, setReportOpen] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isConsensusStratOpen, setIsConsensusStratOpen] = useState(false);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -249,6 +255,7 @@ export default function LabPage() {
   useEffect(() => {
     // When the symbol changes, clear out old wall data
     setWalls([]);
+    setConsensusPrice(null); // Also clear prediction
   }, [symbol]);
 
   const refreshChartAnalysis = useCallback(async () => {
@@ -323,7 +330,7 @@ export default function LabPage() {
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }
         try {
-            const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
+            const klines = await getLatestKlinesByLimit(symbol, interval, 500); // Always get 500 for analysis
             if(!isStreamActive) {
                 setChartData(klines);
                 toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
@@ -446,6 +453,55 @@ export default function LabPage() {
     }
   };
 
+  const handleConsensusStrategyToggle = (strategyId: string) => {
+    setSelectedConsensusStrategies(prev => 
+        prev.includes(strategyId) ? prev.filter(s => s !== strategyId) : [...prev, strategyId]
+    );
+  };
+
+  const handleRunConsensus = async () => {
+    if (chartData.length < 50 || selectedConsensusStrategies.length === 0) {
+      toast({ title: "Cannot Run Consensus", description: "Not enough data or no strategies selected for consensus.", variant: "destructive" });
+      return;
+    }
+    setIsConsensusRunning(true);
+    setConsensusPrice(null);
+    toast({ title: "Running Local Consensus...", description: `Analyzing with ${selectedConsensusStrategies.length} strategies.` });
+
+    const buyPrices: number[] = [];
+    const sellPrices: number[] = [];
+
+    for (const strategyId of selectedConsensusStrategies) {
+      const strategy = getStrategyById(strategyId);
+      if (!strategy) continue;
+
+      const paramsForStrategy = strategyParams[strategyId] || {};
+      const dataWithIndicators = await strategy.calculate(chartData, paramsForStrategy);
+      const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
+
+      if (lastCandle) {
+        if (lastCandle.buySignal) buyPrices.push(lastCandle.buySignal);
+        if (lastCandle.sellSignal) sellPrices.push(lastCandle.sellSignal);
+      }
+    }
+
+    if (buyPrices.length > sellPrices.length) {
+      const avgPrice = buyPrices.reduce((a, b) => a + b, 0) / buyPrices.length;
+      setConsensusPrice(avgPrice);
+      toast({ title: "Consensus: Bullish", description: `Predicted price: $${formatPrice(avgPrice)}` });
+    } else if (sellPrices.length > buyPrices.length) {
+      const avgPrice = sellPrices.reduce((a, b) => a + b, 0) / sellPrices.length;
+      setConsensusPrice(avgPrice);
+      toast({ title: "Consensus: Bearish", description: `Predicted price: $${formatPrice(avgPrice)}` });
+    } else {
+      setConsensusPrice(null);
+      toast({ title: "Consensus: Neutral", description: "No clear direction from selected strategies." });
+    }
+
+    setIsConsensusRunning(false);
+  };
+
+
   const anyLoading = isFetchingData || isReportPending;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
   
@@ -523,7 +579,7 @@ export default function LabPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} />
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={setInterval} wallLevels={showWalls ? walls : []} liquidityEvents={showLiquidity ? liquidityEvents : []} liquidityTargets={showTargets ? liquidityTargets : []} lineWidth={lineWidth} consensusPrice={consensusPrice} />
           </div>
           <div
               onMouseDown={startChartResize}
@@ -617,7 +673,7 @@ export default function LabPage() {
                     <CollapsibleTrigger asChild>
                       <Button variant="outline" size="sm" className="w-full">
                         <BrainCircuit className="mr-2 h-4 w-4" />
-                        <span>Strategy Parameters</span>
+                        <span>Visual Strategy Parameters</span>
                         <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
                       </Button>
                     </CollapsibleTrigger>
@@ -625,6 +681,29 @@ export default function LabPage() {
                       {renderParameterControls()}
                     </CollapsibleContent>
                   </Collapsible>
+                  
+                   <Collapsible open={isConsensusStratOpen} onOpenChange={setIsConsensusStratOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="outline" size="sm" className="w-full">
+                        <BrainCircuit className="mr-2 h-4 w-4" />
+                        <span>Consensus Strategy Selection</span>
+                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isConsensusStratOpen && "rotate-180")} />
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                       <ScrollArea className="h-40 w-full">
+                          <div className="space-y-2">
+                          {strategyMetadatas.map((strategy) => (
+                              <div key={strategy.id} className="flex items-center space-x-2">
+                                  <Checkbox id={`strat-${strategy.id}`} checked={selectedConsensusStrategies.includes(strategy.id)} onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)} disabled={isConsensusRunning}/>
+                                  <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
+                              </div>
+                          ))}
+                          </div>
+                      </ScrollArea>
+                    </CollapsibleContent>
+                  </Collapsible>
+
 
                   <div className="space-y-2">
                     <Label>Chart Visuals & Analysis</Label>
@@ -664,7 +743,7 @@ export default function LabPage() {
           
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Brush/> Draw</CardTitle>
+              <CardTitle className="flex items-center gap-2"><Brush/> Analysis & Drawing Tools</CardTitle>
               <CardDescription>Manually adjust and re-draw all analysis on the chart.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -684,6 +763,12 @@ export default function LabPage() {
                   <Brush className="mr-2 h-4 w-4" />
                   Draw Now
               </Button>
+               <Separator className="my-4" />
+                <Label>Local Price Consensus</Label>
+                <Button className="w-full" variant="secondary" onClick={handleRunConsensus} disabled={isConsensusRunning || !canAnalyze || isStreamActive}>
+                    {isConsensusRunning ? <Loader2 className="animate-spin" /> : <BrainCircuit />}
+                    {isConsensusRunning ? 'Calculating...' : 'Run Local Consensus'}
+                </Button>
             </CardContent>
           </Card>
 
@@ -737,5 +822,3 @@ export default function LabPage() {
     </div>
   )
 }
-
-    

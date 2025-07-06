@@ -33,6 +33,7 @@ export function TradingChart({
   liquidityEvents = [],
   liquidityTargets = [],
   lineWidth = 2,
+  consensusPrice = null,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -44,6 +45,7 @@ export function TradingChart({
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
   lineWidth?: number;
+  consensusPrice?: number | null;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -172,6 +174,16 @@ export function TradingChart({
             kijunSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.kijunColor }),
             senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
             senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
+            consensusPointSeries: chart.addLineSeries({
+              priceScaleId: 'left',
+              lineWidth: 0,
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: true,
+              crosshairMarkerRadius: 6,
+              crosshairMarkerBorderColor: '#000000',
+              crosshairMarkerBackgroundColor: '#facc15', // yellow-400
+            }),
             priceLines: [],
             liquidityLevelLine: null,
             wallPriceLines: [],
@@ -539,8 +551,7 @@ export function TradingChart({
         const price1 = buySideTarget.priceLevel;
         const price2 = sellSideTarget.priceLevel;
 
-        // Use the lineWidth to control opacity, simulating "thickness"
-        const opacity = (lineWidth + 3) / 8; // Range from 0.5 to 1.0
+        const opacity = 0.5 + (lineWidth-1) * 0.125; // Range from 0.5 to 1.0
         const lineColor = `rgba(148, 163, 184, ${opacity})`; // slate-400 with dynamic opacity
   
         const lineData = [{
@@ -558,6 +569,33 @@ export function TradingChart({
         futureTargetLineSeries.setData([]);
       }
     }, [data, liquidityTargets, lineWidth]);
+
+    // Effect to draw consensus price dot
+    useEffect(() => {
+      if (!chartRef.current?.chart || !data || data.length < 2) {
+        if (chartRef.current?.consensusPointSeries) {
+          chartRef.current.consensusPointSeries.setData([]);
+        }
+        return;
+      }
+  
+      const { consensusPointSeries } = chartRef.current;
+      if (!consensusPointSeries) return;
+
+      const hasTargets = liquidityTargets.some(t => t.type === 'buy-side') && liquidityTargets.some(t => t.type === 'sell-side');
+
+      if (consensusPrice && hasTargets) {
+        const lastCandle = data[data.length - 1];
+        const secondLastCandle = data[data.length - 2];
+        const intervalMs = lastCandle.time - secondLastCandle.time;
+        const futureBarOffset = 10;
+        const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
+        
+        consensusPointSeries.setData([{ time: futureTime, value: consensusPrice }]);
+      } else {
+        consensusPointSeries.setData([]);
+      }
+    }, [consensusPrice, data, liquidityTargets]);
 
 
   const formattedSymbol = useMemo(() => {
