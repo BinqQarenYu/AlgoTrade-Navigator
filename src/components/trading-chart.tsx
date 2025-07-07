@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useRef, useMemo } from 'react';
-import { createChart, ColorType, LineStyle } from 'lightweight-charts';
+import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -35,6 +35,8 @@ export function TradingChart({
   lineWidth = 2,
   consensusResult = null,
   showAnalysis = true,
+  chartType = 'candlestick',
+  scaleMode = 'linear',
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -48,6 +50,8 @@ export function TradingChart({
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
+  chartType?: 'candlestick' | 'line';
+  scaleMode?: 'linear' | 'logarithmic';
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -159,10 +163,16 @@ export function TradingChart({
         });
         
         const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
+        
+        const mainLineSeries = chart.addLineSeries({
+            ...commonLineOptions,
+            color: '#3b82f6',
+        });
 
         chartRef.current = {
             chart,
             candlestickSeries,
+            mainLineSeries,
             volumeSeries,
             targetZoneSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
@@ -224,7 +234,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
+    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
 
     if (data.length > 0) {
         const sortedData = [...data].sort((a, b) => a.time - b.time);
@@ -250,7 +260,17 @@ export function TradingChart({
         }
         minMove = 1 / Math.pow(10, precision);
 
+        const priceScale = chart.priceScale('left');
+        priceScale.applyOptions({ autoScale: true }); // Make sure it auto-adjusts
+
         candlestickSeries.applyOptions({
+          priceFormat: {
+            type: 'price',
+            precision: precision,
+            minMove: minMove,
+          },
+        });
+         mainLineSeries.applyOptions({
           priceFormat: {
             type: 'price',
             precision: precision,
@@ -259,21 +279,6 @@ export function TradingChart({
         });
         
         const highlightColor = '#3b82f6';
-        const candlestickChartData = uniqueData.map(d => {
-            const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-            return {
-                time: toTimestamp(d.time),
-                open: d.open,
-                high: d.high,
-                low: d.low,
-                close: d.close,
-                ...(isHighlighted && {
-                    color: highlightColor,
-                    wickColor: highlightColor
-                })
-            };
-        });
-        candlestickSeries.setData(candlestickChartData);
         
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
@@ -336,13 +341,40 @@ export function TradingChart({
         }) : [];
 
         const allMarkers = [...signalMarkers, ...liquidityMarkers].sort((a, b) => a.time - b.time);
-        candlestickSeries.setMarkers(allMarkers);
+
+        if (chartType === 'line') {
+            candlestickSeries.setData([]);
+            candlestickSeries.setMarkers([]);
+            const lineData = uniqueData.map(d => ({
+                time: toTimestamp(d.time),
+                value: d.close,
+            }));
+            mainLineSeries.setData(lineData);
+        } else {
+            mainLineSeries.setData([]);
+            const candlestickChartData = uniqueData.map(d => {
+                const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+                return {
+                    time: toTimestamp(d.time),
+                    open: d.open,
+                    high: d.high,
+                    low: d.low,
+                    close: d.close,
+                    ...(isHighlighted && {
+                        color: highlightColor,
+                        wickColor: highlightColor
+                    })
+                };
+            });
+            candlestickSeries.setData(candlestickChartData);
+            candlestickSeries.setMarkers(allMarkers);
+        }
 
         chart.timeScale().fitContent();
-        chart.priceScale('left').applyOptions({ autoScale: true });
 
     } else {
         candlestickSeries.setData([]);
+        mainLineSeries.setData([]);
         volumeSeries.setData([]);
         smaShortSeries.setData([]);
         smaLongSeries.setData([]);
@@ -357,7 +389,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType]);
 
    // Effect to draw signal lines
     useEffect(() => {
@@ -756,6 +788,15 @@ export function TradingChart({
             }
         }
     }, [data, liquidityEvents, showAnalysis]);
+
+    // Effect to handle price scale mode changes
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { chart } = chartRef.current;
+        chart.priceScale('left').applyOptions({
+            mode: scaleMode === 'logarithmic' ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
+        });
+    }, [scaleMode]);
 
 
   const formattedSymbol = useMemo(() => {

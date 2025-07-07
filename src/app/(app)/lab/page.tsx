@@ -26,7 +26,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush, Settings } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -167,6 +167,8 @@ export default function LabPage() {
   const [lineWidth, setLineWidth] = usePersistentState<number>('lab-line-width', 2);
   const [selectedConsensusStrategies, setSelectedConsensusStrategies] = usePersistentState<string[]>('lab-consensus-strategies', ['peak-formation-fib', 'rsi-divergence', 'ema-crossover']);
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('lab-show-analysis', true);
+  const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab-chart-type', 'candlestick');
+  const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab-scale-mode', 'linear');
   
   const [isClient, setIsClient] = useState(false)
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
@@ -600,6 +602,8 @@ export default function LabPage() {
                 lineWidth={lineWidth}
                 consensusResult={showAnalysis ? consensusResult : null}
                 showAnalysis={showAnalysis}
+                chartType={chartType}
+                scaleMode={scaleMode}
             />
           </div>
           <div
@@ -743,8 +747,8 @@ export default function LabPage() {
             <Collapsible open={isAnalysisToolsOpen} onOpenChange={setIsAnalysisToolsOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2"><Brush/> Chart Analysis & Drawing</CardTitle>
-                    <CardDescription>Control analysis visibility and trigger updates.</CardDescription>
+                    <CardTitle className="flex items-center gap-2"><Settings/> Chart Settings</CardTitle>
+                    <CardDescription>Control chart appearance and analysis visibility.</CardDescription>
                   </div>
                    <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -754,6 +758,29 @@ export default function LabPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="chart-type">Chart Type</Label>
+                            <Select value={chartType} onValueChange={(v) => setChartType(v as any)}>
+                                <SelectTrigger id="chart-type"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="candlestick">Candlestick</SelectItem>
+                                    <SelectItem value="line">Line</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="scale-mode">Price Scale</Label>
+                            <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as any)}>
+                                <SelectTrigger id="scale-mode"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="linear">Linear</SelectItem>
+                                    <SelectItem value="logarithmic">Logarithmic</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <Separator/>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                         <div className="flex items-center space-x-2">
                             <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
