@@ -35,77 +35,82 @@ const aiConsensusStrategy: Strategy = {
   description: 'Uses an ensemble of strategies and a meta-model AI to predict price direction. Generates a signal based on the AI\'s final output.',
   async calculate(data: HistoricalData[], params: AiConsensusParams = defaultAiConsensusParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    if (data.length < 50) return dataWithIndicators; // Need enough data for underlying strategies
+    const minHistory = 100;
+    if (data.length < minHistory) return dataWithIndicators;
 
-    const strategyOutputs: StrategyAnalysisInput[] = [];
-
-    // Defensive check to ensure params and strategyIds are valid. If params are passed
-    // but are malformed (e.g. from a UI that can't handle non-numeric params),
-    // we fall back to the defaults to prevent a crash.
     const currentParams = params || defaultAiConsensusParams;
     const strategyIds = Array.isArray(currentParams.strategyIds) && currentParams.strategyIds.length > 0 
         ? currentParams.strategyIds 
         : defaultAiConsensusParams.strategyIds;
-
+    
+    // 1. Pre-calculate all indicators for all sub-strategies across the entire dataset
+    const allStrategyCalculations: Record<string, HistoricalData[]> = {};
     for (const strategyId of strategyIds) {
         const strategy = getStrategyById(strategyId);
-        if (!strategy) {
-            console.warn(`AI Consensus: Strategy with id '${strategyId}' not found. Skipping.`);
-            continue;
-        }
-
-        const calculatedData = await strategy.calculate(data); // Using default params for underlying strategies
-        const lastCandleWithIndicators = calculatedData[calculatedData.length - 1];
-        
-        let signal: 'BUY' | 'SELL' | 'HOLD' | null = null;
-        if (lastCandleWithIndicators.buySignal) signal = 'BUY';
-        else if (lastCandleWithIndicators.sellSignal) signal = 'SELL';
-        else signal = 'HOLD';
-
-        const indicators: Record<string, any> = {};
-        for (const key of KNOWN_INDICATORS) {
-            if (key in lastCandleWithIndicators && lastCandleWithIndicators[key as keyof HistoricalData] !== null && lastCandleWithIndicators[key as keyof HistoricalData] !== undefined) {
-                indicators[key] = lastCandleWithIndicators[key as keyof HistoricalData];
-            }
-        }
-        
-        strategyOutputs.push({ strategyName: strategy.name, signal, indicatorValues: indicators });
+        if (!strategy) continue;
+        allStrategyCalculations[strategyId] = await strategy.calculate(data);
     }
     
-    if (strategyOutputs.length === 0) {
-        console.warn("AI Consensus: No valid strategies were run. Aborting.");
-        return dataWithIndicators;
-    }
-
+    // 2. Fetch market context once
     const fng = await getFearAndGreedIndex();
     const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-    const lastCandle = data[data.length - 1];
 
-    try {
-        const prediction = await predictPrice({
-            asset: 'N/A', // Asset name isn't critical for this flow, just the data
-            interval: 'N/A', // Interval isn't critical either
-            currentPrice: lastCandle.close,
-            recentData: JSON.stringify(data.slice(-100)),
-            strategyOutputs,
-            marketContext
-        });
+    // 3. Loop through each candle to make a prediction
+    for (let i = minHistory; i < data.length; i++) {
+        // Throttle AI calls to once every 5 candles to improve performance
+        if (i % 5 !== 0) continue; 
 
-        // Add the prediction as a signal to the last candle
-        const lastIndex = dataWithIndicators.length - 1;
-        if (prediction.predictedDirection === 'UP') {
-            dataWithIndicators[lastIndex].buySignal = lastCandle.low;
-        } else if (prediction.predictedDirection === 'DOWN') {
-            dataWithIndicators[lastIndex].sellSignal = lastCandle.high;
+        const strategyOutputs: StrategyAnalysisInput[] = [];
+        const currentPrice = data[i].close;
+        const recentData = JSON.stringify(data.slice(i - 100, i + 1));
+
+        for (const strategyId of strategyIds) {
+            const strategy = getStrategyById(strategyId);
+            if (!strategy || !allStrategyCalculations[strategyId]) continue;
+
+            const candleWithIndicators = allStrategyCalculations[strategyId][i];
+            
+            let signal: 'BUY' | 'SELL' | 'HOLD' | null = null;
+            if (candleWithIndicators.buySignal) signal = 'BUY';
+            else if (candleWithIndicators.sellSignal) signal = 'SELL';
+            else signal = 'HOLD';
+
+            const indicators: Record<string, any> = {};
+            for (const key of KNOWN_INDICATORS) {
+                if (key in candleWithIndicators && candleWithIndicators[key as keyof HistoricalData] !== null && candleWithIndicators[key as keyof HistoricalData] !== undefined) {
+                    indicators[key] = candleWithIndicators[key as keyof HistoricalData];
+                }
+            }
+            strategyOutputs.push({ strategyName: strategy.name, signal, indicatorValues: indicators });
         }
-        
-        // Store the AI reasoning for potential display in the UI
-        dataWithIndicators[lastIndex].aiReasoning = prediction.reasoning;
-        dataWithIndicators[lastIndex].aiConfidence = prediction.confidence;
 
-    } catch(e) {
-        console.error("AI Consensus strategy failed to get prediction:", e);
-        // Do not add signal if AI fails
+        if (strategyOutputs.length === 0) continue;
+
+        try {
+            const prediction = await predictPrice({
+                asset: 'N/A',
+                interval: 'N/A',
+                currentPrice,
+                recentData,
+                strategyOutputs,
+                marketContext
+            });
+
+            // Only generate a signal if confidence is above a certain threshold
+            if (prediction.confidence > 0.6) {
+                if (prediction.predictedDirection === 'UP') {
+                    dataWithIndicators[i].buySignal = data[i].low;
+                } else if (prediction.predictedDirection === 'DOWN') {
+                    dataWithIndicators[i].sellSignal = data[i].high;
+                }
+            }
+            
+            dataWithIndicators[i].aiReasoning = prediction.reasoning;
+            dataWithIndicators[i].aiConfidence = prediction.confidence;
+
+        } catch (e) {
+            console.error(`AI consensus failed at index ${i}:`, e);
+        }
     }
 
     return dataWithIndicators;
