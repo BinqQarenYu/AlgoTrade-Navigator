@@ -41,6 +41,7 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
+import { defaultAiConsensusParams } from '@/lib/strategies/ai-consensus';
 
 
 // --- State Types ---
@@ -116,6 +117,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'liquidity-grab': defaultLiquidityGrabParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
+    'ai-consensus': defaultAiConsensusParams,
 };
 
 // Helper to convert interval string to milliseconds for timers

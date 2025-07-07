@@ -98,6 +98,9 @@ export type HistoricalData = {
   // For Liquidity & Order Flow Strategy
   fvg_top?: number | null;
   fvg_bottom?: number | null;
+  // For AI Consensus strategy
+  aiReasoning?: string;
+  aiConfidence?: number;
 };
 
 export type Portfolio = {

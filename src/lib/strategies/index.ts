@@ -30,9 +30,11 @@ import hyperPeakFormationStrategy from './hyper-peak-formation';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
+import aiConsensusStrategy from './ai-consensus';
 
 
 export const strategies: Strategy[] = [
+  aiConsensusStrategy,
   peakFormationFibStrategy,
   reversePffStrategy,
   hyperPeakFormationStrategy,
