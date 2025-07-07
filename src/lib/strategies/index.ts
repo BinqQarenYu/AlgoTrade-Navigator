@@ -34,7 +34,6 @@ import aiConsensusStrategy from './ai-consensus';
 
 
 export const strategies: Strategy[] = [
-  aiConsensusStrategy,
   peakFormationFibStrategy,
   reversePffStrategy,
   hyperPeakFormationStrategy,
