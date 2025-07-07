@@ -37,6 +37,7 @@ export function TradingChart({
   showAnalysis = true,
   chartType = 'candlestick',
   scaleMode = 'linear',
+  pricePrecision,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -52,6 +53,7 @@ export function TradingChart({
   showAnalysis?: boolean;
   chartType?: 'candlestick' | 'line';
   scaleMode?: 'linear' | 'logarithmic';
+  pricePrecision?: number;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -243,40 +245,38 @@ export function TradingChart({
         );
         if (uniqueData.length === 0) return;
 
-        const firstPrice = uniqueData[0].close;
-        let precision: number;
-        let minMove: number;
-
-        if (firstPrice > 1000) {
-            precision = 2;
-        } else if (firstPrice > 10) {
-            precision = 4;
-        } else if (firstPrice > 0.1) {
-            precision = 5;
-        } else if (firstPrice > 0.0001) {
-            precision = 8;
+        let finalPrecision: number;
+        
+        if (pricePrecision !== undefined) {
+            finalPrecision = pricePrecision;
         } else {
-            precision = 10;
+            const firstPrice = uniqueData[0].close;
+            if (firstPrice > 1000) { // e.g., BTC
+                finalPrecision = 2;
+            } else if (firstPrice > 10) { // e.g., ETH, SOL
+                finalPrecision = 3;
+            } else if (firstPrice > 0.1) { // e.g., ADA, XRP
+                finalPrecision = 5;
+            } else if (firstPrice > 0.0001) { // e.g., SHIB
+                finalPrecision = 8;
+            } else { // e.g., PEPE
+                finalPrecision = 10;
+            }
         }
-        minMove = 1 / Math.pow(10, precision);
+        
+        const minMove = 1 / Math.pow(10, finalPrecision);
 
         const priceScale = chart.priceScale('left');
-        priceScale.applyOptions({ autoScale: true }); // Make sure it auto-adjusts
+        priceScale.applyOptions({ autoScale: true });
 
-        candlestickSeries.applyOptions({
-          priceFormat: {
-            type: 'price',
-            precision: precision,
-            minMove: minMove,
-          },
-        });
-         mainLineSeries.applyOptions({
-          priceFormat: {
-            type: 'price',
-            precision: precision,
-            minMove: minMove,
-          },
-        });
+        const newPriceFormat = {
+          type: 'price',
+          precision: finalPrecision,
+          minMove: minMove,
+        };
+
+        candlestickSeries.applyOptions({ priceFormat: newPriceFormat });
+        mainLineSeries.applyOptions({ priceFormat: newPriceFormat });
         
         const highlightColor = '#3b82f6';
         
@@ -389,7 +389,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, pricePrecision]);
 
    // Effect to draw signal lines
     useEffect(() => {
