@@ -136,8 +136,8 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             }
         };
 
-        ws.onerror = (error) => {
-            console.error(`Order book WebSocket error for ${symbol}:`, error);
+        ws.onerror = () => {
+            console.error(`Order book WebSocket error for ${symbol}. See browser console for more details.`);
             toast({
                 title: 'Order Book Error',
                 description: 'Could not connect to the live data stream.',
