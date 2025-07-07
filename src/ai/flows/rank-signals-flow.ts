@@ -87,7 +87,10 @@ const rankSignalsFlow = ai.defineFlow(
     for (let i = 0; i < maxRetries; i++) {
       try {
         const { output } = await prompt(input);
-        return output!;
+        if (!output) {
+            throw new Error("The AI model did not return a valid response. This could be due to safety filters or an internal error.");
+        }
+        return output;
       } catch (e: any) {
         lastError = e;
         // Check for common transient errors
