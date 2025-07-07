@@ -254,7 +254,7 @@ export function TradingChart({
             if (firstPrice > 1000) { // e.g., BTC
                 finalPrecision = 2;
             } else if (firstPrice > 10) { // e.g., ETH, SOL
-                finalPrecision = 3;
+                finalPrecision = 4;
             } else if (firstPrice > 0.1) { // e.g., ADA, XRP
                 finalPrecision = 5;
             } else if (firstPrice > 0.0001) { // e.g., SHIB
@@ -267,14 +267,18 @@ export function TradingChart({
         const minMove = 1 / Math.pow(10, finalPrecision);
 
         const priceScale = chart.priceScale('left');
-        priceScale.applyOptions({ autoScale: true });
-
         const newPriceFormat = {
           type: 'price',
           precision: finalPrecision,
           minMove: minMove,
         };
-
+        
+        // ** FIX: Apply the price format to the scale itself **
+        priceScale.applyOptions({
+            autoScale: true,
+            priceFormat: newPriceFormat,
+        });
+        
         candlestickSeries.applyOptions({ priceFormat: newPriceFormat });
         mainLineSeries.applyOptions({ priceFormat: newPriceFormat });
         
