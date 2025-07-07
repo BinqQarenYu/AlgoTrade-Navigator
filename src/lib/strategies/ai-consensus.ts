@@ -39,7 +39,15 @@ const aiConsensusStrategy: Strategy = {
 
     const strategyOutputs: StrategyAnalysisInput[] = [];
 
-    for (const strategyId of params.strategyIds) {
+    // Defensive check to ensure params and strategyIds are valid. If params are passed
+    // but are malformed (e.g. from a UI that can't handle non-numeric params),
+    // we fall back to the defaults to prevent a crash.
+    const currentParams = params || defaultAiConsensusParams;
+    const strategyIds = Array.isArray(currentParams.strategyIds) && currentParams.strategyIds.length > 0 
+        ? currentParams.strategyIds 
+        : defaultAiConsensusParams.strategyIds;
+
+    for (const strategyId of strategyIds) {
         const strategy = getStrategyById(strategyId);
         if (!strategy) {
             console.warn(`AI Consensus: Strategy with id '${strategyId}' not found. Skipping.`);
