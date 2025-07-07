@@ -169,7 +169,6 @@ export default function LabPage() {
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('lab-show-analysis', true);
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab-scale-mode', 'linear');
-  const [pricePrecision, setPricePrecision] = usePersistentState<number>('lab-price-precision', 5);
   
   const [isClient, setIsClient] = useState(false)
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
@@ -605,7 +604,6 @@ export default function LabPage() {
                 showAnalysis={showAnalysis}
                 chartType={chartType}
                 scaleMode={scaleMode}
-                pricePrecision={pricePrecision}
             />
           </div>
           <div
@@ -807,19 +805,6 @@ export default function LabPage() {
                             </div>
                           </>
                         )}
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="price-precision">Price Precision</Label>
-                        <Slider
-                            id="price-precision"
-                            min={1}
-                            max={10}
-                            step={1}
-                            value={[pricePrecision]}
-                            onValueChange={(value) => setPricePrecision(value[0])}
-                            disabled={anyLoading}
-                        />
-                         <p className="text-xs text-muted-foreground text-center">{pricePrecision} decimal places</p>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="line-width">Line Thickness</Label>

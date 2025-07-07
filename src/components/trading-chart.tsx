@@ -37,7 +37,6 @@ export function TradingChart({
   showAnalysis = true,
   chartType = 'candlestick',
   scaleMode = 'linear',
-  pricePrecision,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -53,7 +52,6 @@ export function TradingChart({
   showAnalysis?: boolean;
   chartType?: 'candlestick' | 'line';
   scaleMode?: 'linear' | 'logarithmic';
-  pricePrecision?: number;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -245,23 +243,19 @@ export function TradingChart({
         );
         if (uniqueData.length === 0) return;
 
+        const firstPrice = uniqueData[0].close;
         let finalPrecision: number;
         
-        if (pricePrecision !== undefined) {
-            finalPrecision = pricePrecision;
-        } else {
-            const firstPrice = uniqueData[0].close;
-            if (firstPrice > 1000) { // e.g., BTC
-                finalPrecision = 2;
-            } else if (firstPrice > 10) { // e.g., ETH, SOL
-                finalPrecision = 4;
-            } else if (firstPrice > 0.1) { // e.g., ADA, XRP
-                finalPrecision = 5;
-            } else if (firstPrice > 0.0001) { // e.g., SHIB
-                finalPrecision = 8;
-            } else { // e.g., PEPE
-                finalPrecision = 10;
-            }
+        if (firstPrice > 1000) { // e.g., BTC
+            finalPrecision = 2;
+        } else if (firstPrice > 10) { // e.g., ETH, SOL
+            finalPrecision = 4;
+        } else if (firstPrice > 0.1) { // e.g., ADA
+            finalPrecision = 5;
+        } else if (firstPrice > 0.0001) { // e.g., SHIB
+            finalPrecision = 8;
+        } else { // e.g., PEPE
+            finalPrecision = 10;
         }
         
         const minMove = 1 / Math.pow(10, finalPrecision);
@@ -393,7 +387,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, pricePrecision]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType]);
 
    // Effect to draw signal lines
     useEffect(() => {
