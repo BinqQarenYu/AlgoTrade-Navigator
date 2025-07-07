@@ -82,7 +82,25 @@ const rankSignalsFlow = ai.defineFlow(
     outputSchema: RankSignalsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const { output } = await prompt(input);
+        return output!;
+      } catch (e: any) {
+        lastError = e;
+        // Check for common transient errors
+        if (e.message && (e.message.includes('503') || e.message.includes('overloaded'))) {
+          console.log(`Attempt ${i + 1} failed with a transient error. Retrying in ${Math.pow(2, i)}s...`);
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+        } else {
+          // It's a different error, don't retry
+          throw e;
+        }
+      }
+    }
+    // If all retries failed
+    throw new Error(`AI model call failed after ${maxRetries} attempts. Last error: ${lastError?.message}`);
   }
 );
