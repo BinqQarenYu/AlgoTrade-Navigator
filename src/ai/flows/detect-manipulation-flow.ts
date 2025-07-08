@@ -57,12 +57,14 @@ A typical manipulation scheme unfolds in three phases:
     -   **Goal:** The manipulator builds a large position quietly at a low price.
 
 2.  **The Pump Phase (The Artificial Rally):**
-    -   **Price:** An explosive, almost vertical, parabolic price increase. The slope is unnaturally steep.
+    -   **Price:** An explosive, almost vertical, parabolic price increase. This is the active process where the manipulator is forcing the price up. The slope is unnaturally steep.
     -   **Volume:** A massive spike in trading volume. This is a critical signal used to manufacture the appearance of intense interest and trigger FOMO.
+    -   **Goal:** To attract a crowd of unsuspecting buyers and create liquidity for the next phase.
 
-3.  **The Distribution (Dump) Phase (The Rug Pull):**
-    -   **Price:** The price ascent stalls, churns sideways, or forms a sharp peak, followed by a catastrophic price collapse.
-    -   **Volume:** Volume remains extremely high at the peak as the manipulator sells (distributes) their shares to the FOMO buyers. After the selling is complete, the price plummets, often on declining volume as there are no buyers left.
+3.  **The Distribution (or Dump) Phase (The Rug Pull):**
+    -   **Price:** The price ascent stalls, churns sideways, or forms a "topping pattern". This is where the pumping stops. This phase is followed by a catastrophic price collapse as the manipulator's support is removed.
+    -   **Volume:** Volume remains extremely high at the peak. This is the classic sign of distribution, where the manipulator sells their accumulated shares to the FOMO buyers. After the selling is complete, the price plummets, often on declining volume as there are no buyers left.
+    -   **Goal:** To sell all accumulated shares at inflated prices.
 
 **Your Analysis Task:**
 
@@ -71,7 +73,7 @@ Based on the provided historical data, perform the following:
 2.  **Assess Suspicion (Early Detection):** Your primary goal is early detection. Set \`isManipulationSuspected\` to true even if only the Accumulation phase and the beginning of a Pump phase are visible. A clear Accumulation followed by a sharp, high-volume price spike is sufficient for a 'true' suspicion, even if the Dump has not occurred.
 3.  **Set Confidence:** Provide a confidence score (0.0 to 1.0) for your assessment. A high confidence means the pattern is a textbook example. A lower confidence might indicate an early, developing pattern.
 4.  **Identify Current Phase:** Determine which phase the asset is most likely in *at the end* of the provided data, or if the pattern has completed. Set to 'None' if no pattern is detected.
-5.  **Provide Reasoning:** Write a detailed, evidence-based reasoning for your conclusion. If you suspect manipulation early (e.g., during the Pump phase), explain why the current pattern is anomalous and what to watch for next (e.g., a high-volume stall or reversal, which would indicate the Dump). Reference specific price action, volume changes, and the characteristics of each phase from the data. **When you mention a phase, include its start and end times in a human-readable format (e.g., "The pump phase began on August 28, 2025, at 4:00 PM GMT").** Conclude with a clear recommendation on the best course of action for a trader.
+5.  **Provide Reasoning:** Write a detailed, evidence-based reasoning for your conclusion. If you suspect manipulation early (e.g., during the Pump phase), explain why the current pattern is anomalous and what to watch for next (e.g., a high-volume stall or reversal, which would indicate the Dump). When you mention a phase, include its start and end times in a human-readable format (e.g., "The pump phase began on August 28, 2025, at 4:00 PM GMT"). **Conclude with a clear recommendation on the best course of action for a trader.**
 
 **Historical Data:**
 \`\`\`json
