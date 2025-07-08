@@ -615,7 +615,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
-                    title: isBuySide ? ` Buy-Side Target` : ` Sell-Side Target`,
+                    title: isBuySide ? `BST (${formatPrice(target.priceLevel)})` : `SST (${formatPrice(target.priceLevel)})`,
                 });
                 newLines.push(line);
             });
