@@ -290,7 +290,7 @@ export default function BacktestPage() {
   
   // Effect to fetch raw data from the API
   useEffect(() => {
-    if (!isClient || isTradingActive || !symbol) return;
+    if (!isClient || isTradingActive || !symbol || !quoteAsset) return;
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
@@ -323,7 +323,7 @@ export default function BacktestPage() {
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast, isTradingActive]);
+  }, [symbol, quoteAsset, date, interval, isConnected, isClient, toast, isTradingActive]);
 
   // Effect to calculate and display indicators when strategy or data changes
   useEffect(() => {

@@ -252,7 +252,7 @@ export default function LiveTradingPage() {
   
   // Effect to fetch initial chart data when bot is NOT running
   useEffect(() => {
-    if (!isClient || !isConnected || isRunning || !symbol) {
+    if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
         if (!isRunning) setChartData([]);
         return;
     }
@@ -281,7 +281,7 @@ export default function LiveTradingPage() {
     };
 
     fetchData();
-  }, [symbol, interval, isConnected, isClient, toast, isRunning]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isRunning]);
 
   const handleBaseAssetChange = (newBase: string) => {
     setBaseAsset(newBase);

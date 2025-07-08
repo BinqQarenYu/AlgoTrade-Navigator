@@ -378,7 +378,7 @@ export default function SimulationPage() {
   }, [isRunning, botChartData]);
 
   useEffect(() => {
-    if (!isClient || !isConnected || isRunning || !symbol) {
+    if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
         if (!isRunning) setChartData([]);
         return;
     }
@@ -405,7 +405,7 @@ export default function SimulationPage() {
     };
 
     fetchData();
-  }, [symbol, interval, isConnected, isClient, toast, isRunning]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isRunning]);
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);

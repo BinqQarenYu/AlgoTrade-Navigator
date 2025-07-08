@@ -345,10 +345,10 @@ export default function ManualTradingPage() {
   };
 
   useEffect(() => {
-    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null && symbol) {
+    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null && symbol && quoteAsset) {
       setManualChartData(symbol, interval);
     }
-  }, [isConnected, symbol, interval, setManualChartData, manualTraderState.isAnalyzing, manualTraderState.signal]);
+  }, [isConnected, symbol, quoteAsset, interval, setManualChartData, manualTraderState.isAnalyzing, manualTraderState.signal]);
 
 
   const hasActiveSignal = signal !== null;

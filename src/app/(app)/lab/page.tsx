@@ -372,7 +372,7 @@ export default function LabPage() {
   }, [chartData, refreshChartAnalysis]);
 
   useEffect(() => {
-    if (!isClient || !symbol || isStreamActive) return;
+    if (!isClient || !symbol || !quoteAsset || isStreamActive) return;
 
     const fetchData = async () => {
         if (!isConnected) {
@@ -408,7 +408,7 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, date, interval, isConnected, isClient, toast, isStreamActive]);
+  }, [symbol, quoteAsset, date, interval, isConnected, isClient, toast, isStreamActive]);
   
   // Effect for live data stream
   useEffect(() => {
