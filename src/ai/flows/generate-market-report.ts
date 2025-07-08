@@ -29,7 +29,7 @@ const GenerateMarketReportOutputSchema = z.object({
     trendAnalysis: z.string().describe('A detailed analysis of the current market trend (uptrend, downtrend, consolidation), referencing key price action and moving averages if possible.'),
     volatilityAnalysis: z.string().describe('An analysis of the market volatility, noting any recent expansion or contraction.'),
     keyLevels: z.string().describe('Identification of key support and resistance levels based on recent price action.'),
-    outlook: z.string().describe('A forward-looking outlook on potential market scenarios for the short to medium term.'),
+    outlook: z.string().describe("A forward-looking outlook on potential market scenarios and a clear recommendation for the best course of action (e.g., 'Look for long entries on dips', 'Wait for a clear breakout before trading')."),
 });
 export type GenerateMarketReportOutput = z.infer<typeof GenerateMarketReportOutputSchema>;
 
@@ -56,7 +56,7 @@ Generate a comprehensive report covering the following sections:
 2.  **Trend Analysis:** Is the asset in an uptrend, downtrend, or consolidating? What is the evidence from price action?
 3.  **Volatility Analysis:** Is volatility increasing or decreasing? Are there signs of a potential breakout or a quiet period?
 4.  **Key Levels:** Identify the most significant recent support and resistance levels.
-5.  **Outlook:** Based on all the above, what are the likely scenarios for the asset in the near future? Present a balanced view.
+5.  **Outlook:** Based on all the above, what are the likely scenarios for the asset in the near future? Conclude with a clear recommendation for the best course of action for a trader.
 
 Provide your analysis in the structured JSON format required.
 `,

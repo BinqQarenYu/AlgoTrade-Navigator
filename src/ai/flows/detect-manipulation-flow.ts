@@ -30,7 +30,7 @@ const DetectManipulationOutputSchema = z.object({
   isManipulationSuspected: z.boolean().describe('Whether a pump and dump pattern is strongly suspected.'),
   confidence: z.number().min(0).max(1).describe('The confidence level of the suspicion (0 to 1).'),
   currentPhase: z.enum(['Accumulation', 'Pump', 'Distribution', 'None']).describe('The most likely current phase if a pattern is active or recently completed.'),
-  reasoning: z.string().describe('A detailed explanation of the findings, referencing the three phases and the provided data.'),
+  reasoning: z.string().describe("A detailed explanation of the findings, referencing the three phases, and a clear recommendation on the best course of action (e.g., 'Avoid this asset due to high manipulation risk')."),
   accumulationPeriod: PeriodSchema.optional().describe('The identified accumulation phase period. This is the quiet period before the pump.'),
   pumpPeriod: PeriodSchema.optional().describe('The identified pump phase period. This is the period of explosive price and volume increase.'),
   distributionPeriod: PeriodSchema.optional().describe('The identified distribution (dump) phase period. This is the high-volume topping and subsequent crash.'),
@@ -78,7 +78,7 @@ Based on the provided historical data, perform the following:
 {{{historicalData}}}
 \`\`\`
 
-Provide your analysis in the structured JSON format required. Be objective and base your analysis solely on the data provided.
+Provide your analysis in the structured JSON format required. Be objective and base your analysis solely on the data provided. Conclude with a clear recommendation on the best course of action for a trader.
 `,
 });
 

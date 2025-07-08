@@ -33,7 +33,7 @@ const PredictPriceOutputSchema = z.object({
     predictedPrice: z.number().describe("The predicted price for the asset in the next interval."),
     predictedDirection: z.enum(['UP', 'DOWN', 'NEUTRAL']).describe("The predicted direction of the price movement (UP, DOWN, or NEUTRAL), based on the predicted price vs. current price."),
     confidence: z.number().min(0).max(1).describe("The confidence level of the prediction, from 0 to 1."),
-    reasoning: z.string().describe("A detailed explanation of how the prediction was derived, considering the combined influence of all strategy inputs and the market context."),
+    reasoning: z.string().describe("A detailed explanation of how the prediction was derived, considering all inputs, and a recommendation for the best course of action."),
 });
 export type PredictPriceOutput = z.infer<typeof PredictPriceOutputSchema>;
 
@@ -80,7 +80,7 @@ You have received the following signals and indicator data from your underlying 
 3.  **Consider the market context.** How does the Fear & Greed Index influence the potential price movement? A BUY signal in a "Greed" market might have less upside than one in a "Fear" market.
 4.  **Perform Regression:** Based on all the above information, predict the single price value you expect for the asset at the close of the *next* {{{interval}}} candle.
 5.  **Determine Direction:** Compare your predicted price to the current price of \`{{{currentPrice}}}\`. If you predict a significant increase (more than 0.1% of the current price), set 'predictedDirection' to 'UP'. If you predict a significant decrease, set it to 'DOWN'. Otherwise, set it to 'NEUTRAL'.
-6.  **Provide Reasoning:** Explain your thought process clearly. Detail which strategies had the most influence on your prediction and why.
+6.  **Provide Reasoning:** Explain your thought process clearly. Detail which strategies had the most influence on your prediction and why. Finally, recommend the best course of action for a trader based on your analysis.
 
 Generate the output in the required JSON format.
 `,

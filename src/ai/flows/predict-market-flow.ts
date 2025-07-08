@@ -40,7 +40,7 @@ const PredictMarketOutputSchema = z.object({
   reasoning: z
     .string()
     .describe(
-      'A brief explanation for the prediction based on the provided data and strategy signal.'
+      "A detailed explanation for the prediction, including the best course of action for a trader (e.g., 'wait for confirmation', 'consider entry', 'avoid trading')."
     ),
 });
 export type PredictMarketOutput = z.infer<typeof PredictMarketOutputSchema>;
@@ -65,7 +65,7 @@ Asset: {{{symbol}}}
 
 Analyze the recent price action from the following data and determine if the price is likely to go UP, DOWN, or remain NEUTRAL in the next few periods.
 
-Provide a confidence score for your prediction and a brief reasoning based on technical analysis patterns you observe.
+Provide a confidence score, a detailed reasoning for your prediction, and recommend the best course of action for a trader observing these conditions.
 
 Recent Data:
 \`\`\`json
