@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget } from "@/lib/types"
+import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -131,7 +131,15 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [isHydrated ? state : defaultValue, setState];
 };
 
-const OpenPositionsCard = ({ positions }: { positions: SimulatedPosition[] }) => {
+const OpenPositionsCard = ({
+    positions,
+    onSelectPosition,
+    selectedPositionId
+}: {
+    positions: SimulatedPosition[],
+    onSelectPosition: (pos: SimulatedPosition) => void,
+    selectedPositionId?: string | null,
+}) => {
     const [isOpen, setIsOpen] = usePersistentState('sim-positions-open', true);
 
     return (
@@ -140,7 +148,7 @@ const OpenPositionsCard = ({ positions }: { positions: SimulatedPosition[] }) =>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Open Simulated Positions</CardTitle>
-                        <CardDescription>Positions currently active in the simulation.</CardDescription>
+                        <CardDescription>Positions currently active in the simulation. Click to view on chart.</CardDescription>
                     </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -163,7 +171,14 @@ const OpenPositionsCard = ({ positions }: { positions: SimulatedPosition[] }) =>
                             <TableBody>
                                 {positions.length > 0 ? (
                                     positions.map((pos) => (
-                                        <TableRow key={pos.id}>
+                                        <TableRow
+                                            key={pos.id}
+                                            onClick={() => onSelectPosition(pos)}
+                                            className={cn(
+                                                "cursor-pointer hover:bg-muted/80",
+                                                selectedPositionId === pos.id && "bg-primary/20 hover:bg-primary/20"
+                                            )}
+                                        >
                                             <TableCell>{pos.asset}</TableCell>
                                             <TableCell>
                                                 <Badge variant={pos.side === 'long' ? "default" : "destructive"}>
@@ -230,11 +245,55 @@ export default function SimulationPage() {
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('sim-show-analysis', true);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
+  
+  // State for selections
+  const [selectedTrade, setSelectedTrade] = useState<SimulatedTrade | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<SimulatedPosition | null>(null);
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('sim-params-open', false);
   
+  const handleSelectTrade = (trade: SimulatedTrade) => {
+    setSelectedTrade(trade);
+    setSelectedPosition(null);
+  };
+
+  const handleSelectPosition = (position: SimulatedPosition) => {
+    setSelectedPosition(position);
+    setSelectedTrade(null);
+  };
+  
+  const highlightedTradeForChart = useMemo<BacktestResult | null>(() => {
+    if (selectedTrade) {
+      return selectedTrade;
+    }
+    if (selectedPosition) {
+      // Convert SimulatedPosition to a BacktestResult-like object for the chart
+      const lastTime = chartData.length > 0 ? chartData[chartData.length - 1].time : selectedPosition.entryTime;
+      const lastClose = chartData.length > 0 ? chartData[chartData.length - 1].close : selectedPosition.entryPrice;
+      const pnl = selectedPosition.side === 'long' 
+        ? (lastClose - selectedPosition.entryPrice) * selectedPosition.size
+        : (selectedPosition.entryPrice - lastClose) * selectedPosition.size;
+      
+      return {
+        id: selectedPosition.id,
+        type: selectedPosition.side,
+        entryTime: selectedPosition.entryTime,
+        entryPrice: selectedPosition.entryPrice,
+        exitTime: lastTime, // Highlight up to the latest candle
+        exitPrice: lastClose,
+        pnl: pnl,
+        pnlPercent: 0, // Not relevant for this temporary object
+        closeReason: 'signal', // placeholder
+        stopLoss: selectedPosition.stopLoss,
+        takeProfit: selectedPosition.takeProfit,
+        fee: 0,
+      };
+    }
+    return null;
+  }, [selectedTrade, selectedPosition, chartData]);
+
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
     setStrategyParams(prev => ({
@@ -442,6 +501,7 @@ export default function SimulationPage() {
                 liquidityEvents={liquidityEvents}
                 liquidityTargets={liquidityTargets}
                 showAnalysis={showAnalysis}
+                highlightedTrade={highlightedTradeForChart}
               />
           </div>
           <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -523,8 +583,17 @@ export default function SimulationPage() {
             </Collapsible>
           </Card>
           
-          <BacktestResults results={tradeHistory} summary={summary} onSelectTrade={() => {}} />
-          <OpenPositionsCard positions={openPositions} />
+          <BacktestResults 
+            results={tradeHistory} 
+            summary={summary} 
+            onSelectTrade={handleSelectTrade}
+            selectedTradeId={selectedTrade?.id}
+          />
+          <OpenPositionsCard 
+            positions={openPositions} 
+            onSelectPosition={handleSelectPosition} 
+            selectedPositionId={selectedPosition?.id}
+          />
           
           <Card>
              <CardHeader>
@@ -547,5 +616,3 @@ export default function SimulationPage() {
     </div>
   )
 }
-
-    
