@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines } from "@/lib/binance-service"
+import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -212,7 +212,7 @@ export default function SimulationPage() {
 
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('sim-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('sim-interval', "1m");
-  const [initialCapital, setInitialCapital] = usePersistentState<number>('sim-initial-capital', 10000);
+  const [initialCapital, setInitialCapital] = usePersistentState<number>('sim-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('sim-leverage', 10);
   const [takeProfit, setTakeProfit] = usePersistentState<number>('sim-tp', 1.5);
   const [stopLoss, setStopLoss] = usePersistentState<number>('sim-sl', 1);
@@ -288,7 +288,7 @@ export default function SimulationPage() {
         try {
             const from = addDays(new Date(), -1).getTime();
             const to = new Date().getTime();
-            const klines = await getHistoricalKlines(symbol, interval, from, to);
+            const klines = await getLatestKlinesByLimit(symbol, interval, 500);
             setChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
         } catch (error: any) {
