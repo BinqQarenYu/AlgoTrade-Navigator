@@ -31,6 +31,7 @@ import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
 import aiConsensusStrategy from './ai-consensus';
+import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback';
 
 
 export const strategies: Strategy[] = [
@@ -64,6 +65,7 @@ export const strategies: Strategy[] = [
   vwapCrossStrategy,
   williamsRStrategy,
   emaCciMacdStrategy,
+  smoothedHeikinAshiPullbackStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));
 
 export const strategyMetadatas = strategies.map(({ id, name }) => ({
