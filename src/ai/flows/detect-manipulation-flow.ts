@@ -89,10 +89,33 @@ const detectManipulationFlow = ai.defineFlow(
     outputSchema: DetectManipulationOutputSchema,
   },
   async input => {
-    const { output } = await prompt(input);
-    if (!output) {
-      throw new Error("The AI model did not return a valid response.");
+    const maxRetries = 3;
+    let lastError: Error | null = null;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const { output } = await prompt(input);
+        if (!output) {
+            throw new Error("The AI model did not return a valid response. This could be due to safety filters or an internal error.");
+        }
+        return output;
+      } catch (e: any) {
+        lastError = e;
+        // Check for non-retriable quota errors first
+        if (e.message && e.message.includes('429')) {
+          console.error("AI quota exceeded. Not retrying.", e);
+          throw new Error("You have exceeded your daily AI quota. Please check your plan and billing details.");
+        }
+        // Check for common transient errors
+        if (e.message && (e.message.includes('503') || e.message.includes('overloaded'))) {
+          console.log(`Attempt ${i + 1} failed with a transient error. Retrying in ${Math.pow(2, i)}s...`);
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+        } else {
+          // It's a different, non-retriable error
+          throw e;
+        }
+      }
     }
-    return output;
+    // If all retries failed
+    throw new Error(`AI model call failed after ${maxRetries} attempts. Last error: ${lastError?.message}`);
   }
 );
