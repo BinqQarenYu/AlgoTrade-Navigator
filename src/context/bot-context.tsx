@@ -198,13 +198,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [isTradingActive, setIsTradingActive] = useState(false);
 
   useEffect(() => {
-    const live = liveBotState.isRunning;
-    const manual = manualTraderState.isAnalyzing || manualTraderState.signal !== null;
-    const multi = multiSignalState.isRunning;
-    const screener = screenerState.isRunning;
-    const simulation = simulationState.isRunning;
-    setIsTradingActive(live || manual || multi || screener || simulation);
-  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, multiSignalState.isRunning, screenerState.isRunning, simulationState.isRunning]);
+    // A "trading session" is now defined as any activity that can actively manage or place real trades.
+    // Simulation, monitoring, and one-off analysis are excluded to allow them to run in the background.
+    const liveTradingBotRunning = liveBotState.isRunning;
+    const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
+
+    setIsTradingActive(liveTradingBotRunning || manualTradePending);
+  }, [liveBotState.isRunning, manualTraderState.signal, manualTraderState.isExecuting]);
 
 
   // --- Helper Functions ---
