@@ -35,6 +35,7 @@ import type { HistoricalData, LiquidityEvent, LiquidityTarget } from "@/lib/type
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
+import { detectManipulation, DetectManipulationOutput } from "@/ai/flows/detect-manipulation-flow"
 import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketHeatmap } from "@/components/dashboard/market-heatmap"
@@ -156,6 +157,7 @@ export default function LabPage() {
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
   const [isReportPending, startReportTransition] = React.useTransition();
+  const [isScanPending, startScanTransition] = React.useTransition();
   
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
@@ -186,13 +188,17 @@ export default function LabPage() {
   const [isStreamActive, setIsStreamActive] = useState(false);
   const [consensusResult, setConsensusResult] = useState<{ price: number; direction: 'UP' | 'DOWN' } | null>(null);
   const [isConsensusRunning, setIsConsensusRunning] = useState(false);
+  const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('lab-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('lab-params-open', false);
   const [isReportOpen, setReportOpen] = usePersistentState<boolean>('lab-report-open', false);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmingReport, setIsConfirmingReport] = useState(false);
+  const [isConfirmingScan, setIsConfirmingScan] = useState(false);
   const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
+  const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
 
   useEffect(() => {
     const symbolFromQuery = searchParams.get('symbol');
@@ -377,6 +383,7 @@ export default function LabPage() {
         if(!isStreamActive) {
             setChartData([]);
             setReport(null);
+            setManipulationResult(null);
             setLiquidityEvents([]);
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }
@@ -470,7 +477,7 @@ export default function LabPage() {
       return;
     }
     if (canUseAi()) {
-        setIsConfirming(true);
+        setIsConfirmingReport(true);
     }
   };
 
@@ -496,6 +503,38 @@ export default function LabPage() {
         });
       }
     });
+  };
+
+  const handleScanClick = () => {
+    if (chartData.length < 50) {
+      toast({ title: "Not Enough Data", description: "Please ensure at least 50 candles are loaded to scan for manipulation.", variant: "destructive" });
+      return;
+    }
+    if (canUseAi()) {
+        setIsConfirmingScan(true);
+    }
+  }
+
+  const runManipulationScan = () => {
+      consumeAiCredit();
+      setManipulationResult(null);
+      setIsScanning(true);
+      startScanTransition(async () => {
+        try {
+          const result = await detectManipulation({
+            symbol,
+            historicalData: JSON.stringify(chartData.slice(-500).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+          });
+          setManipulationResult(result);
+          setManipulationCardOpen(true);
+          toast({ title: "Manipulation Scan Complete", description: "AI analysis of chart patterns is ready." });
+        } catch (error) {
+          console.error("Error scanning for manipulation:", error);
+          toast({ title: "Scan Failed", description: "An error occurred during the analysis.", variant: "destructive" });
+        } finally {
+          setIsScanning(false);
+        }
+      });
   };
 
   const handleToggleStream = () => {
@@ -530,7 +569,7 @@ export default function LabPage() {
     }
   };
 
-  const anyLoading = isFetchingData || isReportPending;
+  const anyLoading = isFetchingData || isReportPending || isScanning;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
   
   const renderParameterControls = () => {
@@ -589,7 +628,7 @@ export default function LabPage() {
           </Alert>
       )}
 
-      <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+      <AlertDialog open={isConfirmingReport} onOpenChange={setIsConfirmingReport}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
@@ -599,7 +638,22 @@ export default function LabPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => { setIsConfirming(false); runGenerateReport(); }}>Confirm & Generate</AlertDialogAction>
+                <AlertDialogAction onClick={() => { setIsConfirmingReport(false); runGenerateReport(); }}>Confirm & Generate</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={isConfirmingScan} onOpenChange={setIsConfirmingScan}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action will use one AI credit to scan the chart for manipulation patterns. Are you sure?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => { setIsConfirmingScan(false); runManipulationScan(); }}>Confirm & Scan</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -750,10 +804,16 @@ export default function LabPage() {
                         {isStreamActive ? <StopCircle /> : <Play />}
                         {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
                     </Button>
-                    <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
-                      {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                      {isReportPending ? "Generating Report..." : "Generate AI Market Report"}
-                    </Button>
+                    <div className="flex w-full gap-2">
+                      <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
+                        {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                        {isReportPending ? "Generating..." : "AI Report"}
+                      </Button>
+                      <Button className="w-full" variant="outline" onClick={handleScanClick} disabled={!canAnalyze || isStreamActive}>
+                        {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                        {isScanning ? "Scanning..." : "Scan Chart"}
+                      </Button>
+                    </div>
                 </CardFooter>
               </CollapsibleContent>
             </Collapsible>
@@ -877,6 +937,58 @@ export default function LabPage() {
                     ) : (
                       <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
                         <p>Generate a report to see the AI analysis here.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+           </Card>
+           
+           <Card>
+              <Collapsible open={isManipulationCardOpen} onOpenChange={setManipulationCardOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Manipulation Scan Results</CardTitle>
+                    <CardDescription>AI-powered scan for pump & dump patterns.</CardDescription>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isManipulationCardOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent>
+                    {isScanning ? (
+                      <div className="space-y-4">
+                        <Skeleton className="h-6 w-1/2" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-4/5" />
+                      </div>
+                    ) : manipulationResult ? (
+                      <div className="space-y-4 prose prose-sm dark:prose-invert max-w-none">
+                        {manipulationResult.isManipulationSuspected ? (
+                           <Alert variant="destructive">
+                              <ShieldAlert className="h-4 w-4" />
+                              <AlertTitle>High Suspicion of Manipulation!</AlertTitle>
+                              <AlertDescription>
+                                Confidence: {(manipulationResult.confidence * 100).toFixed(1)}%. Current Phase: {manipulationResult.currentPhase}.
+                              </AlertDescription>
+                          </Alert>
+                        ) : (
+                           <Alert>
+                              <ShieldCheck className="h-4 w-4" />
+                              <AlertTitle>No Clear Manipulation Detected</AlertTitle>
+                              <AlertDescription>
+                                The AI did not find a strong pump & dump pattern in the provided data.
+                              </AlertDescription>
+                          </Alert>
+                        )}
+                        <p><strong>Reasoning:</strong> {manipulationResult.reasoning}</p>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                        <p>Scan the chart to see manipulation analysis here.</p>
                       </div>
                     )}
                   </CardContent>
