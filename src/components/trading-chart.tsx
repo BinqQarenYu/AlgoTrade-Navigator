@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget } from '@/lib/types';
+import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -38,6 +39,7 @@ export function TradingChart({
   showAnalysis = true,
   chartType = 'candlestick',
   scaleMode = 'linear',
+  manipulationResult = null,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -53,6 +55,7 @@ export function TradingChart({
   showAnalysis?: boolean;
   chartType?: 'candlestick' | 'line';
   scaleMode?: 'linear' | 'logarithmic';
+  manipulationResult?: DetectManipulationOutput | null;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -354,7 +357,42 @@ export function TradingChart({
             }
         }) : [];
 
-        const allMarkers = [...signalMarkers, ...liquidityMarkers].sort((a, b) => a.time - b.time);
+        const manipulationMarkers: any[] = [];
+        if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+            const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
+            if (accumulationPeriod?.startTime) {
+                manipulationMarkers.push({
+                    time: toTimestamp(accumulationPeriod.startTime),
+                    position: 'belowBar',
+                    color: '#facc15', // yellow-400
+                    shape: 'arrowUp',
+                    text: 'Accumulation Start',
+                    size: 2,
+                });
+            }
+            if (pumpPeriod?.startTime) {
+                manipulationMarkers.push({
+                    time: toTimestamp(pumpPeriod.startTime),
+                    position: 'belowBar',
+                    color: '#4ade80', // green-400
+                    shape: 'arrowUp',
+                    text: 'Pump Start',
+                    size: 1.5,
+                });
+            }
+            if (distributionPeriod?.startTime) {
+                manipulationMarkers.push({
+                    time: toTimestamp(distributionPeriod.startTime),
+                    position: 'aboveBar',
+                    color: '#f87171', // red-400
+                    shape: 'arrowDown',
+                    text: 'Dump Start',
+                    size: 1.5,
+                });
+            }
+        }
+        
+        const allMarkers = [...signalMarkers, ...liquidityMarkers, ...manipulationMarkers].sort((a, b) => a.time - b.time);
 
         if (chartType === 'line') {
             candlestickSeries.setData([]);
@@ -403,7 +441,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
 
    // Effect to draw signal lines
     useEffect(() => {

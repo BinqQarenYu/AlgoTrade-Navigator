@@ -674,6 +674,7 @@ export default function LabPage() {
                 showAnalysis={showAnalysis}
                 chartType={chartType}
                 scaleMode={scaleMode}
+                manipulationResult={manipulationResult}
             />
           </div>
           <div
