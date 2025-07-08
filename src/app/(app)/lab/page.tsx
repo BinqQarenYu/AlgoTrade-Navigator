@@ -27,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush, Settings } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush, Settings, ShieldCheck } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
