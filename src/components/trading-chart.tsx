@@ -775,7 +775,7 @@ export function TradingChart({
         const startEvent = sortedEvents[sortedEvents.length - 1]; // The very last grab
         const endCandle = data[data.length - 1]; // The current candle
 
-        if (startEvent && endCandle) {
+        if (startEvent && endCandle && startEvent.time < endCandle.time) {
             // Draw the line
             volumeLeg3LineSeries.setData([
                 { time: toTimestamp(startEvent.time), value: startEvent.priceLevel },
@@ -889,5 +889,3 @@ export function TradingChart({
     </Card>
   );
 }
-
-    
