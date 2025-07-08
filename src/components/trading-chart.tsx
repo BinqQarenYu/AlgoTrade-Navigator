@@ -9,6 +9,7 @@ import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
 import { Camera } from 'lucide-react';
 import { formatPrice, formatLargeNumber } from '@/lib/utils';
+import { Skeleton } from './ui/skeleton';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
@@ -55,6 +56,21 @@ export function TradingChart({
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
+  
+  const lastCandle = data.length > 0 ? data[data.length - 1] : null;
+  const previousCandle = data.length > 1 ? data[data.length - 2] : null;
+
+  const priceChange = lastCandle && previousCandle ? lastCandle.close - previousCandle.close : 0;
+  const priceChangePercent = previousCandle && previousCandle.close !== 0 ? (priceChange / previousCandle.close) * 100 : 0;
+  const priceColor = priceChange >= 0 ? 'text-green-500' : 'text-red-500';
+
+  const getChangePrecision = (price: number | null) => {
+    if (price === null) return 2;
+    if (price > 1000) return 2;
+    if (price > 1) return 4;
+    return 6;
+  };
+  const changePrecision = getChangePrecision(lastCandle?.close ?? null);
 
   useEffect(() => {
     const chartContainer = chartContainerRef.current;
@@ -817,12 +833,29 @@ export function TradingChart({
     document.body.removeChild(link);
   };
 
-  const chartTitle = `${formattedSymbol} (${String(interval || '').toLocaleUpperCase()}) Price Chart`;
+  const chartTitle = `${formattedSymbol} (${String(interval || '').toLocaleUpperCase()})`;
 
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{chartTitle}</CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between">
+        <div>
+            <CardTitle className="text-lg font-medium">{chartTitle}</CardTitle>
+            {lastCandle ? (
+                <div className="flex items-baseline gap-2 mt-1">
+                    <span className={`text-3xl font-bold ${priceColor}`}>
+                        {formatPrice(lastCandle.close)}
+                    </span>
+                    <span className={`text-sm font-medium ${priceColor}`}>
+                        {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(changePrecision)} ({priceChangePercent.toFixed(2)}%)
+                    </span>
+                </div>
+            ) : (
+                <div className="mt-1">
+                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-4 w-24 mt-2" />
+                </div>
+            )}
+        </div>
         <div className="flex items-center gap-2">
             {onIntervalChange && (
               <div className="flex items-center gap-1 rounded-md bg-muted p-1">
@@ -856,3 +889,5 @@ export function TradingChart({
     </Card>
   );
 }
+
+    
