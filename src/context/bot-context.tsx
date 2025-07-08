@@ -4,13 +4,13 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
-import { getStrategyById } from '@/lib/strategies';
+import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -68,6 +68,7 @@ interface BotContextType {
   manualTraderState: ManualTraderState;
   multiSignalState: MultiSignalState;
   screenerState: ScreenerState;
+  simulationState: SimulationState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -84,6 +85,8 @@ interface BotContextType {
   startScreener: (config: ScreenerConfig) => void;
   stopScreener: () => void;
   closePosition: (position: Position) => void;
+  startSimulation: (config: SimulationConfig) => void;
+  stopSimulation: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -181,6 +184,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     isRunning: false, config: null, prediction: null, strategyInputs: [], logs: []
   });
   const screenerRunningRef = useRef(false);
+  
+  // --- Simulation State ---
+   const [simulationState, setSimulationState] = useState<SimulationState>({
+    isRunning: false, config: null, logs: [], chartData: [],
+    portfolio: { initialCapital: 0, balance: 0, pnl: 0 },
+    openPositions: [], tradeHistory: [], summary: null
+  });
+  const simulationWsRef = useRef<WebSocket | null>(null);
 
   // --- Global State ---
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
@@ -191,8 +202,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const manual = manualTraderState.isAnalyzing || manualTraderState.signal !== null;
     const multi = multiSignalState.isRunning;
     const screener = screenerState.isRunning;
-    setIsTradingActive(live || manual || multi || screener);
-  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, multiSignalState.isRunning, screenerState.isRunning]);
+    const simulation = simulationState.isRunning;
+    setIsTradingActive(live || manual || multi || screener || simulation);
+  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, multiSignalState.isRunning, screenerState.isRunning, simulationState.isRunning]);
 
 
   // --- Helper Functions ---
@@ -206,6 +218,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
   const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
+  const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
   
   const cleanManualChart = useCallback(() => {
     setManualTraderState(prev => {
@@ -814,7 +827,170 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Close Order Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
     }
   }, [apiKey, secretKey, toast, activeProfile]);
+  
+  // --- Simulation Logic ---
+  const stopSimulation = useCallback(() => {
+    if (simulationWsRef.current) {
+        simulationWsRef.current.close();
+        simulationWsRef.current = null;
+    }
+    setSimulationState(prev => ({...prev, isRunning: false, config: null}));
+    addSimLog("Simulation stopped by user.");
+    toast({ title: "Simulation Stopped" });
+  }, [addSimLog, toast]);
 
+  const handleSimulationTick = useCallback(async (newCandle: HistoricalData) => {
+    setSimulationState(current => {
+      if (!current.isRunning || !current.config) return current;
+
+      let { chartData, openPositions, tradeHistory, portfolio } = current;
+      const config = current.config;
+
+      // Update chart data
+      if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
+        chartData[chartData.length - 1] = newCandle;
+      } else {
+        chartData.push(newCandle);
+        chartData = chartData.slice(-1000); // Keep chart data from getting too large
+      }
+
+      const updatedPositions = [...openPositions];
+      const newTrades: SimulatedTrade[] = [];
+
+      // Check open positions for SL/TP
+      for (const pos of openPositions) {
+        let exitPrice: number | null = null;
+        let closeReason: SimulatedTrade['closeReason'] = 'signal'; // Default, will be updated
+
+        if (pos.side === 'long') {
+          if (newCandle.low <= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
+          else if (newCandle.high >= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
+        } else { // short
+          if (newCandle.high >= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
+          else if (newCandle.low <= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
+        }
+
+        if (exitPrice) {
+          const entryValue = pos.entryPrice * pos.size;
+          const exitValue = exitPrice * pos.size;
+          const pnl = pos.side === 'long' ? exitValue - entryValue : entryValue - exitValue;
+          const fee = (entryValue + exitValue) * (config.fee / 100);
+          const netPnl = pnl - fee;
+
+          const trade: SimulatedTrade = {
+            id: pos.id, type: pos.side, entryTime: pos.entryTime, entryPrice: pos.entryPrice,
+            exitTime: newCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / portfolio.balance) * 100,
+            closeReason, stopLoss: pos.stopLoss, takeProfit: pos.takeProfit, fee,
+          };
+          
+          newTrades.push(trade);
+          addSimLog(`Closed ${pos.side.toUpperCase()} position for ${pos.asset} for $${netPnl.toFixed(2)} PNL.`);
+          portfolio.balance += netPnl;
+          portfolio.pnl += netPnl;
+        }
+      }
+
+      // Filter out closed positions
+      const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
+      
+      // Look for new trades if no position is open
+      if (stillOpenPositions.length === 0) {
+        analyzeAsset(config, chartData).then(result => {
+          if (result.signal) {
+            const newPosSize = (portfolio.balance * config.leverage) / result.signal.entryPrice;
+            const newPosition: SimulatedPosition = {
+              id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal.action === 'UP' ? 'long' : 'short',
+              entryPrice: result.signal.entryPrice, entryTime: result.signal.timestamp.getTime(), size: newPosSize,
+              stopLoss: result.signal.stopLoss, takeProfit: result.signal.takeProfit,
+            };
+            
+            addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
+
+            // This needs to be done in a setter to correctly update state
+            setSimulationState(prev => ({
+                ...prev,
+                openPositions: [...prev.openPositions, newPosition]
+            }));
+          }
+        });
+      }
+      
+      // Calculate summary stats
+      const allTrades = [...tradeHistory, ...newTrades];
+      const wins = allTrades.filter(t => t.pnl > 0);
+      const losses = allTrades.filter(t => t.pnl <= 0);
+      const totalPnl = allTrades.reduce((sum, t) => sum + t.pnl, 0);
+      const totalFees = allTrades.reduce((sum, t) => sum + (t.fee || 0), 0);
+      const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
+      const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
+
+      const summary: BacktestSummary = {
+        totalTrades: allTrades.length,
+        winRate: allTrades.length > 0 ? (wins.length / allTrades.length) * 100 : 0,
+        totalPnl: totalPnl,
+        totalFees,
+        averageWin: wins.length > 0 ? totalWins / wins.length : 0,
+        averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
+        profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+        initialCapital: config.initialCapital,
+        endingBalance: portfolio.balance,
+        totalReturnPercent: config.initialCapital > 0 ? (totalPnl / config.initialCapital) * 100 : 0
+      };
+
+      return {
+        ...current,
+        chartData,
+        openPositions: stillOpenPositions,
+        tradeHistory: [...tradeHistory, ...newTrades],
+        portfolio,
+        summary,
+      };
+    });
+  }, [addSimLog, analyzeAsset]);
+
+  const startSimulation = useCallback(async (config: SimulationConfig) => {
+    addSimLog("Starting simulation...");
+    stopSimulation(); // Ensure any previous simulation is stopped
+    
+    // Reset state
+    setSimulationState({
+        isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Simulation starting...`],
+        chartData: [],
+        portfolio: { initialCapital: config.initialCapital, balance: config.initialCapital, pnl: 0 },
+        openPositions: [], tradeHistory: [], summary: null
+    });
+    
+    try {
+        const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+        setSimulationState(prev => ({...prev, chartData: initialKlines}));
+        addSimLog(`Loaded ${initialKlines.length} initial candles.`);
+
+        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+        simulationWsRef.current = ws;
+
+        ws.onopen = () => addSimLog("Live data connection established.");
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.e === 'kline' && data.k.x) { // k.x is true if the candle is closed
+                const newCandle: HistoricalData = {
+                    time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
+                    low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
+                };
+                handleSimulationTick(newCandle);
+            }
+        };
+        ws.onerror = () => addSimLog("WebSocket connection error.");
+        ws.onclose = () => addSimLog("WebSocket connection closed.");
+        
+        toast({ title: "Simulation Started", description: `Monitoring ${config.symbol} with simulated funds.` });
+
+    } catch (e: any) {
+        addSimLog(`Error starting simulation: ${e.message}`);
+        toast({ title: "Failed to Start", description: e.message, variant: "destructive" });
+        stopSimulation();
+    }
+  }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
+  
 
   // Cleanup on unmount
   useEffect(() => {
@@ -825,6 +1001,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       if (manualWsRef.current) manualWsRef.current.close();
       if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
       if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
+      if (simulationWsRef.current) simulationWsRef.current.close();
     }
   }, []);
 
@@ -834,6 +1011,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       manualTraderState,
       multiSignalState,
       screenerState,
+      simulationState,
       strategyParams,
       setStrategyParams,
       isTradingActive,
@@ -850,6 +1028,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       startScreener,
       stopScreener,
       closePosition,
+      startSimulation,
+      stopSimulation,
     }}>
       {children}
     </BotContext.Provider>

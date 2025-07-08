@@ -1,9 +1,10 @@
+
 "use client"
 
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -24,6 +25,7 @@ import { Button } from "./ui/button"
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
+  { href: "/simulation", label: "Live Simulation", icon: TestTube },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },
@@ -86,7 +88,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarTrigger className="md:hidden" />
           <div className="flex-1">
             <h2 className="text-lg font-semibold capitalize">
-              {pathname.substring(1).split('/')[0] || 'Dashboard'}
+              {pathname.substring(1).replace('-', ' ') || 'Dashboard'}
             </h2>
           </div>
         </header>

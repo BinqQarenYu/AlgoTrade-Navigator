@@ -1,4 +1,5 @@
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -262,6 +263,36 @@ export interface ScreenerState {
   logs: string[];
 }
 
+export type SimulationConfig = LiveBotConfig;
+export type SimulatedTrade = BacktestResult;
+
+export type SimulatedPosition = {
+    id: string;
+    asset: string;
+    side: 'long' | 'short';
+    entryPrice: number;
+    entryTime: number;
+    size: number;
+    stopLoss: number;
+    takeProfit: number;
+};
+
+export type SimulationState = {
+    isRunning: boolean;
+    config: SimulationConfig | null;
+    logs: string[];
+    chartData: HistoricalData[];
+    portfolio: {
+        initialCapital: number;
+        balance: number;
+        pnl: number;
+    };
+    openPositions: SimulatedPosition[];
+    tradeHistory: SimulatedTrade[];
+    summary: BacktestSummary | null;
+};
+
+
 export interface Strategy {
   id: string;
   name: string;
@@ -347,6 +378,7 @@ export interface BotContextType {
   manualTraderState: ManualTraderState;
   multiSignalState: MultiSignalState;
   screenerState: ScreenerState;
+  simulationState: SimulationState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -363,4 +395,6 @@ export interface BotContextType {
   startScreener: (config: ScreenerConfig) => void;
   stopScreener: () => void;
   closePosition: (position: Position) => void;
+  startSimulation: (config: SimulationConfig) => void;
+  stopSimulation: () => void;
 }
