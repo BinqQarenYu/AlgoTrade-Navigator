@@ -108,6 +108,6 @@ const predictMarketFlow = ai.defineFlow(
       }
     }
     // If all retries failed
-    throw new Error(`AI model call failed after ${maxRetries} attempts. Last error: ${lastError?.message}`);
+    throw new Error("The AI service is currently overloaded. Please try again in a few minutes.");
   }
 );
