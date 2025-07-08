@@ -393,7 +393,7 @@ export function TradingChart({
                     color: '#4ade80', // green-400
                     shape: 'arrowUp',
                     text: 'Pump Start',
-                    size: 1.5,
+                    size: 2,
                 });
             }
             if (distributionPeriod?.startTime) {
@@ -402,8 +402,8 @@ export function TradingChart({
                     position: 'aboveBar',
                     color: '#f87171', // red-400
                     shape: 'arrowDown',
-                    text: 'Dump Start',
-                    size: 1.5,
+                    text: 'Distribution (Dump) Start',
+                    size: 2,
                 });
             }
         }
