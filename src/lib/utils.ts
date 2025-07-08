@@ -64,3 +64,17 @@ export function formatLargeNumber(num: number, digits = 2): string {
   }
   return (num / si[i].value).toFixed(digits).replace(rx, "$1") + si[i].symbol;
 }
+
+export const intervalToMs = (interval: string): number => {
+    const value = parseInt(interval.slice(0, -1), 10);
+    const unit = interval.slice(-1);
+
+    if (isNaN(value)) return 60000; // Default to 1 minute on error
+
+    switch (unit) {
+        case 'm': return value * 60 * 1000;
+        case 'h': return value * 60 * 60 * 1000;
+        case 'd': return value * 24 * 60 * 60 * 1000;
+        default: return 60000;
+    }
+}

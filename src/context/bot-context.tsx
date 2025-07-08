@@ -12,6 +12,7 @@ import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
+import { intervalToMs } from '@/lib/utils';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -122,21 +123,6 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'ema-cci-macd': defaultEmaCciMacdParams,
     'ai-consensus': defaultAiConsensusParams,
 };
-
-// Helper to convert interval string to milliseconds for timers
-const intervalToMs = (interval: string): number => {
-    const value = parseInt(interval.slice(0, -1), 10);
-    const unit = interval.slice(-1);
-
-    if (isNaN(value)) return 60000; // Default to 1 minute on error
-
-    switch (unit) {
-        case 'm': return value * 60 * 1000;
-        case 'h': return value * 60 * 60 * 1000;
-        case 'd': return value * 24 * 60 * 60 * 1000;
-        default: return 60000;
-    }
-}
 
 const KNOWN_INDICATORS = [
     'sma_short', 'sma_long', 'ema_short', 'ema_long', 'rsi', 'stopLossLevel',

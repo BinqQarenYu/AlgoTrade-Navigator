@@ -383,7 +383,6 @@ export default function LabPage() {
         if(!isStreamActive) {
             setChartData([]);
             setReport(null);
-            setManipulationResult(null);
             setLiquidityEvents([]);
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }

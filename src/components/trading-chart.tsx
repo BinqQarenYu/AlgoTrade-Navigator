@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
 import { Camera } from 'lucide-react';
-import { formatPrice, formatLargeNumber } from '@/lib/utils';
+import { formatPrice, formatLargeNumber, intervalToMs } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
@@ -255,12 +255,12 @@ export function TradingChart({
     
     const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
 
-    const manipulationStartTimes = new Set<number>();
+    const manipulationStartTimes: number[] = [];
     if (showAnalysis && manipulationResult?.isManipulationSuspected) {
         const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
-        if (accumulationPeriod?.startTime) manipulationStartTimes.add(accumulationPeriod.startTime);
-        if (pumpPeriod?.startTime) manipulationStartTimes.add(pumpPeriod.startTime);
-        if (distributionPeriod?.startTime) manipulationStartTimes.add(distributionPeriod.startTime);
+        if (accumulationPeriod?.startTime) manipulationStartTimes.push(accumulationPeriod.startTime);
+        if (pumpPeriod?.startTime) manipulationStartTimes.push(pumpPeriod.startTime);
+        if (distributionPeriod?.startTime) manipulationStartTimes.push(distributionPeriod.startTime);
     }
 
     if (data.length > 0) {
@@ -304,9 +304,15 @@ export function TradingChart({
         
         const highlightColor = '#3b82f6';
         
+        const candleIntervalMs = intervalToMs(interval);
+
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-            const isManipulationStart = manipulationStartTimes.has(d.time);
+            const candleStartTime = d.time;
+            const candleEndTime = d.time + candleIntervalMs;
+            const isManipulationStart = manipulationStartTimes.some(startTime => 
+                startTime >= candleStartTime && startTime < candleEndTime
+            );
             const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
             const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)';
             const manipulationVolumeColor = '#000000';
@@ -393,7 +399,7 @@ export function TradingChart({
                     color: '#4ade80', // green-400
                     shape: 'arrowUp',
                     text: 'Pump Start',
-                    size: 2,
+                    size: 2.5,
                 });
             }
             if (distributionPeriod?.startTime) {
@@ -403,7 +409,7 @@ export function TradingChart({
                     color: '#f87171', // red-400
                     shape: 'arrowDown',
                     text: 'Distribution (Dump) Start',
-                    size: 2,
+                    size: 2.5,
                 });
             }
         }
@@ -422,7 +428,12 @@ export function TradingChart({
             mainLineSeries.setData([]);
             const candlestickChartData = uniqueData.map(d => {
                 const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-                const isManipulationStart = manipulationStartTimes.has(d.time);
+                
+                const candleStartTime = d.time;
+                const candleEndTime = d.time + candleIntervalMs;
+                const isManipulationStart = manipulationStartTimes.some(startTime => 
+                    startTime >= candleStartTime && startTime < candleEndTime
+                );
                 
                 let coloring = {};
                 if (isManipulationStart) {
@@ -463,7 +474,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, interval]);
 
    // Effect to draw signal lines
     useEffect(() => {
