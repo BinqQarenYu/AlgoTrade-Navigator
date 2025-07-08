@@ -17,7 +17,7 @@ export const assetInfo: Record<string, string> = {
     "ENA": "Ethena", "W": "Wormhole", "JUP": "Jupiter", "JTO": "Jito", "PYTH": "Pyth Network",
     "BOME": "BOOK OF MEME", "ICP": "Internet Computer", "VET": "VeChain", "XLM": "Stellar",
     "HBAR": "Hedera", "ALGO": "Algorand", "EGLD": "MultiversX", "FLOW": "Flow", "CHZ": "Chiliz", "MINA": "Mina",
-    "SAHARA": "Sahara", "NEWT": "Newton", "VIC": "Viction"
+    "SAHARA": "Sahara", "NEWT": "Newton", "VIC": "Viction", "OM": "MANTRA"
 };
 
 export const fullAssetList = [
@@ -28,7 +28,7 @@ export const fullAssetList = [
     "MANAUSDT", "AXSUSDT", "GALAUSDT", "THETAUSDT", "XTZUSDT", "EOSUSDT", "KSMUSDT", "ZECUSDT", "DASHUSDT", "COMPUSDT",
     "CRVUSDT", "1INCHUSDT", "DYDXUSDT", "GMXUSDT", "SUSHIUSDT", "YFIUSDT", "IMXUSDT", "BLURUSDT", "CELOUSDT", "FLOKIUSDT",
     "MEMEUSDT", "ENAUSDT", "WUSDT", "JUPUSDT", "JTOUSDT", "PYTHUSDT", "BOMEUSDT", "ICPUSDT", "VETUSDT", "XLMUSDT",
-    "HBARUSDT", "ALGOUSDT", "EGLDUSDT", "FLOWUSDT", "CHZUSDT", "MINAUSDT", "SAHARAUSDT", "NEWTUSDT", "VICUSDT",
+    "HBARUSDT", "ALGOUSDT", "EGLDUSDT", "FLOWUSDT", "CHZUSDT", "MINAUSDT", "SAHARAUSDT", "NEWTUSDT", "VICUSDT", "OMUSDT",
     // Add some pairs with other quotes
     "ETHBTC", "BNBBTC", "SOLBTC", "XRPBTC", "ADABTC", "DOTBTC", "LINKBTC", "LTCBTC",
     "BNBETH", "TRXETH", "SOLETH",
@@ -81,7 +81,7 @@ export const pairsByBase = allPairs.reduce((acc, pair) => {
 export const topBases = [
     "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT",
     "LINK", "MATIC", "LTC", "NEAR", "UNI", "ATOM", "ETC", "FIL", "APT", "SUI", "OP",
-    "PEPE", "WIF", "TON", "ORDI", "WLD", "ARB", "SAHARA", "NEWT", "VIC"
+    "PEPE", "WIF", "TON", "ORDI", "WLD", "ARB", "SAHARA", "NEWT", "VIC", "OM"
 ].sort();
 
 // New export for UI components
