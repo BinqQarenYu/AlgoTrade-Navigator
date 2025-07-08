@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { get24hTickerStats } from '@/lib/binance-service';
 import { topAssets } from '@/lib/assets';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -152,19 +153,21 @@ export function MarketHeatmap() {
                                     {heatmapData.map(item => (
                                         <Tooltip key={item.symbol}>
                                             <TooltipTrigger asChild>
-                                                <div className={cn(
-                                                    "p-2 rounded-md text-white transition-colors duration-200 text-center flex flex-col justify-center items-center h-16",
-                                                    getHeatmapColor(item.percentage)
-                                                )}>
-                                                    <div className="font-bold text-sm">{item.base}</div>
-                                                    <div className="text-xs font-mono">
-                                                        {item.percentage > 0 ? '+' : ''}
-                                                        {item.percentage.toFixed(2)}%
+                                                <Link href={`/lab?symbol=${item.symbol}`}>
+                                                    <div className={cn(
+                                                        "p-2 rounded-md text-white transition-colors duration-200 text-center flex flex-col justify-center items-center h-16 w-full",
+                                                        getHeatmapColor(item.percentage)
+                                                    )}>
+                                                        <div className="font-bold text-sm">{item.base}</div>
+                                                        <div className="text-xs font-mono">
+                                                            {item.percentage > 0 ? '+' : ''}
+                                                            {item.percentage.toFixed(2)}%
+                                                        </div>
                                                     </div>
-                                                </div>
+                                                </Link>
                                             </TooltipTrigger>
                                             <TooltipContent>
-                                                <p>{item.symbol} 24h Change: {item.percentage.toFixed(2)}%</p>
+                                                <p>Click to analyze {item.symbol} in the Trading Lab</p>
                                             </TooltipContent>
                                         </Tooltip>
                                     ))}

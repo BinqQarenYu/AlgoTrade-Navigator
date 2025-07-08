@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
@@ -31,7 +32,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget } from "@/lib/types"
-import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
 import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
@@ -151,6 +152,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function LabPage() {
   const { toast } = useToast()
+  const searchParams = useSearchParams()
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
   const [isReportPending, startReportTransition] = React.useTransition();
@@ -192,6 +194,20 @@ export default function LabPage() {
   const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
 
+  useEffect(() => {
+    const symbolFromQuery = searchParams.get('symbol');
+    if (symbolFromQuery) {
+        const parsed = parseSymbolString(symbolFromQuery);
+        if (parsed) {
+            setBaseAsset(parsed.base);
+            setQuoteAsset(parsed.quote);
+            toast({
+                title: "Asset Loaded from Heatmap",
+                description: `Now analyzing ${parsed.base}/${parsed.quote}.`,
+            });
+        }
+    }
+  }, [searchParams, setBaseAsset, setQuoteAsset, toast]);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
