@@ -5,13 +5,13 @@ import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
+import { getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { addDays } from "date-fns"
 import type { HistoricalData, SimulatedPosition } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
@@ -199,7 +200,8 @@ export default function SimulationPage() {
     setStrategyParams,
   } = useBot();
 
-  const { isRunning, logs, chartData, portfolio, openPositions, tradeHistory, summary } = simulationState;
+  const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
+  const botChartData = simulationState.chartData;
   
   // Local state for configuration UI
   const [baseAsset, setBaseAsset] = usePersistentState<string>('sim-base-asset', "BTC");
@@ -216,6 +218,11 @@ export default function SimulationPage() {
   const [fee] = usePersistentState<number>('sim-fee', 0.04);
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('sim-ai-prediction', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('sim-chart-height', 600);
+
+  // Local chart data management
+  const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
@@ -256,6 +263,48 @@ export default function SimulationPage() {
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [chartHeight, setChartHeight]);
+  
+  useEffect(() => {
+    setIsClient(true)
+  }, []);
+
+  useEffect(() => {
+    if (isRunning) {
+      setChartData(botChartData);
+    }
+  }, [isRunning, botChartData]);
+
+  useEffect(() => {
+    if (!isClient || !isConnected || isRunning || !symbol) {
+        if (!isRunning) setChartData([]);
+        return;
+    }
+
+    const fetchData = async () => {
+        setIsFetchingData(true);
+        setChartData([]);
+        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
+        try {
+            const from = addDays(new Date(), -1).getTime();
+            const to = new Date().getTime();
+            const klines = await getHistoricalKlines(symbol, interval, from, to);
+            setChartData(klines);
+            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
+        } catch (error: any) {
+            console.error("Failed to fetch historical data:", error);
+            toast({
+                title: "Failed to Load Data",
+                description: error.message || "Could not retrieve historical data from Binance.",
+                variant: "destructive"
+            });
+            setChartData([]);
+        } finally {
+            setIsFetchingData(false);
+        }
+    };
+
+    fetchData();
+  }, [symbol, interval, isConnected, isClient, toast, isRunning]);
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -308,6 +357,8 @@ export default function SimulationPage() {
       </div>
     );
   };
+  
+  const anyLoading = isFetchingData;
 
   return (
     <div className="space-y-6">
@@ -413,9 +464,9 @@ export default function SimulationPage() {
                   <div className="flex items-center space-x-2 pt-2"><Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} /><Label htmlFor="ai-prediction">Enable AI Validation</Label></div>
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" onClick={handleBotToggle} disabled={!isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
-                    {isRunning ? <StopCircle /> : <Play />}
-                    {isRunning ? "Stop Simulation" : "Start Simulation"}
+                  <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
+                    {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isFetchingData ? "Fetching Data..." : isRunning ? <><StopCircle /> Stop Simulation</> : <><Play /> Start Simulation</>}
                   </Button>
                 </CardFooter>
               </CollapsibleContent>
@@ -446,3 +497,5 @@ export default function SimulationPage() {
     </div>
   )
 }
+
+    
