@@ -56,7 +56,7 @@ Generate a comprehensive report covering the following sections:
 2.  **Trend Analysis:** Is the asset in an uptrend, downtrend, or consolidating? What is the evidence from price action?
 3.  **Volatility Analysis:** Is volatility increasing or decreasing? Are there signs of a potential breakout or a quiet period?
 4.  **Key Levels:** Identify the most significant recent support and resistance levels.
-5.  **Outlook:** Based on all the above, what are the likely scenarios for the asset in the near future? Conclude with a clear recommendation for the best course of action for a trader.
+5.  **Outlook:** Based on all the above, what are the likely scenarios for the asset in the near future? Conclude with a clear recommendation on the best course of action for a trader.
 
 Provide your analysis in the structured JSON format required.
 `,

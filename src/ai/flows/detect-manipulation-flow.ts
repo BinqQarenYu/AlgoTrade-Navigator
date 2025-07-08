@@ -68,17 +68,17 @@ A typical manipulation scheme unfolds in three phases:
 
 Based on the provided historical data, perform the following:
 1.  **Identify Phases:** Examine the data to see if you can identify any or all of the three phases described above. Provide the start and end timestamps (in milliseconds) for each phase you identify.
-2.  **Assess Suspicion:** Based on the evidence, set \`isManipulationSuspected\` to true if the pattern is clear and strong, and false otherwise.
-3.  **Set Confidence:** Provide a confidence score (0.0 to 1.0) for your assessment. A high confidence means the pattern is a textbook example.
+2.  **Assess Suspicion (Early Detection):** Your primary goal is early detection. Set \`isManipulationSuspected\` to true even if only the Accumulation phase and the beginning of a Pump phase are visible. A clear Accumulation followed by a sharp, high-volume price spike is sufficient for a 'true' suspicion, even if the Dump has not occurred.
+3.  **Set Confidence:** Provide a confidence score (0.0 to 1.0) for your assessment. A high confidence means the pattern is a textbook example. A lower confidence might indicate an early, developing pattern.
 4.  **Identify Current Phase:** Determine which phase the asset is most likely in *at the end* of the provided data, or if the pattern has completed. Set to 'None' if no pattern is detected.
-5.  **Provide Reasoning:** Write a detailed, evidence-based reasoning for your conclusion. Reference specific price action, volume changes, and the characteristics of each phase from the data.
+5.  **Provide Reasoning:** Write a detailed, evidence-based reasoning for your conclusion. If you suspect manipulation early (e.g., during the Pump phase), explain why the current pattern is anomalous and what to watch for next (e.g., a high-volume stall or reversal, which would indicate the Dump). Reference specific price action, volume changes, and the characteristics of each phase from the data. Conclude with a clear recommendation on the best course of action for a trader.
 
 **Historical Data:**
 \`\`\`json
 {{{historicalData}}}
 \`\`\`
 
-Provide your analysis in the structured JSON format required. Be objective and base your analysis solely on the data provided. Conclude with a clear recommendation on the best course of action for a trader.
+Provide your analysis in the structured JSON format required. Be objective and base your analysis solely on the data provided.
 `,
 });
 
