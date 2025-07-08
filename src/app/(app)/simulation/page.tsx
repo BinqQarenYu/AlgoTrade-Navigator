@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData, SimulatedPosition } from "@/lib/types"
+import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -39,6 +39,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { BacktestResults } from "@/components/backtest-results"
 import { formatPrice } from "@/lib/utils"
+import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -225,6 +226,11 @@ export default function SimulationPage() {
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
+  // Analysis State
+  const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('sim-show-analysis', true);
+  const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
+  const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
+
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('sim-params-open', false);
@@ -265,6 +271,43 @@ export default function SimulationPage() {
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [chartHeight, setChartHeight]);
   
+  const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
+    if (!showAnalysis || currentChartData.length < 20) {
+      setLiquidityEvents([]);
+      setLiquidityTargets([]);
+      return;
+    }
+
+    const getDynamicParams = () => {
+        switch(interval) {
+            case '1m': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
+            case '5m': return { lookaround: 15, confirmationCandles: 3, maxLookahead: 60 };
+            case '15m': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
+            case '1h': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
+            case '4h': return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
+            case '1d': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
+            default: return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+        }
+    }
+    try {
+        const dynamicParams = getDynamicParams();
+        const [resultEvents, targetEvents] = await Promise.all([
+            findLiquidityGrabs(currentChartData, dynamicParams),
+            findLiquidityTargets(currentChartData, dynamicParams.lookaround)
+        ]);
+        setLiquidityEvents(resultEvents);
+        setLiquidityTargets(targetEvents);
+    } catch (error: any) {
+        console.error("Error analyzing liquidity automatically:", error);
+    }
+  }, [interval, showAnalysis]);
+
+  useEffect(() => {
+    if (chartData.length > 0) {
+      refreshChartAnalysis(chartData);
+    }
+  }, [chartData, refreshChartAnalysis]);
+
   useEffect(() => {
     setIsClient(true)
   }, []);
@@ -286,8 +329,6 @@ export default function SimulationPage() {
         setChartData([]);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
-            const from = addDays(new Date(), -1).getTime();
-            const to = new Date().getTime();
             const klines = await getLatestKlinesByLimit(symbol, interval, 500);
             setChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
@@ -394,7 +435,14 @@ export default function SimulationPage() {
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-              <TradingChart data={chartData} symbol={symbol} interval={interval} />
+              <TradingChart 
+                data={chartData} 
+                symbol={symbol} 
+                interval={interval} 
+                liquidityEvents={liquidityEvents}
+                liquidityTargets={liquidityTargets}
+                showAnalysis={showAnalysis}
+              />
           </div>
           <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
               <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
@@ -463,6 +511,7 @@ export default function SimulationPage() {
                   </div>
 
                   <div className="flex items-center space-x-2 pt-2"><Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} /><Label htmlFor="ai-prediction">Enable AI Validation</Label></div>
+                  <div className="flex items-center space-x-2 pt-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis">Show Liquidity Analysis</Label></div>
                 </CardContent>
                 <CardFooter>
                   <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
@@ -498,3 +547,5 @@ export default function SimulationPage() {
     </div>
   )
 }
+
+    
