@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { get24hTickerStats } from '@/lib/binance-service';
 import { topAssets } from '@/lib/assets';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,41 +70,59 @@ export function MarketHeatmap() {
     const { isConnected } = useApi();
     const { toast } = useToast();
 
-    useEffect(() => {
+    const fetchHeatmapData = useCallback(async (isInitial: boolean) => {
         if (!isConnected) {
-            setIsLoading(false);
+            if (isInitial) setIsLoading(false);
             setHeatmapData([]);
             return;
         }
 
-        const fetchHeatmapData = async () => {
+        if (isInitial) {
             setIsLoading(true);
-            try {
-                // Fetch stats for top assets against USDT
-                const symbolsToFetch = topAssets.map(asset => `${asset.ticker}USDT`);
-                const tickerStats = await get24hTickerStats(symbolsToFetch);
-                
-                const data = Object.values(tickerStats).map((ticker: Ticker) => ({
-                    symbol: ticker.symbol,
-                    base: ticker.symbol.replace('USDT', ''),
-                    percentage: ticker.percentage ?? 0,
-                })).sort((a, b) => Math.abs(b.percentage) - Math.abs(a.percentage)); // Sort by volatility (absolute change)
+        }
 
-                setHeatmapData(data);
-            } catch (error: any) {
-                console.error("Failed to fetch heatmap data:", error);
+        try {
+            const symbolsToFetch = topAssets.map(asset => `${asset.ticker}USDT`);
+            const tickerStats = await get24hTickerStats(symbolsToFetch);
+            
+            const data = Object.values(tickerStats).map((ticker: Ticker) => ({
+                symbol: ticker.symbol,
+                base: ticker.symbol.replace('USDT', ''),
+                percentage: ticker.percentage ?? 0,
+            })).sort((a, b) => Math.abs(b.percentage) - Math.abs(a.percentage));
+
+            setHeatmapData(data);
+        } catch (error: any) {
+            console.error("Failed to fetch heatmap data:", error);
+            if (isInitial) {
                 toast({
                     title: "Heatmap Failed",
                     description: "Could not load market performance data.",
                     variant: "destructive"
                 });
-            } finally {
+            }
+        } finally {
+            if (isInitial) {
                 setIsLoading(false);
             }
-        };
-
-        fetchHeatmapData();
+        }
     }, [isConnected, toast]);
+
+    useEffect(() => {
+        if (isConnected) {
+            fetchHeatmapData(true); // Initial fetch
+
+            const intervalId = setInterval(() => {
+                fetchHeatmapData(false); // Subsequent fetches
+            }, 15 * 60 * 1000); // 15 minutes
+
+            return () => clearInterval(intervalId); // Cleanup interval on unmount or when disconnected
+        } else {
+            setIsLoading(false);
+            setHeatmapData([]);
+        }
+    }, [isConnected, fetchHeatmapData]);
+
 
     return (
         <Card>
@@ -112,7 +130,7 @@ export function MarketHeatmap() {
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                         <CardTitle>Market Heatmap</CardTitle>
-                        <CardDescription>24h volatility of top assets.</CardDescription>
+                        <CardDescription>24h volatility of top assets. Updates every 15 mins.</CardDescription>
                     </div>
                     <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
