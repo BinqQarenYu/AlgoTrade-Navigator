@@ -60,14 +60,6 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
     },
-    'reverse-pff': { // Same as PFF
-        peakLookaround: { min: 3, max: 10, step: 1 },
-        swingLookaround: { min: 2, max: 5, step: 1 },
-        emaShortPeriod: { min: 10, max: 20, step: 3 },
-        emaLongPeriod: { min: 40, max: 60, step: 5 },
-        fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
-        fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
-    },
     'hyper-peak-formation': { // Same as PFF
         peakLookaround: { min: 3, max: 10, step: 1 },
         swingLookaround: { min: 2, max: 5, step: 1 },

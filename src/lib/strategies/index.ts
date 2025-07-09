@@ -4,7 +4,6 @@ import smaCrossoverStrategy from './sma-crossover';
 import emaCrossoverStrategy from './ema-crossover';
 import rsiDivergenceStrategy from './rsi-divergence';
 import peakFormationFibStrategy from './peak-formation-fib';
-import reversePffStrategy from './reverse-pff';
 import volumeDeltaStrategy from './volume-profile-delta';
 import macdCrossoverStrategy from './macd-crossover';
 import bollingerBandsStrategy from './bollinger-bands';
@@ -36,7 +35,6 @@ import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback'
 
 export const strategies: Strategy[] = [
   peakFormationFibStrategy,
-  reversePffStrategy,
   hyperPeakFormationStrategy,
   liquidityOrderFlowStrategy,
   liquidityGrabStrategy,
