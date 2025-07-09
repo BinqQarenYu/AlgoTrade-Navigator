@@ -12,6 +12,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
 import { ChevronDown, Play, StopCircle } from 'lucide-react';
+import type { Wall, SpoofedWall } from '@/lib/types';
 
 // Types for the order book
 type OrderBookLevel = [string, string]; // [price, quantity]
@@ -25,7 +26,7 @@ interface FormattedOrderBookLevel {
 
 interface OrderBookProps {
     symbol: string;
-    onWallsUpdate: (walls: { price: number; type: 'bid' | 'ask' }[]) => void;
+    onWallsUpdate: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
 }
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
@@ -96,6 +97,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
+    const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
     useEffect(() => {
         // If the stream is meant to be inactive, ensure connection is closed.
@@ -222,28 +224,35 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
     }, [bids, asks]);
 
-    // Effect to report walls back to the parent component.
+    // Effect to report walls and detect spoofs
     useEffect(() => {
         if (!isStreamActive) {
-            onWallsUpdate([]);
+            onWallsUpdate({ walls: [], spoofs: [] });
+            previousWallsRef.current.clear();
             return;
         }
 
-        const currentWalls: { price: number, type: 'bid' | 'ask' }[] = [];
+        const allWalls: Wall[] = [
+            ...formattedBids.filter(b => b.isWall).map(b => ({ price: b.price, type: 'bid' as const })),
+            ...formattedAsks.filter(a => a.isWall).map(a => ({ price: a.price, type: 'ask' as const }))
+        ];
+
+        const currentWallKeys = new Set(allWalls.map(w => `${w.type}_${w.price}`));
         
-        formattedBids.forEach(level => {
-            if (level.isWall) {
-                currentWalls.push({ price: level.price, type: 'bid' });
+        const spoofs: SpoofedWall[] = [];
+        previousWallsRef.current.forEach((wall, key) => {
+            if (!currentWallKeys.has(key)) {
+                // This wall was present before but is now gone -> potential spoof
+                spoofs.push({ ...wall, id: `${key}_${Date.now()}` });
             }
         });
         
-        formattedAsks.forEach(level => {
-            if (level.isWall) {
-                currentWalls.push({ price: level.price, type: 'ask' });
-            }
-        });
-        
-        onWallsUpdate(currentWalls);
+        onWallsUpdate({ walls: allWalls, spoofs: spoofs });
+
+        // Update the reference for the next comparison
+        const newWallMap = new Map<string, Wall>();
+        allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
+        previousWallsRef.current = newWallMap;
 
     }, [formattedBids, formattedAsks, isStreamActive, onWallsUpdate]);
 

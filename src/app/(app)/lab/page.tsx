@@ -31,7 +31,7 @@ import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, Shie
 import { Calendar } from "@/components/ui/calendar"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, Wall, SpoofedWall } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
@@ -183,7 +183,8 @@ export default function LabPage() {
   const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [report, setReport] = useState<GenerateMarketReportOutput | null>(null);
-  const [walls, setWalls] = useState<{ price: number; type: 'bid' | 'ask' }[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [isStreamActive, setIsStreamActive] = useState(false);
@@ -284,6 +285,7 @@ export default function LabPage() {
   useEffect(() => {
     // When the symbol changes, clear out old wall data
     setWalls([]);
+    setSpoofedWalls([]);
     setConsensusResult(null); // Also clear prediction
   }, [symbol]);
 
@@ -587,6 +589,13 @@ export default function LabPage() {
       setConsensusResult(null);
     }
   };
+  
+  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+    setWalls(walls);
+    if (spoofs.length > 0) {
+      setSpoofedWalls(prev => [...prev, ...spoofs]);
+    }
+  }, []);
 
   const anyLoading = isFetchingData || isReportPending || isScanning;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
@@ -686,6 +695,7 @@ export default function LabPage() {
                 interval={interval}
                 onIntervalChange={setInterval}
                 wallLevels={showAnalysis && showWalls ? walls : []}
+                spoofedWalls={showAnalysis ? spoofedWalls : []}
                 liquidityEvents={showAnalysis && showLiquidity ? liquidityEvents : []}
                 liquidityTargets={showAnalysis && showTargets ? liquidityTargets : []}
                 lineWidth={lineWidth}
@@ -895,7 +905,7 @@ export default function LabPage() {
 
           <MarketHeatmap />
 
-          {quoteAsset && symbol && <OrderBook symbol={symbol} onWallsUpdate={setWalls} />}
+          {symbol && quoteAsset && <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />}
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>

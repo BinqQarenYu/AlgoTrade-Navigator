@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -32,6 +32,7 @@ export function TradingChart({
   highlightedTrade = null,
   onIntervalChange,
   wallLevels = [],
+  spoofedWalls = [],
   liquidityEvents = [],
   liquidityTargets = [],
   lineWidth = 2,
@@ -48,6 +49,7 @@ export function TradingChart({
   highlightedTrade?: BacktestResult | null;
   onIntervalChange?: (newInterval: string) => void;
   wallLevels?: { price: number; type: 'bid' | 'ask' }[];
+  spoofedWalls?: SpoofedWall[];
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
   lineWidth?: number;
@@ -206,6 +208,7 @@ export function TradingChart({
             volumeSeries,
             targetZoneSeries,
             manipulationZoneSeries,
+            spoofAnimations: new Map(),
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
@@ -254,6 +257,13 @@ export function TradingChart({
     return () => {
       if (chartContainer) {
         resizeObserver.unobserve(chartContainer);
+      }
+      if (chartRef.current?.spoofAnimations) {
+        chartRef.current.spoofAnimations.forEach((anim: any) => {
+          clearInterval(anim.intervalId);
+          clearTimeout(anim.timeoutId);
+        });
+        chartRef.current.spoofAnimations.clear();
       }
       if (chartRef.current?.chart) {
           chartRef.current.chart.remove();
@@ -647,6 +657,41 @@ export function TradingChart({
         chartRef.current.wallPriceLines = newLines;
 
     }, [wallLevels, lineWidth, showAnalysis]);
+
+    // Effect for SPOOFED walls
+    useEffect(() => {
+        if (!chartRef.current?.chart || !showAnalysis || !spoofedWalls || spoofedWalls.length === 0) return;
+        
+        const { candlestickSeries, spoofAnimations } = chartRef.current;
+        if (!candlestickSeries || !spoofAnimations) return;
+
+        spoofedWalls.forEach(spoof => {
+            if (spoofAnimations.has(spoof.id)) return; // Don't re-animate
+
+            const line = candlestickSeries.createPriceLine({
+                price: spoof.price,
+                color: '#ef4444', // Red
+                lineWidth: 4,     // Thick
+                lineStyle: LineStyle.Solid,
+                axisLabelVisible: true,
+                title: `SPOOF WALL`,
+            });
+
+            let visible = true;
+            const intervalId = setInterval(() => {
+                visible = !visible;
+                line.applyOptions({ color: visible ? '#ef4444' : 'transparent' });
+            }, 300); // Blink interval
+
+            const timeoutId = setTimeout(() => {
+                clearInterval(intervalId);
+                candlestickSeries.removePriceLine(line);
+                spoofAnimations.delete(spoof.id);
+            }, 5000); // Remove after 5 seconds
+
+            spoofAnimations.set(spoof.id, { line, intervalId, timeoutId });
+        });
+    }, [spoofedWalls, showAnalysis]);
 
     // Effect to draw historical liquidity target lines
     useEffect(() => {

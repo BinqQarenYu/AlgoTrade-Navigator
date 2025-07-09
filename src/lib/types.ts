@@ -436,3 +436,12 @@ export interface BotContextType {
   startSimulation: (config: SimulationConfig) => void;
   stopSimulation: () => void;
 }
+
+export type Wall = {
+  price: number;
+  type: 'bid' | 'ask';
+};
+
+export type SpoofedWall = Wall & {
+  id: string; // Unique ID for the event
+};
