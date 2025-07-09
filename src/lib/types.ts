@@ -341,6 +341,44 @@ export interface LiquidityTarget {
   type: 'buy-side' | 'sell-side';
 }
 
+export type SavedMarketReport = {
+  id: string;
+  timestamp: number;
+  type: 'market-report';
+  input: {
+    symbol: string;
+    interval: string;
+  };
+  output: {
+    title: string;
+    summary: string;
+    trendAnalysis: string;
+    volatilityAnalysis: string;
+    keyLevels: string;
+    outlook: string;
+  };
+};
+
+export type SavedManipulationScan = {
+  id: string;
+  timestamp: number;
+  type: 'manipulation-scan';
+  input: {
+    symbol: string;
+  };
+  output: {
+    isManipulationSuspected: boolean;
+    confidence: number;
+    currentPhase: 'Accumulation' | 'Pump' | 'Distribution' | 'None';
+    reasoning: string;
+    accumulationPeriod?: { startTime: number; endTime: number; };
+    pumpPeriod?: { startTime: number; endTime: number; };
+    distributionPeriod?: { startTime: number; endTime: number; };
+  };
+};
+
+export type SavedReport = SavedMarketReport | SavedManipulationScan;
+
 export interface ApiContextType {
   profiles: ApiProfile[];
   activeProfile: ApiProfile | null;

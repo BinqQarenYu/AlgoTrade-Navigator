@@ -29,7 +29,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush, Settings, ShieldCheck } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
-import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
+import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
 import { format, addDays } from "date-fns"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget } from "@/lib/types"
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
@@ -47,6 +47,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { saveReport } from "@/lib/data-service"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -191,6 +192,7 @@ export default function LabPage() {
   const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
+  // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('lab-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('lab-params-open', false);
   const [isReportOpen, setReportOpen] = usePersistentState<boolean>('lab-report-open', false);
@@ -375,7 +377,7 @@ export default function LabPage() {
     if (!isClient || !symbol || !quoteAsset || isStreamActive) return;
 
     const fetchData = async () => {
-        if (!isConnected) {
+        if (!isConnected || !symbol || !quoteAsset) {
             if(!isStreamActive) setChartData([]);
             return;
         }
@@ -485,14 +487,23 @@ export default function LabPage() {
     setReport(null);
     startReportTransition(async () => {
       try {
-        const reportData = await generateMarketReport({
+        const reportInput = {
           symbol,
           interval,
           historicalData: JSON.stringify(chartData.slice(-200).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))), // Use last 200 candles
+        };
+        const reportData = await generateMarketReport(reportInput);
+        
+        await saveReport({
+            type: 'market-report',
+            timestamp: Date.now(),
+            input: { symbol, interval },
+            output: reportData
         });
+        
         setReport(reportData);
         setReportOpen(true);
-        toast({ title: "Report Generated", description: "AI market analysis is complete." });
+        toast({ title: "Report Generated", description: "AI market analysis is complete and saved to the Data page." });
       } catch (error) {
         console.error("Error generating report:", error);
         toast({
@@ -520,13 +531,22 @@ export default function LabPage() {
       setIsScanning(true);
       startScanTransition(async () => {
         try {
-          const result = await detectManipulation({
+          const scanInput = {
             symbol,
             historicalData: JSON.stringify(chartData.slice(-500).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+          };
+          const result = await detectManipulation(scanInput);
+          
+          await saveReport({
+              type: 'manipulation-scan',
+              timestamp: Date.now(),
+              input: { symbol },
+              output: result
           });
+
           setManipulationResult(result);
           setManipulationCardOpen(true);
-          toast({ title: "Manipulation Scan Complete", description: "AI analysis of chart patterns is ready." });
+          toast({ title: "Manipulation Scan Complete", description: "AI analysis is ready and saved to the Data page." });
         } catch (error) {
           console.error("Error scanning for manipulation:", error);
           toast({ title: "Scan Failed", description: "An error occurred during the analysis.", variant: "destructive" });

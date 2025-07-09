@@ -8,15 +8,17 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Play, StopCircle, Database, Trash2, FolderClock, Bot, ChevronDown } from 'lucide-react';
+import { Play, StopCircle, Database, Trash2, FolderClock, Bot, ChevronDown, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import { useBot } from '@/context/bot-context';
-import type { StreamedDataPoint } from '@/lib/types';
-import { saveDataPoint, loadSavedData, clearSavedData } from '@/lib/data-service';
+import type { StreamedDataPoint, SavedReport } from '@/lib/types';
+import { saveDataPoint, loadSavedData, clearSavedData, loadReports, deleteReport } from '@/lib/data-service';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
@@ -52,11 +54,83 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [isHydrated ? state : defaultValue, setState];
 };
 
+const ReportCard = ({ report, onDelete }: { report: SavedReport, onDelete: (id: string) => void }) => {
+    const [isCardOpen, setIsCardOpen] = useState(true);
+
+    const renderContent = () => {
+        if (report.type === 'market-report') {
+            return (
+                <div className="prose prose-sm dark:prose-invert max-w-none space-y-2">
+                    <h4>{report.output.title}</h4>
+                    <p><strong>Summary:</strong> {report.output.summary}</p>
+                    <p><strong>Outlook:</strong> {report.output.outlook}</p>
+                </div>
+            );
+        }
+        if (report.type === 'manipulation-scan') {
+            return (
+                <div className="space-y-3">
+                    {report.output.isManipulationSuspected ? (
+                        <Alert variant="destructive">
+                            <ShieldAlert className="h-4 w-4" />
+                            <AlertTitle>High Suspicion of Manipulation!</AlertTitle>
+                            <AlertDescription>
+                                Confidence: {(report.output.confidence * 100).toFixed(1)}%. Current Phase: {report.output.currentPhase}.
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
+                        <Alert>
+                            <ShieldCheck className="h-4 w-4" />
+                            <AlertTitle>No Clear Manipulation Detected</AlertTitle>
+                        </Alert>
+                    )}
+                    <p className="text-xs text-muted-foreground pt-1">{report.output.reasoning}</p>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    return (
+        <Card className="mb-4">
+            <Collapsible open={isCardOpen} onOpenChange={setIsCardOpen}>
+                <CardHeader className="flex flex-row items-start justify-between">
+                    <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                            {report.type === 'market-report' ? 'Market Report' : 'Manipulation Scan'}
+                            <Badge variant="secondary">{report.input.symbol}</Badge>
+                        </CardTitle>
+                        <CardDescription>
+                            {format(new Date(report.timestamp), 'yyyy-MM-dd HH:mm:ss')}
+                        </CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(report.id)}>
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                                <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
+                            </Button>
+                        </CollapsibleTrigger>
+                    </div>
+                </CardHeader>
+                <CollapsibleContent>
+                    <CardContent>
+                        {renderContent()}
+                    </CardContent>
+                </CollapsibleContent>
+            </Collapsible>
+        </Card>
+    );
+};
+
 export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
     const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
     const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
+    const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [symbol, setSymbol] = usePersistentState("data-symbol", "btcusdt"); // lowercase for websocket
     const wsRef = useRef<WebSocket | null>(null);
     const dataBufferRef = useRef<StreamedDataPoint[]>([]);
@@ -148,8 +222,9 @@ export default function DataPage() {
     
     const fetchSavedData = async () => {
         try {
-            const data = await loadSavedData();
+            const [data, reports] = await Promise.all([loadSavedData(), loadReports()]);
             setSavedData(data.reverse()); // Show newest first
+            setSavedReports(reports);
         } catch (error) {
             console.error("Failed to load saved data:", error);
             toast({
@@ -188,9 +263,10 @@ export default function DataPage() {
         try {
             await clearSavedData();
             setSavedData([]);
+            setSavedReports([]);
             toast({
                 title: "Success",
-                description: "All saved historical data has been cleared.",
+                description: "All saved historical data and reports have been cleared.",
             });
         } catch (error) {
             console.error("Failed to clear data:", error);
@@ -199,6 +275,17 @@ export default function DataPage() {
                 description: "Could not clear saved data.",
                 variant: "destructive"
             });
+        }
+    };
+    
+    const handleDeleteReport = async (id: string) => {
+        try {
+            await deleteReport(id);
+            setSavedReports(prev => prev.filter(r => r.id !== id));
+            toast({ title: "Report Deleted" });
+        } catch (error) {
+            console.error("Failed to delete report:", error);
+            toast({ title: "Error", description: "Could not delete report.", variant: "destructive" });
         }
     };
 
@@ -317,9 +404,9 @@ export default function DataPage() {
                             <div className="flex-1">
                                 <CardTitle className="flex items-center justify-between">
                                     <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
-                                    <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 || isTradingActive}>
+                                    <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 && savedReports.length === 0 || isTradingActive}>
                                         <Trash2 className="mr-2 h-4 w-4" />
-                                        Clear
+                                        Clear All
                                     </Button>
                                 </CardTitle>
                                 <CardDescription>Review data saved from your streams and view AI-generated reports.</CardDescription>
@@ -361,10 +448,18 @@ export default function DataPage() {
                                     </Table>
                                 </div>
                                 <div className="border-t pt-4">
-                                    <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports</h3>
-                                    <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
-                                        <p>AI-generated reports will be displayed here.</p>
-                                    </div>
+                                    <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports ({savedReports.length})</h3>
+                                    {savedReports.length > 0 ? (
+                                        <ScrollArea className="h-[300px] space-y-4 pr-4">
+                                            {savedReports.map(report => (
+                                                <ReportCard key={report.id} report={report} onDelete={handleDeleteReport} />
+                                            ))}
+                                        </ScrollArea>
+                                    ) : (
+                                        <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
+                                            <p>AI-generated reports from the Lab page will be displayed here.</p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </CollapsibleContent>

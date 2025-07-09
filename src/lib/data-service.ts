@@ -1,11 +1,12 @@
 'use server';
 
-import type { StreamedDataPoint } from './types';
+import type { SavedReport, StreamedDataPoint } from './types';
 
 // In a real application, this would interact with a database like Firestore.
 // For now, we will simulate this by storing data in-memory on the server.
 // This data will be lost when the server restarts.
 let savedData: StreamedDataPoint[] = [];
+let savedReports: SavedReport[] = [];
 
 /**
  * Saves a new data point to our persistent storage.
@@ -29,6 +30,29 @@ export const loadSavedData = async (): Promise<StreamedDataPoint[]> => {
  * Clears all saved data from our in-memory store.
  */
 export const clearSavedData = async (): Promise<void> => {
-    console.log("Clearing all saved data.");
+    console.log("Clearing all saved data and reports.");
     savedData = [];
+    savedReports = [];
+};
+
+// --- New Report Functions ---
+
+export const saveReport = async (report: Omit<SavedReport, 'id'>): Promise<SavedReport> => {
+    const newReport = {
+        ...report,
+        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+    } as SavedReport;
+    savedReports.unshift(newReport); // Add to the beginning of the array
+    console.log(`Saving new report: ${newReport.type}`);
+    return newReport;
+};
+
+export const loadReports = async (): Promise<SavedReport[]> => {
+    console.log(`Loading ${savedReports.length} saved reports...`);
+    return Promise.resolve([...savedReports]);
+};
+
+export const deleteReport = async (reportId: string): Promise<void> => {
+    console.log(`Deleting report with id: ${reportId}`);
+    savedReports = savedReports.filter(report => report.id !== reportId);
 };
