@@ -22,7 +22,7 @@ const CriteriaSchema = z.object({
   performancePreference: z.enum(['strong_7d', 'weak_7d', 'any']),
 });
 
-export const ScreenAssetsInputSchema = z.object({
+const ScreenAssetsInputSchema = z.object({
   criteria: CriteriaSchema,
   coingeckoApiKey: z.string().nullable(),
 });
@@ -39,7 +39,7 @@ const RankedAssetSchema = z.object({
   justification: z.string().describe('A concise, expert justification for why this asset was ranked here, based on the user\'s criteria.'),
 });
 
-export const ScreenAssetsOutputSchema = z.object({
+const ScreenAssetsOutputSchema = z.object({
   assets: z.array(RankedAssetSchema),
 });
 export type ScreenAssetsOutput = z.infer<typeof ScreenAssetsOutputSchema>;
@@ -54,7 +54,7 @@ const screenerPrompt = ai.definePrompt({
 **User's Criteria:**
 - Market Cap: Between \${{{criteria.minMarketCap}}} and \${{{criteria.maxMarketCap}}}
 - 24h Volume: Between \${{{criteria.minVolume24h}}} and \${{{criteria.maxVolume24h}}}
-- Volatility Preference: {{{criteria.volatility}}}
+- Volatility Preference: {{{criteria.volatilityPreference}}}
 - Asset Age Preference: {{{criteria.agePreference}}} (Note: a 'new' asset is less than 3 months old, based on its 'genesis_date')
 - 7d Performance Preference: {{{criteria.performancePreference}}}
 
@@ -72,7 +72,7 @@ Provide your final ranked list in the required JSON format.
 `,
 });
 
-async function screenAssetsFlow(input: ScreenAssetsInput): Promise<ScreenAssetsOutput> {
+async function screenAssetsFlowRunner(input: ScreenAssetsInput): Promise<ScreenAssetsOutput> {
     console.log("Fetching top 250 coins for screening...");
     const allCoins = await getTopCoins(250, input.coingeckoApiKey);
     if (!allCoins || allCoins.length === 0) {
@@ -106,13 +106,15 @@ async function screenAssetsFlow(input: ScreenAssetsInput): Promise<ScreenAssetsO
     return output;
 }
 
-export const screenAssets = ai.defineFlow(
+const screenAssetsFlow = ai.defineFlow(
   {
     name: 'screenAssetsFlow',
     inputSchema: ScreenAssetsInputSchema,
     outputSchema: ScreenAssetsOutputSchema,
   },
-  screenAssetsFlow
+  screenAssetsFlowRunner
 );
 
-    
+export async function screenAssets(input: ScreenAssetsInput): Promise<ScreenAssetsOutput> {
+    return screenAssetsFlow(input);
+}
