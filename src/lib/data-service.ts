@@ -27,12 +27,11 @@ export const loadSavedData = async (): Promise<StreamedDataPoint[]> => {
 };
 
 /**
- * Clears all saved data from our in-memory store.
+ * Clears all saved stream data from our in-memory store. AI Reports are not affected.
  */
-export const clearSavedData = async (): Promise<void> => {
-    console.log("Clearing all saved data and reports.");
+export const clearStreamData = async (): Promise<void> => {
+    console.log("Clearing all saved stream data.");
     savedData = [];
-    savedReports = [];
 };
 
 // --- New Report Functions ---

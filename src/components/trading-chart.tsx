@@ -446,7 +446,7 @@ export function TradingChart({
                     position: 'belowBar',
                     color: '#facc15', // yellow-400
                     shape: 'arrowUp',
-                    text: 'Accumulation Start',
+                    text: 'A',
                     size: 2,
                 });
             }
@@ -456,7 +456,7 @@ export function TradingChart({
                     position: 'belowBar',
                     color: '#4ade80', // green-400
                     shape: 'arrowUp',
-                    text: 'Pump Start',
+                    text: 'P',
                     size: 2.5,
                 });
             }
@@ -466,7 +466,7 @@ export function TradingChart({
                     position: 'aboveBar',
                     color: '#f87171', // red-400
                     shape: 'arrowDown',
-                    text: 'Distribution (Dump) Start',
+                    text: 'D',
                     size: 2.5,
                 });
             }

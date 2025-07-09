@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import { useBot } from '@/context/bot-context';
 import type { StreamedDataPoint, SavedReport } from '@/lib/types';
-import { saveDataPoint, loadSavedData, clearSavedData, loadReports, deleteReport } from '@/lib/data-service';
+import { clearStreamData, loadSavedData, loadReports, deleteReport } from '@/lib/data-service';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -178,12 +178,6 @@ export default function DataPage() {
                     };
 
                     dataBufferRef.current.unshift(newPoint); // Add to buffer, don't set state directly
-
-                    try {
-                        saveDataPoint(newPoint);
-                    } catch (error) {
-                        console.error("Failed to save data point:", error);
-                    }
                 }
             };
 
@@ -255,24 +249,23 @@ export default function DataPage() {
         setIsStreaming(!isStreaming);
     };
     
-    const handleClearData = async () => {
+    const handleClearStreamData = async () => {
          if (isTradingActive) {
-            toast({ title: "Action Paused", description: "Stop the active trading session to manage data streams.", variant: "destructive" });
+            toast({ title: "Action Paused", description: "Stop the active trading session to manage data.", variant: "destructive" });
             return;
         }
         try {
-            await clearSavedData();
+            await clearStreamData();
             setSavedData([]);
-            setSavedReports([]);
             toast({
                 title: "Success",
-                description: "All saved historical data and reports have been cleared.",
+                description: "All saved real-time stream data has been cleared.",
             });
         } catch (error) {
-            console.error("Failed to clear data:", error);
+            console.error("Failed to clear stream data:", error);
             toast({
                 title: "Error",
-                description: "Could not clear saved data.",
+                description: "Could not clear saved stream data.",
                 variant: "destructive"
             });
         }
@@ -394,6 +387,10 @@ export default function DataPage() {
                                         </TableBody>
                                     </Table>
                                 </div>
+                                <Button size="sm" variant="outline" onClick={handleClearStreamData} disabled={savedData.length === 0 || isStreaming || isTradingActive}>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Clear Saved Stream Data
+                                </Button>
                             </CardContent>
                         </CollapsibleContent>
                     </Collapsible>
@@ -403,13 +400,9 @@ export default function DataPage() {
                         <CardHeader className="flex flex-row items-center justify-between">
                             <div className="flex-1">
                                 <CardTitle className="flex items-center justify-between">
-                                    <span className="flex items-center gap-2"><FolderClock/> Saved Data & Reports</span>
-                                    <Button variant="outline" size="sm" onClick={handleClearData} disabled={savedData.length === 0 && savedReports.length === 0 || isTradingActive}>
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Clear All
-                                    </Button>
+                                    <span className="flex items-center gap-2"><FolderClock/> Saved AI Reports</span>
                                 </CardTitle>
-                                <CardDescription>Review data saved from your streams and view AI-generated reports.</CardDescription>
+                                <CardDescription>Review AI-generated reports from the Lab page.</CardDescription>
                             </div>
                             <CollapsibleTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8 ml-4">
@@ -420,47 +413,18 @@ export default function DataPage() {
                         </CardHeader>
                         <CollapsibleContent>
                             <CardContent className="space-y-4">
-                                <h3 className="text-sm font-medium text-muted-foreground">Saved Stream Data ({savedData.length} points)</h3>
-                                <div className="h-64 overflow-y-auto border rounded-md">
-                                    <Table>
-                                        <TableHeader className="sticky top-0 bg-muted/50 backdrop-blur-sm">
-                                            <TableRow>
-                                                <TableHead>Time</TableHead>
-                                                <TableHead>Price (USD)</TableHead>
-                                                <TableHead className="text-right">Volume</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {savedData.length > 0 ? savedData.slice(0, 100).map(d => (
-                                                <TableRow key={d.id}>
-                                                    <TableCell className="font-mono text-xs">{format(new Date(d.time), 'yyyy-MM-dd HH:mm:ss')}</TableCell>
-                                                    <TableCell>${d.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</TableCell>
-                                                    <TableCell className="text-right">{d.volume}</TableCell>
-                                                </TableRow>
-                                            )) : (
-                                                <TableRow key="saved-data-placeholder">
-                                                    <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
-                                                        No data saved yet. Start a stream to collect data.
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                                <div className="border-t pt-4">
-                                    <h3 className="text-sm font-medium text-muted-foreground mb-2">AI Reports ({savedReports.length})</h3>
-                                    {savedReports.length > 0 ? (
-                                        <ScrollArea className="h-[300px] space-y-4 pr-4">
-                                            {savedReports.map(report => (
-                                                <ReportCard key={report.id} report={report} onDelete={handleDeleteReport} />
-                                            ))}
-                                        </ScrollArea>
-                                    ) : (
-                                        <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
-                                            <p>AI-generated reports from the Lab page will be displayed here.</p>
-                                        </div>
-                                    )}
-                                </div>
+                                <h3 className="text-sm font-medium text-muted-foreground">Saved Reports ({savedReports.length})</h3>
+                                {savedReports.length > 0 ? (
+                                    <ScrollArea className="h-[500px] space-y-4 pr-4">
+                                        {savedReports.map(report => (
+                                            <ReportCard key={report.id} report={report} onDelete={handleDeleteReport} />
+                                        ))}
+                                    </ScrollArea>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full min-h-[100px] text-muted-foreground rounded-md border border-dashed">
+                                        <p>AI-generated reports will be displayed here.</p>
+                                    </div>
+                                )}
                             </CardContent>
                         </CollapsibleContent>
                     </Collapsible>
