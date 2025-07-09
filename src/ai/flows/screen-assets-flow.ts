@@ -35,7 +35,7 @@ const RankedAssetSchema = z.object({
   symbol: z.string().toUpperCase().describe("The symbol of the asset (e.g., 'BTC')."),
   marketCap: z.number().describe("The market capitalization of the asset."),
   performance7d: z.number().describe("The 7-day performance percentage."),
-  imageUrl: z.string().url().describe('The URL of the asset\'s image/logo.'),
+  imageUrl: z.string().describe('The URL of the asset\'s image/logo.'),
   justification: z.string().describe('A concise, expert justification for why this asset was ranked here, based on the user\'s criteria.'),
 });
 
