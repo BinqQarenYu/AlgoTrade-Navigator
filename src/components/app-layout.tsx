@@ -29,7 +29,7 @@ const menuItems = [
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },
-  { href: "/screener", label: "AI Screener", icon: Sparkles },
+  { href: "/screener", label: "Consensus Strategy", icon: BrainCircuit },
   { href: "/lab", label: "Trading Lab", icon: FlaskConical },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
   { href: "/data", label: "Data", icon: Database },
@@ -38,6 +38,7 @@ const menuItems = [
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const activeItem = menuItems.find((item) => pathname.startsWith(item.href))
 
   return (
     <SidebarProvider>
@@ -87,8 +88,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <header className="sticky top-0 z-10 flex items-center h-14 px-4 border-b bg-background/80 backdrop-blur-sm">
           <SidebarTrigger className="md:hidden" />
           <div className="flex-1">
-            <h2 className="text-lg font-semibold capitalize">
-              {pathname.substring(1).replace('-', ' ') || 'Dashboard'}
+            <h2 className="text-lg font-semibold">
+              {activeItem?.label || 'Dashboard'}
             </h2>
           </div>
         </header>

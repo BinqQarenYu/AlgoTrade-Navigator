@@ -74,7 +74,6 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
       }
     } catch (e) {
       console.error('Failed to parse stored state', e);
-      localStorage.removeItem(key);
     } finally {
       if (isMounted) {
         setIsHydrated(true);
@@ -89,7 +88,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     }
   }, [key, state, isHydrated]);
 
-  return [isHydrated ? state : defaultValue, setState];
+  return [state, setState];
 };
 
 
@@ -176,7 +175,7 @@ export default function ScreenerPage() {
         <div className="space-y-6">
             <div className="text-left">
                 <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                    <BrainCircuit size={32}/> AI Consensus Predictor
+                    <BrainCircuit size={32}/> Consensus Strategy
                 </h1>
                 <p className="text-muted-foreground mt-2">
                     Get an AI-powered prediction based on a consensus from multiple strategies.
@@ -187,7 +186,7 @@ export default function ScreenerPage() {
                     <Bot className="h-4 w-4" />
                     <AlertTitle>Another Trading Session is Active</AlertTitle>
                     <AlertDescription>
-                        The AI Screener is disabled to prioritize another active trading session. Check other pages like <Link href="/live" className="font-bold underline">Live Bot</Link>.
+                        The Consensus Strategy is disabled to prioritize another active trading session. Check other pages like <Link href="/live" className="font-bold underline">Live Bot</Link>.
                     </AlertDescription>
                 </Alert>
             )}
