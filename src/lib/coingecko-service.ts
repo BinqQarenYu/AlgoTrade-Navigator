@@ -33,7 +33,8 @@ const TICKER_TO_CG_ID: Record<string, string> = {
     'TON': 'the-open-network',
     'ORDI': 'ordinals',
     'WLD': 'worldcoin-wld',
-    'ARB': 'arbitrum'
+    'ARB': 'arbitrum',
+    'BONK': 'bonk',
 };
 
 export const getSentimentForTickers = async (
