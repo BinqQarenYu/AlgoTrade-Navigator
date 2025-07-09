@@ -155,6 +155,11 @@ export default function LabPage() {
   const searchParams = useSearchParams()
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
+  const strategyParamsRef = useRef(strategyParams);
+  useEffect(() => {
+    strategyParamsRef.current = strategyParams;
+  }, [strategyParams]);
+
   const [isReportPending, startReportTransition] = React.useTransition();
   const [isScanPending, startScanTransition] = React.useTransition();
   
@@ -301,7 +306,7 @@ export default function LabPage() {
       const strategy = getStrategyById(strategyId);
       if (!strategy) continue;
 
-      const paramsForStrategy = strategyParams[strategyId] || {};
+      const paramsForStrategy = strategyParamsRef.current[strategyId] || {};
       const dataWithIndicators = await strategy.calculate(currentChartData, paramsForStrategy);
       const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
@@ -321,7 +326,7 @@ export default function LabPage() {
       setConsensusResult(null);
     }
     setIsConsensusRunning(false);
-  }, [selectedConsensusStrategies, strategyParams]);
+  }, [selectedConsensusStrategies]);
 
   const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
     if (currentChartData.length < 20) {
