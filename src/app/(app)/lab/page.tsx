@@ -895,7 +895,7 @@ export default function LabPage() {
 
           <MarketHeatmap />
 
-          {quoteAsset && <OrderBook symbol={symbol} onWallsUpdate={setWalls} />}
+          {quoteAsset && symbol && <OrderBook symbol={symbol} onWallsUpdate={setWalls} />}
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
