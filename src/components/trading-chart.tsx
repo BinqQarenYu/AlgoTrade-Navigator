@@ -308,11 +308,13 @@ export function TradingChart({
 
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+            
             const candleStartTime = d.time;
-            const candleEndTime = d.time + candleIntervalMs;
-            const isManipulationStart = manipulationStartTimes.some(startTime => 
-                startTime >= candleStartTime && startTime < candleEndTime
-            );
+            const isManipulationStart = manipulationStartTimes.some(startTime => {
+                const candleEndTime = candleStartTime + intervalToMs(interval);
+                return startTime >= candleStartTime && startTime < candleEndTime;
+            });
+            
             const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
             const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)';
             const manipulationVolumeColor = '#000000';
@@ -430,10 +432,10 @@ export function TradingChart({
                 const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
                 
                 const candleStartTime = d.time;
-                const candleEndTime = d.time + candleIntervalMs;
-                const isManipulationStart = manipulationStartTimes.some(startTime => 
-                    startTime >= candleStartTime && startTime < candleEndTime
-                );
+                const isManipulationStart = manipulationStartTimes.some(startTime => {
+                    const candleEndTime = candleStartTime + intervalToMs(interval);
+                    return startTime >= candleStartTime && startTime < candleEndTime;
+                });
                 
                 let coloring = {};
                 if (isManipulationStart) {
@@ -594,7 +596,7 @@ export function TradingChart({
             wallLevels.forEach(wall => {
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
-                    color: wall.type === 'bid' ? '#22c55e' : '#ef4444',
+                    color: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
