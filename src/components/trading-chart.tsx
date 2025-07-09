@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -48,7 +48,7 @@ export function TradingChart({
   tradeSignal?: TradeSignal | null;
   highlightedTrade?: BacktestResult | null;
   onIntervalChange?: (newInterval: string) => void;
-  wallLevels?: { price: number; type: 'bid' | 'ask' }[];
+  wallLevels?: Wall[];
   spoofedWalls?: SpoofedWall[];
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];

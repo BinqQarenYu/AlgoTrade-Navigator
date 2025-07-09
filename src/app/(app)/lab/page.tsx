@@ -879,7 +879,7 @@ export default function LabPage() {
                                  <div className="flex items-center space-x-2">
                                     <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
                                     <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
-                                </div>
+                                 </div>
                             </div>
                           </>
                         )}
