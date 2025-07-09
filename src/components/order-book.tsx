@@ -59,7 +59,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     }
   }, [key, state, isHydrated]);
 
-  return [state, setState];
+  return [isHydrated ? state : defaultValue, setState];
 };
 
 // Aggregates raw order book levels into larger price buckets
