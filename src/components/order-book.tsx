@@ -98,7 +98,11 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
+    
+    // Refs for managing sync state
     const lastUpdateIdRef = useRef<number | null>(null);
+    const isSyncedRef = useRef(false);
+    
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
     const updateOrderBook = useCallback((bidUpdates: OrderBookLevel[], askUpdates: OrderBookLevel[]) => {
@@ -127,13 +131,15 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             if (!isMounted || !isStreamActive) return;
             setIsConnecting(true);
 
-            // Close any existing connection before starting a new one
+            // Close any existing connection and reset state
             if (wsRef.current) {
-                wsRef.current.onclose = null; // Prevent onclose from triggering a reconnect
+                wsRef.current.onclose = null;
                 wsRef.current.close();
             }
+            isSyncedRef.current = false;
+            lastUpdateIdRef.current = null;
 
-            // Fetch snapshot first
+            // 1. Fetch snapshot first
             try {
                 const snapshot = await getDepthSnapshot(symbol);
                 if (!isMounted || !isStreamActive) return;
@@ -150,7 +156,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 return;
             }
 
-            // Now connect to WebSocket
+            // 2. Now connect to WebSocket and start syncing
             const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@depth`);
             wsRef.current = ws;
 
@@ -162,22 +168,30 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             };
 
             ws.onmessage = (event) => {
-                if (!isMounted || !lastUpdateIdRef.current) return;
+                if (!isMounted) return;
                 
                 const data = JSON.parse(event.data);
-                if (data.e !== 'depthUpdate' || data.u <= lastUpdateIdRef.current) {
-                    return;
-                }
-                
-                if (data.U <= lastUpdateIdRef.current + 1 && data.u >= lastUpdateIdRef.current + 1) {
-                    lastUpdateIdRef.current = data.u;
-                    updateOrderBook(data.b, data.a);
-                } else if (data.pu === lastUpdateIdRef.current) {
-                    lastUpdateIdRef.current = data.u;
-                    updateOrderBook(data.b, data.a);
+                if (data.e !== 'depthUpdate') return;
+                if (!lastUpdateIdRef.current) return; // Still waiting for snapshot
+
+                if (!isSyncedRef.current) {
+                    // Initial sync process: find the first event that bridges snapshot and stream
+                    if (data.u <= lastUpdateIdRef.current) return; // Drop old events
+                    if (data.U <= lastUpdateIdRef.current + 1 && data.u >= lastUpdateIdRef.current + 1) {
+                        updateOrderBook(data.b, data.a);
+                        lastUpdateIdRef.current = data.u;
+                        isSyncedRef.current = true;
+                        console.log(`Order book for ${symbol} is now in sync.`);
+                    }
                 } else {
-                    console.warn(`Order book out of sync for ${symbol}. Re-syncing...`);
-                    connectAndSync(); // Restart the entire process
+                    // We are synced, process subsequent updates if they are contiguous
+                    if (data.pu === lastUpdateIdRef.current) {
+                        updateOrderBook(data.b, data.a);
+                        lastUpdateIdRef.current = data.u;
+                    } else {
+                        console.warn(`Order book out of sync for ${symbol} (gap detected: prev_u=${lastUpdateIdRef.current}, curr_pu=${data.pu}). Re-syncing...`);
+                        connectAndSync(); // Trigger a full resync
+                    }
                 }
             };
 
@@ -201,6 +215,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             setBids(new Map());
             setAsks(new Map());
             lastUpdateIdRef.current = null;
+            isSyncedRef.current = false;
         }
 
         return () => {
