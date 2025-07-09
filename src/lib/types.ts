@@ -43,6 +43,7 @@ export type HistoricalData = {
   sma_short?: number | null;
   sma_long?: number | null;
   ema_short?: number | null;
+  ema_medium?: number | null;
   ema_long?: number | null;
   rsi?: number | null;
   stopLossLevel?: number;

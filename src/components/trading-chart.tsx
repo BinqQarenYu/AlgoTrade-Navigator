@@ -109,6 +109,7 @@ export function TradingChart({
             // Indicator Colors
             smaShortColor: '#f59e0b',
             smaLongColor: '#8b5cf6',
+            emaMediumColor: 'hsl(var(--chart-3))',
             donchianUpperColor: '#4ade80', // green-400
             donchianLowerColor: '#f87171', // red-400
             donchianMiddleColor: 'rgba(148, 163, 184, 0.4)', // slate-400
@@ -211,6 +212,7 @@ export function TradingChart({
             spoofAnimations: new Map(),
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
+            emaMediumSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.emaMediumColor }),
             pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
             donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
             donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
@@ -275,7 +277,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, manipulationZoneSeries } = chartRef.current;
+    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, emaMediumSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, manipulationZoneSeries } = chartRef.current;
 
     const manipulationStartTimes: number[] = [];
     if (showAnalysis && manipulationResult?.isManipulationSuspected) {
@@ -369,6 +371,7 @@ export function TradingChart({
         
         addLineSeries(smaShortSeries, 'sma_short');
         addLineSeries(smaShortSeries, 'ema_short');
+        addLineSeries(emaMediumSeries, 'ema_medium');
         addLineSeries(smaLongSeries, 'sma_long');
         addLineSeries(smaLongSeries, 'ema_long');
         addLineSeries(pocSeries, 'poc');
@@ -513,6 +516,7 @@ export function TradingChart({
         volumeSeries.setData([]);
         smaShortSeries.setData([]);
         smaLongSeries.setData([]);
+        emaMediumSeries.setData([]);
         pocSeries.setData([]);
         donchianUpperSeries.setData([]);
         donchianMiddleSeries.setData([]);
@@ -590,6 +594,7 @@ export function TradingChart({
         const {
             smaShortSeries,
             smaLongSeries,
+            emaMediumSeries,
             donchianUpperSeries,
             donchianMiddleSeries,
             donchianLowerSeries,
@@ -600,7 +605,7 @@ export function TradingChart({
         } = chartRef.current;
 
         const allSeries = [
-            smaShortSeries, smaLongSeries, donchianUpperSeries, donchianMiddleSeries,
+            smaShortSeries, smaLongSeries, emaMediumSeries, donchianUpperSeries, donchianMiddleSeries,
             donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries
         ];
         
