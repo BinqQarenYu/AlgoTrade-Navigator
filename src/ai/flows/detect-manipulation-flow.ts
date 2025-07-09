@@ -46,9 +46,13 @@ const prompt = ai.definePrompt({
   name: 'detectManipulationPrompt',
   input: {schema: DetectManipulationInputSchema},
   output: {schema: DetectManipulationOutputSchema},
-  prompt: `You are an expert financial analyst specializing in forensic analysis of market manipulation, specifically "Pump and Dump" schemes.
+  prompt: `You are an expert financial analyst specializing in forensic analysis of market manipulation, specifically "Pump and Dump" schemes. Your primary task is to distinguish between legitimate high-volume trading and deceptive manipulation.
 
-Your task is to analyze the provided historical price and volume data for the asset {{{symbol}}} and determine if it exhibits characteristics of a pump and dump scheme.
+**Distinguishing Manipulation from Legitimate High-Volume Trading:**
+-   **Legitimate Trading:** High volume and sharp price moves are often caused by real news, major events, or large institutional trades. This activity is chaotic but organic, with two-sided participation (real buyers and sellers). The goal is to react to the market.
+-   **Manipulation:** The goal is deception. It involves creating a false appearance of market activity to trick others. The price action looks unnatural and is designed to create FOMO, leading to a predictable collapse. The goal is to *create* the market reaction.
+
+Your task is to analyze the provided historical price and volume data for {{{symbol}}} and determine if it exhibits the structured, deceptive characteristics of a pump and dump scheme.
 
 A typical manipulation scheme unfolds in three phases:
 1.  **The Accumulation Phase (The Quiet Before the Storm):**
