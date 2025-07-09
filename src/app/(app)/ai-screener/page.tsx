@@ -289,7 +289,7 @@ export default function AiScreenerPage() {
                                             ))
                                         ) : results && results.assets.length > 0 ? (
                                             results.assets.map(asset => (
-                                                <TableRow key={asset.id}>
+                                                <TableRow key={asset.symbol}>
                                                     <TableCell className="font-bold text-lg text-center">{asset.rank}</TableCell>
                                                     <TableCell>
                                                         <Link href={`/lab?symbol=${asset.symbol}`} className="hover:underline">
@@ -338,5 +338,3 @@ export default function AiScreenerPage() {
         </div>
     );
 }
-
-    
