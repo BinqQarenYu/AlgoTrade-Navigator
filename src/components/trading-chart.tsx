@@ -163,6 +163,17 @@ export function TradingChart({
             scaleMargins: { top: 0.8, bottom: 0 },
         });
 
+        const manipulationZoneSeries = chart.addCandlestickSeries({
+            priceScaleId: 'left',
+            upColor: 'transparent',
+            downColor: 'transparent',
+            wickVisible: false,
+            borderVisible: false,
+            lastValueVisible: false,
+            priceLineVisible: false,
+            autoscaleInfoProvider: () => null,
+        });
+
         const targetZoneSeries = chart.addCandlestickSeries({
             priceScaleId: 'left',
             upColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
@@ -194,6 +205,7 @@ export function TradingChart({
             mainLineSeries,
             volumeSeries,
             targetZoneSeries,
+            manipulationZoneSeries,
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
@@ -253,7 +265,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart } = chartRef.current;
+    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, manipulationZoneSeries } = chartRef.current;
 
     const manipulationStartTimes: number[] = [];
     if (showAnalysis && manipulationResult?.isManipulationSuspected) {
@@ -358,6 +370,40 @@ export function TradingChart({
         addLineSeries(senkouASeries, 'senkou_a');
         addLineSeries(senkouBSeries, 'senkou_b');
 
+        // Draw Manipulation Zones
+        if (showAnalysis && manipulationResult && manipulationZoneSeries) {
+            const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
+            const zonesData: any[] = [];
+            
+            if (uniqueData.length > 0) {
+              const overallHigh = Math.max(...uniqueData.map(d => d.high));
+              const overallLow = Math.min(...uniqueData.map(d => d.low));
+
+              uniqueData.forEach(d => {
+                  let phaseColor: string | null = null;
+                  if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
+                      phaseColor = 'rgba(250, 204, 21, 0.1)'; // Yellow
+                  } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
+                      phaseColor = 'rgba(34, 197, 94, 0.1)'; // Green
+                  } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
+                      phaseColor = 'rgba(239, 68, 68, 0.1)'; // Red
+                  }
+
+                  if (phaseColor) {
+                      zonesData.push({
+                          time: toTimestamp(d.time),
+                          open: overallLow, high: overallHigh,
+                          low: overallLow, close: overallHigh,
+                          color: phaseColor, borderColor: 'transparent',
+                      });
+                  }
+              });
+            }
+            manipulationZoneSeries.setData(zonesData);
+        } else if (manipulationZoneSeries) {
+            manipulationZoneSeries.setData([]);
+        }
+
         const signalMarkers = showAnalysis ? uniqueData
           .map(d => {
             if (d.buySignal) {
@@ -431,16 +477,8 @@ export function TradingChart({
             const candlestickChartData = uniqueData.map(d => {
                 const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
                 
-                const candleStartTime = d.time;
-                const isManipulationStart = manipulationStartTimes.some(startTime => {
-                    const candleEndTime = candleStartTime + intervalToMs(interval);
-                    return startTime >= candleStartTime && startTime < candleEndTime;
-                });
-                
                 let coloring = {};
-                if (isManipulationStart) {
-                    coloring = { color: '#000000', wickColor: '#000000' };
-                } else if (isHighlighted) {
+                if (isHighlighted) {
                     coloring = { color: highlightColor, wickColor: highlightColor };
                 }
 
@@ -474,6 +512,7 @@ export function TradingChart({
         senkouASeries.setData([]);
         senkouBSeries.setData([]);
         candlestickSeries.setMarkers([]);
+        manipulationZoneSeries.setData([]);
     }
 
   }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, interval]);
