@@ -102,6 +102,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     // Refs for managing sync state
     const lastUpdateIdRef = useRef<number | null>(null);
     const isSyncedRef = useRef(false);
+    const queuedUpdatesRef = useRef<any[]>([]);
     
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
@@ -138,6 +139,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             }
             isSyncedRef.current = false;
             lastUpdateIdRef.current = null;
+            queuedUpdatesRef.current = [];
 
             // 1. Fetch snapshot first
             try {
@@ -172,17 +174,31 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 
                 const data = JSON.parse(event.data);
                 if (data.e !== 'depthUpdate') return;
-                if (!lastUpdateIdRef.current) return; // Still waiting for snapshot
 
                 if (!isSyncedRef.current) {
-                    // Initial sync process: find the first event that bridges snapshot and stream
-                    if (data.u <= lastUpdateIdRef.current) return; // Drop old events
-                    if (data.U <= lastUpdateIdRef.current + 1 && data.u >= lastUpdateIdRef.current + 1) {
-                        updateOrderBook(data.b, data.a);
-                        lastUpdateIdRef.current = data.u;
+                    if (!lastUpdateIdRef.current) return; // Still waiting for snapshot
+                    
+                    if (data.u > lastUpdateIdRef.current) {
+                        queuedUpdatesRef.current.push(data);
+                    }
+
+                    // Process queue to find the first event that bridges snapshot and stream
+                    const firstUpdateIndex = queuedUpdatesRef.current.findIndex(update => update.U <= lastUpdateIdRef.current! + 1 && update.u >= lastUpdateIdRef.current! + 1);
+
+                    if (firstUpdateIndex !== -1) {
+                        const updatesToApply = queuedUpdatesRef.current.slice(firstUpdateIndex);
+                        updatesToApply.forEach(update => {
+                             if (update.pu === lastUpdateIdRef.current) { // Ensure contiguous update
+                                updateOrderBook(update.b, update.a);
+                                lastUpdateIdRef.current = update.u;
+                            }
+                        });
+                        
                         isSyncedRef.current = true;
+                        queuedUpdatesRef.current = [];
                         console.log(`Order book for ${symbol} is now in sync.`);
                     }
+
                 } else {
                     // We are synced, process subsequent updates if they are contiguous
                     if (data.pu === lastUpdateIdRef.current) {
