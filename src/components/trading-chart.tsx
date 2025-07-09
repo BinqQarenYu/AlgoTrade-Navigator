@@ -279,14 +279,6 @@ export function TradingChart({
     
     const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, emaMediumSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, manipulationZoneSeries } = chartRef.current;
 
-    const manipulationStartTimes: number[] = [];
-    if (showAnalysis && manipulationResult?.isManipulationSuspected) {
-        const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
-        if (accumulationPeriod?.startTime) manipulationStartTimes.push(accumulationPeriod.startTime);
-        if (pumpPeriod?.startTime) manipulationStartTimes.push(pumpPeriod.startTime);
-        if (distributionPeriod?.startTime) manipulationStartTimes.push(distributionPeriod.startTime);
-    }
-
     if (data.length > 0) {
         const sortedData = [...data].sort((a, b) => a.time - b.time);
         const uniqueData = sortedData.filter((candle, index, self) =>
@@ -328,32 +320,14 @@ export function TradingChart({
         
         const highlightColor = '#3b82f6';
         
-        const candleIntervalMs = intervalToMs(interval);
-
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-            
-            const candleStartTime = d.time;
-            const isManipulationStart = manipulationStartTimes.some(startTime => {
-                const candleEndTime = candleStartTime + intervalToMs(interval);
-                return startTime >= candleStartTime && startTime < candleEndTime;
-            });
-            
             const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
-            const highlightedVolumeColor = 'rgba(59, 130, 246, 0.4)';
-            const manipulationVolumeColor = '#000000';
-
-            let finalColor = originalColor;
-            if (isManipulationStart) {
-                finalColor = manipulationVolumeColor;
-            } else if (isHighlighted) {
-                finalColor = highlightedVolumeColor;
-            }
-
+            const highlightedColor = 'rgba(59, 130, 246, 0.4)';
             return {
                 time: toTimestamp(d.time),
                 value: d.volume,
-                color: finalColor,
+                color: isHighlighted ? highlightedColor : originalColor,
             };
         });
         volumeSeries.setData(volumeChartData);
@@ -529,7 +503,7 @@ export function TradingChart({
         manipulationZoneSeries.setData([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, interval]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
 
    // Effect to draw signal lines
     useEffect(() => {
