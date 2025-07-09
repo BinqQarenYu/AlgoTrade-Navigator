@@ -205,6 +205,11 @@ export default function LabPage() {
   const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
   const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
+  
+  const selectedConsensusStrategiesRef = useRef(selectedConsensusStrategies);
+  useEffect(() => {
+    selectedConsensusStrategiesRef.current = selectedConsensusStrategies;
+  }, [selectedConsensusStrategies]);
 
   useEffect(() => {
     const symbolFromQuery = searchParams.get('symbol');
@@ -293,7 +298,8 @@ export default function LabPage() {
   }, [symbol]);
 
   const runConsensus = useCallback(async (currentChartData: HistoricalData[]) => {
-    if (currentChartData.length < 50 || selectedConsensusStrategies.length === 0) {
+    const strategiesToRun = selectedConsensusStrategiesRef.current;
+    if (currentChartData.length < 50 || strategiesToRun.length === 0) {
       return; // Not enough data or no strategies selected
     }
     setIsConsensusRunning(true);
@@ -302,7 +308,7 @@ export default function LabPage() {
     const buyPrices: number[] = [];
     const sellPrices: number[] = [];
 
-    for (const strategyId of selectedConsensusStrategies) {
+    for (const strategyId of strategiesToRun) {
       const strategy = getStrategyById(strategyId);
       if (!strategy) continue;
 
@@ -326,7 +332,7 @@ export default function LabPage() {
       setConsensusResult(null);
     }
     setIsConsensusRunning(false);
-  }, [selectedConsensusStrategies]);
+  }, []);
 
   const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
     if (currentChartData.length < 20) {
@@ -475,7 +481,7 @@ export default function LabPage() {
     return () => {
       ws.close();
     };
-  }, [isStreamActive, symbol, interval, toast, runConsensus]);
+  }, [isStreamActive, symbol, interval, runConsensus, toast]);
 
   const handleGenerateReportClick = () => {
     if (chartData.length < 20) {
