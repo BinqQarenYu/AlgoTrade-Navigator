@@ -30,6 +30,7 @@ const menuItems = [
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },
   { href: "/screener", label: "Consensus Strategy", icon: BrainCircuit },
+  { href: "/ai-screener", label: "AI Screener", icon: Sparkles },
   { href: "/lab", label: "Trading Lab", icon: FlaskConical },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
   { href: "/data", label: "Data", icon: Database },
@@ -100,3 +101,5 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   )
 }
+
+    

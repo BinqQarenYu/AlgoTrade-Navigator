@@ -446,3 +446,35 @@ export type Wall = {
 export type SpoofedWall = Wall & {
   id: string; // Unique ID for the event
 };
+
+export type ScreenAssetsCriteria = {
+    minMarketCap: number;
+    maxMarketCap: number;
+    minVolume24h: number;
+    maxVolume24h: number;
+    volatilityPreference: 'low' | 'medium' | 'high' | 'any';
+    agePreference: 'any' | 'new' | 'established';
+    performancePreference: 'strong_7d' | 'weak_7d' | 'any';
+};
+
+export type ScreenAssetsInput = {
+    criteria: ScreenAssetsCriteria;
+    coingeckoApiKey: string | null;
+};
+
+export type RankedScreenedAsset = {
+    rank: number;
+    id: string;
+    name: string;
+    symbol: string;
+    marketCap: number;
+    performance7d: number;
+    imageUrl: string;
+    justification: string;
+};
+
+export type ScreenAssetsOutput = {
+    assets: RankedScreenedAsset[];
+};
+
+    

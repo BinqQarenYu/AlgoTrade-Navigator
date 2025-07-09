@@ -37,6 +37,82 @@ const TICKER_TO_CG_ID: Record<string, string> = {
     'BONK': 'bonk',
 };
 
+/**
+ * Fetches a list of top coins by market cap.
+ * @param limit The number of coins to fetch.
+ * @param apiKey Optional CoinGecko API key.
+ * @returns A promise that resolves to an array of coin data.
+ */
+export const getTopCoins = async (
+    limit: number = 100,
+    apiKey?: string | null
+): Promise<any[]> => {
+    try {
+        const url = new URL(`${COINGECKO_API_URL}/coins/markets`);
+        url.searchParams.append('vs_currency', 'usd');
+        url.searchParams.append('order', 'market_cap_desc');
+        url.searchParams.append('per_page', String(limit));
+        url.searchParams.append('page', '1');
+        url.searchParams.append('sparkline', 'false');
+        url.searchParams.append('price_change_percentage', '7d');
+
+        if (apiKey) {
+            url.searchParams.append('x_cg_demo_api_key', apiKey);
+        }
+        
+        const response = await fetch(url.toString(), {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            console.error(`CoinGecko API Error (markets): ${response.statusText}`);
+            throw new Error('Failed to fetch top coins from CoinGecko.');
+        }
+
+        const data = await response.json();
+
+        // Now, we need genesis_date for each coin, which is not in the /markets endpoint.
+        // We'll have to make individual calls for that. This is inefficient but necessary for the prototype.
+        const detailedDataPromises = data.map(async (coin: any) => {
+            try {
+                const detailUrl = new URL(`${COINGECKO_API_URL}/coins/${coin.id}`);
+                 if (apiKey) {
+                    detailUrl.searchParams.append('x_cg_demo_api_key', apiKey);
+                }
+                detailUrl.searchParams.append('localization', 'false');
+                detailUrl.searchParams.append('tickers', 'false');
+                detailUrl.searchParams.append('market_data', 'false');
+                detailUrl.searchParams.append('developer_data', 'false');
+                detailUrl.searchParams.append('sparkline', 'false');
+
+                const detailResponse = await fetch(detailUrl.toString(), { cache: 'no-store' });
+                if (!detailResponse.ok) return { ...coin, genesis_date: null }; // Return original data if detail fails
+                
+                const detailData = await detailResponse.json();
+                
+                return {
+                    ...coin,
+                    genesis_date: detailData.genesis_date || null,
+                };
+            } catch (e) {
+                console.warn(`Could not fetch details for ${coin.id}`, e);
+                return { ...coin, genesis_date: null }; // Return original data on error
+            }
+        });
+
+        const detailedResults = await Promise.all(detailedDataPromises);
+
+        return detailedResults;
+        
+    } catch (error) {
+        console.error('Failed to fetch top coins from CoinGecko:', error);
+        return [];
+    }
+};
+
+
 export const getSentimentForTickers = async (
     tickers: string[], 
     apiKey?: string | null
@@ -168,3 +244,5 @@ export const getCoinDetailsByTicker = async (
         return null;
     }
 };
+
+    

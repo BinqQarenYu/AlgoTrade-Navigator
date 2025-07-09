@@ -8,4 +8,7 @@ import '@/ai/flows/predict-market-flow.ts';
 import '@/ai/flows/predict-price-flow.ts';
 import '@/ai/flows/generate-market-report.ts';
 import '@/ai/flows/detect-manipulation-flow.ts';
+import '@/ai/flows/screen-assets-flow.ts';
 
+
+    
