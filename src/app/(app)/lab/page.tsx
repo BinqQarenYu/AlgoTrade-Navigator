@@ -377,7 +377,7 @@ export default function LabPage() {
     if (!isClient || !symbol || !quoteAsset || isStreamActive) return;
 
     const fetchData = async () => {
-        if (!isConnected || !symbol || !quoteAsset) {
+        if (!isConnected) {
             if(!isStreamActive) setChartData([]);
             return;
         }
@@ -533,7 +533,7 @@ export default function LabPage() {
         try {
           const scanInput = {
             symbol,
-            historicalData: JSON.stringify(chartData.slice(-500).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
+            historicalData: JSON.stringify(chartData.map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
           };
           const result = await detectManipulation(scanInput);
           
@@ -895,7 +895,7 @@ export default function LabPage() {
 
           <MarketHeatmap />
 
-          <OrderBook symbol={symbol} onWallsUpdate={setWalls} />
+          {quoteAsset && <OrderBook symbol={symbol} onWallsUpdate={setWalls} />}
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
