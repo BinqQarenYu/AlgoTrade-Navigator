@@ -259,3 +259,24 @@ export const placeOrder = async (
     timestamp: Date.now(),
   };
 };
+
+export const getDepthSnapshot = async (symbol: string): Promise<any> => {
+    if (!symbol) {
+        throw new Error("getDepthSnapshot was called without a symbol.");
+    }
+    const upperSymbol = symbol.toUpperCase();
+    console.log(`Fetching depth snapshot for ${upperSymbol}`);
+    const url = `${BINANCE_API_URL}/fapi/v1/depth?symbol=${upperSymbol}&limit=500`;
+
+    try {
+        const response = await fetch(url, { cache: 'no-store' });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Binance API Error: ${errorData.msg || `Failed to fetch depth for ${upperSymbol}`} (Code: ${errorData.code})`);
+        }
+        return await response.json();
+    } catch (error: any) {
+        console.error(`Error fetching depth snapshot from Binance API:`, error);
+        throw new Error("Failed to connect to Binance for order book data.");
+    }
+}
