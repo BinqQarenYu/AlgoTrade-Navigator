@@ -178,6 +178,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     openPositions: [], tradeHistory: [], summary: null
   });
   const simulationWsRef = useRef<WebSocket | null>(null);
+  const isAnalyzingSimRef = useRef(false);
 
   // --- Global State ---
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
@@ -826,6 +827,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         simulationWsRef.current.close();
         simulationWsRef.current = null;
     }
+    isAnalyzingSimRef.current = false;
     setSimulationState(prev => ({...prev, isRunning: false, config: null}));
     addSimLog("Simulation stopped by user.");
     toast({ title: "Simulation Stopped" });
@@ -882,28 +884,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Filter out closed positions
       const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
       
-      // Look for new trades if no position is open
-      if (stillOpenPositions.length === 0) {
+      // Look for new trades only if no position is open and not already analyzing
+      if (stillOpenPositions.length === 0 && !isAnalyzingSimRef.current) {
+        isAnalyzingSimRef.current = true; // Set lock
         analyzeAsset(config, chartData).then(result => {
           if (result.signal) {
-            const newPosSize = (portfolio.balance * config.leverage) / result.signal.entryPrice;
-            const newPosition: SimulatedPosition = {
-              id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal.action === 'UP' ? 'long' : 'short',
-              entryPrice: result.signal.entryPrice, entryTime: result.signal.timestamp.getTime(), size: newPosSize,
-              stopLoss: result.signal.stopLoss, takeProfit: result.signal.takeProfit,
-            };
-            
-            addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
-
-            // This needs to be done in a setter to correctly update state
-            setSimulationState(prev => ({
-                ...prev,
-                openPositions: [...prev.openPositions, newPosition]
-            }));
+            setSimulationState(prev => {
+              // Re-check inside the async callback if we are still flat
+              if (prev.openPositions.length > 0) {
+                 isAnalyzingSimRef.current = false; // Release lock
+                 return prev;
+              }
+              const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
+              const newPosition: SimulatedPosition = {
+                id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal!.action === 'UP' ? 'long' : 'short',
+                entryPrice: result.signal!.entryPrice, entryTime: result.signal!.timestamp.getTime(), size: newPosSize,
+                stopLoss: result.signal!.stopLoss, takeProfit: result.signal!.takeProfit,
+              };
+              
+              addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
+              return { ...prev, openPositions: [...prev.openPositions, newPosition] };
+            });
           }
+        }).finally(() => {
+            isAnalyzingSimRef.current = false; // Release lock regardless of outcome
         });
       }
       
@@ -1035,4 +1041,3 @@ export const useBot = () => {
   }
   return context;
 };
-
