@@ -235,15 +235,13 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         const midPrice = lastBid > 0 && firstAsk > 0 ? (lastBid + firstAsk) / 2 : 0;
         const calculatedSpread = firstAsk > 0 && lastBid > 0 ? firstAsk - lastBid : 0;
 
-        let grouping = 1.0;
-        if (midPrice > 50000) grouping = 10;
-        else if (midPrice > 2000) grouping = 1;
-        else if (midPrice > 100) grouping = 0.5;
-        else if (midPrice > 10) grouping = 0.1;
-        else if (midPrice > 0.1) grouping = 0.01;
-        else grouping = 0.001;
+        let grouping = 0.01; // Default for low-priced assets
+        if (midPrice > 25000) grouping = 10;   // e.g., BTC
+        else if (midPrice > 1000) grouping = 1;  // e.g., ETH
+        else if (midPrice > 100) grouping = 0.5;   // e.g., SOL
+        else if (midPrice > 1) grouping = 0.1;   // e.g., ADA
 
-        const calculatedPrecision = Math.max(0, -Math.floor(Math.log10(grouping)));
+        const calculatedPrecision = midPrice > 1 ? 2 : Math.max(2, -Math.floor(Math.log10(grouping)));
 
         const aggregatedBids = groupLevels(sortedBids, grouping);
         const aggregatedAsks = groupLevels(sortedAsks, grouping);
