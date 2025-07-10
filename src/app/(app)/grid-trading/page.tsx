@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown, BarChart2 } from "lucide-react"
 import { cn, formatPrice } from "@/lib/utils"
-import type { HistoricalData, Grid, GridTrade, BacktestResult } from "@/lib/types"
+import type { HistoricalData, GridTrade, BacktestResult, GridBacktestSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { usePersistentState } from "@/hooks/use-persistent-state"
@@ -38,13 +38,23 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { GridBacktestReport } from "@/components/grid-backtest-report"
 
 
 export default function GridTradingPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
-  const { isTradingActive, gridState, startGridSimulation, stopGridSimulation } = useBot();
+  const { 
+    isTradingActive, 
+    gridState, 
+    startGridSimulation, 
+    stopGridSimulation, 
+    runGridBacktest,
+    gridBacktestState,
+  } = useBot();
   const { isRunning, config, chartData: botChartData, grid, trades, summary } = gridState;
+  const { isBacktesting, backtestSummary } = gridBacktestState;
+
 
   // UI State & Config
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('grid', 'BTC', 'USDT');
@@ -65,6 +75,7 @@ export default function GridTradingPage() {
   const [trailingDownTriggerPrice, setTrailingDownTriggerPrice] = usePersistentState<number>('grid-trailing-down-trigger', 0);
   const [stopLossPrice, setStopLossPrice] = usePersistentState<number>('grid-stop-loss', 0);
   const [takeProfitPrice, setTakeProfitPrice] = usePersistentState<number>('grid-take-profit', 0);
+  const [backtestDays, setBacktestDays] = usePersistentState<number>('grid-backtest-days', 7);
   
   // Layout State
   const [chartHeight, setChartHeight] = usePersistentState<number>('grid-chart-height', 600);
@@ -137,19 +148,23 @@ export default function GridTradingPage() {
     }
   }, [symbol, interval, isConnected, isRunning, botChartData, toast]);
 
+  const validateGridConfig = () => {
+    if (upperPrice <= lowerPrice) {
+        toast({ title: "Invalid Grid", description: "Upper price must be greater than lower price.", variant: "destructive"});
+        return false;
+    }
+    if (gridCount < 2) {
+        toast({ title: "Invalid Grid", description: "You must have at least 2 grids.", variant: "destructive"});
+        return false;
+    }
+    return true;
+  }
 
   const handleToggleSimulation = () => {
     if (isRunning) {
         stopGridSimulation();
     } else {
-        if (upperPrice <= lowerPrice) {
-            toast({ title: "Invalid Grid", description: "Upper price must be greater than lower price.", variant: "destructive"});
-            return;
-        }
-        if (gridCount < 2) {
-            toast({ title: "Invalid Grid", description: "You must have at least 2 grids.", variant: "destructive"});
-            return;
-        }
+        if (!validateGridConfig()) return;
         startGridSimulation({
             symbol,
             interval,
@@ -168,6 +183,27 @@ export default function GridTradingPage() {
         });
     }
   };
+
+  const handleRunBacktest = () => {
+    if (!validateGridConfig()) return;
+    runGridBacktest({
+        symbol,
+        interval,
+        lowerPrice,
+        upperPrice,
+        gridCount,
+        leverage,
+        mode,
+        investment,
+        trailingUp,
+        trailingDown,
+        trailingUpTriggerPrice: trailingUpTriggerPrice > 0 ? trailingUpTriggerPrice : undefined,
+        trailingDownTriggerPrice: trailingDownTriggerPrice > 0 ? trailingDownTriggerPrice : undefined,
+        stopLossPrice: stopLossPrice > 0 ? stopLossPrice : undefined,
+        takeProfitPrice: takeProfitPrice > 0 ? takeProfitPrice : undefined,
+        backtestDays,
+    });
+  }
 
   const calculatedGridLevels = useMemo(() => {
     if (isRunning) return grid?.levels ?? [];
@@ -347,9 +383,24 @@ export default function GridTradingPage() {
                                         </div>
                                     </div>
                                 </div>
+                                <div className="space-y-3 pt-2">
+                                    <Label>Backtesting</Label>
+                                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex-1 space-y-1">
+                                                <Label htmlFor="backtest-days">Days to Backtest</Label>
+                                                <Input id="backtest-days" type="number" value={backtestDays} onChange={e => setBacktestDays(parseInt(e.target.value, 10) || 7)} min={1} max={500} disabled={isRunning || isBacktesting} />
+                                            </div>
+                                            <Button onClick={handleRunBacktest} disabled={isRunning || isBacktesting || isFetchingData || !isConnected}>
+                                                {isBacktesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BarChart2 />}
+                                                {isBacktesting ? "Running..." : "Backtest"}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
                             </CardContent>
                              <CardFooter>
-                                <Button className="w-full" onClick={handleToggleSimulation} disabled={isFetchingData || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
+                                <Button className="w-full" onClick={handleToggleSimulation} disabled={isFetchingData || !isConnected || (isTradingActive && !isRunning) || isBacktesting} variant={isRunning ? "destructive" : "default"}>
                                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isRunning ? <StopCircle /> : <Play />}
                                     {isFetchingData ? "Loading..." : isRunning ? "Stop Simulation" : "Start Live Simulation"}
                                 </Button>
@@ -429,6 +480,7 @@ export default function GridTradingPage() {
                         </div>
                     </CardContent>
                 </Card>
+                {backtestSummary && <GridBacktestReport summary={backtestSummary} />}
             </div>
         </div>
     </div>

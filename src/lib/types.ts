@@ -432,6 +432,20 @@ export type GridConfig = {
     trailingDownTriggerPrice?: number;
 };
 
+export type GridBacktestConfig = GridConfig & {
+    backtestDays: number;
+}
+
+export type GridBacktestSummary = {
+    totalPnl: number;
+    gridPnl: number;
+    unrealizedPnl: number;
+    totalTrades: number;
+    totalFees: number;
+    maxDrawdown: number;
+    apr: number;
+}
+
 export type Grid = {
     levels: number[];
     profitPerGrid: number;
@@ -467,6 +481,7 @@ export interface BotContextType {
   screenerState: ScreenerState;
   simulationState: SimulationState;
   gridState: GridState;
+  gridBacktestState: any;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -487,6 +502,7 @@ export interface BotContextType {
   stopSimulation: () => void;
   startGridSimulation: (config: GridConfig) => void;
   stopGridSimulation: () => void;
+  runGridBacktest: (config: GridBacktestConfig) => void;
 }
 
 export type Wall = {
