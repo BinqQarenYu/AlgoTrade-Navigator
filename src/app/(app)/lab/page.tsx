@@ -290,27 +290,35 @@ export default function LabPage() {
     }
   }, [baseAsset, quoteAsset, setQuoteAsset]);
 
+  // This effect loads the last manipulation scan for the current symbol.
   useEffect(() => {
-    // When the symbol changes, clear out old data
+    if (!isConnected || !symbol) return;
+    
+    // Clear old data when symbol changes
     setWalls([]);
     setSpoofedWalls([]);
     setConsensusResult(null);
-    setManipulationResult(null); // Clear previous manipulation result on symbol change
+    setManipulationResult(null); 
 
     const loadLastScan = async () => {
-        const reports = await loadReports();
-        const lastScan = reports.find(
-            (r) => r.type === 'manipulation-scan' && r.input.symbol === symbol
-        );
-
-        if (lastScan && lastScan.type === 'manipulation-scan') {
-            setManipulationResult(lastScan.output);
-            setManipulationCardOpen(true);
+        try {
+            const reports = await loadReports();
+            // Find the most recent scan for the *current* symbol
+            const lastScan = reports.find(
+                (r) => r.type === 'manipulation-scan' && r.input.symbol === symbol
+            );
+    
+            if (lastScan && lastScan.type === 'manipulation-scan') {
+                setManipulationResult(lastScan.output);
+                setManipulationCardOpen(true);
+            }
+        } catch (e) {
+            console.error("Failed to load saved reports:", e);
         }
     };
     
     loadLastScan();
-  }, [symbol]);
+  }, [symbol, isConnected]); // Re-run when symbol or connection status changes
 
   const runConsensus = useCallback(async (currentChartData: HistoricalData[]) => {
     const strategiesToRun = selectedConsensusStrategiesRef.current;
@@ -439,17 +447,18 @@ export default function LabPage() {
   }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isStreamActive]);
   
   // Effect for live data stream
+  const wsRef = useRef<WebSocket | null>(null);
   useEffect(() => {
     if (!isStreamActive || !symbol || !interval) return;
 
-    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
+    wsRef.current = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
 
-    ws.onopen = () => {
+    wsRef.current.onopen = () => {
       console.log(`Lab stream connected for ${symbol}`);
       toast({ title: "Live Update Started", description: `Continuously updating analysis for ${symbol}.` });
     };
 
-    ws.onmessage = (event) => {
+    wsRef.current.onmessage = (event) => {
       const message = JSON.parse(event.data);
       if (message.e !== 'kline') return;
 
@@ -483,18 +492,21 @@ export default function LabPage() {
       });
     };
 
-    ws.onerror = () => {
+    wsRef.current.onerror = () => {
       console.error("Lab stream WebSocket error.");
       toast({ title: "Stream Error", variant: "destructive" });
       setIsStreamActive(false);
     };
 
-    ws.onclose = () => {
+    wsRef.current.onclose = () => {
       console.log("Lab stream disconnected.");
     };
-
+    
+    const currentWs = wsRef.current;
     return () => {
-      ws.close();
+      if (currentWs) {
+        currentWs.close();
+      }
     };
   }, [isStreamActive, symbol, interval, runConsensus, toast]);
 
@@ -530,11 +542,11 @@ export default function LabPage() {
         setReport(reportData);
         setReportOpen(true);
         toast({ title: "Report Generated", description: "AI market analysis is complete and saved to the Data page." });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error generating report:", error);
         toast({
           title: "Report Failed",
-          description: "An error occurred while generating the AI report.",
+          description: error.message || "An error occurred while generating the AI report.",
           variant: "destructive",
         });
       }
@@ -575,7 +587,7 @@ export default function LabPage() {
           toast({ title: "Manipulation Scan Complete", description: "AI analysis is ready and saved to the Data page." });
         } catch (error: any) {
           console.error("Error scanning for manipulation:", error);
-          toast({ title: "Scan Failed", description: "An error occurred during the analysis.", variant: "destructive" });
+          toast({ title: "Scan Failed", description: error.message || "An error occurred during the analysis.", variant: "destructive" });
         } finally {
           setIsScanning(false);
         }
