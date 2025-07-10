@@ -106,23 +106,32 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
-    const updateOrderBook = useCallback((bidUpdates: OrderBookLevel[], askUpdates: OrderBookLevel[]) => {
-        setBids(prev => {
-            const newBids = new Map(prev);
-            bidUpdates.forEach(([price, quantity]) => {
-                if (parseFloat(quantity) === 0) newBids.delete(price);
-                else newBids.set(price, parseFloat(quantity));
+    const processUpdates = useCallback((updates: any[]) => {
+        setBids(prevBids => {
+            const newBids = new Map(prevBids);
+            updates.forEach(update => {
+                update.b.forEach(([price, quantity]: OrderBookLevel) => {
+                    if (parseFloat(quantity) === 0) newBids.delete(price);
+                    else newBids.set(price, parseFloat(quantity));
+                });
             });
             return newBids;
         });
-        setAsks(prev => {
-            const newAsks = new Map(prev);
-            askUpdates.forEach(([price, quantity]) => {
-                if (parseFloat(quantity) === 0) newAsks.delete(price);
-                else newAsks.set(price, parseFloat(quantity));
+
+        setAsks(prevAsks => {
+            const newAsks = new Map(prevAsks);
+            updates.forEach(update => {
+                update.a.forEach(([price, quantity]: OrderBookLevel) => {
+                    if (parseFloat(quantity) === 0) newAsks.delete(price);
+                    else newAsks.set(price, parseFloat(quantity));
+                });
             });
             return newAsks;
         });
+        
+        if (updates.length > 0) {
+            lastUpdateIdRef.current = updates[updates.length - 1].u;
+        }
     }, []);
 
     useEffect(() => {
@@ -140,13 +149,16 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             isSyncedRef.current = false;
             lastUpdateIdRef.current = null;
             queuedUpdatesRef.current = [];
+            setBids(new Map());
+            setAsks(new Map());
 
             // 1. Fetch snapshot first
+            let snapshotLastUpdateId: number;
             try {
                 const snapshot = await getDepthSnapshot(symbol);
                 if (!isMounted || !isStreamActive) return;
 
-                lastUpdateIdRef.current = snapshot.lastUpdateId;
+                snapshotLastUpdateId = snapshot.lastUpdateId;
                 setBids(new Map(snapshot.bids.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)])));
                 setAsks(new Map(snapshot.asks.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)])));
             } catch (error: any) {
@@ -174,39 +186,26 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 
                 const data = JSON.parse(event.data);
                 if (data.e !== 'depthUpdate') return;
+                
+                queuedUpdatesRef.current.push(data);
 
                 if (!isSyncedRef.current) {
-                    if (!lastUpdateIdRef.current) return; // Still waiting for snapshot
-                    
-                    if (data.u > lastUpdateIdRef.current) {
-                        queuedUpdatesRef.current.push(data);
+                    const firstEvent = queuedUpdatesRef.current[0];
+                    if (firstEvent.U <= snapshotLastUpdateId + 1) {
+                         const updatesToApply = queuedUpdatesRef.current.filter(update => update.u > snapshotLastUpdateId);
+                         if (updatesToApply.length > 0 && updatesToApply[0].U <= snapshotLastUpdateId + 1) {
+                            console.log(`Order book for ${symbol} is now in sync.`);
+                            processUpdates(updatesToApply);
+                            isSyncedRef.current = true;
+                            queuedUpdatesRef.current = [];
+                         }
                     }
-
-                    // Process queue to find the first event that bridges snapshot and stream
-                    const firstUpdateIndex = queuedUpdatesRef.current.findIndex(update => update.U <= lastUpdateIdRef.current! + 1 && update.u >= lastUpdateIdRef.current! + 1);
-
-                    if (firstUpdateIndex !== -1) {
-                        const updatesToApply = queuedUpdatesRef.current.slice(firstUpdateIndex);
-                        updatesToApply.forEach(update => {
-                             if (update.pu === lastUpdateIdRef.current) { // Ensure contiguous update
-                                updateOrderBook(update.b, update.a);
-                                lastUpdateIdRef.current = update.u;
-                            }
-                        });
-                        
-                        isSyncedRef.current = true;
-                        queuedUpdatesRef.current = [];
-                        console.log(`Order book for ${symbol} is now in sync.`);
-                    }
-
                 } else {
-                    // We are synced, process subsequent updates if they are contiguous
                     if (data.pu === lastUpdateIdRef.current) {
-                        updateOrderBook(data.b, data.a);
-                        lastUpdateIdRef.current = data.u;
+                         processUpdates([data]);
                     } else {
-                        console.warn(`Order book out of sync for ${symbol} (gap detected: prev_u=${lastUpdateIdRef.current}, curr_pu=${data.pu}). Re-syncing...`);
-                        connectAndSync(); // Trigger a full resync
+                        console.warn(`Order book out of sync for ${symbol} (gap detected). Re-syncing...`);
+                        connectAndSync();
                     }
                 }
             };
@@ -227,11 +226,12 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         if (isStreamActive && isConnected && symbol) {
             connectAndSync();
         } else {
-            if(wsRef.current) wsRef.current.close();
+            if(wsRef.current) {
+                wsRef.current.onclose = null;
+                wsRef.current.close();
+            }
             setBids(new Map());
             setAsks(new Map());
-            lastUpdateIdRef.current = null;
-            isSyncedRef.current = false;
         }
 
         return () => {
@@ -242,7 +242,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 wsRef.current = null;
             }
         };
-    }, [symbol, isConnected, isStreamActive, setIsStreamActive, toast, updateOrderBook]);
+    }, [symbol, isConnected, isStreamActive, setIsStreamActive, toast, processUpdates]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
         const bidLevels: OrderBookLevel[] = Array.from(bids.entries()).map(([price, size]) => [price, String(size)]);
@@ -446,3 +446,5 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         </Card>
     );
 }
+
+    
