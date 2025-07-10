@@ -97,7 +97,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [asks, setAsks] = useState<Map<string, string>>(new Map());
     const [isConnecting, setIsConnecting] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
-    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', true); // Changed default to true
+    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', true);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     
     const lastUpdateIdRef = useRef<number | null>(null);
@@ -164,7 +164,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             toast({ title: 'Stream Unavailable', description: `Could not connect to the order book for ${currentSymbol}.`, variant: 'destructive' });
             setStreamError(errorMsg);
             setIsConnecting(false);
-            setIsStreamActive(false); // Stop trying to stream for this symbol
+            // Don't disable the stream, allow user to try again or switch symbols
         };
         ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
 
@@ -207,7 +207,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             toast({ title: 'Order Book Error', description: `Failed to load initial depth: ${error.message}`, variant: 'destructive' });
             setStreamError(`API Error: ${error.message}`);
             setIsConnecting(false);
-            setIsStreamActive(false);
             ws.close();
         }
     }, [setIsStreamActive, toast]);
