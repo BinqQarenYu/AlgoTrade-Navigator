@@ -97,7 +97,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [asks, setAsks] = useState<Map<string, string>>(new Map());
     const [isConnecting, setIsConnecting] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
-    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
+    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', true); // Changed default to true
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     
     const lastUpdateIdRef = useRef<number | null>(null);
