@@ -96,6 +96,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [bids, setBids] = useState<Map<string, string>>(new Map());
     const [asks, setAsks] = useState<Map<string, string>>(new Map());
     const [isConnecting, setIsConnecting] = useState(false);
+    const [streamError, setStreamError] = useState<string | null>(null);
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     
@@ -109,6 +110,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         }
 
         setIsConnecting(true);
+        setStreamError(null);
         lastUpdateIdRef.current = null;
         let eventQueue: any[] = [];
         let snapshotLoaded = false;
@@ -158,7 +160,9 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
         ws.onerror = () => {
             console.error(`Order book WebSocket error for ${currentSymbol}.`);
-            toast({ title: 'Stream Error', variant: 'destructive' });
+            const errorMsg = "WebSocket connection failed. The symbol might be invalid or there may be a network issue.";
+            toast({ title: 'Stream Error', description: errorMsg, variant: 'destructive' });
+            setStreamError(errorMsg);
             setIsConnecting(false);
             setIsStreamActive(false);
         };
@@ -201,6 +205,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             console.log(`Order book for ${currentSymbol} is now in sync.`);
         } catch (error: any) {
             toast({ title: 'Order Book Error', description: `Failed to load initial depth: ${error.message}`, variant: 'destructive' });
+            setStreamError(`API Error: ${error.message}`);
             setIsConnecting(false);
             setIsStreamActive(false);
             ws.close();
@@ -211,6 +216,11 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     useEffect(() => {
         if (isStreamActive && isConnected && symbol) {
             connectAndSync(symbol);
+        } else {
+             if (wsRef.current) {
+                wsRef.current.close();
+                wsRef.current = null;
+            }
         }
 
         return () => {
@@ -350,6 +360,69 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         );
     }
 
+    const renderContent = () => {
+        if (isConnecting) return <Skeleton className="h-[400px] w-full" />;
+        if (!isConnected) {
+            return (
+                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                    <p>Connect API to view order book.</p>
+                </div>
+            );
+        }
+        if (streamError) {
+             return (
+                <div className="flex items-center justify-center h-48 text-destructive text-center border border-dashed border-destructive/50 rounded-md p-4">
+                    <p>{streamError}</p>
+                </div>
+            );
+        }
+        if (!isStreamActive) {
+            return (
+                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                    <p>Order book stream is paused.</p>
+                </div>
+            );
+        }
+        return (
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-center">Bids (Buy Orders)</h4>
+                    <ScrollArea className="h-[400px] border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
+                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
+                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" />)}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </div>
+                    <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-center">Asks (Sell Orders)</h4>
+                    <ScrollArea className="h-[400px] border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
+                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
+                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" />)}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <Card>
             <Collapsible open={isCardOpen} onOpenChange={setIsCardOpen}>
@@ -375,54 +448,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent>
-                        {isConnecting ? (
-                             <Skeleton className="h-[400px] w-full" />
-                        ) : !isConnected ? (
-                             <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                                <p>Connect API to view order book.</p>
-                            </div>
-                        ) : !isStreamActive ? (
-                            <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                                <p>Order book stream is paused.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <h4 className="text-sm font-semibold text-center">Bids (Buy Orders)</h4>
-                                    <ScrollArea className="h-[400px] border rounded-md">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" />)}
-                                            </TableBody>
-                                        </Table>
-                                    </ScrollArea>
-                                </div>
-                                 <div className="space-y-1">
-                                    <h4 className="text-sm font-semibold text-center">Asks (Sell Orders)</h4>
-                                    <ScrollArea className="h-[400px] border rounded-md">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" />)}
-                                            </TableBody>
-                                        </Table>
-                                    </ScrollArea>
-                                </div>
-                            </div>
-                        )}
+                        {renderContent()}
                     </CardContent>
                 </CollapsibleContent>
             </Collapsible>

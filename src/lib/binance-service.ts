@@ -270,13 +270,30 @@ export const getDepthSnapshot = async (symbol: string): Promise<any> => {
 
     try {
         const response = await fetch(url, { cache: 'no-store' });
+        const textResponse = await response.text();
+
+        // If the response is not ok, try to parse JSON for an error message, but fall back to the text response.
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Binance API Error: ${errorData.msg || `Failed to fetch depth for ${upperSymbol}`} (Code: ${errorData.code})`);
+            try {
+                const errorData = JSON.parse(textResponse);
+                throw new Error(`Binance API Error: ${errorData.msg || 'Unknown error'} (Code: ${errorData.code || 'N/A'})`);
+            } catch (e) {
+                // If parsing fails, it means the error was likely not JSON (e.g., HTML from a gateway).
+                throw new Error(`Binance API returned a non-JSON error (Status: ${response.status}).`);
+            }
         }
-        return await response.json();
+        
+        // If the response is okay, it MUST be JSON.
+        try {
+            return JSON.parse(textResponse);
+        } catch(e) {
+            console.error("Failed to parse successful order book response as JSON:", textResponse);
+            throw new Error("An unexpected response was received from the server.");
+        }
+        
     } catch (error: any) {
         console.error(`Error fetching depth snapshot from Binance API:`, error);
-        throw new Error("Failed to connect to Binance for order book data.");
+        // Re-throw the specific error we created, or a generic one if it came from `fetch` itself (e.g., network error).
+        throw new Error(error.message || "Failed to connect to Binance for order book data.");
     }
 }
