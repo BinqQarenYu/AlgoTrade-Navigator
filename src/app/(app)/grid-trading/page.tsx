@@ -111,10 +111,16 @@ export default function GridTradingPage() {
                 if (klines.length > 0) {
                     setChartData(klines);
                     const latestPrice = klines[klines.length - 1].close;
-                    const supportPrice = dailyKlines.length > 0 ? Math.min(...dailyKlines.map(k => k.low)) : latestPrice * 0.9;
                     
+                    // Calculate defaults from daily data
+                    const supportPrice = dailyKlines.length > 0 ? Math.min(...dailyKlines.map(k => k.low)) : latestPrice * 0.9;
+                    const resistancePrice = dailyKlines.length > 0 ? Math.max(...dailyKlines.map(k => k.high)) : latestPrice * 1.1;
+
+                    // Set default grid boundaries and trailing triggers
                     setUpperPrice(latestPrice);
                     setLowerPrice(supportPrice);
+                    setTrailingUpTriggerPrice(resistancePrice);
+                    setTrailingDownTriggerPrice(supportPrice);
                 }
 
             } catch (e: any) {
@@ -126,7 +132,7 @@ export default function GridTradingPage() {
         };
         fetchInitialData();
     }
-  }, [symbol, interval, isConnected, isRunning, setUpperPrice, setLowerPrice, toast, botChartData]);
+  }, [symbol, interval, isConnected, isRunning, setUpperPrice, setLowerPrice, setTrailingUpTriggerPrice, setTrailingDownTriggerPrice, toast, botChartData]);
 
 
   const handleToggleSimulation = () => {
