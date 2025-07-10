@@ -1002,10 +1002,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setGridState(current => {
         if (!current.isRunning || !current.grid || !current.config) return current;
 
-        let { chartData, openOrders, trades, summary } = current;
-        const { grid } = current;
+        let { chartData, openOrders, trades, summary, grid, config } = current;
         const newTrades: GridTrade[] = [];
-        const stillOpenOrders = [...openOrders];
+        let stillOpenOrders = [...openOrders];
 
         // Update chart data
         if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
@@ -1015,31 +1014,55 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             chartData = chartData.slice(-1000);
         }
 
-        openOrders.forEach(order => {
+        // Trailing Logic
+        const highestGridLine = Math.max(...grid.levels);
+        const lowestGridLine = Math.min(...grid.levels);
+
+        if (config.trailingUp && newCandle.close > highestGridLine) {
+            const shiftAmount = newCandle.close - highestGridLine;
+            addGridLog(`Trailing Up: Price broke upper bound. Shifting grid up by ${shiftAmount.toFixed(4)}.`);
+            
+            const newUpperPrice = config.upperPrice + shiftAmount;
+            const newLowerPrice = config.lowerPrice + shiftAmount;
+            config.upperPrice = newUpperPrice;
+            config.lowerPrice = newLowerPrice;
+
+            grid.levels = grid.levels.map(level => level + shiftAmount);
+            stillOpenOrders = grid.levels.map(price => ({ price, side: 'buy' }));
+        } else if (config.trailingDown && newCandle.close < lowestGridLine) {
+            const shiftAmount = lowestGridLine - newCandle.close;
+            addGridLog(`Trailing Down: Price broke lower bound. Shifting grid down by ${shiftAmount.toFixed(4)}.`);
+
+            const newUpperPrice = config.upperPrice - shiftAmount;
+            const newLowerPrice = config.lowerPrice - shiftAmount;
+            config.upperPrice = newUpperPrice;
+            config.lowerPrice = newLowerPrice;
+
+            grid.levels = grid.levels.map(level => level - shiftAmount);
+            stillOpenOrders = grid.levels.map(price => ({ price, side: 'buy' }));
+        }
+
+        stillOpenOrders.forEach(order => {
             const isBuy = order.side === 'buy';
             const priceCrossed = isBuy 
                 ? newCandle.low <= order.price 
                 : newCandle.high >= order.price;
 
             if (priceCrossed) {
-                // 1. Log the trade
                 const trade: GridTrade = { id: `grid_${order.price}_${newCandle.time}_${Math.random()}`, time: newCandle.time, price: order.price, side: order.side };
                 newTrades.push(trade);
                 
-                // 2. Remove the filled order
                 const indexToRemove = stillOpenOrders.findIndex(o => o.price === order.price && o.side === order.side);
                 if (indexToRemove > -1) stillOpenOrders.splice(indexToRemove, 1);
                 
-                // 3. Add the corresponding closing order
                 const newOrderPrice = isBuy
                     ? order.price + grid.profitPerGrid
                     : order.price - grid.profitPerGrid;
                 
-                if (newOrderPrice > 0 && newOrderPrice >= current.config!.lowerPrice && newOrderPrice <= current.config!.upperPrice) {
+                if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                     stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                 }
                 
-                // 4. Update PNL
                 if (summary) {
                     summary.totalPnl += grid.profitPerGrid * grid.quantityPerGrid;
                     summary.gridPnl += grid.profitPerGrid * grid.quantityPerGrid;
@@ -1054,89 +1077,90 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             openOrders: stillOpenOrders,
             trades: [...trades, ...newTrades],
             summary: summary ? {...summary} : current.summary,
+            grid: {...grid},
+            config: {...config},
         };
     });
-  }, []);
+  }, [addGridLog]);
 
   const stopGridSimulation = useCallback(() => {
-      addGridLog("Stopping grid simulation.");
-      if (gridWsRef.current) {
+    addGridLog("Stopping grid simulation.");
+    if (gridWsRef.current) {
         gridWsRef.current.close();
         gridWsRef.current = null;
-      }
-      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
-      toast({ title: "Grid Simulation Stopped" });
-  }, [addGridLog, toast]);
+    }
+    setGridState(prev => ({ ...prev, isRunning: false, config: null }));
+  }, [addGridLog]);
 
   const startGridSimulation = useCallback(async (config: GridConfig) => {
-      addGridLog(`Creating grid for ${config.symbol}...`);
-      
-      let gridLevels: number[] = [];
-      let profitPerGrid = 0;
-      if (config.mode === 'arithmetic') {
-          const priceStep = (config.upperPrice - config.lowerPrice) / (config.gridCount - 1);
-          profitPerGrid = priceStep;
-          for (let i = 0; i < config.gridCount; i++) {
-              gridLevels.push(config.lowerPrice + i * priceStep);
-          }
-      } else { // Geometric
-          const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
-          for (let i = 0; i < config.gridCount; i++) {
-              const price = config.lowerPrice * Math.pow(ratio, i);
-              gridLevels.push(price);
-          }
-          // In geometric mode, profit is not fixed, but we can estimate an average
-          profitPerGrid = (gridLevels[1] - gridLevels[0]);
-      }
+    stopGridSimulation(); // Ensure previous session is fully stopped
+    addGridLog(`Creating grid for ${config.symbol}...`);
+    
+    let gridLevels: number[] = [];
+    let profitPerGrid = 0;
+    if (config.mode === 'arithmetic') {
+        const priceStep = (config.upperPrice - config.lowerPrice) / (config.gridCount - 1);
+        profitPerGrid = priceStep;
+        for (let i = 0; i < config.gridCount; i++) {
+            gridLevels.push(config.lowerPrice + i * priceStep);
+        }
+    } else { // Geometric
+        const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
+        for (let i = 0; i < config.gridCount; i++) {
+            const price = config.lowerPrice * Math.pow(ratio, i);
+            gridLevels.push(price);
+        }
+        profitPerGrid = (gridLevels[1] - gridLevels[0]);
+    }
 
-      const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
-      const quantityPerGrid = investmentPerGrid / gridLevels.reduce((a, b) => a + b, 0) * gridLevels.length;
+    const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
+    const quantityPerGrid = investmentPerGrid / (gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length);
 
-      const newGrid: Grid = {
-          levels: gridLevels,
-          profitPerGrid,
-          quantityPerGrid,
-      };
+    const newGrid: Grid = {
+        levels: gridLevels,
+        profitPerGrid,
+        quantityPerGrid,
+    };
 
-      setGridState({
-          isRunning: true,
-          config,
-          grid: newGrid,
-          chartData: [],
-          trades: [],
-          openOrders: gridLevels.map(price => ({ price, side: 'buy' })), // Simplified initial state
-          summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
-      });
+    setGridState({
+        isRunning: true,
+        config,
+        grid: newGrid,
+        chartData: [],
+        trades: [],
+        openOrders: gridLevels.map(price => ({ price, side: 'buy' })),
+        summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
+    });
 
-      toast({ title: "Grid Simulation Started", description: `Grid created for ${config.symbol}.` });
-      
-      try {
-          const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-          setGridState(prev => ({...prev, chartData: initialKlines}));
-          addGridLog(`Loaded ${initialKlines.length} initial candles for grid simulation.`);
+    toast({ title: "Grid Simulation Started", description: `Grid created for ${config.symbol}.` });
+    
+    try {
+        const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+        setGridState(prev => ({...prev, chartData: initialKlines}));
+        addGridLog(`Loaded ${initialKlines.length} initial candles for grid simulation.`);
 
-          const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
-          gridWsRef.current = ws;
+        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+        gridWsRef.current = ws;
 
-          ws.onopen = () => addGridLog("Grid simulation live feed connected.");
-          ws.onmessage = (event) => {
-              const data = JSON.parse(event.data);
-              if (data.e === 'kline') {
-                  const newCandle: HistoricalData = {
-                      time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
-                      low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
-                  };
-                  handleGridTick(newCandle);
-              }
-          };
-          ws.onerror = () => addGridLog("Grid simulation WebSocket error.");
-          ws.onclose = () => addGridLog("Grid simulation WebSocket closed.");
+        ws.onopen = () => addGridLog("Grid simulation live feed connected.");
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.e === 'kline') {
+                const newCandle: HistoricalData = {
+                    time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
+                    low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
+                };
+                handleGridTick(newCandle);
+            }
+        };
+        ws.onerror = () => addGridLog("Grid simulation WebSocket error.");
+        ws.onclose = () => addGridLog("Grid simulation WebSocket closed.");
 
-      } catch (e: any) {
-          addGridLog(`Error starting grid simulation: ${e.message}`);
-          toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
-          stopGridSimulation();
-      }
+    } catch (e: any) {
+        addGridLog(`Error starting grid simulation: ${e.message}`);
+        toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
+        stopGridSimulation();
+    }
   }, [addGridLog, toast, stopGridSimulation, handleGridTick]);
 
 

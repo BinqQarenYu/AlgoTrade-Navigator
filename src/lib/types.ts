@@ -423,6 +423,8 @@ export type GridConfig = {
     leverage: number;
     mode: 'arithmetic' | 'geometric';
     investment: number;
+    trailingUp: boolean;
+    trailingDown: boolean;
 };
 
 export type Grid = {

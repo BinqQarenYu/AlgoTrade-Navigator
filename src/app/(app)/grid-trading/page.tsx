@@ -37,6 +37,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 
 
 export default function GridTradingPage() {
@@ -54,6 +55,8 @@ export default function GridTradingPage() {
   const [leverage, setLeverage] = usePersistentState<number>('grid-leverage', 10);
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
   const [investment, setInvestment] = usePersistentState<number>('grid-investment', 1000);
+  const [trailingUp, setTrailingUp] = usePersistentState<boolean>('grid-trailing-up', false);
+  const [trailingDown, setTrailingDown] = usePersistentState<boolean>('grid-trailing-down', false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   
@@ -139,6 +142,8 @@ export default function GridTradingPage() {
             leverage,
             mode,
             investment,
+            trailingUp,
+            trailingDown,
         });
     }
   };
@@ -279,6 +284,17 @@ export default function GridTradingPage() {
                                      <div>
                                         <Label htmlFor="leverage">Leverage (x)</Label>
                                         <Input id="leverage" type="number" value={leverage} onChange={e => setLeverage(parseInt(e.target.value, 10) || 1)} min={1} max={100} disabled={isRunning} />
+                                    </div>
+                                </div>
+                                 <div className="space-y-3 pt-2">
+                                    <Label>Advanced</Label>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
+                                        <Label htmlFor="trailing-up" className="font-normal">Trailing Up</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
+                                        <Label htmlFor="trailing-down" className="font-normal">Trailing Down</Label>
                                     </div>
                                 </div>
                             </CardContent>
