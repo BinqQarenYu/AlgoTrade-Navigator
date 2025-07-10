@@ -35,6 +35,7 @@ const TICKER_TO_CG_ID: Record<string, string> = {
     'WLD': 'worldcoin-wld',
     'ARB': 'arbitrum',
     'BONK': 'bonk',
+    'LA': 'layerai'
 };
 
 /**
@@ -67,7 +68,8 @@ export const getTopCoins = async (
         });
 
         if (!response.ok) {
-            console.error(`CoinGecko API Error (markets): ${response.statusText}`);
+            const errorData = await response.json().catch(() => ({ message: response.statusText }));
+            console.error(`CoinGecko API Error (markets): ${errorData.message || response.statusText}`);
             throw new Error('Failed to fetch top coins from CoinGecko.');
         }
 
@@ -156,7 +158,8 @@ const getCoinData = async (
             if (response.status === 429) {
                 console.warn(`CoinGecko rate limit hit for ${coinId}.`);
             } else {
-                console.error(`CoinGecko API Error for ${coinId}: ${response.statusText}`);
+                const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                console.error(`CoinGecko API Error for ${coinId}: ${errorData.message || response.statusText}`);
             }
             return null;
         }
@@ -206,7 +209,8 @@ export const getCoinDetailsByTicker = async (
             if (response.status === 429) {
                 console.warn(`CoinGecko rate limit hit for ${coinId}.`);
             } else {
-                console.error(`CoinGecko API Error for ${coinId}: ${response.statusText}`);
+                 const errorData = await response.json().catch(() => ({ message: response.statusText }));
+                console.error(`CoinGecko API Error for ${coinId}: ${errorData.message || response.statusText}`);
             }
             return null;
         }
