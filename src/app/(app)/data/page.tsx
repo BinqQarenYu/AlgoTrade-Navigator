@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from '@/hooks/use-toast';
 import { useBot } from '@/context/bot-context';
 import type { StreamedDataPoint, SavedReport } from '@/lib/types';
-import { clearStreamData, loadSavedData, loadReports, deleteReport } from '@/lib/data-service';
+import { loadReports, deleteReport, clearStreamData } from '@/lib/data-service';
 import { format } from 'date-fns';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -129,7 +129,6 @@ export default function DataPage() {
     const [isStreaming, setIsStreaming] = useState(false);
     const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting'>('disconnected');
     const [streamedData, setStreamedData] = useState<StreamedDataPoint[]>([]);
-    const [savedData, setSavedData] = useState<StreamedDataPoint[]>([]);
     const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
     const [symbol, setSymbol] = usePersistentState("data-symbol", "btcusdt"); // lowercase for websocket
     const wsRef = useRef<WebSocket | null>(null);
@@ -216,8 +215,7 @@ export default function DataPage() {
     
     const fetchSavedData = async () => {
         try {
-            const [data, reports] = await Promise.all([loadSavedData(), loadReports()]);
-            setSavedData(data.reverse()); // Show newest first
+            const reports = await loadReports();
             setSavedReports(reports);
         } catch (error) {
             console.error("Failed to load saved data:", error);
@@ -256,7 +254,6 @@ export default function DataPage() {
         }
         try {
             await clearStreamData();
-            setSavedData([]);
             toast({
                 title: "Success",
                 description: "All saved real-time stream data has been cleared.",
@@ -387,7 +384,7 @@ export default function DataPage() {
                                         </TableBody>
                                     </Table>
                                 </div>
-                                <Button size="sm" variant="outline" onClick={handleClearStreamData} disabled={savedData.length === 0 || isStreaming || isTradingActive}>
+                                <Button size="sm" variant="outline" onClick={handleClearStreamData} disabled={isStreaming || isTradingActive}>
                                     <Trash2 className="mr-2 h-4 w-4" />
                                     Clear Saved Stream Data
                                 </Button>

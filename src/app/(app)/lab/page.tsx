@@ -47,7 +47,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { saveReport, loadReports } from "@/lib/data-service"
+import { saveReport, getLatestReport } from "@/lib/data-service"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -298,26 +298,30 @@ export default function LabPage() {
     setWalls([]);
     setSpoofedWalls([]);
     setConsensusResult(null);
-    setManipulationResult(null); 
+    setManipulationResult(null);
+    setReport(null);
 
-    const loadLastScan = async () => {
+    const loadLastReports = async () => {
         try {
-            const reports = await loadReports();
-            // Find the most recent scan for the *current* symbol
-            const lastScan = reports.find(
-                (r) => r.type === 'manipulation-scan' && r.input.symbol === symbol
-            );
+            const [lastScan, lastReport] = await Promise.all([
+                getLatestReport('manipulation-scan', symbol),
+                getLatestReport('market-report', symbol)
+            ]);
     
-            if (lastScan && lastScan.type === 'manipulation-scan') {
-                setManipulationResult(lastScan.output);
+            if (lastScan) {
+                setManipulationResult(lastScan.output as DetectManipulationOutput);
                 setManipulationCardOpen(true);
+            }
+            if (lastReport) {
+                setReport(lastReport.output as GenerateMarketReportOutput);
+                setReportOpen(true);
             }
         } catch (e) {
             console.error("Failed to load saved reports:", e);
         }
     };
     
-    loadLastScan();
+    loadLastReports();
   }, [symbol, isConnected]); // Re-run when symbol or connection status changes
 
   const runConsensus = useCallback(async (currentChartData: HistoricalData[]) => {
@@ -418,8 +422,6 @@ export default function LabPage() {
         setIsFetchingData(true);
         if(!isStreamActive) {
             setChartData([]);
-            setReport(null);
-            setLiquidityEvents([]);
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }
         try {
@@ -578,7 +580,7 @@ export default function LabPage() {
           await saveReport({
               type: 'manipulation-scan',
               timestamp: Date.now(),
-              input: { symbol },
+              input: { symbol, interval: 'N/A' },
               output: result
           });
 
@@ -941,7 +943,7 @@ export default function LabPage() {
 
           <MarketHeatmap />
 
-          {symbol && quoteAsset && <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />}
+          <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />
 
            <Card>
               <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>

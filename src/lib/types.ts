@@ -366,6 +366,7 @@ export type SavedManipulationScan = {
   type: 'manipulation-scan';
   input: {
     symbol: string;
+    interval: string; // Add interval to match the query key
   };
   output: {
     isManipulationSuspected: boolean;
@@ -476,5 +477,3 @@ export type RankedScreenedAsset = {
 export type ScreenAssetsOutput = {
     assets: RankedScreenedAsset[];
 };
-
-    
