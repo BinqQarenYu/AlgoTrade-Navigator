@@ -998,6 +998,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
   
   // --- Grid Trading Logic ---
+  const stopGridSimulation = useCallback(() => {
+      addGridLog("Stopping grid simulation.");
+      if (gridWsRef.current) {
+        gridWsRef.current.close();
+        gridWsRef.current = null;
+      }
+      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
+      toast({ title: "Grid Simulation Stopped" });
+  }, [addGridLog, toast]);
+
   const handleGridTick = useCallback((newCandle: HistoricalData) => {
     setGridState(current => {
         if (!current.isRunning || !current.grid || !current.config) return current;
@@ -1023,7 +1033,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
             if (priceCrossed) {
                 // 1. Log the trade
-                const trade: GridTrade = { id: `grid_${order.price}_${newCandle.time}`, time: newCandle.time, price: order.price, side: order.side };
+                const trade: GridTrade = { id: `grid_${order.price}_${newCandle.time}_${Math.random()}`, time: newCandle.time, price: order.price, side: order.side };
                 newTrades.push(trade);
                 
                 // 2. Remove the filled order
@@ -1057,16 +1067,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         };
     });
   }, []);
-
-  const stopGridSimulation = useCallback(() => {
-      addGridLog("Stopping grid simulation.");
-      if (gridWsRef.current) {
-        gridWsRef.current.close();
-        gridWsRef.current = null;
-      }
-      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
-      toast({ title: "Grid Simulation Stopped" });
-  }, [addGridLog, toast]);
 
   const startGridSimulation = useCallback(async (config: GridConfig) => {
       addGridLog(`Creating grid for ${config.symbol}...`);
