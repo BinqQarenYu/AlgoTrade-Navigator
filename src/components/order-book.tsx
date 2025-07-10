@@ -99,85 +99,79 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     
-    // Refs for managing sync state
     const lastUpdateIdRef = useRef<number | null>(null);
-    const isSyncedRef = useRef(false);
+    const isSyncingRef = useRef(false);
     const queuedUpdatesRef = useRef<any[]>([]);
     
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
-
-    const processUpdates = useCallback((updates: any[]) => {
-        setBids(prevBids => {
-            const newBids = new Map(prevBids);
-            updates.forEach(update => {
-                update.b.forEach(([price, quantity]: OrderBookLevel) => {
-                    if (parseFloat(quantity) === 0) newBids.delete(price);
-                    else newBids.set(price, parseFloat(quantity));
-                });
-            });
-            return newBids;
-        });
-
-        setAsks(prevAsks => {
-            const newAsks = new Map(prevAsks);
-            updates.forEach(update => {
-                update.a.forEach(([price, quantity]: OrderBookLevel) => {
-                    if (parseFloat(quantity) === 0) newAsks.delete(price);
-                    else newAsks.set(price, parseFloat(quantity));
-                });
-            });
-            return newAsks;
-        });
-        
-        if (updates.length > 0) {
-            lastUpdateIdRef.current = updates[updates.length - 1].u;
-        }
-    }, []);
 
     useEffect(() => {
         let isMounted = true;
 
         const connectAndSync = async () => {
-            if (!isMounted || !isStreamActive) return;
+            if (!isMounted || !isStreamActive || isSyncingRef.current) return;
+            
+            isSyncingRef.current = true;
             setIsConnecting(true);
 
             // Close any existing connection and reset state
-            if (wsRef.current) {
-                wsRef.current.onclose = null;
-                wsRef.current.close();
-            }
-            isSyncedRef.current = false;
+            if (wsRef.current) { wsRef.current.close(); }
             lastUpdateIdRef.current = null;
             queuedUpdatesRef.current = [];
             setBids(new Map());
             setAsks(new Map());
 
-            // 1. Fetch snapshot first
-            let snapshotLastUpdateId: number;
+            // 1. Fetch snapshot
             try {
                 const snapshot = await getDepthSnapshot(symbol);
-                if (!isMounted || !isStreamActive) return;
+                if (!isMounted || !isStreamActive) {
+                    isSyncingRef.current = false;
+                    return;
+                }
 
-                snapshotLastUpdateId = snapshot.lastUpdateId;
-                setBids(new Map(snapshot.bids.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)])));
-                setAsks(new Map(snapshot.asks.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)])));
+                lastUpdateIdRef.current = snapshot.lastUpdateId;
+                const initialBids = new Map(snapshot.bids.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)]));
+                const initialAsks = new Map(snapshot.asks.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)]));
+                
+                // Process any updates that arrived while fetching snapshot
+                const updatesToApply = queuedUpdatesRef.current.filter(u => u.u > snapshot.lastUpdateId);
+                updatesToApply.forEach(update => {
+                    update.b.forEach(([p, q]: OrderBookLevel) => {
+                        if (parseFloat(q) === 0) initialBids.delete(p); else initialBids.set(p, parseFloat(q));
+                    });
+                    update.a.forEach(([p, q]: OrderBookLevel) => {
+                        if (parseFloat(q) === 0) initialAsks.delete(p); else initialAsks.set(p, parseFloat(q));
+                    });
+                     lastUpdateIdRef.current = update.u;
+                });
+                
+                setBids(initialBids);
+                setAsks(initialAsks);
+                queuedUpdatesRef.current = [];
+                isSyncingRef.current = false;
+                setIsConnecting(false);
+                console.log(`Order book for ${symbol} is now in sync.`);
+
             } catch (error: any) {
                 if (isMounted) {
                     toast({ title: 'Order Book Error', description: `Failed to load initial depth: ${error.message}`, variant: 'destructive' });
                     setIsStreamActive(false);
-                    setIsConnecting(false);
                 }
+                isSyncingRef.current = false;
+                setIsConnecting(false);
                 return;
             }
+        };
 
-            // 2. Now connect to WebSocket and start syncing
+        const connectWebSocket = () => {
+             // 2. Connect to WebSocket
             const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@depth`);
             wsRef.current = ws;
 
             ws.onopen = () => {
                 if (isMounted) {
                     console.log(`Order book WebSocket connected for ${symbol}`);
-                    setIsConnecting(false);
+                    connectAndSync(); // Start sync after connection opens
                 }
             };
 
@@ -186,52 +180,47 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 
                 const data = JSON.parse(event.data);
                 if (data.e !== 'depthUpdate') return;
-                
-                queuedUpdatesRef.current.push(data);
 
-                if (!isSyncedRef.current) {
-                    const firstEvent = queuedUpdatesRef.current[0];
-                    if (firstEvent.U <= snapshotLastUpdateId + 1) {
-                         const updatesToApply = queuedUpdatesRef.current.filter(update => update.u > snapshotLastUpdateId);
-                         if (updatesToApply.length > 0 && updatesToApply[0].U <= snapshotLastUpdateId + 1) {
-                            console.log(`Order book for ${symbol} is now in sync.`);
-                            processUpdates(updatesToApply);
-                            isSyncedRef.current = true;
-                            queuedUpdatesRef.current = [];
-                         }
-                    }
-                } else {
-                    if (data.pu === lastUpdateIdRef.current) {
-                         processUpdates([data]);
-                    } else {
-                        console.warn(`Order book out of sync for ${symbol} (gap detected). Re-syncing...`);
-                        connectAndSync();
-                    }
+                if (isSyncingRef.current) {
+                    queuedUpdatesRef.current.push(data);
+                    return;
                 }
+                
+                if (data.pu !== lastUpdateIdRef.current) {
+                     console.warn(`Order book out of sync for ${symbol} (gap detected). Re-syncing...`);
+                     connectAndSync(); // Resync on gap
+                     return;
+                }
+
+                setBids(prevBids => {
+                    const newBids = new Map(prevBids);
+                    data.b.forEach(([p, q]: OrderBookLevel) => {
+                        if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, parseFloat(q));
+                    });
+                    return newBids;
+                });
+                setAsks(prevAsks => {
+                    const newAsks = new Map(prevAsks);
+                     data.a.forEach(([p, q]: OrderBookLevel) => {
+                        if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, parseFloat(q));
+                    });
+                    return newAsks;
+                });
+
+                lastUpdateIdRef.current = data.u;
             };
 
             ws.onerror = () => {
-                if (isMounted) {
-                    console.error(`Order book WebSocket error for ${symbol}.`);
-                    setIsConnecting(false);
-                    setIsStreamActive(false);
-                }
+                if (isMounted) console.error(`Order book WebSocket error for ${symbol}.`);
             };
             
             ws.onclose = () => {
                 if (isMounted) console.log(`Order book WebSocket disconnected for ${symbol}`);
             };
-        };
+        }
 
         if (isStreamActive && isConnected && symbol) {
-            connectAndSync();
-        } else {
-            if(wsRef.current) {
-                wsRef.current.onclose = null;
-                wsRef.current.close();
-            }
-            setBids(new Map());
-            setAsks(new Map());
+            connectWebSocket();
         }
 
         return () => {
@@ -242,7 +231,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 wsRef.current = null;
             }
         };
-    }, [symbol, isConnected, isStreamActive, setIsStreamActive, toast, processUpdates]);
+    }, [symbol, isConnected, isStreamActive, toast, setIsStreamActive]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
         const bidLevels: OrderBookLevel[] = Array.from(bids.entries()).map(([price, size]) => [price, String(size)]);
@@ -446,5 +435,3 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         </Card>
     );
 }
-
-    
