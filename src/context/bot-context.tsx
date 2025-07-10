@@ -67,6 +67,7 @@ interface GridBacktestState {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
     backtestTrades: MatchedGridTrade[];
+    unmatchedTrades: GridTrade[];
 }
 
 // --- Context Type ---
@@ -199,7 +200,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Grid Backtest State ---
   const [gridBacktestState, setGridBacktestState] = useState<GridBacktestState>({
-    isBacktesting: false, backtestSummary: null, backtestTrades: []
+    isBacktesting: false, backtestSummary: null, backtestTrades: [], unmatchedTrades: []
   });
 
 
@@ -1236,7 +1237,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Grid Backtest Logic ---
   const runGridBacktest = useCallback(async (config: GridBacktestConfig) => {
-    setGridBacktestState({ isBacktesting: true, backtestSummary: null, backtestTrades: [] });
+    setGridBacktestState({ isBacktesting: true, backtestSummary: null, backtestTrades: [], unmatchedTrades: [] });
     toast({ title: "Grid Backtest Started", description: `Fetching data for ${config.symbol} for the last ${config.backtestDays} days...` });
     try {
         const endTime = Date.now();
@@ -1274,51 +1275,53 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         let gridPnl = 0;
         const matchedTrades: MatchedGridTrade[] = [];
-        const openBuys: GridTrade[] = []; // FIFO queue for buy orders
-        const openSells: GridTrade[] = []; // FIFO queue for sell orders
+        const openBuys: GridTrade[] = [];
 
         for (const candle of klines) {
             let stillOpenOrders: { price: number, side: 'buy' | 'sell' }[] = [];
         
+            const ordersThisCandle: { price: number, side: 'buy' | 'sell' }[] = [];
+            
+            // Determine which orders are hit by this candle's range
             for (const order of openOrders) {
-                const isBuy = order.side === 'buy';
-                const priceCrossed = isBuy ? candle.low <= order.price : candle.high >= order.price;
-        
-                if (priceCrossed) {
-                    const trade: GridTrade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
-        
-                    if (isBuy) {
-                        openBuys.push(trade);
-                        const takeProfitPrice = order.price + profitPerGrid;
-                        if (takeProfitPrice <= config.upperPrice) {
-                            stillOpenOrders.push({ price: takeProfitPrice, side: 'sell' });
-                        }
-                    } else { // isSell
-                        openSells.push(trade);
-                        if (openBuys.length > 0) {
-                            const matchedBuy = openBuys.shift()!; // Get the oldest buy order
-                            const pnl = (trade.price - matchedBuy.price) * quantityPerGrid;
-                            gridPnl += pnl;
-                            matchedTrades.push({
-                                id: `match_${matchedBuy.id}`,
-                                pnl,
-                                buy: matchedBuy,
-                                sell: trade
-                            });
-                        }
-                        const takeProfitPrice = order.price - profitPerGrid;
-                        if (takeProfitPrice >= config.lowerPrice) {
-                            stillOpenOrders.push({ price: takeProfitPrice, side: 'buy' });
-                        }
-                    }
+                if (order.side === 'buy' && candle.low <= order.price) {
+                    ordersThisCandle.push(order);
+                } else if (order.side === 'sell' && candle.high >= order.price) {
+                    ordersThisCandle.push(order);
                 } else {
-                    stillOpenOrders.push(order);
+                    stillOpenOrders.push(order); // This order was not hit
+                }
+            }
+
+            // Process hit orders (sells first to match buys)
+            ordersThisCandle.sort((a,b) => a.side === 'sell' ? -1 : 1);
+
+            for (const order of ordersThisCandle) {
+                const trade: GridTrade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
+                
+                if (trade.side === 'buy') {
+                    openBuys.push(trade); // Add to inventory
+                    const takeProfitPrice = order.price + profitPerGrid;
+                    if (takeProfitPrice <= config.upperPrice) {
+                        stillOpenOrders.push({ price: takeProfitPrice, side: 'sell' });
+                    }
+                } else { // It's a sell
+                    if (openBuys.length > 0) {
+                        const matchedBuy = openBuys.shift()!; // FIFO
+                        const pnl = (trade.price - matchedBuy.price) * quantityPerGrid;
+                        gridPnl += pnl;
+                        matchedTrades.push({ id: `match_${matchedBuy.id}`, pnl, buy: matchedBuy, sell: trade });
+                    }
+                    const newBuyPrice = order.price - profitPerGrid;
+                    if (newBuyPrice >= config.lowerPrice) {
+                        stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
+                    }
                 }
             }
             openOrders = stillOpenOrders;
         }
         
-        const totalTrades = matchedTrades.length * 2;
+        const totalTrades = matchedTrades.length * 2 + openBuys.length;
         const endPrice = klines[klines.length - 1].close;
         const unrealizedPnl = openBuys.reduce((acc, buy) => acc + (endPrice - buy.price) * quantityPerGrid, 0);
 
@@ -1328,12 +1331,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
         const summary: GridBacktestSummary = { totalPnl, gridPnl, unrealizedPnl, totalTrades, maxDrawdown, totalFees, apr };
-        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: matchedTrades });
+        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: matchedTrades, unmatchedTrades: openBuys });
         toast({ title: "Backtest Complete", description: "Grid strategy performance report is ready." });
 
     } catch (e: any) {
         toast({ title: "Backtest Failed", description: e.message, variant: "destructive" });
-        setGridBacktestState({ isBacktesting: false, backtestSummary: null, backtestTrades: [] });
+        setGridBacktestState({ isBacktesting: false, backtestSummary: null, backtestTrades: [], unmatchedTrades: [] });
     }
   }, [toast]);
 
