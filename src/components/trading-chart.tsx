@@ -119,6 +119,13 @@ export function TradingChart({
             kijunColor: '#f472b6', // pink-400
             senkouAColor: 'rgba(38, 166, 154, 0.2)',
             senkouBColor: 'rgba(239, 83, 80, 0.2)',
+            // Manipulation Phase Colors
+            accumulationColor: 'rgba(250, 204, 21, 0.8)', // Yellow
+            pumpColor: 'rgba(34, 197, 94, 0.8)',      // Green
+            distributionColor: 'rgba(239, 68, 68, 0.8)', // Red
+            accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
+            pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
+            distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
         };
         
         const chart = createChart(chartContainer, {
@@ -222,6 +229,7 @@ export function TradingChart({
             spoofingZoneSeries,
             targetZoneSeries,
             manipulationZoneSeries,
+            chartColors, // Store colors for later use
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             emaMediumSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.emaMediumColor }),
@@ -285,7 +293,7 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
-    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, emaMediumSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, manipulationZoneSeries } = chartRef.current;
+    const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, emaMediumSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, chartColors } = chartRef.current;
 
     if (data.length > 0) {
         const sortedData = [...data].sort((a, b) => a.time - b.time);
@@ -330,12 +338,25 @@ export function TradingChart({
         
         const volumeChartData = uniqueData.map(d => {
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-            const originalColor = d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)';
+            
+            let phaseColor: string | null = null;
+            if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+                const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
+                if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
+                    phaseColor = chartColors.accumulationVolumeColor;
+                } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
+                    phaseColor = chartColors.pumpVolumeColor;
+                } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
+                    phaseColor = chartColors.distributionVolumeColor;
+                }
+            }
+
+            const defaultColor = d.close >= d.open ? chartColors.volumeUpColor : chartColors.volumeDownColor;
             const highlightedColor = 'rgba(59, 130, 246, 0.4)';
             return {
                 time: toTimestamp(d.time),
                 value: d.volume,
-                color: isHighlighted ? highlightedColor : originalColor,
+                color: isHighlighted ? highlightedColor : phaseColor || defaultColor,
             };
         });
         volumeSeries.setData(volumeChartData);
@@ -364,40 +385,6 @@ export function TradingChart({
         addLineSeries(kijunSeries, 'kijun_sen');
         addLineSeries(senkouASeries, 'senkou_a');
         addLineSeries(senkouBSeries, 'senkou_b');
-
-        // Draw Manipulation Zones
-        if (showAnalysis && manipulationResult && manipulationZoneSeries) {
-            const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
-            const zonesData: any[] = [];
-            
-            if (uniqueData.length > 0) {
-              const overallHigh = Math.max(...uniqueData.map(d => d.high));
-              const overallLow = Math.min(...uniqueData.map(d => d.low));
-
-              uniqueData.forEach(d => {
-                  let phaseColor: string | null = null;
-                  if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
-                      phaseColor = 'rgba(250, 204, 21, 0.1)'; // Yellow
-                  } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
-                      phaseColor = 'rgba(34, 197, 94, 0.1)'; // Green
-                  } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
-                      phaseColor = 'rgba(239, 68, 68, 0.1)'; // Red
-                  }
-
-                  if (phaseColor) {
-                      zonesData.push({
-                          time: toTimestamp(d.time),
-                          open: overallLow, high: overallHigh,
-                          low: overallLow, close: overallHigh,
-                          color: phaseColor, borderColor: 'transparent',
-                      });
-                  }
-              });
-            }
-            manipulationZoneSeries.setData(zonesData);
-        } else if (manipulationZoneSeries) {
-            manipulationZoneSeries.setData([]);
-        }
 
         const signalMarkers = showAnalysis ? uniqueData
           .map(d => {
@@ -472,9 +459,23 @@ export function TradingChart({
             const candlestickChartData = uniqueData.map(d => {
                 const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
                 
+                let phaseColor: string | null = null;
+                if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+                  const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
+                  if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
+                      phaseColor = chartColors.accumulationColor;
+                  } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
+                      phaseColor = chartColors.pumpColor;
+                  } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
+                      phaseColor = chartColors.distributionColor;
+                  }
+                }
+
                 let coloring = {};
                 if (isHighlighted) {
                     coloring = { color: highlightColor, wickColor: highlightColor };
+                } else if (phaseColor) {
+                    coloring = { color: phaseColor, wickColor: phaseColor };
                 }
 
                 return {
@@ -508,7 +509,6 @@ export function TradingChart({
         senkouASeries.setData([]);
         senkouBSeries.setData([]);
         candlestickSeries.setMarkers([]);
-        manipulationZoneSeries.setData([]);
     }
 
   }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
@@ -630,7 +630,7 @@ export function TradingChart({
         const newLines: any[] = [];
         if (showAnalysis && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
-                const title = wall.type === 'bid' ? `\u{2003}BID WALL` : `\u{2003}ASK WALL`;
+                const title = wall.type === 'bid' ? `\u{00A0} BID WALL` : `\u{00A0} ASK WALL`;
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
                     color: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
@@ -1060,3 +1060,5 @@ export function TradingChart({
     </Card>
   );
 }
+
+    
