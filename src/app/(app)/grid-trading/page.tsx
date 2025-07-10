@@ -55,10 +55,16 @@ export default function GridTradingPage() {
   const [leverage, setLeverage] = usePersistentState<number>('grid-leverage', 10);
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
   const [investment, setInvestment] = usePersistentState<number>('grid-investment', 1000);
-  const [trailingUp, setTrailingUp] = usePersistentState<boolean>('grid-trailing-up', false);
-  const [trailingDown, setTrailingDown] = usePersistentState<boolean>('grid-trailing-down', false);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
+
+  // Advanced Trailing and Exit conditions
+  const [trailingUp, setTrailingUp] = usePersistentState<boolean>('grid-trailing-up', false);
+  const [trailingDown, setTrailingDown] = usePersistentState<boolean>('grid-trailing-down', false);
+  const [trailingUpTriggerPrice, setTrailingUpTriggerPrice] = usePersistentState<number>('grid-trailing-up-trigger', 0);
+  const [trailingDownTriggerPrice, setTrailingDownTriggerPrice] = usePersistentState<number>('grid-trailing-down-trigger', 0);
+  const [stopLossPrice, setStopLossPrice] = usePersistentState<number>('grid-stop-loss', 0);
+  const [takeProfitPrice, setTakeProfitPrice] = usePersistentState<number>('grid-take-profit', 0);
   
   // Layout State
   const [chartHeight, setChartHeight] = usePersistentState<number>('grid-chart-height', 600);
@@ -146,6 +152,10 @@ export default function GridTradingPage() {
             investment,
             trailingUp,
             trailingDown,
+            trailingUpTriggerPrice: trailingUpTriggerPrice > 0 ? trailingUpTriggerPrice : undefined,
+            trailingDownTriggerPrice: trailingDownTriggerPrice > 0 ? trailingDownTriggerPrice : undefined,
+            stopLossPrice: stopLossPrice > 0 ? stopLossPrice : undefined,
+            takeProfitPrice: takeProfitPrice > 0 ? takeProfitPrice : undefined,
         });
     }
   };
@@ -306,14 +316,28 @@ export default function GridTradingPage() {
                                     </div>
                                 </div>
                                  <div className="space-y-3 pt-2">
-                                    <Label>Advanced</Label>
-                                    <div className="flex items-center space-x-2">
-                                        <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
-                                        <Label htmlFor="trailing-up" className="font-normal">Trailing Up</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
-                                        <Label htmlFor="trailing-down" className="font-normal">Trailing Down</Label>
+                                    <Label>Advanced Options</Label>
+                                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                                        <div className="flex items-center space-x-2">
+                                            <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
+                                            <Label htmlFor="trailing-up" className="font-normal flex-1">Trailing Up</Label>
+                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} disabled={isRunning || !trailingUp} className="h-8 w-32" />
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
+                                            <Label htmlFor="trailing-down" className="font-normal flex-1">Trailing Down</Label>
+                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} disabled={isRunning || !trailingDown} className="h-8 w-32" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 pt-2">
+                                            <div>
+                                                <Label htmlFor="stop-loss-price">Stop Loss Price</Label>
+                                                <Input id="stop-loss-price" type="number" placeholder="Optional" value={stopLossPrice || ''} onChange={e => setStopLossPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                            </div>
+                                            <div>
+                                                <Label htmlFor="take-profit-price">Take Profit Price</Label>
+                                                <Input id="take-profit-price" type="number" placeholder="Optional" value={takeProfitPrice || ''} onChange={e => setTakeProfitPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>

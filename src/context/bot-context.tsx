@@ -132,11 +132,9 @@ const KNOWN_INDICATORS = [
     'peakPrice', 'poc', 'volumeDelta', 'cumulativeVolumeDelta', 'bb_upper', 'bb_middle',
     'bb_lower', 'macd', 'macd_signal', 'macd_hist', 'supertrend', 'supertrend_direction',
     'atr', 'donchian_upper', 'donchian_middle', 'donchian_lower', 'tenkan_sen',
-    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span',
-    // New indicators
-    'stoch_k', 'stoch_d', 'keltner_upper', 'keltner_middle', 'keltner_lower', 'vwap',
-    'psar', 'psar_direction', 'momentum', 'awesome_oscillator', 'williams_r', 'cci',
-    'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
+    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span', 'stoch_k', 'stoch_d', 'keltner_upper', 
+    'keltner_middle', 'keltner_lower', 'vwap', 'psar', 'psar_direction', 'momentum', 'awesome_oscillator', 
+    'williams_r', 'cci', 'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
 ];
 
 
@@ -998,11 +996,34 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
   
   // --- Grid Trading Logic ---
+  const stopGridSimulation = useCallback(() => {
+    addGridLog("Stopping grid simulation.");
+    if (gridWsRef.current) {
+        gridWsRef.current.close();
+        gridWsRef.current = null;
+    }
+    setGridState(prev => ({ ...prev, isRunning: false, config: null }));
+  }, [addGridLog]);
+  
   const handleGridTick = useCallback((newCandle: HistoricalData) => {
     setGridState(current => {
         if (!current.isRunning || !current.grid || !current.config) return current;
 
         let { chartData, openOrders, trades, summary, grid, config } = current;
+
+        // Check for Stop Loss or Take Profit first
+        if (config.stopLossPrice && newCandle.close <= config.stopLossPrice) {
+            addGridLog(`GLOBAL STOP LOSS triggered at ${newCandle.close}. Stopping simulation.`);
+            stopGridSimulation();
+            return { ...current, isRunning: false };
+        }
+        if (config.takeProfitPrice && newCandle.close >= config.takeProfitPrice) {
+            addGridLog(`GLOBAL TAKE PROFIT triggered at ${newCandle.close}. Stopping simulation.`);
+            stopGridSimulation();
+            return { ...current, isRunning: false };
+        }
+
+
         const newTrades: GridTrade[] = [];
         let stillOpenOrders = [...openOrders];
 
@@ -1018,7 +1039,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const highestGridLine = Math.max(...grid.levels);
         const lowestGridLine = Math.min(...grid.levels);
 
-        if (config.trailingUp && newCandle.close > highestGridLine) {
+        const canTrailUp = config.trailingUp && (!config.trailingUpTriggerPrice || newCandle.close > config.trailingUpTriggerPrice);
+        const canTrailDown = config.trailingDown && (!config.trailingDownTriggerPrice || newCandle.close < config.trailingDownTriggerPrice);
+
+        if (canTrailUp && newCandle.close > highestGridLine) {
             const shiftAmount = newCandle.close - highestGridLine;
             addGridLog(`Trailing Up: Price broke upper bound. Shifting grid up by ${shiftAmount.toFixed(4)}.`);
             
@@ -1029,7 +1053,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
             grid.levels = grid.levels.map(level => level + shiftAmount);
             stillOpenOrders = grid.levels.map(price => ({ price, side: 'buy' }));
-        } else if (config.trailingDown && newCandle.close < lowestGridLine) {
+        } else if (canTrailDown && newCandle.close < lowestGridLine) {
             const shiftAmount = lowestGridLine - newCandle.close;
             addGridLog(`Trailing Down: Price broke lower bound. Shifting grid down by ${shiftAmount.toFixed(4)}.`);
 
@@ -1081,16 +1105,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             config: {...config},
         };
     });
-  }, [addGridLog]);
-
-  const stopGridSimulation = useCallback(() => {
-    addGridLog("Stopping grid simulation.");
-    if (gridWsRef.current) {
-        gridWsRef.current.close();
-        gridWsRef.current = null;
-    }
-    setGridState(prev => ({ ...prev, isRunning: false, config: null }));
-  }, [addGridLog]);
+  }, [addGridLog, stopGridSimulation]);
 
   const startGridSimulation = useCallback(async (config: GridConfig) => {
     stopGridSimulation(); // Ensure previous session is fully stopped

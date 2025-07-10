@@ -425,6 +425,11 @@ export type GridConfig = {
     investment: number;
     trailingUp: boolean;
     trailingDown: boolean;
+    // Optional advanced parameters
+    stopLossPrice?: number;
+    takeProfitPrice?: number;
+    trailingUpTriggerPrice?: number;
+    trailingDownTriggerPrice?: number;
 };
 
 export type Grid = {
