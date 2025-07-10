@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown } from "lucide-react"
 import { cn, formatPrice } from "@/lib/utils"
-import type { HistoricalData, Grid, GridTrade } from "@/lib/types"
+import type { HistoricalData, Grid, GridTrade, BacktestResult } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { usePersistentState } from "@/hooks/use-persistent-state"
@@ -63,6 +63,8 @@ export default function GridTradingPage() {
   // Layout State
   const [chartHeight, setChartHeight] = usePersistentState<number>('grid-chart-height', 600);
   const [isConfigOpen, setConfigOpen] = usePersistentState<boolean>('grid-config-open', true);
+
+  const [selectedTrade, setSelectedTrade] = useState<GridTrade | null>(null);
 
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -168,6 +170,22 @@ export default function GridTradingPage() {
     return levels;
   }, [isRunning, lowerPrice, upperPrice, gridCount, mode, grid]);
 
+  const highlightedTradeForChart = useMemo<BacktestResult | null>(() => {
+    if (selectedTrade) {
+      // Convert the GridTrade into a BacktestResult-like object for the chart to highlight
+      return {
+        id: selectedTrade.id,
+        type: selectedTrade.side === 'buy' ? 'long' : 'short',
+        entryTime: selectedTrade.time,
+        entryPrice: selectedTrade.price,
+        exitTime: selectedTrade.time, // For a single dot, entry and exit time are the same
+        exitPrice: selectedTrade.price,
+        pnl: 0, pnlPercent: 0, closeReason: 'signal', stopLoss: 0, takeProfit: 0, fee: 0,
+      };
+    }
+    return null;
+  }, [selectedTrade]);
+
   return (
     <div className="space-y-6">
         <div className="text-left">
@@ -207,6 +225,7 @@ export default function GridTradingPage() {
                         interval={interval} 
                         gridLevels={calculatedGridLevels}
                         gridTrades={trades}
+                        highlightedTrade={highlightedTradeForChart}
                     />
                 </div>
                 <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -354,7 +373,14 @@ export default function GridTradingPage() {
                                 <TableBody>
                                     {trades && trades.length > 0 ? (
                                         trades.map(trade => (
-                                            <TableRow key={trade.id}>
+                                            <TableRow 
+                                                key={trade.id}
+                                                onClick={() => setSelectedTrade(trade)}
+                                                className={cn(
+                                                    "cursor-pointer hover:bg-muted/80",
+                                                    selectedTrade?.id === trade.id && "bg-primary/20 hover:bg-primary/20"
+                                                )}
+                                            >
                                                 <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleTimeString()}</TableCell>
                                                 <TableCell>
                                                     <Badge variant={trade.side === 'buy' ? 'default' : 'destructive'}>{trade.side.toUpperCase()}</Badge>

@@ -620,7 +620,10 @@ export function TradingChart({
       const { chart } = chartRef.current;
       const timeScale = chart.timeScale();
       
-      const intervalMs = data[1].time - data[0].time;
+      const intervalMs = highlightedTrade.exitTime === highlightedTrade.entryTime 
+        ? (data[1].time - data[0].time) // For single-candle events like grid trades
+        : (highlightedTrade.exitTime - highlightedTrade.entryTime);
+
       const paddingMs = intervalMs * 20;
 
       const fromVisible = toTimestamp(highlightedTrade.entryTime - paddingMs);
