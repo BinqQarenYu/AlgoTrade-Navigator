@@ -420,6 +420,7 @@ export type GridConfig = {
     lowerPrice: number;
     upperPrice: number;
     gridCount: number;
+    leverage: number;
     mode: 'arithmetic' | 'geometric';
     investment: number;
 };

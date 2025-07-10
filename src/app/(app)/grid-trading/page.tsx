@@ -51,6 +51,7 @@ export default function GridTradingPage() {
   const [lowerPrice, setLowerPrice] = usePersistentState<number>('grid-lower-price', 60000);
   const [upperPrice, setUpperPrice] = usePersistentState<number>('grid-upper-price', 70000);
   const [gridCount, setGridCount] = usePersistentState<number>('grid-count', 10);
+  const [leverage, setLeverage] = usePersistentState<number>('grid-leverage', 10);
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
   const [investment, setInvestment] = usePersistentState<number>('grid-investment', 1000);
   const [isFetchingData, setIsFetchingData] = useState(false);
@@ -135,6 +136,7 @@ export default function GridTradingPage() {
             lowerPrice,
             upperPrice,
             gridCount,
+            leverage,
             mode,
             investment,
         });
@@ -271,6 +273,12 @@ export default function GridTradingPage() {
                                     <div>
                                         <Label htmlFor="investment">Investment (USDT)</Label>
                                         <Input id="investment" type="number" value={investment} onChange={e => setInvestment(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                        <Label htmlFor="leverage">Leverage (x)</Label>
+                                        <Input id="leverage" type="number" value={leverage} onChange={e => setLeverage(parseInt(e.target.value, 10) || 1)} min={1} max={100} disabled={isRunning} />
                                     </div>
                                 </div>
                             </CardContent>

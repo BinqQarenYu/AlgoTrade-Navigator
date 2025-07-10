@@ -998,16 +998,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
   
   // --- Grid Trading Logic ---
-  const stopGridSimulation = useCallback(() => {
-      addGridLog("Stopping grid simulation.");
-      if (gridWsRef.current) {
-        gridWsRef.current.close();
-        gridWsRef.current = null;
-      }
-      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
-      toast({ title: "Grid Simulation Stopped" });
-  }, [addGridLog, toast]);
-
   const handleGridTick = useCallback((newCandle: HistoricalData) => {
     setGridState(current => {
         if (!current.isRunning || !current.grid || !current.config) return current;
@@ -1068,6 +1058,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  const stopGridSimulation = useCallback(() => {
+      addGridLog("Stopping grid simulation.");
+      if (gridWsRef.current) {
+        gridWsRef.current.close();
+        gridWsRef.current = null;
+      }
+      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
+      toast({ title: "Grid Simulation Stopped" });
+  }, [addGridLog, toast]);
+
   const startGridSimulation = useCallback(async (config: GridConfig) => {
       addGridLog(`Creating grid for ${config.symbol}...`);
       
@@ -1089,7 +1089,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           profitPerGrid = (gridLevels[1] - gridLevels[0]);
       }
 
-      const quantityPerGrid = config.investment / config.gridCount / gridLevels.reduce((a, b) => a + b, 0) * gridLevels.length;
+      const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
+      const quantityPerGrid = investmentPerGrid / gridLevels.reduce((a, b) => a + b, 0) * gridLevels.length;
 
       const newGrid: Grid = {
           levels: gridLevels,
