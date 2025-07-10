@@ -31,7 +31,7 @@ import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
@@ -42,6 +42,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { usePersistentState } from "@/hooks/use-persistent-state"
+import { useSymbolManager } from "@/hooks/use-symbol-manager"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -97,44 +99,6 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'williams-r': defaultWilliamsRParams,
 }
 
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
-        if (isMounted) {
-          setState(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-      localStorage.removeItem(key);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [isHydrated ? state : defaultValue, setState];
-};
-
 export default function ManualTradingPage() {
   const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
   const { toast } = useToast();
@@ -153,11 +117,7 @@ export default function ManualTradingPage() {
 
   const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
   
-  // Local state for UI configuration
-  const [baseAsset, setBaseAsset] = usePersistentState<string>('manual-base-asset', "BTC");
-  const [quoteAsset, setQuoteAsset] = usePersistentState<string>('manual-quote-asset', "USDT");
-  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
-  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
+  const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('manual', 'BTC', 'USDT');
   
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('manual-strategy', "peak-formation-fib");
   const [interval, setInterval] = usePersistentState<string>('manual-interval', "1h");
@@ -218,13 +178,6 @@ export default function ManualTradingPage() {
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [chartHeight, setChartHeight]);
 
-  useEffect(() => {
-    const quotes = getAvailableQuotesForBase(baseAsset);
-    setAvailableQuotes(quotes);
-    if (!quotes.includes(quoteAsset)) {
-      setQuoteAsset(quotes[0] || '');
-    }
-  }, [baseAsset, quoteAsset, setQuoteAsset]);
 
   // Fetch asset-specific details
   useEffect(() => {
@@ -334,14 +287,6 @@ export default function ManualTradingPage() {
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-  };
-
-  const handleBaseAssetChange = (newBase: string) => {
-    setBaseAsset(newBase);
-  };
-  
-  const handleQuoteAssetChange = (newQuote: string) => {
-    setQuoteAsset(newQuote);
   };
 
   useEffect(() => {

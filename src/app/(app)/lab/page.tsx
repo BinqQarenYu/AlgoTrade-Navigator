@@ -3,10 +3,9 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -25,14 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Brush, Settings, ShieldCheck } from "lucide-react"
-import { Calendar } from "@/components/ui/calendar"
+import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
-import { format, addDays } from "date-fns"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget, Wall, SpoofedWall } from "@/lib/types"
-import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
 import { detectManipulation, DetectManipulationOutput } from "@/ai/flows/detect-manipulation-flow"
@@ -48,6 +44,8 @@ import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { saveReport, getLatestReport } from "@/lib/data-service"
+import { usePersistentState } from "@/hooks/use-persistent-state"
+import { useSymbolManager } from "@/hooks/use-symbol-manager"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -79,10 +77,6 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 
-interface DateRange {
-  from?: Date;
-  to?: Date;
-}
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -113,47 +107,8 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-grab': defaultLiquidityGrabParams,
 }
 
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
-        if (isMounted) {
-          setState(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-      localStorage.removeItem(key);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [isHydrated ? state : defaultValue, setState];
-};
-
 export default function LabPage() {
   const { toast } = useToast()
-  const searchParams = useSearchParams()
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { strategyParams, setStrategyParams } = useBot();
   const strategyParamsRef = useRef(strategyParams);
@@ -164,9 +119,7 @@ export default function LabPage() {
   const [isReportPending, startReportTransition] = React.useTransition();
   const [isScanPending, startScanTransition] = React.useTransition();
   
-  const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined)
-  const [baseAsset, setBaseAsset] = usePersistentState<string>("lab-base-asset","BTC");
-  const [quoteAsset, setQuoteAsset] = usePersistentState<string>("lab-quote-asset","USDT");
+  const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('lab', 'BTC', 'USDT');
   const [interval, setInterval] = usePersistentState<string>("lab-interval","1h");
   const [showWalls, setShowWalls] = usePersistentState<boolean>('lab-show-walls', true);
   const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab-show-liquidity', true);
@@ -181,9 +134,6 @@ export default function LabPage() {
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab-scale-mode', 'linear');
   
   const [isClient, setIsClient] = useState(false)
-  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
-  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
-
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
@@ -213,20 +163,6 @@ export default function LabPage() {
     selectedConsensusStrategiesRef.current = selectedConsensusStrategies;
   }, [selectedConsensusStrategies]);
 
-  useEffect(() => {
-    const symbolFromQuery = searchParams.get('symbol');
-    if (symbolFromQuery) {
-        const parsed = parseSymbolString(symbolFromQuery);
-        if (parsed) {
-            setBaseAsset(parsed.base);
-            setQuoteAsset(parsed.quote);
-            toast({
-                title: "Asset Loaded from Heatmap",
-                description: `Now analyzing ${parsed.base}/${parsed.quote}.`,
-            });
-        }
-    }
-  }, [searchParams, setBaseAsset, setQuoteAsset, toast]);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -276,21 +212,7 @@ export default function LabPage() {
 
   useEffect(() => {
     setIsClient(true)
-    if (!date) {
-        setDate({
-            from: addDays(new Date(), -30),
-            to: new Date(),
-        })
-    }
-  }, [date, setDate]);
-
-  useEffect(() => {
-    const quotes = getAvailableQuotesForBase(baseAsset);
-    setAvailableQuotes(quotes);
-    if (!quotes.includes(quoteAsset)) {
-      setQuoteAsset(quotes[0] || '');
-    }
-  }, [baseAsset, quoteAsset, setQuoteAsset]);
+  }, []);
 
   // This effect loads the last manipulation scan for the current symbol.
   useEffect(() => {
@@ -774,7 +696,7 @@ export default function LabPage() {
                   <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="base-asset">Base</Label>
-                        <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
+                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
                           <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>
                             {topAssets.map(asset => (
@@ -785,7 +707,7 @@ export default function LabPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="quote-asset">Quote</Label>
-                        <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isStreamActive}>
+                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isStreamActive}>
                           <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>
                             {availableQuotes.map(asset => (
