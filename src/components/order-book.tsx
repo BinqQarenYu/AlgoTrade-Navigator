@@ -31,7 +31,7 @@ interface OrderBookProps {
 }
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
-const UI_UPDATE_INTERVAL = 250; // Milliseconds
+const UI_UPDATE_INTERVAL = 2000; // Milliseconds
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
