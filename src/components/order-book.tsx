@@ -160,11 +160,11 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
         ws.onerror = () => {
             console.error(`Order book WebSocket error for ${currentSymbol}.`);
-            const errorMsg = "WebSocket connection failed. The symbol might be invalid or there may be a network issue.";
-            toast({ title: 'Stream Error', description: errorMsg, variant: 'destructive' });
+            const errorMsg = `Live order book data is not available for ${currentSymbol}. The symbol may be invalid or not supported for this data stream.`;
+            toast({ title: 'Stream Unavailable', description: `Could not connect to the order book for ${currentSymbol}.`, variant: 'destructive' });
             setStreamError(errorMsg);
             setIsConnecting(false);
-            setIsStreamActive(false);
+            setIsStreamActive(false); // Stop trying to stream for this symbol
         };
         ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
 
