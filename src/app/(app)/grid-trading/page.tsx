@@ -53,7 +53,7 @@ export default function GridTradingPage() {
     gridBacktestState,
   } = useBot();
   const { isRunning, config, chartData: botChartData, grid, trades, summary } = gridState;
-  const { isBacktesting, backtestSummary } = gridBacktestState;
+  const { isBacktesting, backtestSummary, backtestTrades } = gridBacktestState;
 
 
   // UI State & Config
@@ -245,7 +245,7 @@ export default function GridTradingPage() {
     <div className="space-y-6">
         <div className="text-left">
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                <TestTube size={32}/> Live Grid Simulation
+                <Grid3x3 size={32}/> Live Grid Simulation
             </h1>
             <p className="text-muted-foreground mt-2">
                 Configure and simulate a grid trading strategy against a live, tick-by-tick market data feed.
@@ -271,7 +271,7 @@ export default function GridTradingPage() {
             </Alert>
         )}
 
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
             <div className="xl:col-span-3 relative pb-4">
                 <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
                     <TradingChart 
@@ -279,7 +279,7 @@ export default function GridTradingPage() {
                         symbol={symbol} 
                         interval={interval} 
                         gridLevels={calculatedGridLevels}
-                        gridTrades={trades}
+                        gridTrades={isRunning ? trades : backtestTrades}
                         highlightedTrade={highlightedTradeForChart}
                     />
                 </div>
@@ -364,12 +364,12 @@ export default function GridTradingPage() {
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
                                             <Label htmlFor="trailing-up" className="font-normal flex-1">Trailing Up</Label>
-                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} disabled={isRunning} className="h-8 w-32" />
+                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} className="h-8 w-32" disabled={isRunning}/>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
                                             <Label htmlFor="trailing-down" className="font-normal flex-1">Trailing Down</Label>
-                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} disabled={isRunning} className="h-8 w-32" />
+                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} className="h-8 w-32" disabled={isRunning}/>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4 pt-2">
                                             <div>
@@ -402,7 +402,7 @@ export default function GridTradingPage() {
                              <CardFooter>
                                 <Button className="w-full" onClick={handleToggleSimulation} disabled={isFetchingData || !isConnected || (isTradingActive && !isRunning) || isBacktesting} variant={isRunning ? "destructive" : "default"}>
                                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isRunning ? <StopCircle /> : <Play />}
-                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Simulation" : "Start Live Simulation"}
+                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Live Simulation" : "Start Live Simulation"}
                                 </Button>
                             </CardFooter>
                         </CollapsibleContent>

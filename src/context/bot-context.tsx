@@ -66,6 +66,7 @@ interface ManualTraderState {
 interface GridBacktestState {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
+    backtestTrades: GridTrade[];
 }
 
 // --- Context Type ---
@@ -175,7 +176,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Screener State ---
   const [screenerState, setScreenerState] = useState<ScreenerState>({
-    isRunning: false, config: null, prediction: null, strategyInputs: [], logs: []
+    isRunning: false, config: null, prediction: null, logs: [], strategyInputs: []
   });
   const screenerRunningRef = useRef(false);
   
@@ -198,7 +199,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Grid Backtest State ---
   const [gridBacktestState, setGridBacktestState] = useState<GridBacktestState>({
-    isBacktesting: false, backtestSummary: null
+    isBacktesting: false, backtestSummary: null, backtestTrades: []
   });
 
 
@@ -1159,12 +1160,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
     });
 
-    toast({ title: "Grid Forward-Test Started", description: `Grid created for ${config.symbol}.` });
+    toast({ title: "Grid Live Simulation Started", description: `Grid created for ${config.symbol}.` });
     
     try {
         const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
         setGridState(prev => ({...prev, chartData: initialKlines}));
-        addGridLog(`Loaded ${initialKlines.length} initial candles for forward-test.`);
+        addGridLog(`Loaded ${initialKlines.length} initial candles for live simulation.`);
         
         // Timer to push the constructed candle to the chart array
         const intervalMs = intervalToMs(config.interval);
@@ -1173,9 +1174,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 setGridState(prev => {
                     const newChartData = [...prev.chartData];
                     const lastCandle = newChartData[newChartData.length-1];
-                    if(lastCandle.time === currentCandleRef.current!.time) {
+                    if(lastCandle && lastCandle.time === currentCandleRef.current!.time) {
                         newChartData[newChartData.length - 1] = currentCandleRef.current as HistoricalData;
-                    } else {
+                    } else if (currentCandleRef.current) {
                         newChartData.push(currentCandleRef.current as HistoricalData);
                     }
                     return {...prev, chartData: newChartData.slice(-1000)};
@@ -1186,7 +1187,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@aggTrade`);
         gridWsRef.current = ws;
 
-        ws.onopen = () => addGridLog("Grid forward-test live feed connected.");
+        ws.onopen = () => addGridLog("Grid live simulation feed connected.");
         ws.onmessage = (event) => {
             const trade = JSON.parse(event.data);
             if (trade.e === 'aggTrade') {
@@ -1195,11 +1196,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 handleGridTick(price, time);
             }
         };
-        ws.onerror = () => addGridLog("Grid forward-test WebSocket error.");
-        ws.onclose = () => addGridLog("Grid forward-test WebSocket closed.");
+        ws.onerror = () => addGridLog("Grid live simulation WebSocket error.");
+        ws.onclose = () => addGridLog("Grid live simulation WebSocket closed.");
 
     } catch (e: any) {
-        addGridLog(`Error starting grid forward-test: ${e.message}`);
+        addGridLog(`Error starting grid live simulation: ${e.message}`);
         toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
         stopGridSimulation();
     }
@@ -1207,7 +1208,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Grid Backtest Logic ---
   const runGridBacktest = useCallback(async (config: GridBacktestConfig) => {
-    setGridBacktestState({ isBacktesting: true, backtestSummary: null });
+    setGridBacktestState({ isBacktesting: true, backtestSummary: null, backtestTrades: [] });
     toast({ title: "Grid Backtest Started", description: `Fetching data for ${config.symbol} for the last ${config.backtestDays} days...` });
     try {
         const endTime = Date.now();
@@ -1235,6 +1236,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         let openOrders = gridLevels.map(price => ({ price, side: 'buy' as 'buy' | 'sell' }));
         let gridPnl = 0;
         let totalTrades = 0;
+        const executedTrades: GridTrade[] = [];
         
         // Backtest loop
         klines.forEach(candle => {
@@ -1242,6 +1244,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 if ((order.side === 'buy' && candle.low <= order.price) || (order.side === 'sell' && candle.high >= order.price)) {
                     totalTrades++;
                     gridPnl += profitPerGrid * quantityPerGrid;
+                    executedTrades.push({ id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side });
+
                     const newOrderPrice = order.side === 'buy' ? order.price + profitPerGrid : order.price - profitPerGrid;
                     if (newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         openOrders.push({ price: newOrderPrice, side: order.side === 'buy' ? 'sell' : 'buy' });
@@ -1253,7 +1257,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         });
         
         // Calculate final PNL
-        const startPrice = klines[0].close;
         const endPrice = klines[klines.length - 1].close;
         const unrealizedPnl = openOrders.reduce((acc, order) => {
             if (order.side === 'sell') {
@@ -1268,12 +1271,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
         const summary: GridBacktestSummary = { totalPnl, gridPnl, unrealizedPnl, totalTrades, maxDrawdown, totalFees, apr };
-        setGridBacktestState({ isBacktesting: false, backtestSummary: summary });
+        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: executedTrades });
         toast({ title: "Backtest Complete", description: "Grid strategy performance report is ready." });
 
     } catch (e: any) {
         toast({ title: "Backtest Failed", description: e.message, variant: "destructive" });
-        setGridBacktestState({ isBacktesting: false, backtestSummary: null });
+        setGridBacktestState({ isBacktesting: false, backtestSummary: null, backtestTrades: [] });
     }
   }, [toast]);
 

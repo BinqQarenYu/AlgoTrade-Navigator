@@ -481,7 +481,11 @@ export interface BotContextType {
   screenerState: ScreenerState;
   simulationState: SimulationState;
   gridState: GridState;
-  gridBacktestState: any;
+  gridBacktestState: {
+    isBacktesting: boolean;
+    backtestSummary: GridBacktestSummary | null;
+    backtestTrades: GridTrade[];
+  };
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
