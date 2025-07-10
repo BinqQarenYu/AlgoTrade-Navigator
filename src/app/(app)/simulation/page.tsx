@@ -316,7 +316,7 @@ export default function SimulationPage() {
     const startPosition = mouseDownEvent.clientY;
     const onMouseMove = (mouseMoveEvent: MouseEvent) => {
       const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
-      if (newHeight >= 400 && newHeight <= 1200) setChartHeight(newHeight);
+      if (newHeight >= 400 && newHeight <= 800) setChartHeight(newHeight);
     };
     const onMouseUp = () => {
       document.body.style.cursor = 'default';
@@ -465,10 +465,10 @@ export default function SimulationPage() {
     <div className="space-y-6">
       <div className="text-left">
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <TestTube size={32}/> Live Simulation
+              <TestTube size={32}/> Paper Trading Simulation
           </h1>
           <p className="text-muted-foreground mt-2">
-              Forward-test your strategies against live market data using simulated funds.
+              Forward-test your strategies against a live market data feed using simulated funds.
           </p>
       </div>
 
@@ -486,7 +486,7 @@ export default function SimulationPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
             <AlertDescription>
-                Live Simulation is disabled to prioritize another active session.
+                Paper Trading is disabled to prioritize another active session.
             </AlertDescription>
         </Alert>
       )}

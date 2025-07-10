@@ -25,8 +25,8 @@ import { Button } from "./ui/button"
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
-  { href: "/simulation", label: "Live Simulation", icon: TestTube },
-  { href: "/grid-trading", label: "Grid Trading", icon: Grid3x3 },
+  { href: "/simulation", label: "Paper Trading", icon: TestTube },
+  { href: "/grid-trading", label: "Live Grid", icon: Grid3x3 },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },

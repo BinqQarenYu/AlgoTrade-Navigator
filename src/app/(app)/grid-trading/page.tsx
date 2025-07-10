@@ -49,8 +49,8 @@ export default function GridTradingPage() {
   // UI State & Config
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('grid', 'BTC', 'USDT');
   const [interval, setInterval] = usePersistentState<string>('grid-interval', "1h");
-  const [lowerPrice, setLowerPrice] = usePersistentState<number>('grid-lower-price', 60000);
-  const [upperPrice, setUpperPrice] = usePersistentState<number>('grid-upper-price', 70000);
+  const [lowerPrice, setLowerPrice] = usePersistentState<number>('grid-lower-price', 0);
+  const [upperPrice, setUpperPrice] = usePersistentState<number>('grid-upper-price', 0);
   const [gridCount, setGridCount] = usePersistentState<number>('grid-count', 10);
   const [leverage, setLeverage] = usePersistentState<number>('grid-leverage', 10);
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
@@ -105,22 +105,25 @@ export default function GridTradingPage() {
             try {
                 const [klines, dailyKlines] = await Promise.all([
                     getLatestKlinesByLimit(symbol, interval, 500),
-                    getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support level
+                    getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support/resistance
                 ]);
 
                 if (klines.length > 0) {
                     setChartData(klines);
-                    const latestPrice = klines[klines.length - 1].close;
                     
-                    // Calculate defaults from daily data
-                    const supportPrice = dailyKlines.length > 0 ? Math.min(...dailyKlines.map(k => k.low)) : latestPrice * 0.9;
-                    const resistancePrice = dailyKlines.length > 0 ? Math.max(...dailyKlines.map(k => k.high)) : latestPrice * 1.1;
-
-                    // Set default grid boundaries and trailing triggers
-                    setUpperPrice(latestPrice);
-                    setLowerPrice(supportPrice);
-                    setTrailingUpTriggerPrice(resistancePrice);
-                    setTrailingDownTriggerPrice(supportPrice);
+                    // Set default grid boundaries and trailing triggers if they haven't been set by the user
+                    if (lowerPrice === 0 && upperPrice === 0) {
+                        const latestPrice = klines[klines.length - 1].close;
+                        const supportPrice = dailyKlines.length > 0 ? Math.min(...dailyKlines.map(k => k.low)) : latestPrice * 0.9;
+                        setUpperPrice(latestPrice);
+                        setLowerPrice(supportPrice);
+                    }
+                    if (trailingDownTriggerPrice === 0 && dailyKlines.length > 0) {
+                        setTrailingDownTriggerPrice(Math.min(...dailyKlines.map(k => k.low)));
+                    }
+                    if (trailingUpTriggerPrice === 0 && dailyKlines.length > 0) {
+                        setTrailingUpTriggerPrice(Math.max(...dailyKlines.map(k => k.high)));
+                    }
                 }
 
             } catch (e: any) {
@@ -132,7 +135,7 @@ export default function GridTradingPage() {
         };
         fetchInitialData();
     }
-  }, [symbol, interval, isConnected, isRunning, setUpperPrice, setLowerPrice, setTrailingUpTriggerPrice, setTrailingDownTriggerPrice, toast, botChartData]);
+  }, [symbol, interval, isConnected, isRunning, botChartData, toast]);
 
 
   const handleToggleSimulation = () => {
@@ -206,10 +209,10 @@ export default function GridTradingPage() {
     <div className="space-y-6">
         <div className="text-left">
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                <TestTube size={32}/> Futures Grid Forward-Testing
+                <TestTube size={32}/> Live Grid Simulation
             </h1>
             <p className="text-muted-foreground mt-2">
-                Visually configure and forward-test a grid trading strategy against live market data.
+                Configure and simulate a grid trading strategy against a live, tick-by-tick market data feed.
             </p>
         </div>
 
@@ -305,7 +308,7 @@ export default function GridTradingPage() {
                                         </div>
                                     </RadioGroup>
                                 </div>
-                                 <div className="grid grid-cols-2 gap-4">
+                                 <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <Label htmlFor="grid-count">Grids</Label>
                                         <Input id="grid-count" type="number" value={gridCount} onChange={e => setGridCount(parseInt(e.target.value, 10) || 0)} min={2} max={150} disabled={isRunning} />
@@ -314,9 +317,7 @@ export default function GridTradingPage() {
                                         <Label htmlFor="investment">Investment (USDT)</Label>
                                         <Input id="investment" type="number" value={investment} onChange={e => setInvestment(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                     <div>
+                                    <div>
                                         <Label htmlFor="leverage">Leverage (x)</Label>
                                         <Input id="leverage" type="number" value={leverage} onChange={e => setLeverage(parseInt(e.target.value, 10) || 1)} min={1} max={100} disabled={isRunning} />
                                     </div>
@@ -350,7 +351,7 @@ export default function GridTradingPage() {
                              <CardFooter>
                                 <Button className="w-full" onClick={handleToggleSimulation} disabled={isFetchingData || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
                                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isRunning ? <StopCircle /> : <Play />}
-                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Forward-Test" : "Start Forward-Test"}
+                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Simulation" : "Start Live Simulation"}
                                 </Button>
                             </CardFooter>
                         </CollapsibleContent>
