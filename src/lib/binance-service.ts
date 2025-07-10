@@ -270,25 +270,26 @@ export const getDepthSnapshot = async (symbol: string): Promise<any> => {
 
     try {
         const response = await fetch(url, { cache: 'no-store' });
-        const textResponse = await response.text();
-
-        // If the response is not ok, try to parse JSON for an error message, but fall back to the text response.
+        
         if (!response.ok) {
+            const errorText = await response.text();
             try {
-                const errorData = JSON.parse(textResponse);
+                const errorData = JSON.parse(errorText);
                 throw new Error(`Binance API Error: ${errorData.msg || 'Unknown error'} (Code: ${errorData.code || 'N/A'})`);
             } catch (e) {
-                // If parsing fails, it means the error was likely not JSON (e.g., HTML from a gateway).
+                // If parsing fails, it means the error was not JSON (e.g., HTML from a gateway).
                 throw new Error(`Binance API returned a non-JSON error (Status: ${response.status}).`);
             }
         }
         
-        // If the response is okay, it MUST be JSON.
-        try {
-            return JSON.parse(textResponse);
-        } catch(e) {
-            console.error("Failed to parse successful order book response as JSON:", textResponse);
-            throw new Error("An unexpected response was received from the server.");
+        // If the response is okay, check the content type before parsing.
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+            return await response.json();
+        } else {
+            const responseText = await response.text();
+            console.error("Expected JSON but received different content type:", contentType, responseText.substring(0, 200));
+            throw new Error("Binance API returned an invalid response type. This may be due to maintenance or a connection issue.");
         }
         
     } catch (error: any) {
