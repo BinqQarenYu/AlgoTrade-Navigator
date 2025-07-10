@@ -133,7 +133,25 @@ export default function GridTradingPage() {
     }
   };
 
-  const gridLevelsForChart = useMemo(() => grid?.levels ?? [], [grid]);
+  const calculatedGridLevels = useMemo(() => {
+    if (isRunning) return grid?.levels ?? [];
+    if (upperPrice <= lowerPrice || gridCount < 2) return [];
+
+    const levels: number[] = [];
+    if (mode === 'arithmetic') {
+        const priceStep = (upperPrice - lowerPrice) / (gridCount - 1);
+        for (let i = 0; i < gridCount; i++) {
+            levels.push(lowerPrice + i * priceStep);
+        }
+    } else { // Geometric
+        const ratio = Math.pow(upperPrice / lowerPrice, 1 / (gridCount - 1));
+        for (let i = 0; i < gridCount; i++) {
+            const price = lowerPrice * Math.pow(ratio, i);
+            levels.push(price);
+        }
+    }
+    return levels;
+  }, [isRunning, lowerPrice, upperPrice, gridCount, mode, grid]);
 
   return (
     <div className="space-y-6">
@@ -172,7 +190,7 @@ export default function GridTradingPage() {
                         data={chartData} 
                         symbol={symbol} 
                         interval={interval} 
-                        gridLevels={gridLevelsForChart}
+                        gridLevels={calculatedGridLevels}
                     />
                 </div>
                 <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -214,11 +232,11 @@ export default function GridTradingPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="lower-price">Lower Price</Label>
-                                        <Input id="lower-price" type="number" value={lowerPrice} onChange={e => setLowerPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                        <Input id="lower-price" type="number" value={lowerPrice} onChange={e => setLowerPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                     <div>
                                         <Label htmlFor="upper-price">Upper Price</Label>
-                                        <Input id="upper-price" type="number" value={upperPrice} onChange={e => setUpperPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                        <Input id="upper-price" type="number" value={upperPrice} onChange={e => setUpperPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -237,11 +255,11 @@ export default function GridTradingPage() {
                                  <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="grid-count">Grids</Label>
-                                        <Input id="grid-count" type="number" value={gridCount} onChange={e => setGridCount(parseInt(e.target.value, 10))} min={2} max={150} disabled={isRunning} />
+                                        <Input id="grid-count" type="number" value={gridCount} onChange={e => setGridCount(parseInt(e.target.value, 10) || 0)} min={2} max={150} disabled={isRunning} />
                                     </div>
                                     <div>
                                         <Label htmlFor="investment">Investment (USDT)</Label>
-                                        <Input id="investment" type="number" value={investment} onChange={e => setInvestment(parseFloat(e.target.value))} disabled={isRunning} />
+                                        <Input id="investment" type="number" value={investment} onChange={e => setInvestment(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                 </div>
                             </CardContent>
