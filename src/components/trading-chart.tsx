@@ -731,7 +731,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
-                    title: isBuySide ? `\u00A0BST (${formatPrice(target.priceLevel)})` : `\u00A0SST (${formatPrice(target.priceLevel)})`,
+                    title: isBuySide ? `\u{00A0}BST (${formatPrice(target.priceLevel)})` : `\u{00A0}SST (${formatPrice(target.priceLevel)})`,
                 });
                 newLines.push(line);
             });
@@ -1022,16 +1022,20 @@ export function TradingChart({
         const priceRange = maxPrice - minPrice;
         const padding = priceRange * 0.1; // 10% padding
         
-        const priceScale = chart.priceScale('left');
-        priceScale.setVisibleRange({
-            from: minPrice - padding,
-            to: maxPrice + padding,
+        candlestickSeries.applyOptions({
+            autoscaleInfo: () => ({
+                priceRange: {
+                    minValue: minPrice - padding,
+                    maxValue: maxPrice + padding,
+                },
+            }),
         });
 
       } else {
         // If grid is cleared, let the chart autoscale normally
-        const priceScale = chart.priceScale('left');
-        priceScale.applyOptions({ autoScale: true });
+        candlestickSeries.applyOptions({
+            autoscaleInfo: undefined,
+        });
       }
 
       chartRef.current.gridPriceLines = newLines;
