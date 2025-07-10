@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown, BarChart2 } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown, BarChart2, Grid3x3 } from "lucide-react"
 import { cn, formatPrice } from "@/lib/utils"
 import type { HistoricalData, GridTrade, BacktestResult, GridBacktestSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
