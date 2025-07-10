@@ -123,7 +123,7 @@ export function TradingChart({
           layout: {
             background: { type: ColorType.Solid, color: chartColors.background },
             textColor: chartColors.textColor,
-            fontSize: 11,
+            fontSize: 10,
           },
           grid: {
             vertLines: { color: chartColors.gridColor },
@@ -629,7 +629,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
-                    title: `\u00A0${wall.type.toUpperCase()} WALL`,
+                    title: `\u2009${wall.type.toUpperCase()} WALL`,
                 });
                 newLines.push(line);
             });
@@ -654,7 +654,7 @@ export function TradingChart({
                 lineWidth: 4,     // Thick
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
-                title: `\u00A0SPOOF WALL`,
+                title: `\u2009SPOOF WALL`,
             });
 
             let visible = true;
@@ -976,10 +976,10 @@ export function TradingChart({
     <Card className="h-full flex flex-col">
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
-            <CardTitle className="text-base font-medium">{chartTitle}</CardTitle>
+            <CardTitle className="text-sm font-medium">{chartTitle}</CardTitle>
             {lastCandle ? (
                 <div className="flex items-baseline gap-2 mt-1">
-                    <span className={`text-2xl font-bold ${priceColor}`}>
+                    <span className={`text-xl font-bold ${priceColor}`}>
                         {formatPrice(lastCandle.close)}
                     </span>
                     <span className={`text-xs font-medium ${priceColor}`}>
