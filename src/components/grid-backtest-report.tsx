@@ -5,13 +5,18 @@ import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Info, TrendingUp, TrendingDown, Repeat } from "lucide-react";
-import { cn, formatPrice, formatLargeNumber } from "@/lib/utils";
-import type { GridBacktestSummary } from '@/lib/types';
+import { ChevronDown, Info } from "lucide-react";
+import { cn, formatPrice } from "@/lib/utils";
+import type { GridBacktestSummary, GridTrade } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from './ui/scroll-area';
 
 type GridBacktestReportProps = {
     summary: GridBacktestSummary;
+    trades: GridTrade[];
+    onSelectTrade: (trade: GridTrade) => void;
 };
 
 const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: React.ReactNode, tooltipContent?: string }) => {
@@ -37,8 +42,9 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
   );
 };
 
-export function GridBacktestReport({ summary }: GridBacktestReportProps) {
+export function GridBacktestReport({ summary, trades, onSelectTrade }: GridBacktestReportProps) {
     const [isOpen, setIsOpen] = useState(true);
+    const [isLogOpen, setIsLogOpen] = useState(false);
 
     const pnlColor = summary.totalPnl >= 0 ? "text-green-500" : "text-red-500";
     const aprColor = summary.apr >= 0 ? "text-green-500" : "text-red-500";
@@ -99,6 +105,37 @@ export function GridBacktestReport({ summary }: GridBacktestReportProps) {
                                 tooltipContent="The largest percentage drop from a portfolio peak to a subsequent trough. A key measure of risk."
                             />
                         </div>
+
+                        <Collapsible open={isLogOpen} onOpenChange={setIsLogOpen}>
+                            <CollapsibleTrigger asChild>
+                                <Button variant="outline" size="sm" className="w-full">
+                                    Trade Log
+                                    <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isLogOpen && "rotate-180")} />
+                                </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="mt-2">
+                                 <ScrollArea className="h-48 border rounded-md">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Time</TableHead>
+                                                <TableHead>Side</TableHead>
+                                                <TableHead className="text-right">Price</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {trades.map(trade => (
+                                                <TableRow key={trade.id} onClick={() => onSelectTrade(trade)} className="cursor-pointer hover:bg-muted/50">
+                                                    <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleString()}</TableCell>
+                                                    <TableCell><Badge variant={trade.side === 'buy' ? 'default' : 'destructive'}>{trade.side.toUpperCase()}</Badge></TableCell>
+                                                    <TableCell className="text-right font-mono text-xs">${formatPrice(trade.price)}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </ScrollArea>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </CardContent>
                 </CollapsibleContent>
             </Collapsible>

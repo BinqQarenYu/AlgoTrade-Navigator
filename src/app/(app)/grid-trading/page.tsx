@@ -480,7 +480,7 @@ export default function GridTradingPage() {
                         </div>
                     </CardContent>
                 </Card>
-                {backtestSummary && <GridBacktestReport summary={backtestSummary} />}
+                {backtestSummary && <GridBacktestReport summary={backtestSummary} trades={backtestTrades} onSelectTrade={setSelectedTrade} />}
             </div>
         </div>
     </div>
