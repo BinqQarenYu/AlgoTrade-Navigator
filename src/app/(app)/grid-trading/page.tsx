@@ -321,12 +321,12 @@ export default function GridTradingPage() {
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
                                             <Label htmlFor="trailing-up" className="font-normal flex-1">Trailing Up</Label>
-                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} disabled={isRunning || !trailingUp} className="h-8 w-32" />
+                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} disabled={isRunning} className="h-8 w-32" />
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
                                             <Label htmlFor="trailing-down" className="font-normal flex-1">Trailing Down</Label>
-                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} disabled={isRunning || !trailingDown} className="h-8 w-32" />
+                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} disabled={isRunning} className="h-8 w-32" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-4 pt-2">
                                             <div>
