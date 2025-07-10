@@ -80,21 +80,34 @@ export default function GridTradingPage() {
 
   useEffect(() => {
     if (!isRunning) {
-        const fetchInitialData = async () => {
-            if (!isConnected || !symbol) return;
-            setIsFetchingData(true);
-            try {
-                const klines = await getLatestKlinesByLimit(symbol, interval, 500);
-                // We don't set the bot's chart data here, just for local view.
-            } catch (e: any) {
-                toast({ title: "Error fetching data", description: e.message, variant: "destructive" });
-            } finally {
-                setIsFetchingData(false);
-            }
-        };
-        fetchInitialData();
+      const fetchInitialData = async () => {
+        if (!isConnected || !symbol) return;
+        setIsFetchingData(true);
+        try {
+          const [klines, dailyKlines] = await Promise.all([
+            getLatestKlinesByLimit(symbol, interval, 500),
+            getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support level
+          ]);
+
+          if (klines.length > 0 && dailyKlines.length > 0) {
+            const latestPrice = klines[klines.length - 1].close;
+            const supportPrice = Math.min(...dailyKlines.map(k => k.low));
+            
+            // Set dynamic defaults only if the user hasn't started configuring
+            setUpperPrice(latestPrice);
+            setLowerPrice(supportPrice);
+          }
+
+        } catch (e: any) {
+            toast({ title: "Error fetching data", description: e.message, variant: "destructive" });
+        } finally {
+            setIsFetchingData(false);
+        }
+      };
+      fetchInitialData();
     }
-  }, [symbol, interval, isConnected, isRunning, toast]);
+  }, [symbol, interval, isConnected, isRunning, toast, setUpperPrice, setLowerPrice]);
+
 
   const handleToggleSimulation = () => {
     if (isRunning) {
