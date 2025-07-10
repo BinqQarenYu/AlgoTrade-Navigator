@@ -628,7 +628,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
-                    title: ` ${wall.type.toUpperCase()} WALL`,
+                    title: `\u00A0${wall.type.toUpperCase()} WALL`,
                 });
                 newLines.push(line);
             });
