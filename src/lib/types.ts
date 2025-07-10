@@ -522,3 +522,10 @@ export type RankedScreenedAsset = {
 export type ScreenAssetsOutput = {
     assets: RankedScreenedAsset[];
 };
+
+export interface Strategy {
+  id: string;
+  name: string;
+  description: string;
+  calculate: (data: HistoricalData[], params?: any) => Promise<HistoricalData[]>;
+}

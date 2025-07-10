@@ -34,7 +34,7 @@ import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2,
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData, BacktestResult, BacktestSummary, TradeSignal } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
@@ -705,23 +705,6 @@ export default function BacktestPage() {
   
   const anyLoading = isBacktesting || isFetchingData || isOptimizing;
 
-  const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
-    if (!selectedTrade) return null;
-    return {
-      action: selectedTrade.type === 'long' ? 'UP' : 'DOWN',
-      entryPrice: selectedTrade.entryPrice,
-      stopLoss: selectedTrade.stopLoss,
-      takeProfit: selectedTrade.takeProfit,
-      confidence: selectedTrade.confidence ?? 1,
-      reasoning: selectedTrade.reasoning || `Trade from backtest. Closed due to ${selectedTrade.closeReason}.`,
-      timestamp: new Date(selectedTrade.entryTime),
-      exitTimestamp: new Date(selectedTrade.exitTime),
-      strategy: selectedStrategy,
-      asset: symbol,
-      peakPrice: selectedTrade.peakPrice,
-    };
-  }, [selectedTrade, selectedStrategy, symbol]);
-
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
     setChartData([]); // Clear raw data on interval change
@@ -809,7 +792,7 @@ export default function BacktestPage() {
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 relative pb-4">
         <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} highlightedTrade={selectedTrade} />
+            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
         </div>
         <div
             onMouseDown={startChartResize}
@@ -1092,5 +1075,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    
