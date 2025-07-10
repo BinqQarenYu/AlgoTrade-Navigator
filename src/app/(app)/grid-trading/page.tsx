@@ -43,7 +43,7 @@ export default function GridTradingPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
   const { isTradingActive, gridState, startGridSimulation, stopGridSimulation } = useBot();
-  const { isRunning, config, chartData, grid, trades, summary } = gridState;
+  const { isRunning, config, chartData: botChartData, grid, trades, summary } = gridState;
 
   // UI State & Config
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('grid', 'BTC', 'USDT');
@@ -54,6 +54,7 @@ export default function GridTradingPage() {
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
   const [investment, setInvestment] = usePersistentState<number>('grid-investment', 1000);
   const [isFetchingData, setIsFetchingData] = useState(false);
+  const [chartData, setChartData] = useState<HistoricalData[]>([]);
   
   // Layout State
   const [chartHeight, setChartHeight] = usePersistentState<number>('grid-chart-height', 600);
@@ -79,34 +80,41 @@ export default function GridTradingPage() {
 
 
   useEffect(() => {
-    if (!isRunning) {
-      const fetchInitialData = async () => {
-        if (!isConnected || !symbol) return;
-        setIsFetchingData(true);
-        try {
-          const [klines, dailyKlines] = await Promise.all([
-            getLatestKlinesByLimit(symbol, interval, 500),
-            getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support level
-          ]);
+    if (isRunning) {
+        setChartData(botChartData);
+    } else {
+        const fetchInitialData = async () => {
+            if (!isConnected || !symbol) {
+                setChartData([]);
+                return;
+            };
+            setIsFetchingData(true);
+            setChartData([]);
+            try {
+                const [klines, dailyKlines] = await Promise.all([
+                    getLatestKlinesByLimit(symbol, interval, 500),
+                    getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support level
+                ]);
 
-          if (klines.length > 0 && dailyKlines.length > 0) {
-            const latestPrice = klines[klines.length - 1].close;
-            const supportPrice = Math.min(...dailyKlines.map(k => k.low));
-            
-            // Set dynamic defaults only if the user hasn't started configuring
-            setUpperPrice(latestPrice);
-            setLowerPrice(supportPrice);
-          }
+                if (klines.length > 0 && dailyKlines.length > 0) {
+                    setChartData(klines);
+                    const latestPrice = klines[klines.length - 1].close;
+                    const supportPrice = Math.min(...dailyKlines.map(k => k.low));
+                    
+                    setUpperPrice(latestPrice);
+                    setLowerPrice(supportPrice);
+                }
 
-        } catch (e: any) {
-            toast({ title: "Error fetching data", description: e.message, variant: "destructive" });
-        } finally {
-            setIsFetchingData(false);
-        }
-      };
-      fetchInitialData();
+            } catch (e: any) {
+                toast({ title: "Error fetching data", description: e.message, variant: "destructive" });
+                setChartData([]);
+            } finally {
+                setIsFetchingData(false);
+            }
+        };
+        fetchInitialData();
     }
-  }, [symbol, interval, isConnected, isRunning, toast, setUpperPrice, setLowerPrice]);
+  }, [symbol, interval, isConnected, isRunning, setUpperPrice, setLowerPrice, toast, botChartData]);
 
 
   const handleToggleSimulation = () => {
@@ -217,14 +225,16 @@ export default function GridTradingPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="base-asset">Base</Label>
-                                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}><SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
-                                        <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
+                                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}>
+                                            <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </div>
                                     <div>
                                         <Label htmlFor="quote-asset">Quote</Label>
-                                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning || availableQuotes.length === 0}><SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
-                                        <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
+                                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning || availableQuotes.length === 0}>
+                                            <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
+                                            <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
                                         </Select>
                                     </div>
                                 </div>
