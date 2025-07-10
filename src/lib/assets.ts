@@ -17,7 +17,7 @@ export const assetInfo: Record<string, string> = {
     "ENA": "Ethena", "W": "Wormhole", "JUP": "Jupiter", "JTO": "Jito", "PYTH": "Pyth Network",
     "BOME": "BOOK OF MEME", "ICP": "Internet Computer", "VET": "VeChain", "XLM": "Stellar",
     "HBAR": "Hedera", "ALGO": "Algorand", "EGLD": "MultiversX", "FLOW": "Flow", "CHZ": "Chiliz", "MINA": "Mina",
-    "OM": "MANTRA", "NEWT": "Newton", "VIC": "Viction", "SPK": "Sparkleswap", "BONK": "Bonk"
+    "OM": "MANTRA", "NEWT": "Newton", "VIC": "Viction", "SPK": "Sparkleswap", "BONK": "Bonk", "LA": "LayerAI"
 };
 
 export const fullAssetList = [
@@ -29,6 +29,7 @@ export const fullAssetList = [
     "CRVUSDT", "1INCHUSDT", "DYDXUSDT", "GMXUSDT", "SUSHIUSDT", "YFIUSDT", "IMXUSDT", "BLURUSDT", "CELOUSDT", "FLOKIUSDT",
     "MEMEUSDT", "ENAUSDT", "WUSDT", "JUPUSDT", "JTOUSDT", "PYTHUSDT", "BOMEUSDT", "ICPUSDT", "VETUSDT", "XLMUSDT",
     "HBARUSDT", "ALGOUSDT", "EGLDUSDT", "FLOWUSDT", "CHZUSDT", "MINAUSDT", "OMUSDT", "NEWTUSDT", "VICUSDT", "SPKUSDT", "BONKUSDT",
+    "LAUSDT",
     // Add some pairs with other quotes
     "ETHBTC", "BNBBTC", "SOLBTC", "XRPBTC", "ADABTC", "DOTBTC", "LINKBTC", "LTCBTC",
     "BNBETH", "TRXETH", "SOLETH",
@@ -82,7 +83,7 @@ export const pairsByBase = allPairs.reduce((acc, pair) => {
 export const topBases = [
     "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT",
     "LINK", "MATIC", "LTC", "NEAR", "UNI", "ATOM", "ETC", "FIL", "APT", "SUI", "OP",
-    "PEPE", "WIF", "TON", "ORDI", "WLD", "ARB", "OM", "NEWT", "VIC", "SPK", "BONK"
+    "PEPE", "WIF", "TON", "ORDI", "WLD", "ARB", "OM", "NEWT", "VIC", "SPK", "BONK", "LA"
 ].sort();
 
 // New export for UI components
