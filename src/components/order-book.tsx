@@ -31,7 +31,6 @@ interface OrderBookProps {
 }
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
-const UI_UPDATE_INTERVAL = 2000; // Milliseconds
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
@@ -94,34 +93,15 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
+    const [bids, setBids] = useState<Map<string, string>>(new Map());
+    const [asks, setAsks] = useState<Map<string, string>>(new Map());
     const [isConnecting, setIsConnecting] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
+    const lastUpdateIdRef = useRef<number | null>(null);
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', true);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
-    
-    const lastUpdateIdRef = useRef<number | null>(null);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
-    // State for UI display
-    const [displayBids, setDisplayBids] = useState<Map<string, string>>(new Map());
-    const [displayAsks, setDisplayAsks] = useState<Map<string, string>>(new Map());
-
-    // Refs for buffering incoming data without triggering re-renders
-    const bidsRef = useRef<Map<string, string>>(new Map());
-    const asksRef = useRef<Map<string, string>>(new Map());
-
-    // This effect runs periodically to update the UI with buffered data
-    useEffect(() => {
-        if (!isStreamActive) return;
-
-        const updateInterval = setInterval(() => {
-            setDisplayBids(new Map(bidsRef.current));
-            setDisplayAsks(new Map(asksRef.current));
-        }, UI_UPDATE_INTERVAL);
-
-        return () => clearInterval(updateInterval);
-    }, [isStreamActive]);
-    
     const connectAndSync = useCallback(async (currentSymbol: string) => {
         if (wsRef.current) {
             wsRef.current.close();
@@ -130,15 +110,12 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
         setIsConnecting(true);
         setStreamError(null);
-        lastUpdateIdRef.current = null;
         let eventQueue: any[] = [];
         let snapshotLoaded = false;
         
-        // Clear previous data from both buffer and display
-        bidsRef.current.clear();
-        asksRef.current.clear();
-        setDisplayBids(new Map());
-        setDisplayAsks(new Map());
+        // Clear previous data
+        setBids(new Map());
+        setAsks(new Map());
 
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
         wsRef.current = ws;
@@ -154,15 +131,19 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
             if (data.U > lastUpdateIdRef.current!) {
                 if (data.pu === lastUpdateIdRef.current) {
-                    // Update bids buffer
-                    data.b.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) bidsRef.current.delete(p);
-                        else bidsRef.current.set(p, q);
+                    setBids(prevBids => {
+                        const newBids = new Map(prevBids);
+                        data.b.forEach(([p, q]: OrderBookLevel) => {
+                            if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
+                        });
+                        return newBids;
                     });
-                    // Update asks buffer
-                    data.a.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) asksRef.current.delete(p);
-                        else asksRef.current.set(p, q);
+                    setAsks(prevAsks => {
+                        const newAsks = new Map(prevAsks);
+                        data.a.forEach(([p, q]: OrderBookLevel) => {
+                            if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
+                        });
+                        return newAsks;
                     });
                     lastUpdateIdRef.current = data.u;
                 } else {
@@ -190,27 +171,28 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             if (ws.readyState !== WebSocket.OPEN) return;
 
             lastUpdateIdRef.current = snapshot.lastUpdateId;
-            bidsRef.current = new Map(snapshot.bids);
-            asksRef.current = new Map(snapshot.asks);
-            
-            snapshotLoaded = true;
-            setIsConnecting(false);
             
             const updatesToApply = eventQueue.filter(update => update.U > lastUpdateIdRef.current!);
+            const finalBids = new Map(snapshot.bids);
+            const finalAsks = new Map(snapshot.asks);
             
             updatesToApply.forEach(data => {
                 if (data.pu === lastUpdateIdRef.current) {
                     data.b.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q);
+                        if (parseFloat(q) === 0) finalBids.delete(p); else finalBids.set(p, q);
                     });
                     data.a.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q);
+                        if (parseFloat(q) === 0) finalAsks.delete(p); else finalAsks.set(p, q);
                     });
                     lastUpdateIdRef.current = data.u;
                 }
             });
             eventQueue = [];
             
+            setBids(finalBids);
+            setAsks(finalAsks);
+            snapshotLoaded = true;
+            setIsConnecting(false);
             console.log(`Order book for ${currentSymbol} is now in sync.`);
         } catch (error: any) {
             const errorMsg = error.message.includes('Binance API Error') ? error.message : `Failed to load initial depth for ${currentSymbol}.`;
@@ -242,8 +224,8 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     }, [isStreamActive, isConnected, symbol, connectAndSync]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
-        const bidLevels: OrderBookLevel[] = Array.from(displayBids.entries());
-        const askLevels: OrderBookLevel[] = Array.from(displayAsks.entries());
+        const bidLevels: OrderBookLevel[] = Array.from(bids.entries());
+        const askLevels: OrderBookLevel[] = Array.from(asks.entries());
         
         const sortedBids = [...bidLevels].sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
         const sortedAsks = [...askLevels].sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
@@ -301,7 +283,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             precision: calculatedPrecision,
         };
 
-    }, [displayBids, displayAsks]);
+    }, [bids, asks]);
 
     // Effect to report walls and detect spoofs
     useEffect(() => {
