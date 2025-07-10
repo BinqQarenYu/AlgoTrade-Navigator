@@ -294,6 +294,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const currentConfig = liveBotState.config;
     if (!liveBotState.isRunning || !currentConfig) return;
 
+    // Check if there's already an open position before analyzing
+    if (liveBotState.prediction) {
+        addLiveLog("In an active trade signal. Skipping new analysis cycle.");
+        return;
+    }
+
     setLiveBotState(prev => ({ ...prev, isPredicting: true, prediction: null }));
     
     const result = await analyzeAsset(currentConfig);
@@ -312,7 +318,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     setLiveBotState(prev => ({ ...prev, isPredicting: false }));
 
-  }, [liveBotState.isRunning, liveBotState.config, addLiveLog, analyzeAsset]);
+  }, [liveBotState.isRunning, liveBotState.config, liveBotState.prediction, addLiveLog, analyzeAsset]);
 
   const startLiveBot = async (config: LiveBotConfig) => {
     addLiveLog("Starting bot...");
@@ -1029,3 +1035,4 @@ export const useBot = () => {
   }
   return context;
 };
+

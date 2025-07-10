@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -489,14 +490,12 @@ export default function BacktestPage() {
     let aiValidationCount = 0;
     let aiLimitReachedNotified = false;
 
-    // Keep track if there is currently an open trade, this will prevent multiple trades being open at once
-    let isTradeOpen = false;
-
+    // --- Main Backtesting Loop ---
     for (let i = 1; i < dataWithSignals.length; i++) {
       const d = dataWithSignals[i];
 
       // --- Exit Logic ---
-      if (positionType === 'long' && isTradeOpen) {
+      if (positionType === 'long') {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
         if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
@@ -513,9 +512,8 @@ export default function BacktestPage() {
             fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
-          isTradeOpen = false;
         }
-      } else if (positionType === 'short' && isTradeOpen) {
+      } else if (positionType === 'short') {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
         if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
@@ -532,12 +530,11 @@ export default function BacktestPage() {
             fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
-          isTradeOpen = false;
         }
       }
 
-      // --- Entry Logic ---
-      if (positionType === null && !isTradeOpen) {
+      // --- Entry Logic (Only if not in a position) ---
+      if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
         if (potentialSignal) {
           let isValidSignal = false;
@@ -593,7 +590,6 @@ export default function BacktestPage() {
               stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
               takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
             }
-            isTradeOpen = true;
           }
         }
       }
