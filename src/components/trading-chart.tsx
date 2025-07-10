@@ -1001,11 +1001,11 @@ export function TradingChart({
     // Effect to draw grid lines and auto-zoom
     useEffect(() => {
       if (!chartRef.current || !chartRef.current.chart) return;
-      const { candlestickSeries, gridPriceLines, chart } = chartRef.current;
+      const { candlestickSeries, chart } = chartRef.current;
 
       // Clear existing grid lines
-      if (gridPriceLines) {
-        gridPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+      if (chartRef.current.gridPriceLines) {
+        chartRef.current.gridPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
       }
       const newLines: any[] = [];
 
