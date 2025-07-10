@@ -17,7 +17,7 @@ export const assetInfo: Record<string, string> = {
     "ENA": "Ethena", "W": "Wormhole", "JUP": "Jupiter", "JTO": "Jito", "PYTH": "Pyth Network",
     "BOME": "BOOK OF MEME", "ICP": "Internet Computer", "VET": "VeChain", "XLM": "Stellar",
     "HBAR": "Hedera", "ALGO": "Algorand", "EGLD": "MultiversX", "FLOW": "Flow", "CHZ": "Chiliz", "MINA": "Mina",
-    "OM": "MANTRA", "NEWT": "Newt", "VIC": "VIC", "SPK": "Sparks", "BONK": "Bonk"
+    "OM": "MANTRA", "NEWT": "Newton", "VIC": "Viction", "SPK": "Sparkleswap", "BONK": "Bonk"
 };
 
 export const fullAssetList = [
@@ -45,11 +45,12 @@ export interface AssetPair {
 const KNOWN_QUOTES = ['USDT', 'USDC', 'FDUSD', 'TUSD', 'BUSD', 'BTC', 'ETH', 'BNB'];
 
 export function parseSymbolString(symbol: string): AssetPair | null {
+    const cleanSymbol = symbol.replace('/', '').replace(':', '');
     for (const quote of KNOWN_QUOTES) {
-        if (symbol.endsWith(quote) && symbol.length > quote.length) {
-            const base = symbol.slice(0, -quote.length);
+        if (cleanSymbol.endsWith(quote) && cleanSymbol.length > quote.length) {
+            const base = cleanSymbol.slice(0, -quote.length);
             if (base) {
-                return { base, quote, symbol };
+                return { base, quote, symbol: cleanSymbol };
             }
         }
     }
