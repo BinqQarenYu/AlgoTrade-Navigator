@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, Grid, GridTrade } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
@@ -70,6 +70,7 @@ interface BotContextType {
   multiSignalState: MultiSignalState;
   screenerState: ScreenerState;
   simulationState: SimulationState;
+  gridState: GridState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -88,6 +89,8 @@ interface BotContextType {
   closePosition: (position: Position) => void;
   startSimulation: (config: SimulationConfig) => void;
   stopSimulation: () => void;
+  startGridSimulation: (config: GridConfig) => void;
+  stopGridSimulation: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -180,6 +183,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const simulationWsRef = useRef<WebSocket | null>(null);
   const isAnalyzingSimRef = useRef(false);
 
+  // --- Grid Trading State ---
+  const [gridState, setGridState] = useState<GridState>({
+    isRunning: false, config: null, chartData: [], grid: null, trades: [], openOrders: [], summary: null
+  });
+  const gridWsRef = useRef<WebSocket | null>(null);
+
+
   // --- Global State ---
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
@@ -189,9 +199,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     // Simulation, monitoring, and one-off analysis are excluded to allow them to run in the background.
     const liveTradingBotRunning = liveBotState.isRunning;
     const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
+    const gridIsRunning = gridState.isRunning;
 
-    setIsTradingActive(liveTradingBotRunning || manualTradePending);
-  }, [liveBotState.isRunning, manualTraderState.signal, manualTraderState.isExecuting]);
+    setIsTradingActive(liveTradingBotRunning || manualTradePending || gridIsRunning);
+  }, [liveBotState.isRunning, manualTraderState.signal, manualTraderState.isExecuting, gridState.isRunning]);
 
 
   // --- Helper Functions ---
@@ -206,6 +217,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
   const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
   const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
+  const addGridLog = useCallback((message: string) => addLog(setGridState, message), [addLog]);
   
   const cleanManualChart = useCallback(() => {
     setManualTraderState(prev => {
@@ -822,20 +834,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [apiKey, secretKey, toast, activeProfile]);
   
   // --- Simulation Logic ---
-  const stopSimulation = useCallback(() => {
-    if (simulationWsRef.current) {
-        simulationWsRef.current.close();
-        simulationWsRef.current = null;
-    }
-    isAnalyzingSimRef.current = false;
-    setSimulationState(prev => ({...prev, isRunning: false, config: null}));
-    addSimLog("Simulation stopped by user.");
-    toast({ title: "Simulation Stopped" });
-  }, [addSimLog, toast]);
-
   const handleSimulationTick = useCallback(async (newCandle: HistoricalData) => {
     setSimulationState(current => {
       if (!current.isRunning || !current.config) return current;
+      isAnalyzingSimRef.current = true;
 
       let { chartData, openPositions, tradeHistory, portfolio } = current;
       const config = current.config;
@@ -886,17 +888,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
       const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
       
-      // Look for new trades only if no position is open and not already analyzing
-      if (stillOpenPositions.length === 0 && !isAnalyzingSimRef.current) {
-        isAnalyzingSimRef.current = true; // Set lock
+      // Look for new trades only if no position is open
+      if (stillOpenPositions.length === 0) {
         analyzeAsset(config, chartData).then(result => {
           if (result.signal) {
             setSimulationState(prev => {
               // Re-check inside the async callback if we are still flat
-              if (prev.openPositions.length > 0) {
-                 isAnalyzingSimRef.current = false; // Release lock
-                 return prev;
-              }
+              if (prev.openPositions.length > 0) return prev;
               const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
               const newPosition: SimulatedPosition = {
                 id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal!.action === 'UP' ? 'long' : 'short',
@@ -908,8 +906,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
               return { ...prev, openPositions: [...prev.openPositions, newPosition] };
             });
           }
-        }).finally(() => {
-            isAnalyzingSimRef.current = false; // Release lock regardless of outcome
         });
       }
       
@@ -935,6 +931,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         totalReturnPercent: config.initialCapital > 0 ? (totalPnl / config.initialCapital) * 100 : 0
       };
 
+      isAnalyzingSimRef.current = false;
       return {
         ...current,
         chartData,
@@ -945,6 +942,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       };
     });
   }, [addSimLog, analyzeAsset]);
+
+  const stopSimulation = useCallback(() => {
+    if (simulationWsRef.current) {
+        simulationWsRef.current.close();
+        simulationWsRef.current = null;
+    }
+    isAnalyzingSimRef.current = false;
+    setSimulationState(prev => ({...prev, isRunning: false, config: null}));
+    addSimLog("Simulation stopped by user.");
+    toast({ title: "Simulation Stopped" });
+  }, [addSimLog, toast]);
 
   const startSimulation = useCallback(async (config: SimulationConfig) => {
     addSimLog("Starting simulation...");
@@ -989,6 +997,147 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
   
+  // --- Grid Trading Logic ---
+  const handleGridTick = useCallback((newCandle: HistoricalData) => {
+    setGridState(current => {
+        if (!current.isRunning || !current.grid || !current.config) return current;
+
+        let { chartData, openOrders, trades, summary } = current;
+        const { grid } = current;
+        const newTrades: GridTrade[] = [];
+        const stillOpenOrders = [...openOrders];
+
+        // Update chart data
+        if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
+            chartData[chartData.length - 1] = newCandle;
+        } else {
+            chartData.push(newCandle);
+            chartData = chartData.slice(-1000);
+        }
+
+        openOrders.forEach(order => {
+            const isBuy = order.side === 'buy';
+            const priceCrossed = isBuy 
+                ? newCandle.low <= order.price 
+                : newCandle.high >= order.price;
+
+            if (priceCrossed) {
+                // 1. Log the trade
+                const trade: GridTrade = { id: `grid_${order.price}_${newCandle.time}`, time: newCandle.time, price: order.price, side: order.side };
+                newTrades.push(trade);
+                
+                // 2. Remove the filled order
+                const indexToRemove = stillOpenOrders.findIndex(o => o.price === order.price && o.side === order.side);
+                if (indexToRemove > -1) stillOpenOrders.splice(indexToRemove, 1);
+                
+                // 3. Add the corresponding closing order
+                const newOrderPrice = isBuy
+                    ? order.price + grid.profitPerGrid
+                    : order.price - grid.profitPerGrid;
+                
+                if (newOrderPrice > 0 && newOrderPrice >= current.config!.lowerPrice && newOrderPrice <= current.config!.upperPrice) {
+                    stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                }
+                
+                // 4. Update PNL
+                if (summary) {
+                    summary.totalPnl += grid.profitPerGrid * grid.quantityPerGrid;
+                    summary.gridPnl += grid.profitPerGrid * grid.quantityPerGrid;
+                    summary.totalTrades += 1;
+                }
+            }
+        });
+        
+        return {
+            ...current,
+            chartData,
+            openOrders: stillOpenOrders,
+            trades: [...trades, ...newTrades],
+            summary: summary ? {...summary} : current.summary,
+        };
+    });
+  }, []);
+
+  const stopGridSimulation = useCallback(() => {
+      addGridLog("Stopping grid simulation.");
+      if (gridWsRef.current) {
+        gridWsRef.current.close();
+        gridWsRef.current = null;
+      }
+      setGridState(prev => ({ ...prev, isRunning: false, config: null, grid: null, trades: [], openOrders: [], summary: null }));
+      toast({ title: "Grid Simulation Stopped" });
+  }, [addGridLog, toast]);
+
+  const startGridSimulation = useCallback(async (config: GridConfig) => {
+      addGridLog(`Creating grid for ${config.symbol}...`);
+      
+      let gridLevels: number[] = [];
+      let profitPerGrid = 0;
+      if (config.mode === 'arithmetic') {
+          const priceStep = (config.upperPrice - config.lowerPrice) / (config.gridCount - 1);
+          profitPerGrid = priceStep;
+          for (let i = 0; i < config.gridCount; i++) {
+              gridLevels.push(config.lowerPrice + i * priceStep);
+          }
+      } else { // Geometric
+          const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
+          for (let i = 0; i < config.gridCount; i++) {
+              const price = config.lowerPrice * Math.pow(ratio, i);
+              gridLevels.push(price);
+          }
+          // In geometric mode, profit is not fixed, but we can estimate an average
+          profitPerGrid = (gridLevels[1] - gridLevels[0]);
+      }
+
+      const quantityPerGrid = config.investment / config.gridCount / gridLevels.reduce((a, b) => a + b, 0) * gridLevels.length;
+
+      const newGrid: Grid = {
+          levels: gridLevels,
+          profitPerGrid,
+          quantityPerGrid,
+      };
+
+      setGridState({
+          isRunning: true,
+          config,
+          grid: newGrid,
+          chartData: [],
+          trades: [],
+          openOrders: gridLevels.map(price => ({ price, side: 'buy' })), // Simplified initial state
+          summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
+      });
+
+      toast({ title: "Grid Simulation Started", description: `Grid created for ${config.symbol}.` });
+      
+      try {
+          const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+          setGridState(prev => ({...prev, chartData: initialKlines}));
+          addGridLog(`Loaded ${initialKlines.length} initial candles for grid simulation.`);
+
+          const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+          gridWsRef.current = ws;
+
+          ws.onopen = () => addGridLog("Grid simulation live feed connected.");
+          ws.onmessage = (event) => {
+              const data = JSON.parse(event.data);
+              if (data.e === 'kline') {
+                  const newCandle: HistoricalData = {
+                      time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
+                      low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
+                  };
+                  handleGridTick(newCandle);
+              }
+          };
+          ws.onerror = () => addGridLog("Grid simulation WebSocket error.");
+          ws.onclose = () => addGridLog("Grid simulation WebSocket closed.");
+
+      } catch (e: any) {
+          addGridLog(`Error starting grid simulation: ${e.message}`);
+          toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
+          stopGridSimulation();
+      }
+  }, [addGridLog, toast, stopGridSimulation, handleGridTick]);
+
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1000,6 +1149,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
       if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
       if (simulationWsRef.current) simulationWsRef.current.close();
+      if (gridWsRef.current) gridWsRef.current.close();
     }
   }, []);
 
@@ -1010,6 +1160,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       multiSignalState,
       screenerState,
       simulationState,
+      gridState,
       strategyParams,
       setStrategyParams,
       isTradingActive,
@@ -1028,6 +1179,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       closePosition,
       startSimulation,
       stopSimulation,
+      startGridSimulation,
+      stopGridSimulation,
     }}>
       {children}
     </BotContext.Provider>
