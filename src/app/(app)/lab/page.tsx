@@ -68,6 +68,7 @@ import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
 import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
 import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
 import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
+import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
@@ -175,6 +176,7 @@ export default function LabPage() {
   const [lineWidth, setLineWidth] = usePersistentState<number>('lab-line-width', 2);
   const [selectedConsensusStrategies, setSelectedConsensusStrategies] = usePersistentState<string[]>('lab-consensus-strategies', ['peak-formation-fib', 'rsi-divergence', 'ema-crossover']);
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('lab-show-analysis', true);
+  const [showManipulationOverlay, setShowManipulationOverlay] = usePersistentState<boolean>('lab-show-manipulation', true);
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab-scale-mode', 'linear');
   
@@ -742,6 +744,7 @@ export default function LabPage() {
                 chartType={chartType}
                 scaleMode={scaleMode}
                 manipulationResult={manipulationResult}
+                showManipulationOverlay={showManipulationOverlay}
             />
           </div>
           <div
@@ -920,6 +923,10 @@ export default function LabPage() {
                                     <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
                                     <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
                                  </div>
+                                 <div className="flex items-center space-x-2">
+                                    <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
+                                    <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Show Manipulation Overlay</Label>
+                                 </div>
                             </div>
                           </>
                         )}
@@ -1043,5 +1050,3 @@ export default function LabPage() {
     </div>
   )
 }
-
-    

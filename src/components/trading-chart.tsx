@@ -41,6 +41,7 @@ export function TradingChart({
   chartType = 'candlestick',
   scaleMode = 'linear',
   manipulationResult = null,
+  showManipulationOverlay = true,
 }: { 
   data: HistoricalData[]; 
   symbol: string; 
@@ -58,6 +59,7 @@ export function TradingChart({
   chartType?: 'candlestick' | 'line';
   scaleMode?: 'linear' | 'logarithmic';
   manipulationResult?: DetectManipulationOutput | null;
+  showManipulationOverlay?: boolean;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -340,7 +342,7 @@ export function TradingChart({
             const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
             
             let phaseColor: string | null = null;
-            if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+            if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
                 const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
                 if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
                     phaseColor = chartColors.accumulationVolumeColor;
@@ -410,7 +412,7 @@ export function TradingChart({
         }) : [];
 
         const manipulationMarkers: any[] = [];
-        if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+        if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
             const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
             if (accumulationPeriod?.startTime) {
                 manipulationMarkers.push({
@@ -460,7 +462,7 @@ export function TradingChart({
                 const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
                 
                 let phaseColor: string | null = null;
-                if (showAnalysis && manipulationResult?.isManipulationSuspected) {
+                if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
                   const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
                   if (accumulationPeriod && d.time >= accumulationPeriod.startTime && d.time <= accumulationPeriod.endTime) {
                       phaseColor = chartColors.accumulationColor;
@@ -511,7 +513,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay]);
 
    // Effect to draw signal lines
     useEffect(() => {
@@ -1060,5 +1062,3 @@ export function TradingChart({
     </Card>
   );
 }
-
-    
