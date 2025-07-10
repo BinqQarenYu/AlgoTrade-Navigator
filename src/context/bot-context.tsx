@@ -1073,12 +1073,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         if (gridShifted) {
-            // Cancel all orders and recreate them based on the new grid levels
-            openOrders = grid.levels.map(p => ({ price: p, side: 'buy' }));
+             const currentPrice = price; // Use the latest price to reset orders
+            if (config.direction === 'long') {
+                openOrders = grid.levels.filter(p => p <= currentPrice).map(p => ({ price: p, side: 'buy' }));
+            } else if (config.direction === 'short') {
+                openOrders = grid.levels.filter(p => p >= currentPrice).map(p => ({ price: p, side: 'sell' }));
+            } else { // neutral
+                openOrders = grid.levels.map(p => ({ price: p, side: p < currentPrice ? 'buy' : 'sell' }));
+            }
             config.lowerPrice = Math.min(...grid.levels);
             config.upperPrice = Math.max(...grid.levels);
         }
-
 
         const newTrades: GridTrade[] = [];
         let stillOpenOrders = [...openOrders];
@@ -1091,12 +1096,23 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const trade: GridTrade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
                 newTrades.push(trade);
                 
-                const newOrderPrice = isBuy
-                    ? order.price + grid.profitPerGrid
-                    : order.price - grid.profitPerGrid;
-                
-                if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
-                     stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                // For directional grids, place a take-profit order
+                if (config.direction === 'long' && isBuy) {
+                    const newSellPrice = order.price + grid.profitPerGrid;
+                    if (newSellPrice <= config.upperPrice) {
+                        stillOpenOrders.push({ price: newSellPrice, side: 'sell' });
+                    }
+                } else if (config.direction === 'short' && !isBuy) {
+                    const newBuyPrice = order.price - grid.profitPerGrid;
+                    if (newBuyPrice >= config.lowerPrice) {
+                        stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
+                    }
+                } else if (config.direction === 'neutral') {
+                    // Place the opposite order back on the grid
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
+                    if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
+                        stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                    }
                 }
                 
                 if (summary) {
@@ -1149,25 +1165,37 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         profitPerGrid,
         quantityPerGrid,
     };
-
-    setGridState({
-        isRunning: true,
-        config,
-        grid: newGrid,
-        chartData: [],
-        trades: [],
-        openOrders: gridLevels.map(price => ({ price, side: 'buy' })),
-        summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
-    });
-
+    
     toast({ title: "Grid Live Simulation Started", description: `Grid created for ${config.symbol}.` });
     
     try {
         const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-        setGridState(prev => ({...prev, chartData: initialKlines}));
+        const currentPrice = initialKlines.length > 0 ? initialKlines[initialKlines.length-1].close : (config.lowerPrice + config.upperPrice) / 2;
+        
+        let initialOrders: { price: number; side: 'buy' | 'sell' }[] = [];
+        if (config.direction === 'long') {
+            initialOrders = gridLevels.filter(p => p <= currentPrice).map(price => ({ price, side: 'buy' }));
+            addGridLog(`Long mode: Placing ${initialOrders.length} buy orders.`);
+        } else if (config.direction === 'short') {
+            initialOrders = gridLevels.filter(p => p >= currentPrice).map(price => ({ price, side: 'sell' }));
+            addGridLog(`Short mode: Placing ${initialOrders.length} sell orders.`);
+        } else { // Neutral
+            initialOrders = gridLevels.map(price => ({ price, side: price < currentPrice ? 'buy' : 'sell' }));
+            addGridLog(`Neutral mode: Placing ${initialOrders.filter(o=>o.side==='buy').length} buy and ${initialOrders.filter(o=>o.side==='sell').length} sell orders.`);
+        }
+
+        setGridState({
+            isRunning: true,
+            config,
+            grid: newGrid,
+            chartData: initialKlines,
+            trades: [],
+            openOrders: initialOrders,
+            summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
+        });
+
         addGridLog(`Loaded ${initialKlines.length} initial candles for live simulation.`);
         
-        // Timer to push the constructed candle to the chart array
         const intervalMs = intervalToMs(config.interval);
         candleTimerRef.current = setInterval(() => {
             if (currentCandleRef.current) {
@@ -1182,7 +1210,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     return {...prev, chartData: newChartData.slice(-1000)};
                 });
             }
-        }, 1000); // Update chart every second with the latest state of the current candle
+        }, 1000);
 
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@aggTrade`);
         gridWsRef.current = ws;
@@ -1233,15 +1261,24 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const avgGridPrice = gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length;
         const quantityPerGrid = investmentPerGrid / avgGridPrice;
         
-        let openOrders: { price: number; side: 'buy' | 'sell' }[] = gridLevels.map(price => ({ price, side: 'buy' }));
+        let openOrders: { price: number; side: 'buy' | 'sell' }[] = [];
+        const initialPrice = klines[0].close;
+
+        if (config.direction === 'long') {
+            openOrders = gridLevels.filter(p => p <= initialPrice).map(price => ({ price, side: 'buy' }));
+        } else if (config.direction === 'short') {
+            openOrders = gridLevels.filter(p => p >= initialPrice).map(price => ({ price, side: 'sell' }));
+        } else { // Neutral
+            openOrders = gridLevels.map(price => ({ price, side: price < initialPrice ? 'buy' : 'sell' }));
+        }
+
         let gridPnl = 0;
         const executedTrades: GridTrade[] = [];
+        let positionsHeld: { price: number, quantity: number }[] = [];
         
-        // Backtest loop
         klines.forEach(candle => {
-            const newOpenOrders: { price: number; side: 'buy' | 'sell' }[] = [];
             const ordersToProcess = [...openOrders];
-            openOrders = []; // Clear for the next iteration
+            openOrders = [];
         
             for (const order of ordersToProcess) {
                 const isBuy = order.side === 'buy';
@@ -1250,35 +1287,45 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 if (priceCrossed) {
                     executedTrades.push({ id: `bt_${order.price}_${candle.time}_${Math.random()}`, time: candle.time, price: order.price, side: order.side });
                     
-                    if(isBuy) {
-                        gridPnl += profitPerGrid * quantityPerGrid;
-                    }
+                    if (isBuy) {
+                        if (config.direction === 'long' || config.direction === 'neutral') {
+                             positionsHeld.push({ price: order.price, quantity: quantityPerGrid });
+                            const takeProfitPrice = order.price + profitPerGrid;
+                            if(takeProfitPrice <= config.upperPrice) {
+                                openOrders.push({ price: takeProfitPrice, side: 'sell' });
+                            }
+                        }
+                    } else { // isSell
+                         if (config.direction === 'short' || config.direction === 'neutral') {
+                            positionsHeld.push({ price: order.price, quantity: -quantityPerGrid });
+                            const takeProfitPrice = order.price - profitPerGrid;
+                            if(takeProfitPrice >= config.lowerPrice) {
+                                openOrders.push({ price: takeProfitPrice, side: 'buy' });
+                            }
+                        }
 
-                    const newOrderPrice = isBuy ? order.price + profitPerGrid : order.price - profitPerGrid;
-                    
-                    if (newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
-                        newOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                        if (config.direction === 'neutral' || config.direction === 'long') {
+                           const matchedBuy = positionsHeld.find(p => p.quantity > 0);
+                            if(matchedBuy) {
+                                gridPnl += (order.price - matchedBuy.price) * matchedBuy.quantity;
+                                positionsHeld.splice(positionsHeld.indexOf(matchedBuy), 1);
+                            }
+                        }
                     }
                 } else {
-                    newOpenOrders.push(order);
+                    openOrders.push(order);
                 }
             }
-            openOrders = newOpenOrders;
         });
         
         const totalTrades = executedTrades.length;
-        
-        // Calculate final PNL
         const endPrice = klines[klines.length - 1].close;
-        const unrealizedPnl = openOrders.reduce((acc, order) => {
-            if (order.side === 'sell') { // This means we are holding a long position from a previous buy
-                return acc + (endPrice - order.price) * quantityPerGrid;
-            }
-            return acc;
+        const unrealizedPnl = positionsHeld.reduce((acc, pos) => {
+            return acc + (endPrice - pos.price) * pos.quantity;
         }, 0);
 
         const totalPnl = gridPnl + unrealizedPnl;
-        const maxDrawdown = 0; // Simplified for now
+        const maxDrawdown = 0; // Simplified
         const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100);
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
