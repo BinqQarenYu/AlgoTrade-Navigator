@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, GridTrade, GridBacktestConfig, GridBacktestSummary } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, GridTrade, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
@@ -66,7 +66,7 @@ interface ManualTraderState {
 interface GridBacktestState {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
-    backtestTrades: GridTrade[];
+    backtestTrades: MatchedGridTrade[];
 }
 
 // --- Context Type ---
@@ -1273,64 +1273,62 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
 
         let gridPnl = 0;
-        const executedTrades: GridTrade[] = [];
-        let positionsHeld: { price: number, quantity: number }[] = [];
+        const matchedTrades: MatchedGridTrade[] = [];
+        const openBuys: GridTrade[] = []; // FIFO queue for buy orders
+        const openSells: GridTrade[] = []; // FIFO queue for sell orders
+
+        for (const candle of klines) {
+            let stillOpenOrders: { price: number, side: 'buy' | 'sell' }[] = [];
         
-        klines.forEach(candle => {
-            const ordersToProcess = [...openOrders];
-            openOrders = [];
-        
-            for (const order of ordersToProcess) {
+            for (const order of openOrders) {
                 const isBuy = order.side === 'buy';
                 const priceCrossed = isBuy ? candle.low <= order.price : candle.high >= order.price;
         
                 if (priceCrossed) {
-                    executedTrades.push({ id: `bt_${order.price}_${candle.time}_${Math.random()}`, time: candle.time, price: order.price, side: order.side });
-                    
+                    const trade: GridTrade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
+        
                     if (isBuy) {
-                        if (config.direction === 'long' || config.direction === 'neutral') {
-                             positionsHeld.push({ price: order.price, quantity: quantityPerGrid });
-                            const takeProfitPrice = order.price + profitPerGrid;
-                            if(takeProfitPrice <= config.upperPrice) {
-                                openOrders.push({ price: takeProfitPrice, side: 'sell' });
-                            }
+                        openBuys.push(trade);
+                        const takeProfitPrice = order.price + profitPerGrid;
+                        if (takeProfitPrice <= config.upperPrice) {
+                            stillOpenOrders.push({ price: takeProfitPrice, side: 'sell' });
                         }
                     } else { // isSell
-                         if (config.direction === 'short' || config.direction === 'neutral') {
-                            positionsHeld.push({ price: order.price, quantity: -quantityPerGrid });
-                            const takeProfitPrice = order.price - profitPerGrid;
-                            if(takeProfitPrice >= config.lowerPrice) {
-                                openOrders.push({ price: takeProfitPrice, side: 'buy' });
-                            }
+                        openSells.push(trade);
+                        if (openBuys.length > 0) {
+                            const matchedBuy = openBuys.shift()!; // Get the oldest buy order
+                            const pnl = (trade.price - matchedBuy.price) * quantityPerGrid;
+                            gridPnl += pnl;
+                            matchedTrades.push({
+                                id: `match_${matchedBuy.id}`,
+                                pnl,
+                                buy: matchedBuy,
+                                sell: trade
+                            });
                         }
-
-                        if (config.direction === 'neutral' || config.direction === 'long') {
-                           const matchedBuy = positionsHeld.find(p => p.quantity > 0);
-                            if(matchedBuy) {
-                                gridPnl += (order.price - matchedBuy.price) * matchedBuy.quantity;
-                                positionsHeld.splice(positionsHeld.indexOf(matchedBuy), 1);
-                            }
+                        const takeProfitPrice = order.price - profitPerGrid;
+                        if (takeProfitPrice >= config.lowerPrice) {
+                            stillOpenOrders.push({ price: takeProfitPrice, side: 'buy' });
                         }
                     }
                 } else {
-                    openOrders.push(order);
+                    stillOpenOrders.push(order);
                 }
             }
-        });
+            openOrders = stillOpenOrders;
+        }
         
-        const totalTrades = executedTrades.length;
+        const totalTrades = matchedTrades.length * 2;
         const endPrice = klines[klines.length - 1].close;
-        const unrealizedPnl = positionsHeld.reduce((acc, pos) => {
-            return acc + (endPrice - pos.price) * pos.quantity;
-        }, 0);
+        const unrealizedPnl = openBuys.reduce((acc, buy) => acc + (endPrice - buy.price) * quantityPerGrid, 0);
 
         const totalPnl = gridPnl + unrealizedPnl;
-        const maxDrawdown = 0; // Simplified
+        const maxDrawdown = 0; // Simplified for now
         const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100);
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
         const summary: GridBacktestSummary = { totalPnl, gridPnl, unrealizedPnl, totalTrades, maxDrawdown, totalFees, apr };
-        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: executedTrades });
+        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: matchedTrades });
         toast({ title: "Backtest Complete", description: "Grid strategy performance report is ready." });
 
     } catch (e: any) {
@@ -1397,3 +1395,4 @@ export const useBot = () => {
   }
   return context;
 };
+
