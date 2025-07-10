@@ -96,10 +96,10 @@ export default function GridTradingPage() {
                     getLatestKlinesByLimit(symbol, '1d', 30) // Fetch last 30 days for support level
                 ]);
 
-                if (klines.length > 0 && dailyKlines.length > 0) {
+                if (klines.length > 0) {
                     setChartData(klines);
                     const latestPrice = klines[klines.length - 1].close;
-                    const supportPrice = Math.min(...dailyKlines.map(k => k.low));
+                    const supportPrice = dailyKlines.length > 0 ? Math.min(...dailyKlines.map(k => k.low)) : latestPrice * 0.9;
                     
                     setUpperPrice(latestPrice);
                     setLowerPrice(supportPrice);
@@ -199,6 +199,7 @@ export default function GridTradingPage() {
                         symbol={symbol} 
                         interval={interval} 
                         gridLevels={calculatedGridLevels}
+                        gridTrades={trades}
                     />
                 </div>
                 <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">

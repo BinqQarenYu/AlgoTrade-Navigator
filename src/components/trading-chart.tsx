@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -36,6 +36,7 @@ export function TradingChart({
   liquidityEvents = [],
   liquidityTargets = [],
   gridLevels = [],
+  gridTrades = [],
   lineWidth = 2,
   consensusResult = null,
   showAnalysis = true,
@@ -55,6 +56,7 @@ export function TradingChart({
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
   gridLevels?: number[];
+  gridTrades?: GridTrade[];
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
@@ -414,6 +416,14 @@ export function TradingChart({
             }
         }) : [];
 
+        const gridTradeMarkers = gridTrades.map(trade => ({
+            time: toTimestamp(trade.time),
+            position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
+            color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
+            shape: 'circle',
+            size: 0.5,
+        }));
+
         const manipulationMarkers: any[] = [];
         if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
             const { accumulationPeriod, pumpPeriod, distributionPeriod } = manipulationResult;
@@ -449,7 +459,7 @@ export function TradingChart({
             }
         }
         
-        const allMarkers = [...signalMarkers, ...liquidityMarkers, ...manipulationMarkers].sort((a, b) => a.time - b.time);
+        const allMarkers = [...signalMarkers, ...liquidityMarkers, ...manipulationMarkers, ...gridTradeMarkers].sort((a, b) => a.time - b.time);
 
         if (chartType === 'line') {
             candlestickSeries.setData([]);
@@ -516,7 +526,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, gridTrades]);
 
    // Effect to draw signal lines
     useEffect(() => {
