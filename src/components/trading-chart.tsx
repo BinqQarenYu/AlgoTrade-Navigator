@@ -290,7 +290,7 @@ export function TradingChart({
         const firstPrice = uniqueData[0].close;
         let finalPrecision: number;
         
-        if (firstPrice > 1000) { // e.g., BTC
+        if (firstPrice > 1000) { // e.g. BTC
             finalPrecision = 2;
         } else if (firstPrice > 10) { // e.g., ETH, SOL
             finalPrecision = 4;

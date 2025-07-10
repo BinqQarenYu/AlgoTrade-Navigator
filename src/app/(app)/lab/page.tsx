@@ -573,7 +573,7 @@ export default function LabPage() {
           setManipulationResult(result);
           setManipulationCardOpen(true);
           toast({ title: "Manipulation Scan Complete", description: "AI analysis is ready and saved to the Data page." });
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error scanning for manipulation:", error);
           toast({ title: "Scan Failed", description: "An error occurred during the analysis.", variant: "destructive" });
         } finally {
