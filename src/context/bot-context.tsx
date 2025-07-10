@@ -186,6 +186,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     isRunning: false, config: null, chartData: [], grid: null, trades: [], openOrders: [], summary: null
   });
   const gridWsRef = useRef<WebSocket | null>(null);
+  const currentCandleRef = useRef<Partial<HistoricalData> | null>(null);
+  const candleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
 
   // --- Global State ---
@@ -997,94 +999,91 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   
   // --- Grid Trading Logic ---
   const stopGridSimulation = useCallback(() => {
-    addGridLog("Stopping grid simulation.");
+    addGridLog("Stopping grid forward-test.");
     if (gridWsRef.current) {
         gridWsRef.current.close();
         gridWsRef.current = null;
     }
-    setGridState(prev => ({ ...prev, isRunning: false, config: null }));
+     if (candleTimerRef.current) {
+        clearInterval(candleTimerRef.current);
+        candleTimerRef.current = null;
+    }
+    currentCandleRef.current = null;
+    setGridState(prev => ({ ...prev, isRunning: false }));
   }, [addGridLog]);
   
-  const handleGridTick = useCallback((newCandle: HistoricalData) => {
+  const handleGridTick = useCallback((price: number, time: number) => {
     setGridState(current => {
         if (!current.isRunning || !current.grid || !current.config) return current;
 
-        let { chartData, openOrders, trades, summary, grid, config } = current;
+        let { openOrders, trades, summary, grid, config } = current;
+
+        // Update the current candle being built
+        if (!currentCandleRef.current || currentCandleRef.current.time !== time) {
+            currentCandleRef.current = { time, open: price, high: price, low: price, close: price, volume: 0 };
+        } else {
+            currentCandleRef.current.high = Math.max(currentCandleRef.current.high!, price);
+            currentCandleRef.current.low = Math.min(currentCandleRef.current.low!, price);
+            currentCandleRef.current.close = price;
+        }
 
         // Check for Stop Loss or Take Profit first
-        if (config.stopLossPrice && newCandle.close <= config.stopLossPrice) {
-            addGridLog(`GLOBAL STOP LOSS triggered at ${newCandle.close}. Stopping simulation.`);
+        if (config.stopLossPrice && price <= config.stopLossPrice) {
+            addGridLog(`GLOBAL STOP LOSS triggered at ${price}. Stopping forward-test.`);
             stopGridSimulation();
             return { ...current, isRunning: false };
         }
-        if (config.takeProfitPrice && newCandle.close >= config.takeProfitPrice) {
-            addGridLog(`GLOBAL TAKE PROFIT triggered at ${newCandle.close}. Stopping simulation.`);
+        if (config.takeProfitPrice && price >= config.takeProfitPrice) {
+            addGridLog(`GLOBAL TAKE PROFIT triggered at ${price}. Stopping forward-test.`);
             stopGridSimulation();
             return { ...current, isRunning: false };
+        }
+        
+        // Trailing Logic
+        const highestGridLine = Math.max(...grid.levels);
+        const lowestGridLine = Math.min(...grid.levels);
+
+        const canTrailUp = config.trailingUp && (!config.trailingUpTriggerPrice || price > config.trailingUpTriggerPrice);
+        const canTrailDown = config.trailingDown && (!config.trailingDownTriggerPrice || price < config.trailingDownTriggerPrice);
+        
+        let gridShifted = false;
+        if (canTrailUp && price > highestGridLine) {
+            const shiftAmount = price - highestGridLine;
+            addGridLog(`Trailing Up: Price broke upper bound. Shifting grid up by ${shiftAmount.toFixed(4)}.`);
+            grid.levels = grid.levels.map(level => level + shiftAmount);
+            gridShifted = true;
+        } else if (canTrailDown && price < lowestGridLine) {
+            const shiftAmount = lowestGridLine - price;
+            addGridLog(`Trailing Down: Price broke lower bound. Shifting grid down by ${shiftAmount.toFixed(4)}.`);
+            grid.levels = grid.levels.map(level => level - shiftAmount);
+            gridShifted = true;
+        }
+        
+        if (gridShifted) {
+            // Cancel all orders and recreate them based on the new grid levels
+            openOrders = grid.levels.map(p => ({ price: p, side: 'buy' }));
+            config.lowerPrice = Math.min(...grid.levels);
+            config.upperPrice = Math.max(...grid.levels);
         }
 
 
         const newTrades: GridTrade[] = [];
         let stillOpenOrders = [...openOrders];
 
-        // Update chart data
-        if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
-            chartData[chartData.length - 1] = newCandle;
-        } else {
-            chartData.push(newCandle);
-            chartData = chartData.slice(-1000);
-        }
-
-        // Trailing Logic
-        const highestGridLine = Math.max(...grid.levels);
-        const lowestGridLine = Math.min(...grid.levels);
-
-        const canTrailUp = config.trailingUp && (!config.trailingUpTriggerPrice || newCandle.close > config.trailingUpTriggerPrice);
-        const canTrailDown = config.trailingDown && (!config.trailingDownTriggerPrice || newCandle.close < config.trailingDownTriggerPrice);
-
-        if (canTrailUp && newCandle.close > highestGridLine) {
-            const shiftAmount = newCandle.close - highestGridLine;
-            addGridLog(`Trailing Up: Price broke upper bound. Shifting grid up by ${shiftAmount.toFixed(4)}.`);
-            
-            const newUpperPrice = config.upperPrice + shiftAmount;
-            const newLowerPrice = config.lowerPrice + shiftAmount;
-            config.upperPrice = newUpperPrice;
-            config.lowerPrice = newLowerPrice;
-
-            grid.levels = grid.levels.map(level => level + shiftAmount);
-            stillOpenOrders = grid.levels.map(price => ({ price, side: 'buy' }));
-        } else if (canTrailDown && newCandle.close < lowestGridLine) {
-            const shiftAmount = lowestGridLine - newCandle.close;
-            addGridLog(`Trailing Down: Price broke lower bound. Shifting grid down by ${shiftAmount.toFixed(4)}.`);
-
-            const newUpperPrice = config.upperPrice - shiftAmount;
-            const newLowerPrice = config.lowerPrice - shiftAmount;
-            config.upperPrice = newUpperPrice;
-            config.lowerPrice = newLowerPrice;
-
-            grid.levels = grid.levels.map(level => level - shiftAmount);
-            stillOpenOrders = grid.levels.map(price => ({ price, side: 'buy' }));
-        }
-
-        stillOpenOrders.forEach(order => {
+        stillOpenOrders = stillOpenOrders.filter(order => {
             const isBuy = order.side === 'buy';
-            const priceCrossed = isBuy 
-                ? newCandle.low <= order.price 
-                : newCandle.high >= order.price;
+            const priceCrossed = isBuy ? price <= order.price : price >= order.price;
 
             if (priceCrossed) {
-                const trade: GridTrade = { id: `grid_${order.price}_${newCandle.time}_${Math.random()}`, time: newCandle.time, price: order.price, side: order.side };
+                const trade: GridTrade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
                 newTrades.push(trade);
-                
-                const indexToRemove = stillOpenOrders.findIndex(o => o.price === order.price && o.side === order.side);
-                if (indexToRemove > -1) stillOpenOrders.splice(indexToRemove, 1);
                 
                 const newOrderPrice = isBuy
                     ? order.price + grid.profitPerGrid
                     : order.price - grid.profitPerGrid;
                 
                 if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
-                    stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                     stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                 }
                 
                 if (summary) {
@@ -1092,12 +1091,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     summary.gridPnl += grid.profitPerGrid * grid.quantityPerGrid;
                     summary.totalTrades += 1;
                 }
+                return false; // Remove this order
             }
+            return true; // Keep this order
         });
         
         return {
             ...current,
-            chartData,
             openOrders: stillOpenOrders,
             trades: [...trades, ...newTrades],
             summary: summary ? {...summary} : current.summary,
@@ -1147,32 +1147,47 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
     });
 
-    toast({ title: "Grid Simulation Started", description: `Grid created for ${config.symbol}.` });
+    toast({ title: "Grid Forward-Test Started", description: `Grid created for ${config.symbol}.` });
     
     try {
         const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
         setGridState(prev => ({...prev, chartData: initialKlines}));
-        addGridLog(`Loaded ${initialKlines.length} initial candles for grid simulation.`);
+        addGridLog(`Loaded ${initialKlines.length} initial candles for forward-test.`);
+        
+        // Timer to push the constructed candle to the chart array
+        const intervalMs = intervalToMs(config.interval);
+        candleTimerRef.current = setInterval(() => {
+            if (currentCandleRef.current) {
+                setGridState(prev => {
+                    const newChartData = [...prev.chartData];
+                    const lastCandle = newChartData[newChartData.length-1];
+                    if(lastCandle.time === currentCandleRef.current!.time) {
+                        newChartData[newChartData.length - 1] = currentCandleRef.current as HistoricalData;
+                    } else {
+                        newChartData.push(currentCandleRef.current as HistoricalData);
+                    }
+                    return {...prev, chartData: newChartData.slice(-1000)};
+                });
+            }
+        }, 1000); // Update chart every second with the latest state of the current candle
 
-        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@aggTrade`);
         gridWsRef.current = ws;
 
-        ws.onopen = () => addGridLog("Grid simulation live feed connected.");
+        ws.onopen = () => addGridLog("Grid forward-test live feed connected.");
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.e === 'kline') {
-                const newCandle: HistoricalData = {
-                    time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
-                    low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
-                };
-                handleGridTick(newCandle);
+            const trade = JSON.parse(event.data);
+            if (trade.e === 'aggTrade') {
+                const price = parseFloat(trade.p);
+                const time = trade.T; // Trade time
+                handleGridTick(price, time);
             }
         };
-        ws.onerror = () => addGridLog("Grid simulation WebSocket error.");
-        ws.onclose = () => addGridLog("Grid simulation WebSocket closed.");
+        ws.onerror = () => addGridLog("Grid forward-test WebSocket error.");
+        ws.onclose = () => addGridLog("Grid forward-test WebSocket closed.");
 
     } catch (e: any) {
-        addGridLog(`Error starting grid simulation: ${e.message}`);
+        addGridLog(`Error starting grid forward-test: ${e.message}`);
         toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
         stopGridSimulation();
     }
@@ -1190,6 +1205,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
       if (simulationWsRef.current) simulationWsRef.current.close();
       if (gridWsRef.current) gridWsRef.current.close();
+      if (candleTimerRef.current) clearInterval(candleTimerRef.current);
     }
   }, []);
 

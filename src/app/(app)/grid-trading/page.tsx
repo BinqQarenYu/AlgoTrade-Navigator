@@ -206,7 +206,7 @@ export default function GridTradingPage() {
     <div className="space-y-6">
         <div className="text-left">
             <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-                <TestTube size={32}/> Futures Grid Simulator
+                <TestTube size={32}/> Futures Grid Forward-Testing
             </h1>
             <p className="text-muted-foreground mt-2">
                 Visually configure and forward-test a grid trading strategy against live market data.
@@ -350,7 +350,7 @@ export default function GridTradingPage() {
                              <CardFooter>
                                 <Button className="w-full" onClick={handleToggleSimulation} disabled={isFetchingData || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
                                     {isFetchingData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : isRunning ? <StopCircle /> : <Play />}
-                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Simulation" : "Create Grid Simulation"}
+                                    {isFetchingData ? "Loading..." : isRunning ? "Stop Forward-Test" : "Start Forward-Test"}
                                 </Button>
                             </CardFooter>
                         </CollapsibleContent>
