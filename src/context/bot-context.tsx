@@ -1233,41 +1233,53 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const avgGridPrice = gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length;
         const quantityPerGrid = investmentPerGrid / avgGridPrice;
         
-        let openOrders = gridLevels.map(price => ({ price, side: 'buy' as 'buy' | 'sell' }));
+        let openOrders: { price: number; side: 'buy' | 'sell' }[] = gridLevels.map(price => ({ price, side: 'buy' }));
         let gridPnl = 0;
-        let totalTrades = 0;
         const executedTrades: GridTrade[] = [];
         
         // Backtest loop
         klines.forEach(candle => {
-            openOrders = openOrders.filter(order => {
-                if ((order.side === 'buy' && candle.low <= order.price) || (order.side === 'sell' && candle.high >= order.price)) {
-                    totalTrades++;
-                    gridPnl += profitPerGrid * quantityPerGrid;
-                    executedTrades.push({ id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side });
-
-                    const newOrderPrice = order.side === 'buy' ? order.price + profitPerGrid : order.price - profitPerGrid;
-                    if (newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
-                        openOrders.push({ price: newOrderPrice, side: order.side === 'buy' ? 'sell' : 'buy' });
+            const newOpenOrders: { price: number; side: 'buy' | 'sell' }[] = [];
+            const ordersToProcess = [...openOrders];
+            openOrders = []; // Clear for the next iteration
+        
+            for (const order of ordersToProcess) {
+                const isBuy = order.side === 'buy';
+                const priceCrossed = isBuy ? candle.low <= order.price : candle.high >= order.price;
+        
+                if (priceCrossed) {
+                    executedTrades.push({ id: `bt_${order.price}_${candle.time}_${Math.random()}`, time: candle.time, price: order.price, side: order.side });
+                    
+                    if(isBuy) {
+                        gridPnl += profitPerGrid * quantityPerGrid;
                     }
-                    return false;
+
+                    const newOrderPrice = isBuy ? order.price + profitPerGrid : order.price - profitPerGrid;
+                    
+                    if (newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
+                        newOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
+                    }
+                } else {
+                    newOpenOrders.push(order);
                 }
-                return true;
-            });
+            }
+            openOrders = newOpenOrders;
         });
+        
+        const totalTrades = executedTrades.length;
         
         // Calculate final PNL
         const endPrice = klines[klines.length - 1].close;
         const unrealizedPnl = openOrders.reduce((acc, order) => {
-            if (order.side === 'sell') {
-                return acc + (order.price - endPrice) * quantityPerGrid;
+            if (order.side === 'sell') { // This means we are holding a long position from a previous buy
+                return acc + (endPrice - order.price) * quantityPerGrid;
             }
             return acc;
         }, 0);
 
         const totalPnl = gridPnl + unrealizedPnl;
         const maxDrawdown = 0; // Simplified for now
-        const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100) * 2;
+        const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100);
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
         const summary: GridBacktestSummary = { totalPnl, gridPnl, unrealizedPnl, totalTrades, maxDrawdown, totalFees, apr };

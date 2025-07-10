@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState } from 'react';
@@ -109,7 +110,7 @@ export function GridBacktestReport({ summary, trades, onSelectTrade }: GridBackt
                         <Collapsible open={isLogOpen} onOpenChange={setIsLogOpen}>
                             <CollapsibleTrigger asChild>
                                 <Button variant="outline" size="sm" className="w-full">
-                                    Trade Log
+                                    Trade Log ({trades.length} trades)
                                     <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isLogOpen && "rotate-180")} />
                                 </Button>
                             </CollapsibleTrigger>
@@ -124,13 +125,19 @@ export function GridBacktestReport({ summary, trades, onSelectTrade }: GridBackt
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {trades.map(trade => (
-                                                <TableRow key={trade.id} onClick={() => onSelectTrade(trade)} className="cursor-pointer hover:bg-muted/50">
-                                                    <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleString()}</TableCell>
-                                                    <TableCell><Badge variant={trade.side === 'buy' ? 'default' : 'destructive'}>{trade.side.toUpperCase()}</Badge></TableCell>
-                                                    <TableCell className="text-right font-mono text-xs">${formatPrice(trade.price)}</TableCell>
+                                            {trades.length > 0 ? (
+                                                trades.map(trade => (
+                                                    <TableRow key={trade.id} onClick={() => onSelectTrade(trade)} className="cursor-pointer hover:bg-muted/50">
+                                                        <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleString()}</TableCell>
+                                                        <TableCell><Badge variant={trade.side === 'buy' ? 'default' : 'destructive'} className={trade.side === 'buy' ? 'bg-green-600' : 'bg-red-600'}>{trade.side.toUpperCase()}</Badge></TableCell>
+                                                        <TableCell className="text-right font-mono text-xs">${formatPrice(trade.price)}</TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">No trades executed in backtest.</TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </ScrollArea>
