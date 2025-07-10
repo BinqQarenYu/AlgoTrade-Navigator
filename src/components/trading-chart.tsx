@@ -988,10 +988,10 @@ export function TradingChart({
         });
     }, [scaleMode]);
 
-    // Effect to draw grid lines
+    // Effect to draw grid lines and auto-zoom
     useEffect(() => {
       if (!chartRef.current || !chartRef.current.chart) return;
-      const { candlestickSeries, gridPriceLines } = chartRef.current;
+      const { candlestickSeries, gridPriceLines, chart } = chartRef.current;
 
       // Clear existing grid lines
       if (gridPriceLines) {
@@ -1000,7 +1000,13 @@ export function TradingChart({
       const newLines: any[] = [];
 
       if (gridLevels && gridLevels.length > 0) {
+        let minPrice = gridLevels[0];
+        let maxPrice = gridLevels[0];
+
         gridLevels.forEach(price => {
+          if (price < minPrice) minPrice = price;
+          if (price > maxPrice) maxPrice = price;
+
           const line = candlestickSeries.createPriceLine({
             price: price,
             color: '#888888', // Muted gray color
@@ -1011,7 +1017,23 @@ export function TradingChart({
           });
           newLines.push(line);
         });
+
+        // Auto-zoom to fit the grid with some padding
+        const priceRange = maxPrice - minPrice;
+        const padding = priceRange * 0.1; // 10% padding
+        
+        const priceScale = chart.priceScale('left');
+        priceScale.setVisibleRange({
+            from: minPrice - padding,
+            to: maxPrice + padding,
+        });
+
+      } else {
+        // If grid is cleared, let the chart autoscale normally
+        const priceScale = chart.priceScale('left');
+        priceScale.applyOptions({ autoScale: true });
       }
+
       chartRef.current.gridPriceLines = newLines;
     }, [gridLevels]);
 
