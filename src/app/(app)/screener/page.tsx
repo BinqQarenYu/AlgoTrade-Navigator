@@ -63,13 +63,8 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     try {
       const item = window.localStorage.getItem(key);
       if (item) {
-        const parsed = JSON.parse(item);
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
         if (isMounted) {
-          setState(parsed);
+          setState(JSON.parse(item));
         }
       }
     } catch (e) {
@@ -105,7 +100,7 @@ export default function ScreenerPage() {
     const { isRunning, prediction, logs, config: runningConfig, strategyInputs } = screenerState;
 
     // UI State
-    const [selectedAsset, setSelectedAsset] = usePersistentState<string>('screener-asset', "BTCUSDT");
+    const [selectedBaseAsset, setSelectedBaseAsset] = usePersistentState<string>('screener-base-asset', "BTC");
     const [selectedStrategies, setSelectedStrategies] = usePersistentState<string[]>('screener-strategies', strategyMetadatas.map(s => s.id));
     const [interval, setInterval] = usePersistentState<string>('screener-interval', "5m");
     
@@ -144,7 +139,7 @@ export default function ScreenerPage() {
         if (isRunning) {
             stopScreener();
         } else {
-            if (!selectedAsset) {
+            if (!selectedBaseAsset) {
                 toast({ title: "No Asset Selected", description: "Please select an asset to analyze.", variant: "destructive"});
                 return;
             }
@@ -161,7 +156,7 @@ export default function ScreenerPage() {
     const handleConfirmScreener = () => {
         consumeAiCredit();
         startScreener({
-            asset: selectedAsset,
+            asset: `${selectedBaseAsset}USDT`, // Always use USDT as the quote for the screener
             strategies: selectedStrategies,
             strategyParams,
             interval,
@@ -225,11 +220,11 @@ export default function ScreenerPage() {
                                 <CardContent className="space-y-4">
                                     <div className="space-y-2">
                                         <Label>Asset to Analyze</Label>
-                                        <Select onValueChange={setSelectedAsset} value={selectedAsset} disabled={isRunning}>
+                                        <Select onValueChange={setSelectedBaseAsset} value={selectedBaseAsset} disabled={isRunning}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
                                                 {topAssets.map(asset => (
-                                                    <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>
+                                                    <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}/USDT</SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
