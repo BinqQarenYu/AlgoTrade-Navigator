@@ -3,7 +3,7 @@
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -37,6 +37,7 @@ export function TradingChart({
   liquidityTargets = [],
   gridLevels = [],
   gridTrades = [],
+  matchedGridTrades = [],
   lineWidth = 2,
   consensusResult = null,
   showAnalysis = true,
@@ -49,7 +50,7 @@ export function TradingChart({
   symbol: string; 
   interval: string; 
   tradeSignal?: TradeSignal | null;
-  highlightedTrade?: BacktestResult | null;
+  highlightedTrade?: BacktestResult | MatchedGridTrade | null;
   onIntervalChange?: (newInterval: string) => void;
   wallLevels?: Wall[];
   spoofedWalls?: SpoofedWall[];
@@ -57,6 +58,7 @@ export function TradingChart({
   liquidityTargets?: LiquidityTarget[];
   gridLevels?: number[];
   gridTrades?: GridTrade[];
+  matchedGridTrades?: MatchedGridTrade[];
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
@@ -269,7 +271,7 @@ export function TradingChart({
             liquidityPriceLines: [],
             targetPriceLines: [],
             gridPriceLines: [],
-            gridTradeMarkers: [],
+            matchedGridTradeLine: null,
             volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
             volumeLegTextPriceLine: null,
             volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
@@ -327,7 +329,7 @@ export function TradingChart({
     }
     volumeSeries.update(formattedVolume);
 
-  }, [data[data.length - 1]]); // Only trigger when the last element changes
+  }, [data[data.length - 1], chartType]); // Only trigger when the last element changes
 
   useEffect(() => {
     if (!chartRef.current || !data) return;
@@ -375,8 +377,17 @@ export function TradingChart({
         
         const highlightColor = '#3b82f6';
         
+        const isTradeHighlighted = (d: HistoricalData): boolean => {
+            if (!highlightedTrade) return false;
+            // Check if it's a BacktestResult or MatchedGridTrade
+            if ('exitTime' in highlightedTrade && 'entryTime' in highlightedTrade) {
+                return d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+            }
+            return false;
+        };
+        
         const volumeChartData = uniqueData.map(d => {
-            const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+            const isHighlighted = isTradeHighlighted(d);
             
             let phaseColor: string | null = null;
             if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
@@ -496,7 +507,7 @@ export function TradingChart({
         } else {
             mainLineSeries.setData([]);
             const candlestickChartData = uniqueData.map(d => {
-                const isHighlighted = highlightedTrade && d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
+                const isHighlighted = isTradeHighlighted(d);
                 
                 let phaseColor: string | null = null;
                 if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
@@ -644,14 +655,17 @@ export function TradingChart({
       const { chart } = chartRef.current;
       const timeScale = chart.timeScale();
       
-      const intervalMs = highlightedTrade.exitTime === highlightedTrade.entryTime 
-        ? (data[1].time - data[0].time) // For single-candle events like grid trades
-        : (highlightedTrade.exitTime - highlightedTrade.entryTime);
+      const entryTime = 'buy' in highlightedTrade ? highlightedTrade.buy.time : highlightedTrade.entryTime;
+      const exitTime = 'sell' in highlightedTrade ? highlightedTrade.sell.time : highlightedTrade.exitTime;
+      
+      const intervalMs = exitTime === entryTime 
+        ? (data[1].time - data[0].time)
+        : (exitTime - entryTime);
 
       const paddingMs = intervalMs * 20;
 
-      const fromVisible = toTimestamp(highlightedTrade.entryTime - paddingMs);
-      const toVisible = toTimestamp(highlightedTrade.exitTime + paddingMs);
+      const fromVisible = toTimestamp(entryTime - paddingMs);
+      const toVisible = toTimestamp(exitTime + paddingMs);
 
       timeScale.setVisibleRange({
           from: fromVisible,
@@ -1079,58 +1093,61 @@ export function TradingChart({
 
     // Effect to draw grid trade markers
     useEffect(() => {
+      if (!chartRef.current || !chartRef.current.chart) return;
+      const { candlestickSeries } = chartRef.current;
+
+      const individualGridTrades = [
+        ...(gridTrades || []),
+        ...(matchedGridTrades || []).flatMap(t => [t.buy, t.sell])
+      ];
+
+      if (individualGridTrades.length > 0) {
+        const markers = individualGridTrades.map(trade => ({
+            time: toTimestamp(trade.time),
+            position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
+            color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
+            shape: 'circle',
+            size: 0.25,
+        }));
+        // Merge with other markers if needed, or set directly
+        candlestickSeries.setMarkers(markers);
+      } else {
+         // Clear markers if there are no trades to show
+        const existingMarkers = candlestickSeries.markers();
+        if (existingMarkers.some(m => m.shape === 'circle')) {
+            candlestickSeries.setMarkers(existingMarkers.filter(m => m.shape !== 'circle'));
+        }
+      }
+    }, [gridTrades, matchedGridTrades]);
+
+    // Effect for matched grid trade connector line
+    useEffect(() => {
         if (!chartRef.current || !chartRef.current.chart) return;
-        const { candlestickSeries, chart } = chartRef.current;
+        const { matchedGridTradeLine, chart } = chartRef.current;
 
-        // Clear previous markers
-        if (chartRef.current.gridTradeMarkers) {
-            chartRef.current.gridTradeMarkers.forEach((line: any) => candlestickSeries.removePriceLine(line));
+        // Clear previous line
+        if (matchedGridTradeLine) {
+            chart.removeSeries(matchedGridTradeLine);
+            chartRef.current.matchedGridTradeLine = null;
         }
-        const newMarkers: any[] = [];
 
-        if (gridTrades && gridTrades.length > 0) {
-            const timeScale = chart.timeScale();
-            const visibleRange = timeScale.getVisibleRange();
-
-            if (visibleRange) {
-                const intervalMs = data.length > 1 ? data[1].time - data[0].time : 60000;
-                const dotWidthSeconds = intervalMs / 1000 * 0.1; // 10% of candle width
-
-                gridTrades.forEach(trade => {
-                    const line = candlestickSeries.createPriceLine({
-                        price: trade.price,
-                        color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
-                        lineWidth: 4, // Make the line thick to appear as a dot
-                        lineStyle: LineStyle.Solid,
-                        axisLabelVisible: false, // Don't show axis label for dots
-                        title: '',
-                    });
-                    
-                    // Note: Lightweight Charts does not support drawing a line for a single point in time.
-                    // This is a workaround to create a very short line segment that looks like a dot.
-                    // This functionality isn't directly supported and might not be perfect.
-                    // A true "dot" marker at a price would require a custom series or plugin.
-                    // For now, we will associate it with the candle time. The marker will appear on the candle.
-                    // We will improve this if the library updates or a better workaround is found.
-                    // The core logic remains to place a visual indicator at the trade price and time.
-                    
-                    // Since we can't draw a line at a single time, we'll revert to markers for simplicity
-                    // as the user's primary request is a *dot*.
-                    candlestickSeries.removePriceLine(line); // remove the line we just made.
-                });
-                
-                // Revert to marker implementation which is more reliable.
-                const markers = gridTrades.map(trade => ({
-                    time: toTimestamp(trade.time),
-                    position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
-                    color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
-                    shape: 'circle',
-                    size: 0.25, // Smaller dot size
-                }));
-                // We will combine this with other markers later.
-            }
+        if (highlightedTrade && 'buy' in highlightedTrade) {
+            const newLine = chart.addLineSeries({
+                color: 'rgba(148, 163, 184, 0.7)', // slate-400
+                lineWidth: 1,
+                lineStyle: LineStyle.Dashed,
+                priceScaleId: 'left',
+                lastValueVisible: false,
+                priceLineVisible: false,
+            });
+            newLine.setData([
+                { time: toTimestamp(highlightedTrade.buy.time), value: highlightedTrade.buy.price },
+                { time: toTimestamp(highlightedTrade.sell.time), value: highlightedTrade.sell.price },
+            ]);
+            chartRef.current.matchedGridTradeLine = newLine;
         }
-    }, [gridTrades, data]);
+    }, [highlightedTrade]);
+
 
 
   const formattedSymbol = useMemo(() => {

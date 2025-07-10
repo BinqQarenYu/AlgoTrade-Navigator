@@ -460,6 +460,13 @@ export type GridTrade = {
     side: 'buy' | 'sell';
 };
 
+export type MatchedGridTrade = {
+    id: string;
+    pnl: number;
+    buy: GridTrade;
+    sell: GridTrade;
+}
+
 export type GridState = {
     isRunning: boolean;
     config: GridConfig | null;
@@ -485,7 +492,7 @@ export interface BotContextType {
   gridBacktestState: {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
-    backtestTrades: GridTrade[];
+    backtestTrades: MatchedGridTrade[];
   };
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;

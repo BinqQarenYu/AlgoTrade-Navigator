@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Button } from "@/components/ui/button";
 import { ChevronDown, Info } from "lucide-react";
 import { cn, formatPrice } from "@/lib/utils";
-import type { GridBacktestSummary, GridTrade } from '@/lib/types';
+import type { GridBacktestSummary, MatchedGridTrade } from '@/lib/types';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +16,8 @@ import { ScrollArea } from './ui/scroll-area';
 
 type GridBacktestReportProps = {
     summary: GridBacktestSummary;
-    trades: GridTrade[];
-    onSelectTrade: (trade: GridTrade) => void;
+    trades: MatchedGridTrade[];
+    onSelectTrade: (trade: MatchedGridTrade) => void;
 };
 
 const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: React.ReactNode, tooltipContent?: string }) => {
@@ -110,7 +110,7 @@ export function GridBacktestReport({ summary, trades, onSelectTrade }: GridBackt
                         <Collapsible open={isLogOpen} onOpenChange={setIsLogOpen}>
                             <CollapsibleTrigger asChild>
                                 <Button variant="outline" size="sm" className="w-full">
-                                    Trade Log ({trades.length} trades)
+                                    Matched Trades Log ({trades.length} pairs)
                                     <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isLogOpen && "rotate-180")} />
                                 </Button>
                             </CollapsibleTrigger>
@@ -119,23 +119,23 @@ export function GridBacktestReport({ summary, trades, onSelectTrade }: GridBackt
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>Time</TableHead>
-                                                <TableHead>Side</TableHead>
-                                                <TableHead className="text-right">Price</TableHead>
+                                                <TableHead>Buy Price</TableHead>
+                                                <TableHead>Sell Price</TableHead>
+                                                <TableHead className="text-right">PNL</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {trades.length > 0 ? (
                                                 trades.map(trade => (
                                                     <TableRow key={trade.id} onClick={() => onSelectTrade(trade)} className="cursor-pointer hover:bg-muted/50">
-                                                        <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleString()}</TableCell>
-                                                        <TableCell><Badge variant={trade.side === 'buy' ? 'default' : 'destructive'} className={trade.side === 'buy' ? 'bg-green-600' : 'bg-red-600'}>{trade.side.toUpperCase()}</Badge></TableCell>
-                                                        <TableCell className="text-right font-mono text-xs">${formatPrice(trade.price)}</TableCell>
+                                                        <TableCell className="font-mono text-xs text-green-500">${formatPrice(trade.buy.price)}</TableCell>
+                                                        <TableCell className="font-mono text-xs text-red-500">${formatPrice(trade.sell.price)}</TableCell>
+                                                        <TableCell className="text-right font-mono text-xs text-green-500">${trade.pnl.toFixed(4)}</TableCell>
                                                     </TableRow>
                                                 ))
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">No trades executed in backtest.</TableCell>
+                                                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">No matched trades in backtest.</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
