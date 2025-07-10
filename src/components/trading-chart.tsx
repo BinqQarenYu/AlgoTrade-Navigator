@@ -123,6 +123,7 @@ export function TradingChart({
           layout: {
             background: { type: ColorType.Solid, color: chartColors.background },
             textColor: chartColors.textColor,
+            fontSize: 11,
           },
           grid: {
             vertLines: { color: chartColors.gridColor },
@@ -653,7 +654,7 @@ export function TradingChart({
                 lineWidth: 4,     // Thick
                 lineStyle: LineStyle.Solid,
                 axisLabelVisible: true,
-                title: `SPOOF WALL`,
+                title: `\u00A0SPOOF WALL`,
             });
 
             let visible = true;
@@ -691,7 +692,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
-                    title: isBuySide ? `BST (${formatPrice(target.priceLevel)})` : `SST (${formatPrice(target.priceLevel)})`,
+                    title: isBuySide ? `\u00A0BST (${formatPrice(target.priceLevel)})` : `\u00A0SST (${formatPrice(target.priceLevel)})`,
                 });
                 newLines.push(line);
             });
@@ -975,19 +976,19 @@ export function TradingChart({
     <Card className="h-full flex flex-col">
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
-            <CardTitle className="text-lg font-medium">{chartTitle}</CardTitle>
+            <CardTitle className="text-base font-medium">{chartTitle}</CardTitle>
             {lastCandle ? (
                 <div className="flex items-baseline gap-2 mt-1">
-                    <span className={`text-3xl font-bold ${priceColor}`}>
+                    <span className={`text-2xl font-bold ${priceColor}`}>
                         {formatPrice(lastCandle.close)}
                     </span>
-                    <span className={`text-sm font-medium ${priceColor}`}>
+                    <span className={`text-xs font-medium ${priceColor}`}>
                         {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(changePrecision)} ({priceChangePercent.toFixed(2)}%)
                     </span>
                 </div>
             ) : (
                 <div className="mt-1">
-                    <Skeleton className="h-9 w-32" />
+                    <Skeleton className="h-8 w-32" />
                     <Skeleton className="h-4 w-24 mt-2" />
                 </div>
             )}
