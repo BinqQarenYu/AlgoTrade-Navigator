@@ -35,6 +35,7 @@ export function TradingChart({
   spoofedWalls = [],
   liquidityEvents = [],
   liquidityTargets = [],
+  gridLevels = [],
   lineWidth = 2,
   consensusResult = null,
   showAnalysis = true,
@@ -53,6 +54,7 @@ export function TradingChart({
   spoofedWalls?: SpoofedWall[];
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
+  gridLevels?: number[];
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
@@ -264,6 +266,7 @@ export function TradingChart({
             wallPriceLines: [],
             liquidityPriceLines: [],
             targetPriceLines: [],
+            gridPriceLines: [],
             volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
             volumeLegTextPriceLine: null,
             volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
@@ -984,6 +987,33 @@ export function TradingChart({
             mode: scaleMode === 'logarithmic' ? PriceScaleMode.Logarithmic : PriceScaleMode.Normal,
         });
     }, [scaleMode]);
+
+    // Effect to draw grid lines
+    useEffect(() => {
+      if (!chartRef.current || !chartRef.current.chart) return;
+      const { candlestickSeries, gridPriceLines } = chartRef.current;
+
+      // Clear existing grid lines
+      if (gridPriceLines) {
+        gridPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+      }
+      const newLines: any[] = [];
+
+      if (gridLevels && gridLevels.length > 0) {
+        gridLevels.forEach(price => {
+          const line = candlestickSeries.createPriceLine({
+            price: price,
+            color: '#888888', // Muted gray color
+            lineWidth: 1,
+            lineStyle: LineStyle.Dotted,
+            axisLabelVisible: true,
+            title: '',
+          });
+          newLines.push(line);
+        });
+      }
+      chartRef.current.gridPriceLines = newLines;
+    }, [gridLevels]);
 
 
   const formattedSymbol = useMemo(() => {

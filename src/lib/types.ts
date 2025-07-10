@@ -103,6 +103,8 @@ export type HistoricalData = {
   // For AI Consensus strategy
   aiReasoning?: string;
   aiConfidence?: number;
+  // For Grid Trading
+  gridLevels?: number[];
 };
 
 export type Portfolio = {
@@ -412,6 +414,43 @@ export interface ApiContextType {
   canUseAi: () => boolean;
 }
 
+export type GridConfig = {
+    symbol: string;
+    interval: string;
+    lowerPrice: number;
+    upperPrice: number;
+    gridCount: number;
+    mode: 'arithmetic' | 'geometric';
+    investment: number;
+};
+
+export type Grid = {
+    levels: number[];
+    profitPerGrid: number;
+    quantityPerGrid: number;
+};
+
+export type GridTrade = {
+    id: string;
+    time: number;
+    price: number;
+    side: 'buy' | 'sell';
+};
+
+export type GridState = {
+    isRunning: boolean;
+    config: GridConfig | null;
+    chartData: HistoricalData[];
+    grid: Grid | null;
+    trades: GridTrade[];
+    openOrders: { price: number, side: 'buy' | 'sell' }[];
+    summary: {
+        totalPnl: number;
+        gridPnl: number;
+        totalTrades: number;
+    } | null;
+};
+
 
 export interface BotContextType {
   liveBotState: any;
@@ -419,6 +458,7 @@ export interface BotContextType {
   multiSignalState: MultiSignalState;
   screenerState: ScreenerState;
   simulationState: SimulationState;
+  gridState: GridState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -437,6 +477,8 @@ export interface BotContextType {
   closePosition: (position: Position) => void;
   startSimulation: (config: SimulationConfig) => void;
   stopSimulation: () => void;
+  startGridSimulation: (config: GridConfig) => void;
+  stopGridSimulation: () => void;
 }
 
 export type Wall = {

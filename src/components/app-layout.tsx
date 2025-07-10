@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -26,6 +26,7 @@ const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
   { href: "/simulation", label: "Live Simulation", icon: TestTube },
+  { href: "/grid-trading", label: "Grid Trading", icon: Grid3x3 },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },
@@ -101,5 +102,3 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   )
 }
-
-    
