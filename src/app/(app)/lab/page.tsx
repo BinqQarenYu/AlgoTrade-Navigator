@@ -47,7 +47,7 @@ import { Slider } from "@/components/ui/slider"
 import { Separator } from "@/components/ui/separator"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { saveReport } from "@/lib/data-service"
+import { saveReport, loadReports } from "@/lib/data-service"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -291,10 +291,25 @@ export default function LabPage() {
   }, [baseAsset, quoteAsset, setQuoteAsset]);
 
   useEffect(() => {
-    // When the symbol changes, clear out old wall data
+    // When the symbol changes, clear out old data
     setWalls([]);
     setSpoofedWalls([]);
-    setConsensusResult(null); // Also clear prediction
+    setConsensusResult(null);
+    setManipulationResult(null); // Clear previous manipulation result on symbol change
+
+    const loadLastScan = async () => {
+        const reports = await loadReports();
+        const lastScan = reports.find(
+            (r) => r.type === 'manipulation-scan' && r.input.symbol === symbol
+        );
+
+        if (lastScan && lastScan.type === 'manipulation-scan') {
+            setManipulationResult(lastScan.output);
+            setManipulationCardOpen(true);
+        }
+    };
+    
+    loadLastScan();
   }, [symbol]);
 
   const runConsensus = useCallback(async (currentChartData: HistoricalData[]) => {
@@ -538,7 +553,7 @@ export default function LabPage() {
 
   const runManipulationScan = () => {
       consumeAiCredit();
-      setManipulationResult(null);
+      setManipulationResult(null); // Clear old results immediately
       setIsScanning(true);
       startScanTransition(async () => {
         try {
