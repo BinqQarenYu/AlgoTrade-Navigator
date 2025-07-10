@@ -303,37 +303,6 @@ export function TradingChart({
     };
   }, []);
 
-  // Effect to update the last candle smoothly for real-time data
-  useEffect(() => {
-    if (!chartRef.current || !data || data.length === 0) return;
-    
-    const { candlestickSeries, mainLineSeries, volumeSeries } = chartRef.current;
-    
-    const lastDataPoint = data[data.length - 1];
-    
-    const formattedCandle = {
-        time: toTimestamp(lastDataPoint.time),
-        open: lastDataPoint.open,
-        high: lastDataPoint.high,
-        low: lastDataPoint.low,
-        close: lastDataPoint.close,
-    };
-
-    const formattedVolume = {
-        time: toTimestamp(lastDataPoint.time),
-        value: lastDataPoint.volume,
-        color: lastDataPoint.close >= lastDataPoint.open ? chartRef.current.chartColors.volumeUpColor : chartRef.current.chartColors.volumeDownColor,
-    };
-    
-    if (chartType === 'line') {
-      mainLineSeries.update({ time: formattedCandle.time, value: formattedCandle.close });
-    } else {
-      candlestickSeries.update(formattedCandle);
-    }
-    volumeSeries.update(formattedVolume);
-
-  }, [data[data.length - 1], chartType]); // Only trigger when the last element changes
-
   useEffect(() => {
     if (!chartRef.current || !data) return;
     
