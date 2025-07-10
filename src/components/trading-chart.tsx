@@ -1,10 +1,11 @@
 
+
 "use client";
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade } from '@/lib/types';
-import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
+import type { DetectManipulationOutput } from '@/ai/flows/manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -281,6 +282,8 @@ export function TradingChart({
             volumeLeg2TextPriceLine: null,
             volumeLeg3LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#60a5fa', lineStyle: LineStyle.Dashed }),
             volumeLeg3TextPriceLine: null,
+            dumpLineSeries: chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, ...commonLineOptions }),
+            dumpVolumeTextPriceLine: null,
         };
     }
     
@@ -368,7 +371,7 @@ export function TradingChart({
                     phaseColor = chartColors.accumulationVolumeColor;
                 } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
                     phaseColor = chartColors.pumpVolumeColor;
-                } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
+                } else if (distributionPeriod && d.time >= distributionPeriod.endTime) { // Changed this line
                     phaseColor = chartColors.distributionVolumeColor;
                 }
             }
@@ -497,7 +500,7 @@ export function TradingChart({
                       phaseColor = chartColors.accumulationColor;
                   } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
                       phaseColor = chartColors.pumpColor;
-                  } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
+                  } else if (distributionPeriod && d.time >= distributionPeriod.endTime) { // Changed this line
                       phaseColor = chartColors.distributionColor;
                   }
                 }
@@ -1010,6 +1013,50 @@ export function TradingChart({
             }
         }
     }, [data, liquidityEvents, showAnalysis]);
+    
+    // Effect for the Dump Analysis Line
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { dumpLineSeries, candlestickSeries, dumpVolumeTextPriceLine } = chartRef.current;
+
+        // Clear existing lines
+        if (dumpLineSeries) dumpLineSeries.setData([]);
+        if (dumpVolumeTextPriceLine) {
+            candlestickSeries.removePriceLine(dumpVolumeTextPriceLine);
+            chartRef.current.dumpVolumeTextPriceLine = null;
+        }
+
+        if (showManipulationOverlay && manipulationResult?.distributionPeriod && data.length > 0) {
+            const { startTime } = manipulationResult.distributionPeriod;
+            
+            const startIndex = data.findIndex(d => d.time >= startTime);
+            const startCandle = data[startIndex];
+            const endCandle = data[data.length - 1];
+
+            if (startCandle && endCandle) {
+                // Draw the line
+                dumpLineSeries.setData([
+                    { time: toTimestamp(startCandle.time), value: startCandle.close },
+                    { time: toTimestamp(endCandle.time), value: endCandle.close },
+                ]);
+
+                // Calculate volume
+                const relevantCandles = data.slice(startIndex);
+                const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
+                const volumeText = `Vol (Dump): ${formatLargeNumber(totalVolume, 2)}`;
+                const midpointPrice = (startCandle.close + endCandle.close) / 2;
+
+                // Create the text label on the price axis
+                chartRef.current.dumpVolumeTextPriceLine = candlestickSeries.createPriceLine({
+                    price: midpointPrice,
+                    color: 'transparent',
+                    lineWidth: 0,
+                    axisLabelVisible: true,
+                    title: volumeText,
+                });
+            }
+        }
+    }, [data, manipulationResult, showManipulationOverlay]);
 
     // Effect to handle price scale mode changes
     useEffect(() => {

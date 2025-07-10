@@ -1,6 +1,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -556,6 +557,16 @@ export type RankedScreenedAsset = {
 
 export type ScreenAssetsOutput = {
     assets: RankedScreenedAsset[];
+};
+
+export type DetectManipulationOutput = {
+  isManipulationSuspected: boolean;
+  confidence: number;
+  currentPhase: 'Accumulation' | 'Pump' | 'Distribution' | 'None';
+  reasoning: string;
+  accumulationPeriod?: { startTime: number; endTime: number; };
+  pumpPeriod?: { startTime: number; endTime: number; };
+  distributionPeriod?: { startTime: number; endTime: number; };
 };
 
 export interface Strategy {
