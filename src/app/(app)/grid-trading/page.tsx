@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown, BarChart2, Grid3x3 } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, GripHorizontal, TestTube, ChevronDown, BarChart2, Grid3x3, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { cn, formatPrice } from "@/lib/utils"
 import type { HistoricalData, GridTrade, BacktestResult, GridBacktestSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
@@ -64,6 +64,7 @@ export default function GridTradingPage() {
   const [gridCount, setGridCount] = usePersistentState<number>('grid-count', 10);
   const [leverage, setLeverage] = usePersistentState<number>('grid-leverage', 10);
   const [mode, setMode] = usePersistentState<'arithmetic' | 'geometric'>('grid-mode', 'arithmetic');
+  const [direction, setDirection] = usePersistentState<'neutral' | 'long' | 'short'>('grid-direction', 'neutral');
   const [investment, setInvestment] = usePersistentState<number>('grid-investment', 1000);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -173,6 +174,7 @@ export default function GridTradingPage() {
             gridCount,
             leverage,
             mode,
+            direction,
             investment,
             trailingUp,
             trailingDown,
@@ -194,6 +196,7 @@ export default function GridTradingPage() {
         gridCount,
         leverage,
         mode,
+        direction,
         investment,
         trailingUp,
         trailingDown,
@@ -331,18 +334,34 @@ export default function GridTradingPage() {
                                         <Input id="upper-price" type="number" value={upperPrice} onChange={e => setUpperPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label>Mode</Label>
-                                    <RadioGroup onValueChange={(v) => setMode(v as any)} value={mode} className="flex gap-4" disabled={isRunning}>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="arithmetic" id="arithmetic" />
-                                            <Label htmlFor="arithmetic" className="font-normal">Arithmetic</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <RadioGroupItem value="geometric" id="geometric" />
-                                            <Label htmlFor="geometric" className="font-normal">Geometric</Label>
-                                        </div>
-                                    </RadioGroup>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Grid Mode</Label>
+                                        <RadioGroup onValueChange={(v) => setMode(v as any)} value={mode} className="flex gap-4" disabled={isRunning}>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="arithmetic" id="arithmetic" />
+                                                <Label htmlFor="arithmetic" className="font-normal">Arithmetic</Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="geometric" id="geometric" />
+                                                <Label htmlFor="geometric" className="font-normal">Geometric</Label>
+                                            </div>
+                                        </RadioGroup>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Direction</Label>
+                                        <RadioGroup onValueChange={(v) => setDirection(v as any)} value={direction} className="flex gap-x-4 gap-y-2" disabled={isRunning}>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="font-normal flex items-center gap-1"><Minus/>Neutral</Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="long" id="long" /><Label htmlFor="long" className="font-normal flex items-center gap-1"><TrendingUp/>Long</Label>
+                                            </div>
+                                            <div className="flex items-center space-x-2">
+                                                <RadioGroupItem value="short" id="short" /><Label htmlFor="short" className="font-normal flex items-center gap-1"><TrendingDown/>Short</Label>
+                                            </div>
+                                        </RadioGroup>
+                                    </div>
                                 </div>
                                  <div className="grid grid-cols-3 gap-4">
                                     <div>
@@ -465,7 +484,7 @@ export default function GridTradingPage() {
                                             >
                                                 <TableCell className="text-xs font-mono">{new Date(trade.time).toLocaleTimeString()}</TableCell>
                                                 <TableCell>
-                                                    <Badge variant={trade.side === 'buy' ? 'default' : 'destructive'}>{trade.side.toUpperCase()}</Badge>
+                                                    <Badge variant={trade.side === 'buy' ? 'default' : 'destructive'} className={trade.side === 'buy' ? 'bg-green-600' : 'bg-red-600'}>{trade.side.toUpperCase()}</Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right font-mono text-xs">${formatPrice(trade.price)}</TableCell>
                                             </TableRow>

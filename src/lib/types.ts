@@ -422,6 +422,7 @@ export type GridConfig = {
     gridCount: number;
     leverage: number;
     mode: 'arithmetic' | 'geometric';
+    direction: 'neutral' | 'long' | 'short';
     investment: number;
     trailingUp: boolean;
     trailingDown: boolean;
