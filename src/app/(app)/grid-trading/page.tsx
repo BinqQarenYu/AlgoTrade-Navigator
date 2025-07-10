@@ -53,7 +53,7 @@ export default function GridTradingPage() {
     gridBacktestState,
   } = useBot();
   const { isRunning, chartData: botChartData, grid, trades, summary } = gridState;
-  const { isBacktesting, backtestSummary, backtestTrades } = gridBacktestState;
+  const { isBacktesting, backtestSummary, backtestTrades, unmatchedTrades } = gridBacktestState;
 
 
   // UI State & Config
@@ -268,6 +268,7 @@ export default function GridTradingPage() {
                         gridLevels={calculatedGridLevels}
                         gridTrades={trades}
                         matchedGridTrades={backtestTrades}
+                        unmatchedGridTrades={unmatchedTrades}
                         highlightedTrade={selectedTrade}
                     />
                 </div>

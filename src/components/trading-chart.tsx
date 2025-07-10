@@ -38,6 +38,7 @@ export function TradingChart({
   gridLevels = [],
   gridTrades = [],
   matchedGridTrades = [],
+  unmatchedGridTrades = [],
   lineWidth = 2,
   consensusResult = null,
   showAnalysis = true,
@@ -59,6 +60,7 @@ export function TradingChart({
   gridLevels?: number[];
   gridTrades?: GridTrade[];
   matchedGridTrades?: MatchedGridTrade[];
+  unmatchedGridTrades?: GridTrade[];
   lineWidth?: number;
   consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
@@ -272,6 +274,7 @@ export function TradingChart({
             targetPriceLines: [],
             gridPriceLines: [],
             matchedGridTradeLine: null,
+            gridTradePriceLines: [],
             volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
             volumeLegTextPriceLine: null,
             volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
@@ -494,7 +497,16 @@ export function TradingChart({
             }
         }
         
-        const allMarkers = [...signalMarkers, ...liquidityMarkers, ...manipulationMarkers].sort((a, b) => a.time - b.time);
+        const unmatchedGridMarkers = unmatchedGridTrades ? unmatchedGridTrades.map(trade => ({
+            time: toTimestamp(trade.time),
+            position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
+            color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
+            shape: trade.side === 'buy' ? 'arrowUp' : 'arrowDown',
+            text: 'Unmatched',
+            size: 0.8,
+        })) : [];
+
+        const allMarkers = [...signalMarkers, ...liquidityMarkers, ...manipulationMarkers, ...unmatchedGridMarkers].sort((a, b) => a.time - b.time);
 
         if (chartType === 'line') {
             candlestickSeries.setData([]);
@@ -561,7 +573,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, unmatchedGridTrades]);
 
    // Effect to draw signal lines
     useEffect(() => {
@@ -1091,33 +1103,34 @@ export function TradingChart({
       chartRef.current.gridPriceLines = newLines;
     }, [gridLevels]);
 
-    // Effect to draw grid trade markers
+    // Effect to draw grid trade markers (dots)
     useEffect(() => {
-      if (!chartRef.current || !chartRef.current.chart) return;
-      const { candlestickSeries } = chartRef.current;
+        if (!chartRef.current || !chartRef.current.chart) return;
+        const { candlestickSeries } = chartRef.current;
 
-      const individualGridTrades = [
-        ...(gridTrades || []),
-        ...(matchedGridTrades || []).flatMap(t => [t.buy, t.sell])
-      ];
-
-      if (individualGridTrades.length > 0) {
-        const markers = individualGridTrades.map(trade => ({
-            time: toTimestamp(trade.time),
-            position: trade.side === 'buy' ? 'belowBar' : 'aboveBar',
-            color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
-            shape: 'circle',
-            size: 0.25,
-        }));
-        // Merge with other markers if needed, or set directly
-        candlestickSeries.setMarkers(markers);
-      } else {
-         // Clear markers if there are no trades to show
-        const existingMarkers = candlestickSeries.markers();
-        if (existingMarkers.some(m => m.shape === 'circle')) {
-            candlestickSeries.setMarkers(existingMarkers.filter(m => m.shape !== 'circle'));
+        // Clear previous lines
+        if (chartRef.current.gridTradePriceLines) {
+            chartRef.current.gridTradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
-      }
+        
+        const newLines: any[] = [];
+        const tradesToDraw = gridTrades.length > 0 ? gridTrades : matchedGridTrades.flatMap(t => [t.buy, t.sell]);
+
+        if (tradesToDraw.length > 0) {
+            tradesToDraw.forEach(trade => {
+                const dotLine = candlestickSeries.createPriceLine({
+                    price: trade.price,
+                    color: trade.side === 'buy' ? '#22c55e' : '#ef4444',
+                    lineWidth: 4, // Make it a short, thick line to look like a dot
+                    lineStyle: LineStyle.Solid,
+                    axisLabelVisible: false,
+                });
+                newLines.push(dotLine);
+            });
+        }
+        
+        chartRef.current.gridTradePriceLines = newLines;
+
     }, [gridTrades, matchedGridTrades]);
 
     // Effect for matched grid trade connector line

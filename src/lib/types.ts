@@ -1,5 +1,6 @@
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -493,6 +494,7 @@ export interface BotContextType {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
     backtestTrades: MatchedGridTrade[];
+    unmatchedTrades: GridTrade[];
   };
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
