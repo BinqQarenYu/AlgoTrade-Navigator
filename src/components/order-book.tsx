@@ -102,45 +102,20 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const lastUpdateIdRef = useRef<number | null>(null);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
     
-    const applyUpdates = useCallback((updates: any[]) => {
-        updates.forEach(update => {
-            setBids(prevBids => {
-                const newBids = new Map(prevBids);
-                update.b.forEach(([p, q]: OrderBookLevel) => {
-                    if (parseFloat(q) === 0) {
-                        newBids.delete(p);
-                    } else {
-                        newBids.set(p, q);
-                    }
-                });
-                return newBids;
-            });
-            setAsks(prevAsks => {
-                const newAsks = new Map(prevAsks);
-                update.a.forEach(([p, q]: OrderBookLevel) => {
-                    if (parseFloat(q) === 0) {
-                        newAsks.delete(p);
-                    } else {
-                        newAsks.set(p, q);
-                    }
-                });
-                return newAsks;
-            });
-        });
-    }, []);
-
     const connectAndSync = useCallback(async (currentSymbol: string) => {
         if (wsRef.current) {
             wsRef.current.close();
+            wsRef.current = null;
         }
 
         setIsConnecting(true);
         lastUpdateIdRef.current = null;
-        setBids(new Map());
-        setAsks(new Map());
-        
         let eventQueue: any[] = [];
         let snapshotLoaded = false;
+        
+        // Clear previous data
+        setBids(new Map());
+        setAsks(new Map());
 
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
         wsRef.current = ws;
@@ -154,49 +129,73 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 return;
             }
 
-            if (data.U <= lastUpdateIdRef.current!) {
-                return;
-            }
-            
-            if (data.pu === lastUpdateIdRef.current) {
-                applyUpdates([data]);
-                lastUpdateIdRef.current = data.u;
-            } else {
-                console.warn(`Order book for ${currentSymbol} out of sync. Re-syncing...`);
-                connectAndSync(currentSymbol);
+            if (data.U > lastUpdateIdRef.current!) {
+                if (data.pu === lastUpdateIdRef.current) {
+                    setBids(prev => {
+                        const newBids = new Map(prev);
+                        data.b.forEach(([p, q]: OrderBookLevel) => {
+                            if (parseFloat(q) === 0) newBids.delete(p);
+                            else newBids.set(p, q);
+                        });
+                        return newBids;
+                    });
+                    setAsks(prev => {
+                        const newAsks = new Map(prev);
+                        data.a.forEach(([p, q]: OrderBookLevel) => {
+                            if (parseFloat(q) === 0) newAsks.delete(p);
+                            else newAsks.set(p, q);
+                        });
+                        return newAsks;
+                    });
+                    lastUpdateIdRef.current = data.u;
+                } else {
+                    console.warn(`Order book for ${currentSymbol} out of sync. Re-syncing...`);
+                    connectAndSync(currentSymbol);
+                }
             }
         };
 
-        ws.onopen = () => {
-            console.log(`Order book stream for ${currentSymbol} connected.`);
-        };
-        
+        ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
         ws.onerror = () => {
             console.error(`Order book WebSocket error for ${currentSymbol}.`);
             toast({ title: 'Stream Error', variant: 'destructive' });
             setIsConnecting(false);
             setIsStreamActive(false);
         };
-
-        ws.onclose = () => {
-            console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
-        };
+        ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
 
         try {
             const snapshot = await getDepthSnapshot(currentSymbol);
-            if (ws.readyState !== WebSocket.OPEN) return; // Connection may have closed
+            if (ws.readyState !== WebSocket.OPEN) return;
 
+            lastUpdateIdRef.current = snapshot.lastUpdateId;
             setBids(new Map(snapshot.bids));
             setAsks(new Map(snapshot.asks));
-            lastUpdateIdRef.current = snapshot.lastUpdateId;
+            
             snapshotLoaded = true;
             setIsConnecting(false);
-
-            // Process any events that were queued while snapshot was loading
+            
             const updatesToApply = eventQueue.filter(update => update.U > lastUpdateIdRef.current!);
-            if (updatesToApply.length > 0) {
-                 applyUpdates(updatesToApply);
-            }
+            
+            updatesToApply.forEach(data => {
+                if (data.pu === lastUpdateIdRef.current) {
+                    setBids(prev => {
+                        const newBids = new Map(prev);
+                        data.b.forEach(([p, q]: OrderBookLevel) => {
+                            if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
+                        });
+                        return newBids;
+                    });
+                    setAsks(prev => {
+                        const newAsks = new Map(prev);
+                        data.a.forEach(([p, q]: OrderBookLevel) => {
+                           if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
+                        });
+                        return newAsks;
+                    });
+                    lastUpdateIdRef.current = data.u;
+                }
+            });
             eventQueue = [];
             
             console.log(`Order book for ${currentSymbol} is now in sync.`);
@@ -206,7 +205,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             setIsStreamActive(false);
             ws.close();
         }
-    }, [applyUpdates, setIsStreamActive, toast]);
+    }, [setIsStreamActive, toast]);
 
 
     useEffect(() => {
@@ -216,7 +215,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
         return () => {
             if (wsRef.current) {
-                wsRef.current.onclose = null; // Prevent onclose logic from running on manual cleanup
+                wsRef.current.onclose = null;
                 wsRef.current.close();
                 wsRef.current = null;
             }
@@ -308,7 +307,12 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             }
         });
         
-        onWallsUpdate({ walls: allWalls, spoofs: spoofs });
+        if (spoofs.length > 0) {
+            onWallsUpdate({ walls: allWalls, spoofs: spoofs });
+        } else {
+            onWallsUpdate({ walls: allWalls, spoofs: [] });
+        }
+
 
         // Update the reference for the next comparison
         const newWallMap = new Map<string, Wall>();

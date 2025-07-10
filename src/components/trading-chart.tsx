@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
@@ -61,6 +61,8 @@ export function TradingChart({
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
+  const [spoofZone, setSpoofZone] = useState<{ top: number, bottom: number, startTime: number } | null>(null);
+  const spoofZoneTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const lastCandle = data.length > 0 ? data[data.length - 1] : null;
   const previousCandle = data.length > 1 ? data[data.length - 2] : null;
@@ -166,6 +168,15 @@ export function TradingChart({
         volumeSeries.priceScale().applyOptions({
             scaleMargins: { top: 0.8, bottom: 0 },
         });
+        
+        const spoofingZoneSeries = chart.addCandlestickSeries({
+            priceScaleId: 'left',
+            upColor: 'rgba(239, 68, 68, 0.05)', // semi-transparent red
+            downColor: 'rgba(239, 68, 68, 0.05)',
+            wickVisible: false,
+            borderVisible: false,
+            autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
+        });
 
         const manipulationZoneSeries = chart.addCandlestickSeries({
             priceScaleId: 'left',
@@ -208,9 +219,9 @@ export function TradingChart({
             candlestickSeries,
             mainLineSeries,
             volumeSeries,
+            spoofingZoneSeries,
             targetZoneSeries,
             manipulationZoneSeries,
-            spoofAnimations: new Map(),
             smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
             smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
             emaMediumSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.emaMediumColor }),
@@ -261,12 +272,8 @@ export function TradingChart({
       if (chartContainer) {
         resizeObserver.unobserve(chartContainer);
       }
-      if (chartRef.current?.spoofAnimations) {
-        chartRef.current.spoofAnimations.forEach((anim: any) => {
-          clearInterval(anim.intervalId);
-          clearTimeout(anim.timeoutId);
-        });
-        chartRef.current.spoofAnimations.clear();
+      if (spoofZoneTimeoutRef.current) {
+        clearTimeout(spoofZoneTimeoutRef.current);
       }
       if (chartRef.current?.chart) {
           chartRef.current.chart.remove();
@@ -623,13 +630,16 @@ export function TradingChart({
         const newLines: any[] = [];
         if (showAnalysis && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
+                const title = wall.type === 'bid' ? `\u{2003}BID WALL` : `\u{2003}ASK WALL`;
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
                     color: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
-                    title: `\u2009${wall.type.toUpperCase()} WALL`,
+                    title: title,
+                    axisLabelColor: '#FFFFFF',
+                    axisLabelTextColor: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
                 });
                 newLines.push(line);
             });
@@ -640,38 +650,62 @@ export function TradingChart({
 
     // Effect for SPOOFED walls
     useEffect(() => {
-        if (!chartRef.current?.chart || !showAnalysis || !spoofedWalls || spoofedWalls.length === 0) return;
-        
-        const { candlestickSeries, spoofAnimations } = chartRef.current;
-        if (!candlestickSeries || !spoofAnimations) return;
-
-        spoofedWalls.forEach(spoof => {
-            if (spoofAnimations.has(spoof.id)) return; // Don't re-animate
-
-            const line = candlestickSeries.createPriceLine({
-                price: spoof.price,
-                color: '#ef4444', // Red
-                lineWidth: 4,     // Thick
-                lineStyle: LineStyle.Solid,
-                axisLabelVisible: true,
-                title: `\u2009SPOOF WALL`,
-            });
-
-            let visible = true;
-            const intervalId = setInterval(() => {
-                visible = !visible;
-                line.applyOptions({ color: visible ? '#ef4444' : 'transparent' });
-            }, 300); // Blink interval
-
-            const timeoutId = setTimeout(() => {
-                clearInterval(intervalId);
-                candlestickSeries.removePriceLine(line);
-                spoofAnimations.delete(spoof.id);
-            }, 5000); // Remove after 5 seconds
-
-            spoofAnimations.set(spoof.id, { line, intervalId, timeoutId });
-        });
+      if (!chartRef.current?.chart || !showAnalysis || spoofedWalls.length === 0) return;
+    
+      const latestSpoof = spoofedWalls[spoofedWalls.length - 1];
+    
+      // Reset the timeout whenever a new spoof comes in
+      if (spoofZoneTimeoutRef.current) {
+        clearTimeout(spoofZoneTimeoutRef.current);
+      }
+    
+      setSpoofZone(prevZone => {
+        if (prevZone) {
+          return {
+            ...prevZone,
+            top: Math.max(prevZone.top, latestSpoof.price),
+            bottom: Math.min(prevZone.bottom, latestSpoof.price),
+          };
+        } else {
+          return {
+            top: latestSpoof.price,
+            bottom: latestSpoof.price,
+            startTime: toTimestamp(Date.now()),
+          };
+        }
+      });
+    
+      // Set a timer to clear the zone after 1 minute of inactivity
+      spoofZoneTimeoutRef.current = setTimeout(() => {
+        setSpoofZone(null);
+      }, 60000); // 1 minute
+    
+      return () => {
+        if (spoofZoneTimeoutRef.current) {
+          clearTimeout(spoofZoneTimeoutRef.current);
+        }
+      };
     }, [spoofedWalls, showAnalysis]);
+
+    // Effect to draw the spoofing zone
+    useEffect(() => {
+      if (!chartRef.current?.chart) return;
+      const { spoofingZoneSeries } = chartRef.current;
+      if (!spoofingZoneSeries) return;
+    
+      if (spoofZone && showAnalysis) {
+        const zoneData = [{
+          time: spoofZone.startTime,
+          open: spoofZone.top,
+          high: spoofZone.top,
+          low: spoofZone.bottom,
+          close: spoofZone.bottom,
+        }];
+        spoofingZoneSeries.setData(zoneData);
+      } else {
+        spoofingZoneSeries.setData([]);
+      }
+    }, [spoofZone, showAnalysis]);
 
     // Effect to draw historical liquidity target lines
     useEffect(() => {
