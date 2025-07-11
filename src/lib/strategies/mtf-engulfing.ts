@@ -1,3 +1,4 @@
+
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA, calculateATR } from '@/lib/indicators';
@@ -53,23 +54,28 @@ const mtfEngulfingStrategy: Strategy = {
   name: 'MTF Engulfing',
   description: 'Uses a Higher Timeframe EMA for trend and enters on a Lower Timeframe Engulfing candle.',
   
-  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol: string = 'BTCUSDT'): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol: string): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.emaLength) return dataWithIndicators;
 
-    // Fetch HTF data
+    // --- FIX START: Fetch HTF data with proper lookback for EMA warm-up ---
     const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' } as const;
     const htfBinanceInterval = htfIntervalMap[params.htf];
+    const htfIntervalMs = intervalToMs(htfBinanceInterval);
 
-    const htfStartTime = data[0].time;
+    // Calculate how far back we need to fetch data for the HTF EMA to be accurate.
+    // Fetch at least `emaLength` periods *before* our main data starts.
+    const lookbackPeriodMs = params.emaLength * htfIntervalMs * 2; // Fetch twice the length for safety
+    const htfStartTime = data[0].time - lookbackPeriodMs;
     const htfEndTime = data[data.length - 1].time;
-    // A real implementation might need to fetch slightly more data to ensure the EMA is accurate at the start.
+    
     const htfDataRaw = await getHistoricalKlines(symbol, htfBinanceInterval, htfStartTime, htfEndTime);
     
-    if (htfDataRaw.length === 0) {
-      console.warn("Could not fetch HTF data for MTF Engulfing strategy.");
+    if (htfDataRaw.length < params.emaLength) {
+      console.warn("Could not fetch enough HTF data for MTF Engulfing strategy to warm up EMA.");
       return dataWithIndicators; // Return original data if HTF fetch fails
     }
+    // --- FIX END ---
 
     const htfEmaValues = calculateEMA(htfDataRaw.map(d => d.close), params.emaLength);
     const htfDataWithEma = htfDataRaw.map((d, i) => ({ ...d, ema_long: htfEmaValues[i] }));
