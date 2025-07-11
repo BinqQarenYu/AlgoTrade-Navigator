@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -29,7 +29,6 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { addDays } from "date-fns"
 import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
@@ -237,7 +236,8 @@ export default function SimulationPage() {
   const [chartHeight, setChartHeight] = usePersistentState<number>('sim-chart-height', 600);
 
   // Local chart data management
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
+  const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isClient, setIsClient] = useState(false);
 
@@ -270,8 +270,8 @@ export default function SimulationPage() {
     }
     if (selectedPosition) {
       // Convert SimulatedPosition to a BacktestResult-like object for the chart
-      const lastTime = chartData.length > 0 ? chartData[chartData.length - 1].time : selectedPosition.entryTime;
-      const lastClose = chartData.length > 0 ? chartData[chartData.length - 1].close : selectedPosition.entryPrice;
+      const lastTime = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].time : selectedPosition.entryTime;
+      const lastClose = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].close : selectedPosition.entryPrice;
       const pnl = selectedPosition.side === 'long' 
         ? (lastClose - selectedPosition.entryPrice) * selectedPosition.size
         : (selectedPosition.entryPrice - lastClose) * selectedPosition.size;
@@ -292,7 +292,7 @@ export default function SimulationPage() {
       };
     }
     return null;
-  }, [selectedTrade, selectedPosition, chartData]);
+  }, [selectedTrade, selectedPosition, chartDataWithIndicators]);
 
   const handleParamChange = (strategyId: string, paramName: string, value: string) => {
     const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -362,34 +362,52 @@ export default function SimulationPage() {
   }, [interval, showAnalysis]);
 
   useEffect(() => {
-    if (chartData.length > 0) {
-      refreshChartAnalysis(chartData);
+    if (chartDataWithIndicators.length > 0) {
+      refreshChartAnalysis(chartDataWithIndicators);
     }
-  }, [chartData, refreshChartAnalysis]);
+  }, [chartDataWithIndicators, refreshChartAnalysis]);
 
   useEffect(() => {
     setIsClient(true)
   }, []);
 
+  // Effect to calculate and display indicators when data or strategy changes
   useEffect(() => {
     if (isRunning) {
-      setChartData(botChartData);
+        setChartDataWithIndicators(botChartData);
+        return;
     }
-  }, [isRunning, botChartData]);
+    const calculateAndSetIndicators = async () => {
+      if (rawChartData.length === 0) {
+        setChartDataWithIndicators([]);
+        return;
+      }
+      
+      const strategy = getStrategyById(selectedStrategy);
+      if (strategy) {
+          const paramsForStrategy = strategyParams[selectedStrategy] || {};
+          const calculatedData = await strategy.calculate(rawChartData, paramsForStrategy);
+          setChartDataWithIndicators(calculatedData);
+      } else {
+          setChartDataWithIndicators(rawChartData);
+      }
+    };
+    calculateAndSetIndicators();
+  }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData]);
 
   useEffect(() => {
     if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
-        if (!isRunning) setChartData([]);
+        if (!isRunning) setRawChartData([]);
         return;
     }
 
     const fetchData = async () => {
         setIsFetchingData(true);
-        setChartData([]);
+        setRawChartData([]);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getLatestKlinesByLimit(symbol, interval, 500);
-            setChartData(klines);
+            setRawChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
@@ -398,7 +416,7 @@ export default function SimulationPage() {
                 description: error.message || "Could not retrieve historical data from Binance.",
                 variant: "destructive"
             });
-            setChartData([]);
+            setRawChartData([]);
         } finally {
             setIsFetchingData(false);
         }
@@ -495,7 +513,7 @@ export default function SimulationPage() {
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
               <TradingChart 
-                data={chartData} 
+                data={chartDataWithIndicators} 
                 symbol={symbol} 
                 interval={interval} 
                 liquidityEvents={liquidityEvents}
