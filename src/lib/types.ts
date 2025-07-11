@@ -3,6 +3,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -420,6 +421,7 @@ export interface ApiContextType {
   };
   setAiQuotaLimit: (newLimit: number) => void;
   canUseAi: () => boolean;
+  consumeAiCredit: () => void;
 }
 
 export type GridConfig = {
