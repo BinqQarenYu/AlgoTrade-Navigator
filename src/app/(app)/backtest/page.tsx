@@ -78,6 +78,7 @@ import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-orde
 import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
+import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
 
 interface DateRange {
   from?: Date;
@@ -114,6 +115,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'ema-cci-macd': defaultEmaCciMacdParams,
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
+    'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
@@ -829,6 +831,55 @@ export default function BacktestPage() {
                     <div className="space-y-2">
                         <Label htmlFor="rrRatio">Risk/Reward Ratio</Label>
                         <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 2.0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading} />
+                    </div>
+                </div>
+                 <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                    id="reverse-logic"
+                    checked={params.reverse || false}
+                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                    disabled={anyLoading}
+                    />
+                    <div className="flex flex-col">
+                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (selectedStrategy === 'smi-mfi-supertrend') {
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="supertrendPeriod">Supertrend Period</Label>
+                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 10} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="supertrendMultiplier">Supertrend Multiplier</Label>
+                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 3} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="mfiPeriod">MFI Period</Label>
+                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 14} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="smiPeriod">SMI Period</Label>
+                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 5} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="smiEmaPeriod">SMI EMA Period</Label>
+                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 3} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="overbought">Overbought Level</Label>
+                        <Input id="overbought" type="number" value={params.overbought || 40} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading} />
+                    </div>
+                     <div className="space-y-2">
+                        <Label htmlFor="oversold">Oversold Level</Label>
+                        <Input id="oversold" type="number" value={params.oversold || -40} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading} />
                     </div>
                 </div>
                  <div className="flex items-center space-x-2 pt-2">
