@@ -50,7 +50,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     }
   }, [key, state, isHydrated]);
 
-  return [state, setState];
+  return [isHydrated ? state : defaultValue, setState];
 };
 
 export function AIAnalyticsCard() {
@@ -74,7 +74,6 @@ export function AIAnalyticsCard() {
 
   const handleConfirmPredict = useCallback(async () => {
     setIsConfirming(false);
-    consumeAiCredit();
     setIsLoading(true);
     setPrediction(null);
 
@@ -116,6 +115,8 @@ export function AIAnalyticsCard() {
             marketContext
         });
 
+        // Only consume credit AFTER a successful response
+        consumeAiCredit();
         setPrediction(predictionResult);
         toast({ title: "Prediction Complete", description: `AI analysis for ${asset} is ready.` });
 
