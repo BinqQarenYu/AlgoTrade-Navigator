@@ -492,6 +492,13 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             Object.keys(result).forEach(k => result[k].push(null));
         } else {
             const slice = data.slice(i - period, i); // Use previous period's data
+            
+            // Add a guard clause to ensure the slice is not empty
+            if (slice.length === 0) {
+                 Object.keys(result).forEach(k => result[k].push(null));
+                 continue;
+            }
+
             const high = Math.max(...slice.map(d => d.high));
             const low = Math.min(...slice.map(d => d.low));
             const close = slice[slice.length - 1].close;
