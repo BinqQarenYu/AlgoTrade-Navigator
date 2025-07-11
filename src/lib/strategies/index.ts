@@ -29,13 +29,11 @@ import hyperPeakFormationStrategy from './hyper-peak-formation';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
-import aiConsensusStrategy from './ai-consensus';
 import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback';
 import { strategyIndicatorMap } from './indicator-map';
 
 
 export const strategies: Strategy[] = [
-  aiConsensusStrategy,
   peakFormationFibStrategy,
   hyperPeakFormationStrategy,
   liquidityOrderFlowStrategy,
