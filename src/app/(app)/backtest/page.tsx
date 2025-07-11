@@ -38,6 +38,7 @@ import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/type
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
+import { analyzePineScript } from "@/ai/flows/analyze-pine-script"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
@@ -1192,7 +1193,7 @@ export default function BacktestPage() {
           selectedTradeId={selectedTrade?.id}
         />}
         
-        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
+        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
     </div>
     </div>
