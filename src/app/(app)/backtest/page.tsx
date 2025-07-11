@@ -77,6 +77,7 @@ import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
+import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 
 interface DateRange {
   from?: Date;
@@ -112,6 +113,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
     'code-based-consensus': defaultCodeBasedConsensusParams,
+    'mtf-engulfing': defaultMtfEngulfingParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
@@ -138,12 +140,12 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
             const a = arr.slice(0); // clone arr
             a.push(ranges[i][j]);
             if (i === max) {
-                const combo: Record<string, number> = {};
+                const combo: Record<string, number | string> = {};
                 keys.forEach((key, index) => {
                     combo[key] = a[index];
                 });
                 // Validation for common crossover strategies
-                if (combo.longPeriod && combo.shortPeriod && combo.longPeriod <= combo.shortPeriod) return;
+                if ('longPeriod' in combo && 'shortPeriod' in combo && (combo.longPeriod as number) <= (combo.shortPeriod as number)) return;
                 combinations.push(combo);
             } else {
                 helper(a, i + 1);
@@ -247,7 +249,7 @@ export default function BacktestPage() {
         const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
         setStrategyParams(prev => ({
             ...prev,
-            [strategyId]: { ...prev[strategyId], [paramName]: isNaN(parsedValue) ? 0 : parsedValue }
+            [strategyId]: { ...prev[strategyId], [paramName]: isNaN(parsedValue) ? value : parsedValue }
         }));
     }
   };
@@ -791,8 +793,61 @@ export default function BacktestPage() {
       );
     }
     
+    // Special UI for MTF Engulfing
+    if (selectedStrategy === 'mtf-engulfing') {
+        return (
+            <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="htf">Higher Timeframe (HTF)</Label>
+                    <Select
+                        value={params.htf || '1D'}
+                        onValueChange={(value) => handleParamChange(selectedStrategy, 'htf', value)}
+                        disabled={anyLoading}
+                    >
+                        <SelectTrigger id="htf"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="1D">1 Day</SelectItem>
+                            <SelectItem value="4h">4 Hours</SelectItem>
+                            <SelectItem value="1h">1 Hour</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="emaLength">EMA Length</Label>
+                        <Input id="emaLength" type="number" value={params.emaLength || 21} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="atrLength">ATR Length</Label>
+                        <Input id="atrLength" type="number" value={params.atrLength || 14} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="slAtrMultiplier">SL ATR Multiplier</Label>
+                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 1.5} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="rrRatio">Risk/Reward Ratio</Label>
+                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 2.0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading} />
+                    </div>
+                </div>
+                 <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                    id="reverse-logic"
+                    checked={params.reverse || false}
+                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                    disabled={anyLoading}
+                    />
+                    <div className="flex flex-col">
+                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
     // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse'));
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'htf'));
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
@@ -804,8 +859,8 @@ export default function BacktestPage() {
                     disabled={anyLoading}
                 />
                 <div className="flex flex-col">
-                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                  <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                  <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                 </div>
             </div>
         );
@@ -1199,3 +1254,5 @@ export default function BacktestPage() {
     </div>
   )
 }
+
+    
