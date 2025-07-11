@@ -31,4 +31,5 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'vwap-cross': ['VWAP'],
   'williams-r': ['Williams %R'],
   'code-based-consensus': ['Multiple Indicators', 'Ensemble'],
+  'mtf-engulfing': ['EMA', 'ATR', 'Engulfing Pattern'],
 };

@@ -138,5 +138,11 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         macdShortPeriod: { min: 9, max: 15, step: 3 },
         macdLongPeriod: { min: 20, max: 30, step: 5 },
         macdSignalPeriod: { min: 7, max: 12, step: 2 },
-    }
+    },
+    'mtf-engulfing': {
+        emaLength: { min: 14, max: 50, step: 7 },
+        atrLength: { min: 10, max: 20, step: 2 },
+        slAtrMultiplier: { min: 1.0, max: 2.5, step: 0.5 },
+        rrRatio: { min: 1.5, max: 3.0, step: 0.5 },
+    },
 };
