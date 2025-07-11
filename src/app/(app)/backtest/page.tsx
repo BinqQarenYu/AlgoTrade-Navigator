@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -733,6 +734,7 @@ export default function BacktestPage() {
     if (selectedStrategy === 'code-based-consensus') {
       const selectedSubStrategies = params.strategies || [];
       const consensusStrategies = strategyMetadatas.filter(s => s.id !== 'code-based-consensus');
+      const allStrategyIds = consensusStrategies.map(s => s.id);
 
       const handleConsensusStrategyToggle = (strategyId: string) => {
         const newSelection = selectedSubStrategies.includes(strategyId)
@@ -741,10 +743,20 @@ export default function BacktestPage() {
         handleParamChange(selectedStrategy, 'strategies', newSelection);
       };
 
+      const handleSelectAll = (selectAll: boolean) => {
+          handleParamChange(selectedStrategy, 'strategies', selectAll ? allStrategyIds : []);
+      }
+
       return (
         <div className="space-y-4">
           <div>
-              <Label>Ensemble Strategies</Label>
+              <div className="flex justify-between items-center mb-1">
+                <Label>Ensemble Strategies</Label>
+                <div className="flex gap-2">
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => handleSelectAll(true)}>Select All</Button>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => handleSelectAll(false)}>Deselect All</Button>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground">Select the strategies to include in the consensus calculation. A signal is generated when a majority agree.</p>
               <ScrollArea className="h-40 w-full rounded-md border p-4 mt-2">
                 <div className="space-y-2">
