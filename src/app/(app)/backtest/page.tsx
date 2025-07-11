@@ -44,6 +44,8 @@ import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategie
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Checkbox } from "@/components/ui/checkbox"
 
 // Import default parameters from all strategies to enable reset functionality
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -73,6 +75,7 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
+import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 
 interface DateRange {
   from?: Date;
@@ -107,6 +110,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-grab': defaultLiquidityGrabParams,
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
+    'code-based-consensus': defaultCodeBasedConsensusParams,
 }
 
 // Helper to generate parameter combinations for auto-tuning
@@ -225,15 +229,25 @@ export default function BacktestPage() {
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
-    setStrategyParams(prev => ({
-        ...prev,
-        [strategyId]: {
-            ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
-        }
-    }));
+  const handleParamChange = (strategyId: string, paramName: string, value: string | string[]) => {
+    if (Array.isArray(value)) {
+       setStrategyParams(prev => ({
+            ...prev,
+            [strategyId]: {
+                ...prev[strategyId],
+                [paramName]: value,
+            }
+        }));
+    } else {
+        const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+        setStrategyParams(prev => ({
+            ...prev,
+            [strategyId]: {
+                ...prev[strategyId],
+                [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
+            }
+        }));
+    }
   };
   
   const handleResetParams = () => {
@@ -337,7 +351,7 @@ export default function BacktestPage() {
       let dataWithInd: HistoricalData[];
 
       if (strategy) {
-          const paramsForStrategy = strategyParams[selectedStrategy];
+          const paramsForStrategy = strategyParams[selectedStrategy] || {};
           dataWithInd = await strategy.calculate(chartData, paramsForStrategy);
       } else {
           dataWithInd = chartData;
@@ -475,7 +489,7 @@ export default function BacktestPage() {
       description: `Running ${strategy.name} on ${symbol} (${interval}).`,
     });
 
-    const paramsForStrategy = strategyParams[selectedStrategy];
+    const paramsForStrategy = strategyParams[selectedStrategy] || {};
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy);
     
     const trades: BacktestResult[] = [];
@@ -712,8 +726,46 @@ export default function BacktestPage() {
   };
 
   const renderParameterControls = () => {
-    const params = strategyParams[selectedStrategy];
-    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+    const params = strategyParams[selectedStrategy] || {};
+
+    // Special UI for code-based-consensus
+    if (selectedStrategy === 'code-based-consensus') {
+      const selectedSubStrategies = params.strategies || [];
+      const consensusStrategies = strategyMetadatas.filter(s => s.id !== 'code-based-consensus');
+
+      const handleConsensusStrategyToggle = (strategyId: string) => {
+        const newSelection = selectedSubStrategies.includes(strategyId)
+            ? selectedSubStrategies.filter((s: string) => s !== strategyId)
+            : [...selectedSubStrategies, strategyId];
+        handleParamChange(selectedStrategy, 'strategies', newSelection);
+      };
+
+      return (
+        <div className="space-y-4">
+          <Label>Ensemble Strategies</Label>
+          <p className="text-xs text-muted-foreground">Select the strategies to include in the consensus calculation. A signal is generated when a majority agree.</p>
+          <ScrollArea className="h-48 w-full rounded-md border p-4">
+            <div className="space-y-2">
+                {consensusStrategies.map((strategy) => (
+                    <div key={strategy.id} className="flex items-center space-x-2">
+                        <Checkbox 
+                            id={`consensus-${strategy.id}`} 
+                            checked={selectedSubStrategies.includes(strategy.id)}
+                            onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)}
+                            disabled={anyLoading}
+                        />
+                        <Label htmlFor={`consensus-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
+                    </div>
+                ))}
+            </div>
+          </ScrollArea>
+        </div>
+      );
+    }
+    
+    if (Object.keys(params).length === 0) {
+        return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+    }
 
     const controls = Object.entries(params).map(([key, value]) => (
       <div key={key} className="space-y-2">
@@ -961,7 +1013,7 @@ export default function BacktestPage() {
                   <Label>AI-Powered Analysis</Label>
                   <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <div className="flex items-center space-x-2">
-                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading} />
+                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading || selectedStrategy === 'code-based-consensus'} />
                         <div className="flex flex-col">
                             <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
                             <p className="text-xs text-muted-foreground">Let an AI validate each signal. This is more accurate but significantly slower.</p>

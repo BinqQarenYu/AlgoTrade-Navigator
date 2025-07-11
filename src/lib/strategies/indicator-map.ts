@@ -30,5 +30,5 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'volume-delta': ['Volume Profile (POC)', 'Volume Delta'],
   'vwap-cross': ['VWAP'],
   'williams-r': ['Williams %R'],
-  'ai-consensus': ['Multiple Indicators', 'AI'],
+  'code-based-consensus': ['Multiple Indicators', 'Ensemble'],
 };

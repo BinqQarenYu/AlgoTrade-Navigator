@@ -41,6 +41,7 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
+import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-consensus';
 
 
 // --- State Types ---
@@ -128,6 +129,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'liquidity-grab': defaultLiquidityGrabParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
+    'code-based-consensus': defaultCodeBasedConsensusParams,
 };
 
 const KNOWN_INDICATORS = [
