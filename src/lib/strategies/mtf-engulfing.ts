@@ -54,9 +54,10 @@ const mtfEngulfingStrategy: Strategy = {
   name: 'MTF Engulfing',
   description: 'Uses a Higher Timeframe EMA for trend and enters on a Lower Timeframe Engulfing candle.',
   
-  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol: string): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol?: string): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    if (data.length < params.emaLength) return dataWithIndicators;
+    // Add guard clause to prevent error on empty data
+    if (!data || data.length < params.emaLength) return dataWithIndicators;
 
     // --- FIX START: Fetch HTF data with proper lookback for EMA warm-up ---
     const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' } as const;
@@ -69,6 +70,11 @@ const mtfEngulfingStrategy: Strategy = {
     const htfStartTime = data[0].time - lookbackPeriodMs;
     const htfEndTime = data[data.length - 1].time;
     
+    if (!symbol) {
+        console.error("MTF Engulfing strategy requires a symbol to fetch HTF data.");
+        return dataWithIndicators;
+    }
+
     const htfDataRaw = await getHistoricalKlines(symbol, htfBinanceInterval, htfStartTime, htfEndTime);
     
     if (htfDataRaw.length < params.emaLength) {
