@@ -35,6 +35,7 @@ import { strategyIndicatorMap } from './indicator-map';
 
 
 export const strategies: Strategy[] = [
+  aiConsensusStrategy,
   peakFormationFibStrategy,
   hyperPeakFormationStrategy,
   liquidityOrderFlowStrategy,

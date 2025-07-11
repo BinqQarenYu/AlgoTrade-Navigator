@@ -1,9 +1,15 @@
 
 'use client';
 import type { Strategy, HistoricalData, StrategyAnalysisInput } from '@/lib/types';
-import { getStrategyById } from '@/lib/strategies';
 import { predictPrice } from '@/ai/flows/predict-price-flow';
 import { getFearAndGreedIndex } from '@/lib/fear-greed-service';
+
+// --- Direct Imports to break circular dependency ---
+import emaCrossoverStrategy from './ema-crossover';
+import rsiDivergenceStrategy from './rsi-divergence';
+import macdCrossoverStrategy from './macd-crossover';
+import bollingerBandsStrategy from './bollinger-bands';
+// ---
 
 // Known indicators to extract from strategy calculations
 const KNOWN_INDICATORS = [
@@ -16,9 +22,16 @@ const KNOWN_INDICATORS = [
     'williams_r', 'cci', 'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
 ];
 
+const SUB_STRATEGIES: Record<string, Strategy> = {
+  [emaCrossoverStrategy.id]: emaCrossoverStrategy,
+  [rsiDivergenceStrategy.id]: rsiDivergenceStrategy,
+  [macdCrossoverStrategy.id]: macdCrossoverStrategy,
+  [bollingerBandsStrategy.id]: bollingerBandsStrategy,
+};
+
 export interface AiConsensusParams {
   strategyIds: string[];
-  // These parameters are not used by the calculate function itself but are here
+  // This parameter is not used by the calculate function itself but is here
   // to show this strategy is composed of others. In a more advanced system,
   // these could be used to pass-through parameters to the underlying strategies.
   dummyParam: number; 
@@ -46,7 +59,7 @@ const aiConsensusStrategy: Strategy = {
     // 1. Pre-calculate all indicators for all sub-strategies across the entire dataset
     const allStrategyCalculations: Record<string, HistoricalData[]> = {};
     for (const strategyId of strategyIds) {
-        const strategy = getStrategyById(strategyId);
+        const strategy = SUB_STRATEGIES[strategyId];
         if (!strategy) continue;
         allStrategyCalculations[strategyId] = await strategy.calculate(data);
     }
@@ -56,8 +69,9 @@ const aiConsensusStrategy: Strategy = {
     const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
 
     // 3. Loop through each candle to make a prediction
+    let lastSignalType: 'buy' | 'sell' | null = null;
     for (let i = minHistory; i < data.length; i++) {
-        // Throttle AI calls to once every 5 candles to improve performance
+        // AI Throttling: Only call the AI every 5 candles to reduce cost during backtests.
         if (i % 5 !== 0) continue; 
 
         const strategyOutputs: StrategyAnalysisInput[] = [];
@@ -65,7 +79,7 @@ const aiConsensusStrategy: Strategy = {
         const recentData = JSON.stringify(data.slice(i - 100, i + 1));
 
         for (const strategyId of strategyIds) {
-            const strategy = getStrategyById(strategyId);
+            const strategy = SUB_STRATEGIES[strategyId];
             if (!strategy || !allStrategyCalculations[strategyId]) continue;
 
             const candleWithIndicators = allStrategyCalculations[strategyId][i];
@@ -98,10 +112,12 @@ const aiConsensusStrategy: Strategy = {
 
             // Only generate a signal if confidence is above a certain threshold
             if (prediction.confidence > 0.6) {
-                if (prediction.predictedDirection === 'UP') {
+                if (prediction.predictedDirection === 'UP' && lastSignalType !== 'buy') {
                     dataWithIndicators[i].buySignal = data[i].low;
-                } else if (prediction.predictedDirection === 'DOWN') {
+                    lastSignalType = 'buy';
+                } else if (prediction.predictedDirection === 'DOWN' && lastSignalType !== 'sell') {
                     dataWithIndicators[i].sellSignal = data[i].high;
+                    lastSignalType = 'sell';
                 }
             }
             

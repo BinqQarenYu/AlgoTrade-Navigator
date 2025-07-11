@@ -1,10 +1,9 @@
 
-
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, GridTrade, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
@@ -75,7 +74,6 @@ interface BotContextType {
   liveBotState: LiveBotState;
   manualTraderState: ManualTraderState;
   multiSignalState: MultiSignalState;
-  screenerState: ScreenerState;
   simulationState: SimulationState;
   gridState: GridState;
   gridBacktestState: GridBacktestState;
@@ -92,8 +90,6 @@ interface BotContextType {
   setManualChartData: (symbol: string, interval: string) => void;
   startMultiSignalMonitor: (config: MultiSignalConfig) => void;
   stopMultiSignalMonitor: () => void;
-  startScreener: (config: ScreenerConfig) => void;
-  stopScreener: () => void;
   closePosition: (position: Position) => void;
   startSimulation: (config: SimulationConfig) => void;
   stopSimulation: () => void;
@@ -174,12 +170,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const multiSignalIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const multiSignalRunningRef = useRef(false);
   const multiSignalConfigRef = useRef<MultiSignalConfig | null>(null);
-
-  // --- Screener State ---
-  const [screenerState, setScreenerState] = useState<ScreenerState>({
-    isRunning: false, config: null, prediction: null, logs: [], strategyInputs: []
-  });
-  const screenerRunningRef = useRef(false);
   
   // --- Simulation State ---
    const [simulationState, setSimulationState] = useState<SimulationState>({
@@ -229,7 +219,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const addLiveLog = useCallback((message: string) => addLog(setLiveBotState, message), [addLog]);
   const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
   const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
-  const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
   const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
   const addGridLog = useCallback((message: string) => addLog(setGridState, message), [addLog]);
   
@@ -732,92 +721,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     addMultiLog("Multi-signal monitor stopped by user.");
     toast({ title: "Multi-Signal Monitor Stopped" });
   }, [addMultiLog, toast]);
-
-  // --- Screener Logic ---
-  const startScreener = useCallback(async (config: ScreenerConfig) => {
-    if (!canUseAi()) return;
-    
-    screenerRunningRef.current = true;
-    setScreenerState({ isRunning: true, config, prediction: null, logs: [], strategyInputs: [] });
-    addScreenerLog(`Starting AI consensus analysis for ${config.asset}...`);
-    toast({ title: "AI Consensus Analysis Started", description: "This will use an AI credit." });
-    
-    try {
-        addScreenerLog("Fetching historical data...");
-        const data = await getLatestKlinesByLimit(config.asset, config.interval, 500);
-
-        if (!screenerRunningRef.current) return;
-        
-        const lastCandle = data[data.length - 1];
-        if (!lastCandle) {
-            throw new Error('Could not get latest candle to determine current price.');
-        }
-
-        addScreenerLog(`Analyzing with ${config.strategies.length} strategies...`);
-        const strategyOutputs: StrategyAnalysisInput[] = [];
-
-        for (const strategyId of config.strategies) {
-             if (!screenerRunningRef.current) break;
-            const strategy = getStrategyById(strategyId);
-            if (!strategy) continue;
-
-            const paramsForStrategy = config.strategyParams[strategyId];
-            const dataWithIndicators = await strategy.calculate(data, paramsForStrategy);
-            const lastCandleWithIndicators = dataWithIndicators[dataWithIndicators.length - 1];
-            
-            let signal: 'BUY' | 'SELL' | 'HOLD' | null = null;
-            if (lastCandleWithIndicators.buySignal) signal = 'BUY';
-            else if (lastCandleWithIndicators.sellSignal) signal = 'SELL';
-            else signal = 'HOLD';
-
-            const indicators: Record<string, any> = {};
-            for (const key of KNOWN_INDICATORS) {
-                if (key in lastCandleWithIndicators && lastCandleWithIndicators[key as keyof HistoricalData] !== null && lastCandleWithIndicators[key as keyof HistoricalData] !== undefined) {
-                    indicators[key] = lastCandleWithIndicators[key as keyof HistoricalData];
-                }
-            }
-
-            strategyOutputs.push({ strategyName: strategy.name, signal, indicatorValues: indicators });
-            setScreenerState(prev => ({...prev, strategyInputs: [...strategyOutputs]}));
-        }
-        
-        if (!screenerRunningRef.current) return;
-
-        addScreenerLog("All strategies analyzed. Sending to AI for final prediction...");
-        
-        const fng = await getFearAndGreedIndex();
-        const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-
-        const prediction = await predictPrice({
-            asset: config.asset,
-            interval: config.interval,
-            currentPrice: lastCandle.close,
-            recentData: JSON.stringify(data.slice(-100).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-            strategyOutputs,
-            marketContext
-        });
-
-        if (!screenerRunningRef.current) return;
-        
-        setScreenerState(prev => ({...prev, prediction, isRunning: false}));
-        addScreenerLog(`AI prediction received: ${prediction.predictedDirection}`);
-        toast({ title: "Prediction Complete", description: `The AI consensus predicts a direction of ${prediction.predictedDirection}.` });
-
-    } catch (e: any) {
-        addScreenerLog(`Analysis failed: ${e.message}`);
-        toast({ title: "Analysis Failed", description: e.message, variant: "destructive" });
-        setScreenerState(prev => ({...prev, isRunning: false}));
-    } finally {
-        screenerRunningRef.current = false;
-    }
-
-  }, [addScreenerLog, toast, canUseAi]);
-
-  const stopScreener = useCallback(() => {
-    addScreenerLog("Stopping analysis...");
-    screenerRunningRef.current = false;
-    setScreenerState(prev => ({...prev, isRunning: false}));
-  }, [addScreenerLog]);
   
   const closePosition = useCallback(async (position: Position) => {
     if (!activeProfile || !apiKey || !secretKey) {
@@ -1110,7 +1013,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     }
                 } else if (config.direction === 'neutral') {
                     // Place the opposite order back on the grid
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
@@ -1343,8 +1246,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      screenerRunningRef.current = false;
-      multiSignalRunningRef.current = false;
       if (liveBotIntervalRef.current) clearInterval(liveBotIntervalRef.current);
       if (manualWsRef.current) manualWsRef.current.close();
       if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
@@ -1360,7 +1261,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       liveBotState, 
       manualTraderState,
       multiSignalState,
-      screenerState,
       simulationState,
       gridState,
       gridBacktestState,
@@ -1377,8 +1277,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       setManualChartData,
       startMultiSignalMonitor,
       stopMultiSignalMonitor,
-      startScreener,
-      stopScreener,
       closePosition,
       startSimulation,
       stopSimulation,
@@ -1398,4 +1296,3 @@ export const useBot = () => {
   }
   return context;
 };
-
