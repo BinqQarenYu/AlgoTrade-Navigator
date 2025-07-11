@@ -65,7 +65,8 @@ export function formatLargeNumber(num: number, digits = 2): string {
   return (num / si[i].value).toFixed(digits).replace(rx, "$1") + si[i].symbol;
 }
 
-export const intervalToMs = (interval: string): number => {
+export const intervalToMs = (interval?: string): number => {
+    if (!interval) return 0; // Safeguard against undefined input
     const value = parseInt(interval.slice(0, -1), 10);
     const unit = interval.slice(-1);
 

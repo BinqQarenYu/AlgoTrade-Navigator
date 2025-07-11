@@ -22,7 +22,7 @@ export const defaultMtfEngulfingParams: MtfEngulfingParams = {
 };
 
 // Helper to map HTF data to LTF data
-const mapHtfToLtf = (ltfData: HistoricalData[], htfData: HistoricalData[], htfInterval: '1D' | '4h' | '1h'): (number | null)[] => {
+const mapHtfToLtf = (ltfData: HistoricalData[], htfData: HistoricalData[], htfInterval: '1d' | '4h' | '1h'): (number | null)[] => {
     const htfIntervalMs = intervalToMs(htfInterval);
     if (htfIntervalMs === 0) return Array(ltfData.length).fill(null);
 
@@ -57,7 +57,7 @@ const mtfEngulfingStrategy: Strategy = {
     if (data.length < params.emaLength) return dataWithIndicators;
 
     // Fetch HTF data
-    const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' };
+    const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' } as const;
     const htfBinanceInterval = htfIntervalMap[params.htf];
 
     const htfStartTime = data[0].time;
@@ -73,7 +73,7 @@ const mtfEngulfingStrategy: Strategy = {
     const htfEmaValues = calculateEMA(htfDataRaw.map(d => d.close), params.emaLength);
     const htfDataWithEma = htfDataRaw.map((d, i) => ({ ...d, ema_long: htfEmaValues[i] }));
     
-    const htfEmaMapped = mapHtfToLtf(data, htfDataWithEma, params.htf);
+    const htfEmaMapped = mapHtfToLtf(data, htfDataWithEma, htfBinanceInterval);
     const atrValues = calculateATR(data, params.atrLength);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
@@ -113,4 +113,3 @@ const mtfEngulfingStrategy: Strategy = {
 };
 
 export default mtfEngulfingStrategy;
-
