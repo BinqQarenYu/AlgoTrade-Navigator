@@ -39,10 +39,11 @@ import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
 
 // Import default parameters from all strategies to enable reset functionality
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -845,19 +846,26 @@ export default function BacktestPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="strategy">Strategy</Label>
-                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
-                        <SelectTrigger id="strategy">
-                          <SelectValue placeholder="Select strategy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None (Candles Only)</SelectItem>
-                          {strategyMetadatas.map(strategy => (
-                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-2 col-span-2 md:col-span-4">
+                        <Label htmlFor="strategy">Strategy</Label>
+                        <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                            <SelectTrigger id="strategy">
+                            <SelectValue placeholder="Select strategy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="none">None (Candles Only)</SelectItem>
+                            {strategyMetadatas.map(strategy => (
+                                <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        {selectedStrategy !== 'none' && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="interval">Interval</Label>

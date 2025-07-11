@@ -31,6 +31,7 @@ import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
 import aiConsensusStrategy from './ai-consensus';
 import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback';
+import { strategyIndicatorMap } from './indicator-map';
 
 
 export const strategies: Strategy[] = [
@@ -74,3 +75,6 @@ export const strategyMetadatas = strategies.map(({ id, name }) => ({
 export const getStrategyById = (id: string): Strategy | undefined => {
   return strategies.find(s => s.id === id);
 }
+
+// Export the indicator map
+export { strategyIndicatorMap };

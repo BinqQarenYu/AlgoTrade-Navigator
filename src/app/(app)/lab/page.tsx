@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -46,9 +47,10 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { saveReport, getLatestReport } from "@/lib/data-service"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
+import { Badge } from "@/components/ui/badge"
 
 import { useBot } from "@/context/bot-context"
-import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
 import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
@@ -729,6 +731,13 @@ export default function LabPage() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {selectedStrategy !== 'none' && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                            {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                            ))}
+                        </div>
+                    )}
                   </div>
 
                   <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>

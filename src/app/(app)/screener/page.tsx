@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Sparkles, Play, StopCircle, ChevronDown, BrainCircuit, Loader2 } from "lucide-react"
 import { topAssets } from "@/lib/assets"
-import { strategyMetadatas } from "@/lib/strategies"
+import { strategyMetadatas, strategyIndicatorMap } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -23,36 +23,6 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { useApi } from "@/context/api-context"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-
-const strategyIndicatorMap: Record<string, string[]> = {
-  'awesome-oscillator': ['Awesome Oscillator'],
-  'bollinger-bands': ['Bollinger Bands'],
-  'cci-reversion': ['CCI'],
-  'chaikin-money-flow': ['Chaikin Money Flow'],
-  'coppock-curve': ['Coppock Curve'],
-  'donchian-channels': ['Donchian Channels'],
-  'elder-ray-index': ['Elder-Ray Index', 'EMA'],
-  'ema-crossover': ['EMA'],
-  'heikin-ashi-trend': ['Heikin-Ashi'],
-  'ichimoku-cloud': ['Ichimoku Cloud'],
-  'keltner-channels': ['Keltner Channels', 'ATR'],
-  'macd-crossover': ['MACD', 'EMA'],
-  'momentum-cross': ['Momentum'],
-  'obv-divergence': ['OBV', 'SMA'],
-  'parabolic-sar-flip': ['Parabolic SAR'],
-  'peak-formation-fib': ['EMA'],
-  'pivot-point-reversal': ['Pivot Points'],
-  'reverse-pff': ['EMA'],
-  'rsi-divergence': ['RSI'],
-  'sma-crossover': ['SMA'],
-  'stochastic-crossover': ['Stochastic Oscillator'],
-  'supertrend': ['Supertrend', 'ATR'],
-  'volume-delta': ['Volume Delta', 'Point of Control (POC)'],
-  'vwap-cross': ['VWAP'],
-  'williams-r': ['Williams %R'],
-  'hyper-peak-formation': ['EMA'],
-  'liquidity-order-flow': ['EMA'],
-};
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);

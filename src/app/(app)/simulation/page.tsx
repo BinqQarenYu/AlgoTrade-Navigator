@@ -33,7 +33,7 @@ import { addDays } from "date-fns"
 import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -537,11 +537,18 @@ export default function SimulationPage() {
                         <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
                       </Select>
                     </div>
-                    <div>
+                    <div className="col-span-2">
                       <Label htmlFor="strategy">Strategy</Label>
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                         <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
                       </Select>
+                        {selectedStrategy !== 'none' && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div>
                       <Label htmlFor="interval">Interval</Label>

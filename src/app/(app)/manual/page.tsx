@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -32,7 +33,7 @@ import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { topAssets } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
@@ -483,6 +484,25 @@ export default function ManualTradingPage() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="strategy">Strategy</Label>
+                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
+                        <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (Candles Only)</SelectItem>
+                          {strategyMetadatas.map(strategy => (
+                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                       {selectedStrategy !== 'none' && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="interval">Interval</Label>
                       <Select onValueChange={handleIntervalChange} value={interval} disabled={isThisPageTrading}>
@@ -494,18 +514,6 @@ export default function ManualTradingPage() {
                           <SelectItem value="1h">1 Hour</SelectItem>
                           <SelectItem value="4h">4 Hours</SelectItem>
                           <SelectItem value="1d">1 Day</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="strategy">Strategy</Label>
-                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
-                        <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None (Candles Only)</SelectItem>
-                          {strategyMetadatas.map(strategy => (
-                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                          ))}
                         </SelectContent>
                       </Select>
                     </div>
