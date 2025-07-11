@@ -2,6 +2,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -313,10 +314,15 @@ export type CoinSentimentData = {
   image?: string;
 };
 
-export type CoinDetails = CoinSentimentData & {
+export type CoinDetails = {
+  id: string;
+  symbol: string;
+  name: string;
+  image?: string;
+  sentimentUp?: number; // Only from CoinGecko
   description: string | null;
   marketCapRank: number | null;
-  publicInterestScore?: number;
+  publicInterestScore?: number; // Only from CoinGecko
   marketCap: number;
   priceChange24h: number;
   volume24h: number;

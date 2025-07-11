@@ -68,15 +68,14 @@ export const getCoinDetailsByTickerFromCMC = async (
         }
 
         // Map the combined data to our existing CoinDetails type.
+        // Removed fields not available from CMC (sentimentUp, publicInterestScore)
         const details: CoinDetails = {
             id: String(data.id),
             symbol: data.symbol,
             name: data.name,
             image: logo,
-            sentimentUp: undefined, // Not available from CMC
             description: description,
             marketCapRank: data.cmc_rank || null,
-            publicInterestScore: undefined, // Not available
             marketCap: quote.market_cap ?? 0,
             priceChange24h: quote.percent_change_24h ?? 0,
             volume24h: quote.volume_24h ?? 0,
