@@ -3,6 +3,7 @@
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA, calculateATR } from '@/lib/indicators';
 import { getHistoricalKlines } from '@/lib/binance-service';
+import { intervalToMs } from '@/lib/utils';
 
 export interface MtfEngulfingParams {
   htf: '1D' | '4h' | '1h'; // Limit to a few for simplicity
@@ -21,22 +22,26 @@ export const defaultMtfEngulfingParams: MtfEngulfingParams = {
 };
 
 // Helper to map HTF data to LTF data
-const mapHtfToLtf = (ltfData: HistoricalData[], htfData: HistoricalData[]): (number | null)[] => {
+const mapHtfToLtf = (ltfData: HistoricalData[], htfData: HistoricalData[], htfInterval: '1D' | '4h' | '1h'): (number | null)[] => {
+    const htfIntervalMs = intervalToMs(htfInterval);
+    if (htfIntervalMs === 0) return Array(ltfData.length).fill(null);
+
     const htfMap = new Map<number, number>();
     htfData.forEach(d => {
-        // Use the start of the day for daily candles to map correctly
-        const dayStart = new Date(d.time);
-        dayStart.setUTCHours(0, 0, 0, 0);
-        htfMap.set(dayStart.getTime(), d.ema_long!);
+        if (d.ema_long !== null && d.ema_long !== undefined) {
+            // Normalize the HTF timestamp to the beginning of its interval
+            const htfStartTime = Math.floor(d.time / htfIntervalMs) * htfIntervalMs;
+            htfMap.set(htfStartTime, d.ema_long);
+        }
     });
 
     let lastHtfEma: number | null = null;
     return ltfData.map(d => {
-        const ltfDayStart = new Date(d.time);
-        ltfDayStart.setUTCHours(0, 0, 0, 0);
+        // Normalize the LTF timestamp to find which HTF block it belongs to
+        const ltfIntervalStart = Math.floor(d.time / htfIntervalMs) * htfIntervalMs;
         
-        if (htfMap.has(ltfDayStart.getTime())) {
-            lastHtfEma = htfMap.get(ltfDayStart.getTime())!;
+        if (htfMap.has(ltfIntervalStart)) {
+            lastHtfEma = htfMap.get(ltfIntervalStart)!;
         }
         return lastHtfEma;
     });
@@ -51,13 +56,13 @@ const mtfEngulfingStrategy: Strategy = {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.emaLength) return dataWithIndicators;
 
-    // Fetch HTF data - This is a simplification of request.security
-    // In a real scenario, you'd need a more robust data fetching mechanism.
+    // Fetch HTF data
     const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' };
     const htfBinanceInterval = htfIntervalMap[params.htf];
 
     const htfStartTime = data[0].time;
     const htfEndTime = data[data.length - 1].time;
+    // A real implementation might need to fetch slightly more data to ensure the EMA is accurate at the start.
     const htfDataRaw = await getHistoricalKlines('BTCUSDT', htfBinanceInterval, htfStartTime, htfEndTime);
     
     if (htfDataRaw.length === 0) {
@@ -68,7 +73,7 @@ const mtfEngulfingStrategy: Strategy = {
     const htfEmaValues = calculateEMA(htfDataRaw.map(d => d.close), params.emaLength);
     const htfDataWithEma = htfDataRaw.map((d, i) => ({ ...d, ema_long: htfEmaValues[i] }));
     
-    const htfEmaMapped = mapHtfToLtf(data, htfDataWithEma);
+    const htfEmaMapped = mapHtfToLtf(data, htfDataWithEma, params.htf);
     const atrValues = calculateATR(data, params.atrLength);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
@@ -89,19 +94,14 @@ const mtfEngulfingStrategy: Strategy = {
       if (isUptrend && isBullishEngulfing) {
         const atr = atrValues[i]!;
         const stopLoss = d.close - (atr * params.slAtrMultiplier);
-        const risk = d.close - stopLoss;
-        const takeProfit = d.close + (risk * params.rrRatio);
         
         d.buySignal = d.close;
         d.stopLossLevel = stopLoss;
-        // The chart component will calculate TP, but we can note it here if needed.
       }
       
       if (isDowntrend && isBearishEngulfing) {
         const atr = atrValues[i]!;
         const stopLoss = d.close + (atr * params.slAtrMultiplier);
-        const risk = stopLoss - d.close;
-        const takeProfit = d.close - (risk * params.rrRatio);
 
         d.sellSignal = d.close;
         d.stopLossLevel = stopLoss;
@@ -113,3 +113,4 @@ const mtfEngulfingStrategy: Strategy = {
 };
 
 export default mtfEngulfingStrategy;
+
