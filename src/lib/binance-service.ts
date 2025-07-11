@@ -112,6 +112,12 @@ export const getHistoricalKlines = async (
         console.error("getHistoricalKlines was called without a symbol.");
         return [];
     }
+    // Add validation check for startTime and endTime
+    if (typeof startTime !== 'number' || typeof endTime !== 'number' || isNaN(startTime) || isNaN(endTime)) {
+        console.error(`getHistoricalKlines called with invalid time values for ${symbol}. startTime: ${startTime}, endTime: ${endTime}`);
+        return [];
+    }
+
     const upperSymbol = symbol.toUpperCase();
     console.log(`Fetching klines for ${upperSymbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
     
