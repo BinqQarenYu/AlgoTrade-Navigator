@@ -32,4 +32,5 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'williams-r': ['Williams %R'],
   'code-based-consensus': ['Multiple Indicators', 'Ensemble'],
   'mtf-engulfing': ['EMA', 'ATR', 'Engulfing Pattern'],
+  'smi-mfi-supertrend': ['SMI', 'MFI', 'Pivot Supertrend'],
 };

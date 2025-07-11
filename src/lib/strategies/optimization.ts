@@ -51,7 +51,6 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         confirmationCandles: { min: 1, max: 5, step: 1 },
         maxSweepLookahead: { min: 10, max: 50, step: 10 },
     },
-    // Adding the rest of the strategies
     'peak-formation-fib': {
         peakLookaround: { min: 3, max: 10, step: 1 },
         swingLookaround: { min: 2, max: 5, step: 1 },
@@ -144,5 +143,12 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         atrLength: { min: 10, max: 20, step: 2 },
         slAtrMultiplier: { min: 1.0, max: 2.5, step: 0.5 },
         rrRatio: { min: 1.5, max: 3.0, step: 0.5 },
+    },
+    'smi-mfi-supertrend': {
+        supertrendPeriod: { min: 7, max: 14, step: 1 },
+        supertrendMultiplier: { min: 2, max: 4, step: 1 },
+        mfiPeriod: { min: 10, max: 20, step: 2 },
+        smiPeriod: { min: 5, max: 10, step: 1 },
+        smiEmaPeriod: { min: 3, max: 7, step: 1 },
     },
 };

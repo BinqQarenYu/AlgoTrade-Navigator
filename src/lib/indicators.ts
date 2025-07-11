@@ -150,12 +150,16 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
 export const calculateATR = (data: HistoricalData[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
 
-    const trValues: number[] = [data[0].high - data[0].low]; // True Range values
-    for (let i = 1; i < data.length; i++) {
+    const trValues: number[] = [];
+    for (let i = 0; i < data.length; i++) {
         const high = data[i].high;
         const low = data[i].low;
-        const prevClose = data[i - 1].close;
-        trValues.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+        if (i === 0) {
+            trValues.push(high - low);
+        } else {
+            const prevClose = data[i - 1].close;
+            trValues.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+        }
     }
 
     const atr: (number | null)[] = [];
@@ -165,12 +169,10 @@ export const calculateATR = (data: HistoricalData[], period: number): (number | 
         if (i < period - 1) {
             atr.push(null);
         } else if (i === period - 1) {
-            // First ATR is the average of the first 'period' TRs
             const initialTrSum = trValues.slice(0, period).reduce((acc, val) => acc + val, 0);
             currentAtr = initialTrSum / period;
             atr.push(currentAtr);
         } else {
-            // Smoothed ATR for subsequent values
             currentAtr = (currentAtr! * (period - 1) + trValues[i]) / period;
             atr.push(currentAtr);
         }
@@ -604,3 +606,93 @@ export const findFVGs = (data: HistoricalData[]): { index: number, top: number, 
   }
   return fvgs;
 }
+
+export const calculateMFI = (data: HistoricalData[], period: number): (number | null)[] => {
+    if (data.length < period + 1) return Array(data.length).fill(null);
+
+    const mfi: (number | null)[] = Array(period).fill(null);
+    let positiveMoneyFlow: number[] = [];
+    let negativeMoneyFlow: number[] = [];
+
+    for (let i = 1; i <= period; i++) {
+        const typicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
+        const prevTypicalPrice = (data[i-1].high + data[i-1].low + data[i-1].close) / 3;
+        const rawMoneyFlow = typicalPrice * data[i].volume;
+
+        if (typicalPrice > prevTypicalPrice) {
+            positiveMoneyFlow.push(rawMoneyFlow);
+            negativeMoneyFlow.push(0);
+        } else if (typicalPrice < prevTypicalPrice) {
+            positiveMoneyFlow.push(0);
+            negativeMoneyFlow.push(rawMoneyFlow);
+        } else {
+            positiveMoneyFlow.push(0);
+            negativeMoneyFlow.push(0);
+        }
+    }
+
+    for (let i = period; i < data.length; i++) {
+        const posSum = positiveMoneyFlow.reduce((a, b) => a + b, 0);
+        const negSum = negativeMoneyFlow.reduce((a, b) => a + b, 0);
+        const moneyRatio = negSum === 0 ? Infinity : posSum / negSum;
+        const mfiValue = 100 - (100 / (1 + moneyRatio));
+        mfi.push(mfiValue);
+
+        // Slide the window for the next calculation
+        if (i < data.length - 1) {
+            positiveMoneyFlow.shift();
+            negativeMoneyFlow.shift();
+            
+            const typicalPrice = (data[i+1].high + data[i+1].low + data[i+1].close) / 3;
+            const prevTypicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
+            const rawMoneyFlow = typicalPrice * data[i+1].volume;
+
+            if (typicalPrice > prevTypicalPrice) {
+                positiveMoneyFlow.push(rawMoneyFlow);
+                negativeMoneyFlow.push(0);
+            } else if (typicalPrice < prevTypicalPrice) {
+                positiveMoneyFlow.push(0);
+                negativeMoneyFlow.push(rawMoneyFlow);
+            } else {
+                positiveMoneyFlow.push(0);
+                negativeMoneyFlow.push(0);
+            }
+        }
+    }
+    return mfi;
+};
+
+export const calculateSMI = (
+    data: (number|null)[], 
+    smiPeriod: number, 
+    emaPeriod: number
+): { smi: (number | null)[], signal: (number | null)[] } => {
+    const validData = data.filter((d): d is number => d !== null);
+    if (validData.length < smiPeriod) return { smi: Array(data.length).fill(null), signal: Array(data.length).fill(null) };
+    
+    const padding = data.length - validData.length;
+
+    let smiValues: (number|null)[] = [];
+    for (let i = smiPeriod - 1; i < validData.length; i++) {
+        const slice = validData.slice(i - smiPeriod + 1, i + 1);
+        const highest = Math.max(...slice);
+        const lowest = Math.min(...slice);
+        const range = highest - lowest;
+        const smi = range > 0 ? ((validData[i] - (highest + lowest) / 2) / (range / 2)) * 100 : 0;
+        smiValues.push(smi);
+    }
+    
+    const validSmiValues = smiValues.filter((v): v is number => v !== null);
+    const smiPadding = smiValues.length - validSmiValues.length;
+
+    const emaOfSmi = calculateEMA(validSmiValues, emaPeriod);
+    const emaOfEma = calculateEMA(emaOfSmi.filter((v): v is number => v !== null), emaPeriod);
+
+    const finalSmi = [...Array(padding + smiPadding).fill(null), ...emaOfEma];
+    const signalLine = calculateSMA(finalSmi.filter((v): v is number => v !== null), 4);
+    
+    return {
+        smi: finalSmi,
+        signal: [...Array(finalSmi.length - signalLine.length).fill(null), ...signalLine]
+    };
+};

@@ -5,6 +5,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -105,6 +106,10 @@ export type HistoricalData = {
   // For Liquidity & Order Flow Strategy
   fvg_top?: number | null;
   fvg_bottom?: number | null;
+  // For SMI MFI Supertrend
+  smi?: number | null;
+  smi_signal?: number | null;
+  mfi?: number | null;
   // For AI Consensus strategy
   aiReasoning?: string;
   aiConfidence?: number;
