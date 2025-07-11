@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info, ChevronDown, GripHorizontal } from "lucide-react";
+import { Info, ChevronDown, GripHorizontal, GitCompareArrows } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Button } from "./ui/button";
 
@@ -19,6 +19,7 @@ type BacktestResultsProps = {
   summary: BacktestSummary | null;
   onSelectTrade: (trade: BacktestResult) => void;
   selectedTradeId?: string | null;
+  title?: string;
 };
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -81,9 +82,9 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
   );
 };
 
-export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId }: BacktestResultsProps) {
-  const [isOpen, setIsOpen] = usePersistentState<boolean>('backtest-results-open', true);
-  const [logHeight, setLogHeight] = usePersistentState<number>('backtest-results-height', 288);
+export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId, title = "Backtest Results" }: BacktestResultsProps) {
+  const [isOpen, setIsOpen] = usePersistentState<boolean>(`backtest-results-open-${title.replace(/\s/g, '')}`, true);
+  const [logHeight, setLogHeight] = usePersistentState<number>(`backtest-results-height-${title.replace(/\s/g, '')}`, 288);
 
   const startResizing = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -117,7 +118,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Backtest Results</CardTitle>
+              <CardTitle>{title}</CardTitle>
               <CardDescription>Run a backtest to see the results here.</CardDescription>
             </div>
             <CollapsibleTrigger asChild>
@@ -145,11 +146,14 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
   const returnColor = summary.totalReturnPercent >= 0 ? "text-green-500" : "text-red-500";
 
   return (
-    <Card>
+    <Card className={cn(title.includes("Contrarian") && "border-amber-500/50")}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Backtest Results</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+                {title.includes("Contrarian") && <GitCompareArrows className="h-5 w-5 text-amber-500"/>}
+                {title}
+            </CardTitle>
             <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
           </div>
           <CollapsibleTrigger asChild>

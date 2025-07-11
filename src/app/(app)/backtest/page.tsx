@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -213,9 +213,13 @@ export default function BacktestPage() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
+  
+  // State for backtest results
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
+  const [contrarianResults, setContrarianResults] = useState<BacktestResult[]>([]);
+  const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
 
   const [initialCapital, setInitialCapital] = usePersistentState<number>('backtest-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('backtest-leverage', 10);
@@ -223,6 +227,7 @@ export default function BacktestPage() {
   const [stopLoss, setStopLoss] = usePersistentState<number>('backtest-sl', 2);
   const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
   const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
+  const [compareContrarian, setCompareContrarian] = usePersistentState<boolean>('backtest-compare-contrarian', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('backtest-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
@@ -314,6 +319,8 @@ export default function BacktestPage() {
         setDataWithIndicators([]);
         setBacktestResults([]);
         setSummaryStats(null);
+        setContrarianResults([]);
+        setContrarianSummary(null);
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
@@ -473,6 +480,8 @@ export default function BacktestPage() {
     setIsBacktesting(true);
     setBacktestResults([]);
     setSummaryStats(null);
+    setContrarianResults([]);
+    setContrarianSummary(null);
     setSelectedTrade(null);
 
     const strategy = getStrategyById(selectedStrategy);
@@ -760,20 +769,31 @@ export default function BacktestPage() {
                 </div>
               </ScrollArea>
           </div>
+           <div className="flex items-center space-x-2 pt-2">
+                <Switch
+                  id="reverse-logic-consensus"
+                  checked={params.reverse || false}
+                  onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                  disabled={anyLoading}
+                />
+                <div className="flex flex-col">
+                  <Label htmlFor="reverse-logic-consensus" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                  <p className="text-xs text-muted-foreground">Trade against the consensus signal.</p>
+                </div>
+            </div>
         </div>
       );
     }
     
     // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies'));
-    const isReversed = params.reverse || false;
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse'));
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
             <div className="flex items-center space-x-2 pt-2">
                 <Switch
                     id="reverse-logic"
-                    checked={isReversed}
+                    checked={params.reverse || false}
                     onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
                     disabled={anyLoading}
                 />
@@ -790,8 +810,6 @@ export default function BacktestPage() {
     }
 
     const controls = Object.entries(filteredParams).map(([key, value]) => {
-      // Exclude 'reverse' from the dynamic input controls since it's handled by the switch
-      if (key === 'reverse') return null;
       return (
         <div key={key} className="space-y-2">
           <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
@@ -816,7 +834,7 @@ export default function BacktestPage() {
          <div className="flex items-center space-x-2 pt-2">
             <Switch
               id="reverse-logic"
-              checked={isReversed}
+              checked={params.reverse || false}
               onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
               disabled={anyLoading}
             />
@@ -1048,13 +1066,20 @@ export default function BacktestPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>AI-Powered Analysis</Label>
+                  <Label>Analysis Tools</Label>
                   <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <div className="flex items-center space-x-2">
                         <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading || selectedStrategy === 'code-based-consensus'} />
                         <div className="flex flex-col">
                             <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
-                            <p className="text-xs text-muted-foreground">Let an AI validate each signal. This is more accurate but significantly slower.</p>
+                            <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Switch id="compare-contrarian" checked={compareContrarian} onCheckedChange={setCompareContrarian} disabled={anyLoading} />
+                        <div className="flex flex-col">
+                            <Label htmlFor="compare-contrarian" className="cursor-pointer">Compare Contrarian Mode</Label>
+                            <p className="text-xs text-muted-foreground">Run two backtests to compare results.</p>
                         </div>
                       </div>
                       {useAIValidation && (
@@ -1070,7 +1095,7 @@ export default function BacktestPage() {
                                   placeholder="20"
                                   disabled={anyLoading}
                               />
-                              <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas (e.g., free tier is 50/day).</p>
+                              <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p>
                               </div>
                           </>
                       )}
@@ -1161,12 +1186,21 @@ export default function BacktestPage() {
             </CollapsibleContent>
           </Collapsible>
         </Card>
-        <BacktestResults 
+        
+        {summaryStats && <BacktestResults 
           results={backtestResults} 
           summary={summaryStats} 
           onSelectTrade={setSelectedTrade}
           selectedTradeId={selectedTrade?.id}
-        />
+        />}
+        
+        {compareContrarian && contrarianSummary && <BacktestResults 
+          title="Contrarian Mode Results"
+          results={contrarianResults} 
+          summary={contrarianSummary} 
+          onSelectTrade={() => {}} // Don't highlight trades from this card for now
+        />}
+
         <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
       </div>
     </div>
