@@ -559,12 +559,13 @@ export default function BacktestPage() {
               if (canUseAi()) {
                 aiValidationCount++;
                 try {
-                  consumeAiCredit();
                   prediction = await predictMarket({
                       symbol: symbol,
                       recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l:k.low, c:k.close, v:k.volume}))),
                       strategySignal: potentialSignal
                   });
+                   // Only consume credit after a successful response
+                  consumeAiCredit();
                   if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
                     isValidSignal = true;
                   }
@@ -778,11 +779,34 @@ export default function BacktestPage() {
       );
     }
     
+    // Filter out 'strategies' and 'reverse' from the regular parameter display
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse'));
+    const isReversed = params.reverse || false;
+
+
+    if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
+        return (
+             <div className="flex items-center space-x-2 pt-2">
+                <Switch
+                    id="reverse-logic"
+                    checked={isReversed}
+                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                    disabled={anyLoading}
+                />
+                <div className="flex flex-col">
+                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                </div>
+            </div>
+        );
+    }
+
     if (Object.keys(params).length === 0) {
         return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
     }
 
-    const controls = Object.entries(params).map(([key, value]) => (
+
+    const controls = Object.entries(filteredParams).map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
         <Input 
@@ -802,6 +826,18 @@ export default function BacktestPage() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
+         <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={isReversed}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={anyLoading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
+          </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
