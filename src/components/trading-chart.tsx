@@ -5,7 +5,7 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
 import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade } from '@/lib/types';
-import type { DetectManipulationOutput } from '@/ai/flows/manipulation-flow';
+import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
@@ -122,7 +122,7 @@ export function TradingChart({
             // Indicator Colors
             smaShortColor: '#f59e0b',
             smaLongColor: '#8b5cf6',
-            emaMediumColor: 'hsl(var(--chart-3))',
+            emaMediumColor: '#fb923c', // orange-400
             donchianUpperColor: '#4ade80', // green-400
             donchianLowerColor: '#f87171', // red-400
             donchianMiddleColor: 'rgba(148, 163, 184, 0.4)', // slate-400
@@ -298,10 +298,6 @@ export function TradingChart({
       }
       if (spoofZoneTimeoutRef.current) {
         clearTimeout(spoofZoneTimeoutRef.current);
-      }
-      if (chartRef.current?.chart) {
-          chartRef.current.chart.remove();
-          chartRef.current = null;
       }
     };
   }, []);
