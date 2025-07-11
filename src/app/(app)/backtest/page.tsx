@@ -218,8 +218,6 @@ export default function BacktestPage() {
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
-  const [contrarianResults, setContrarianResults] = useState<BacktestResult[]>([]);
-  const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
 
   const [initialCapital, setInitialCapital] = usePersistentState<number>('backtest-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('backtest-leverage', 10);
@@ -227,7 +225,6 @@ export default function BacktestPage() {
   const [stopLoss, setStopLoss] = usePersistentState<number>('backtest-sl', 2);
   const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
   const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
-  const [compareContrarian, setCompareContrarian] = usePersistentState<boolean>('backtest-compare-contrarian', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('backtest-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
@@ -319,8 +316,6 @@ export default function BacktestPage() {
         setDataWithIndicators([]);
         setBacktestResults([]);
         setSummaryStats(null);
-        setContrarianResults([]);
-        setContrarianSummary(null);
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
@@ -480,8 +475,6 @@ export default function BacktestPage() {
     setIsBacktesting(true);
     setBacktestResults([]);
     setSummaryStats(null);
-    setContrarianResults([]);
-    setContrarianSummary(null);
     setSelectedTrade(null);
 
     const strategy = getStrategyById(selectedStrategy);
@@ -1075,13 +1068,6 @@ export default function BacktestPage() {
                             <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Switch id="compare-contrarian" checked={compareContrarian} onCheckedChange={setCompareContrarian} disabled={anyLoading} />
-                        <div className="flex flex-col">
-                            <Label htmlFor="compare-contrarian" className="cursor-pointer">Compare Contrarian Mode</Label>
-                            <p className="text-xs text-muted-foreground">Run two backtests to compare results.</p>
-                        </div>
-                      </div>
                       {useAIValidation && (
                           <>
                               <div className="border-b -mx-3"></div>
@@ -1194,13 +1180,6 @@ export default function BacktestPage() {
           selectedTradeId={selectedTrade?.id}
         />}
         
-        {compareContrarian && contrarianSummary && <BacktestResults 
-          title="Contrarian Mode Results"
-          results={contrarianResults} 
-          summary={contrarianSummary} 
-          onSelectTrade={() => {}} // Don't highlight trades from this card for now
-        />}
-
         <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} />
       </div>
     </div>
