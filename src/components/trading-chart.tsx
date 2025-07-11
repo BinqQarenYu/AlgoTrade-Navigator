@@ -92,7 +92,7 @@ export function TradingChart({
 
   useEffect(() => {
     const chartContainer = chartContainerRef.current;
-    if (!chartContainer) return;
+    if (!chartContainer || chartRef.current) return; // Exit if container not ready or chart already initialized
 
     const handleResize = () => {
       if (chartContainer && chartRef.current?.chart) {
@@ -103,202 +103,197 @@ export function TradingChart({
       }
     };
     
-    // Create chart only once
-    if (!chartRef.current) {
-        const isDarkMode = document.documentElement.classList.contains('dark');
-        const chartColors = {
-            background: isDarkMode ? '#222222' : '#FFFFFF',
-            textColor: isDarkMode ? '#D1D5DB' : '#1F2937',
-            gridColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#E5E7EB',
-            wickUpColor: '#26a69a',
-            wickDownColor: '#ef5350',
-            barUpColor: '#26a69a',
-            barDownColor: '#ef5350',
-            volumeUpColor: 'rgba(38, 166, 154, 0.4)',
-            volumeDownColor: 'rgba(239, 83, 80, 0.4)',
-            pocColor: '#eab308',
-            buySignalColor: '#22c55e',
-            sellSignalColor: '#ef4444',
-            // Indicator Colors
-            smaShortColor: '#f59e0b',
-            smaLongColor: '#8b5cf6',
-            emaMediumColor: '#fb923c', // orange-400
-            donchianUpperColor: '#4ade80', // green-400
-            donchianLowerColor: '#f87171', // red-400
-            donchianMiddleColor: 'rgba(148, 163, 184, 0.4)', // slate-400
-            tenkanColor: '#38bdf8', // sky-400
-            kijunColor: '#f472b6', // pink-400
-            senkouAColor: 'rgba(38, 166, 154, 0.2)',
-            senkouBColor: 'rgba(239, 83, 80, 0.2)',
-            // Manipulation Phase Colors
-            accumulationColor: 'rgba(250, 204, 21, 0.8)', // Yellow
-            pumpColor: 'rgba(34, 197, 94, 0.8)',      // Green
-            distributionColor: 'rgba(239, 68, 68, 0.8)', // Red
-            accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
-            pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
-            distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
-        };
-        
-        const chart = createChart(chartContainer, {
-          layout: {
-            background: { type: ColorType.Solid, color: chartColors.background },
-            textColor: chartColors.textColor,
-            fontSize: 10,
-          },
-          grid: {
-            vertLines: { color: chartColors.gridColor },
-            horzLines: { color: chartColors.gridColor },
-          },
-          width: chartContainer.clientWidth,
-          height: chartContainer.clientHeight,
-          timeScale: {
-            borderColor: chartColors.gridColor,
-            timeVisible: true,
-            rightOffset: 20, // Add this to create future space
-          },
-          rightPriceScale: {
-            visible: false,
-          },
-          leftPriceScale: {
-            visible: true,
-            borderColor: chartColors.gridColor,
-          },
-          crosshair: {
-            mode: 1, // Magnet
-          },
-          handleScroll: {
-            mouseWheel: true,
-            pressedMouseMove: true,
-          },
-          handleScale: {
-            axisPressedMouseMove: true,
-            mouseWheel: true,
-            pinch: true,
-          },
-        });
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    const chartColors = {
+        background: isDarkMode ? '#222222' : '#FFFFFF',
+        textColor: isDarkMode ? '#D1D5DB' : '#1F2937',
+        gridColor: isDarkMode ? 'rgba(255, 255, 255, 0.06)' : '#E5E7EB',
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+        barUpColor: '#26a69a',
+        barDownColor: '#ef5350',
+        volumeUpColor: 'rgba(38, 166, 154, 0.4)',
+        volumeDownColor: 'rgba(239, 83, 80, 0.4)',
+        pocColor: '#eab308',
+        buySignalColor: '#22c55e',
+        sellSignalColor: '#ef4444',
+        // Indicator Colors
+        smaShortColor: '#f59e0b',
+        smaLongColor: '#8b5cf6',
+        emaMediumColor: '#fb923c', // orange-400
+        donchianUpperColor: '#4ade80', // green-400
+        donchianLowerColor: '#f87171', // red-400
+        donchianMiddleColor: 'rgba(148, 163, 184, 0.4)', // slate-400
+        tenkanColor: '#38bdf8', // sky-400
+        kijunColor: '#f472b6', // pink-400
+        senkouAColor: 'rgba(38, 166, 154, 0.2)',
+        senkouBColor: 'rgba(239, 83, 80, 0.2)',
+        // Manipulation Phase Colors
+        accumulationColor: 'rgba(250, 204, 21, 0.8)', // Yellow
+        pumpColor: 'rgba(34, 197, 94, 0.8)',      // Green
+        distributionColor: 'rgba(239, 68, 68, 0.8)', // Red
+        accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
+        pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
+        distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
+    };
+    
+    const chart = createChart(chartContainer, {
+      layout: {
+        background: { type: ColorType.Solid, color: chartColors.background },
+        textColor: chartColors.textColor,
+        fontSize: 10,
+      },
+      grid: {
+        vertLines: { color: chartColors.gridColor },
+        horzLines: { color: chartColors.gridColor },
+      },
+      width: chartContainer.clientWidth,
+      height: chartContainer.clientHeight,
+      timeScale: {
+        borderColor: chartColors.gridColor,
+        timeVisible: true,
+        rightOffset: 20, // Add this to create future space
+      },
+      rightPriceScale: {
+        visible: false,
+      },
+      leftPriceScale: {
+        visible: true,
+        borderColor: chartColors.gridColor,
+      },
+      crosshair: {
+        mode: 1, // Magnet
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+    });
 
-        const volumeSeries = chart.addHistogramSeries({
-          priceFormat: { type: 'volume' },
-          priceScaleId: '', 
+    const volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', 
+      lastValueVisible: false,
+      priceLineVisible: false,
+    });
+    volumeSeries.priceScale().applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 },
+    });
+    
+    const spoofingZoneSeries = chart.addCandlestickSeries({
+        priceScaleId: 'left',
+        upColor: 'rgba(239, 68, 68, 0.05)', // semi-transparent red
+        downColor: 'rgba(239, 68, 68, 0.05)',
+        wickVisible: false,
+        borderVisible: false,
+        autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
+    });
+
+    const manipulationZoneSeries = chart.addCandlestickSeries({
+        priceScaleId: 'left',
+        upColor: 'transparent',
+        downColor: 'transparent',
+        wickVisible: false,
+        borderVisible: false,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        autoscaleInfoProvider: () => null,
+    });
+
+    const targetZoneSeries = chart.addCandlestickSeries({
+        priceScaleId: 'left',
+        upColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
+        downColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
+        wickVisible: false,
+        borderVisible: false,
+        autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
+    });
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: chartColors.barUpColor,
+      downColor: chartColors.barDownColor,
+      wickUpColor: chartColors.wickUpColor,
+      wickDownColor: chartColors.wickDownColor,
+      borderVisible: false,
+      priceScaleId: 'left',
+    });
+    
+    const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
+    
+    const mainLineSeries = chart.addLineSeries({
+        ...commonLineOptions,
+        color: '#3b82f6',
+    });
+
+    chartRef.current = {
+        chart,
+        candlestickSeries,
+        mainLineSeries,
+        volumeSeries,
+        spoofingZoneSeries,
+        targetZoneSeries,
+        manipulationZoneSeries,
+        chartColors, // Store colors for later use
+        smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
+        smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
+        emaMediumSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.emaMediumColor }),
+        pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
+        donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
+        donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
+        donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
+        tenkanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.tenkanColor }),
+        kijunSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.kijunColor }),
+        senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
+        senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
+        consensusPointSeries: chart.addLineSeries({
+          priceScaleId: 'left',
+          lineWidth: 0,
           lastValueVisible: false,
           priceLineVisible: false,
-        });
-        volumeSeries.priceScale().applyOptions({
-            scaleMargins: { top: 0.8, bottom: 0 },
-        });
-        
-        const spoofingZoneSeries = chart.addCandlestickSeries({
-            priceScaleId: 'left',
-            upColor: 'rgba(239, 68, 68, 0.05)', // semi-transparent red
-            downColor: 'rgba(239, 68, 68, 0.05)',
-            wickVisible: false,
-            borderVisible: false,
-            autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
-        });
-
-        const manipulationZoneSeries = chart.addCandlestickSeries({
-            priceScaleId: 'left',
-            upColor: 'transparent',
-            downColor: 'transparent',
-            wickVisible: false,
-            borderVisible: false,
-            lastValueVisible: false,
-            priceLineVisible: false,
-            autoscaleInfoProvider: () => null,
-        });
-
-        const targetZoneSeries = chart.addCandlestickSeries({
-            priceScaleId: 'left',
-            upColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
-            downColor: 'rgba(59, 130, 246, 0.2)', // semi-transparent blue
-            wickVisible: false,
-            borderVisible: false,
-            autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
-        });
-
-        const candlestickSeries = chart.addCandlestickSeries({
-          upColor: chartColors.barUpColor,
-          downColor: chartColors.barDownColor,
-          wickUpColor: chartColors.wickUpColor,
-          wickDownColor: chartColors.wickDownColor,
-          borderVisible: false,
+          crosshairMarkerVisible: true,
+          crosshairMarkerRadius: 10,
+          crosshairMarkerBorderColor: '#000000',
+          crosshairMarkerBackgroundColor: '#FFEB3B',
+        }),
+        consensusArrowSeries: chart.addLineSeries({
           priceScaleId: 'left',
-        });
-        
-        const commonLineOptions = { lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' };
-        
-        const mainLineSeries = chart.addLineSeries({
-            ...commonLineOptions,
-            color: '#3b82f6',
-        });
-
-        chartRef.current = {
-            chart,
-            candlestickSeries,
-            mainLineSeries,
-            volumeSeries,
-            spoofingZoneSeries,
-            targetZoneSeries,
-            manipulationZoneSeries,
-            chartColors, // Store colors for later use
-            smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
-            smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
-            emaMediumSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.emaMediumColor }),
-            pocSeries: chart.addLineSeries({ color: chartColors.pocColor, lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
-            donchianUpperSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
-            donchianMiddleSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
-            donchianLowerSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
-            tenkanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.tenkanColor }),
-            kijunSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.kijunColor }),
-            senkouASeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouAColor }),
-            senkouBSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.senkouBColor }),
-            consensusPointSeries: chart.addLineSeries({
-              priceScaleId: 'left',
-              lineWidth: 0,
-              lastValueVisible: false,
-              priceLineVisible: false,
-              crosshairMarkerVisible: true,
-              crosshairMarkerRadius: 10,
-              crosshairMarkerBorderColor: '#000000',
-              crosshairMarkerBackgroundColor: '#FFEB3B',
-            }),
-            consensusArrowSeries: chart.addLineSeries({
-              priceScaleId: 'left',
-              lineWidth: 0,
-              lastValueVisible: false,
-              priceLineVisible: false,
-            }),
-            priceLines: [],
-            liquidityLevelLine: null,
-            wallPriceLines: [],
-            liquidityPriceLines: [],
-            targetPriceLines: [],
-            gridPriceLines: [],
-            matchedGridTradeLine: null,
-            gridTradePriceLines: [],
-            volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
-            volumeLegTextPriceLine: null,
-            volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
-            volumeLeg2TextPriceLine: null,
-            volumeLeg3LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#60a5fa', lineStyle: LineStyle.Dashed }),
-            volumeLeg3TextPriceLine: null,
-            dumpLineSeries: chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, ...commonLineOptions }),
-            dumpVolumeTextPriceLine: null,
-        };
-    }
+          lineWidth: 0,
+          lastValueVisible: false,
+          priceLineVisible: false,
+        }),
+        priceLines: [],
+        liquidityLevelLine: null,
+        wallPriceLines: [],
+        liquidityPriceLines: [],
+        targetPriceLines: [],
+        gridPriceLines: [],
+        matchedGridTradeLine: null,
+        gridTradePriceLines: [],
+        volumeLegLineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#facc15', lineStyle: LineStyle.Dashed }),
+        volumeLegTextPriceLine: null,
+        volumeLeg2LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#fb923c', lineStyle: LineStyle.Dashed }),
+        volumeLeg2TextPriceLine: null,
+        volumeLeg3LineSeries: chart.addLineSeries({ ...commonLineOptions, color: '#60a5fa', lineStyle: LineStyle.Dashed }),
+        volumeLeg3TextPriceLine: null,
+        dumpLineSeries: chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, ...commonLineOptions }),
+        dumpVolumeTextPriceLine: null,
+    };
     
     const resizeObserver = new ResizeObserver(handleResize);
-    if (chartContainer) {
-      resizeObserver.observe(chartContainer);
-    }
+    resizeObserver.observe(chartContainer);
     
     return () => {
-      if (chartContainer) {
-        resizeObserver.unobserve(chartContainer);
-      }
+      resizeObserver.unobserve(chartContainer);
       if (spoofZoneTimeoutRef.current) {
         clearTimeout(spoofZoneTimeoutRef.current);
       }
+      chart.remove();
+      chartRef.current = null;
     };
   }, []);
 
