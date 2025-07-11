@@ -5,11 +5,13 @@ import { calculateSMA } from '@/lib/indicators';
 export interface SmaCrossoverParams {
   shortPeriod: number;
   longPeriod: number;
+  reverse?: boolean;
 }
 
 export const defaultSmaCrossoverParams: SmaCrossoverParams = {
   shortPeriod: 20,
   longPeriod: 50,
+  reverse: false,
 };
 
 const smaCrossoverStrategy: Strategy = {
@@ -28,8 +30,16 @@ const smaCrossoverStrategy: Strategy = {
       d.sma_short = sma_short[i];
       d.sma_long = sma_long[i];
       if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
-        if (sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i]) d.buySignal = d.low;
-        if (sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i]) d.sellSignal = d.high;
+        const standardBuy = sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i];
+        const standardSell = sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i];
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
+        }
       }
     });
     return dataWithIndicators;

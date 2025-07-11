@@ -5,11 +5,13 @@ import { calculateBollingerBands } from '@/lib/indicators';
 export interface BollingerBandsParams {
   period: number;
   stdDev: number;
+  reverse?: boolean;
 }
 
 export const defaultBollingerBandsParams: BollingerBandsParams = {
   period: 20,
   stdDev: 2,
+  reverse: false,
 };
 
 const bollingerBandsStrategy: Strategy = {
@@ -33,14 +35,15 @@ const bollingerBandsStrategy: Strategy = {
         const prevBar = data[i-1];
         const currentBar = d;
 
-        // Buy Signal: Price touched or crossed below the lower band, then closed above it.
-        if (prevBar.low <= lower[i-1]! && currentBar.close > lower[i]!) {
-            d.buySignal = currentBar.low;
-        }
+        const standardBuy = prevBar.low <= lower[i-1]! && currentBar.close > lower[i]!;
+        const standardSell = prevBar.high >= upper[i-1]! && currentBar.close < upper[i]!;
 
-        // Sell Signal: Price touched or crossed above the upper band, then closed below it.
-        if (prevBar.high >= upper[i-1]! && currentBar.close < upper[i]!) {
-            d.sellSignal = currentBar.high;
+        if (params.reverse) {
+          if (standardBuy) d.sellSignal = currentBar.high;
+          if (standardSell) d.buySignal = currentBar.low;
+        } else {
+          if (standardBuy) d.buySignal = currentBar.low;
+          if (standardSell) d.sellSignal = currentBar.high;
         }
       }
     });

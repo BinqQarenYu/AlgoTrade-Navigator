@@ -6,12 +6,14 @@ export interface RsiDivergenceParams {
   period: number;
   oversold: number;
   overbought: number;
+  reverse?: boolean;
 }
 
 export const defaultRsiDivergenceParams: RsiDivergenceParams = {
   period: 14,
   oversold: 30,
   overbought: 70,
+  reverse: false,
 };
 
 const rsiDivergenceStrategy: Strategy = {
@@ -28,8 +30,16 @@ const rsiDivergenceStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.rsi = rsi[i];
        if (i > 0 && rsi[i-1] && rsi[i]) {
-        if (rsi[i-1] <= params.oversold && rsi[i] > params.oversold) d.buySignal = d.low;
-        if (rsi[i-1] >= params.overbought && rsi[i] < params.overbought) d.sellSignal = d.high;
+        const standardBuy = rsi[i-1] <= params.oversold && rsi[i] > params.oversold;
+        const standardSell = rsi[i-1] >= params.overbought && rsi[i] < params.overbought;
+
+        if (params.reverse) {
+          if (standardBuy) d.sellSignal = d.high;
+          if (standardSell) d.buySignal = d.low;
+        } else {
+          if (standardBuy) d.buySignal = d.low;
+          if (standardSell) d.sellSignal = d.high;
+        }
       }
     });
 
