@@ -1,13 +1,16 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateHeikinAshi } from '@/lib/indicators';
+
+export interface HeikinAshiTrendParams {
+    reverse?: boolean;
+}
 
 const heikinAshiTrendStrategy: Strategy = {
   id: 'heikin-ashi-trend',
   name: 'Heikin-Ashi Trend',
   description: 'Uses smoothed Heikin-Ashi candles to identify strong trends and generates signals on trend reversals.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: HeikinAshiTrendParams = { reverse: false }): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     
     if (data.length < 2) return dataWithIndicators;
@@ -30,13 +33,17 @@ const heikinAshiTrendStrategy: Strategy = {
         const currentIsBearish = currentHa.ha_close! < currentHa.ha_open!;
 
         // Buy Signal: Trend flips from bearish to bullish
-        if (prevIsBearish && currentIsBullish) {
-            d.buySignal = d.low;
-        }
+        const standardBuy = prevIsBearish && currentIsBullish;
 
         // Sell Signal: Trend flips from bullish to bearish
-        if (prevIsBullish && currentIsBearish) {
-            d.sellSignal = d.high;
+        const standardSell = prevIsBullish && currentIsBearish;
+        
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

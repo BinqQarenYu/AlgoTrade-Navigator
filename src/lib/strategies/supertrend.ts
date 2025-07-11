@@ -5,11 +5,13 @@ import { calculateSupertrend } from '@/lib/indicators';
 export interface SupertrendParams {
   period: number;
   multiplier: number;
+  reverse?: boolean;
 }
 
 export const defaultSupertrendParams: SupertrendParams = {
   period: 10,
   multiplier: 3,
+  reverse: false,
 };
 
 const supertrendStrategy: Strategy = {
@@ -29,12 +31,16 @@ const supertrendStrategy: Strategy = {
 
       if (i > 0 && direction[i-1] && direction[i]) {
         // Trend changed from downtrend to uptrend
-        if (direction[i-1]! === -1 && direction[i]! === 1) {
-          d.buySignal = d.low;
-        }
+        const standardBuy = direction[i-1]! === -1 && direction[i]! === 1;
         // Trend changed from uptrend to downtrend
-        if (direction[i-1]! === 1 && direction[i]! === -1) {
-          d.sellSignal = d.high;
+        const standardSell = direction[i-1]! === 1 && direction[i]! === -1;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

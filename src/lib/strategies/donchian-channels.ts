@@ -4,10 +4,12 @@ import { calculateDonchianChannels } from '@/lib/indicators';
 
 export interface DonchianChannelsParams {
   period: number;
+  reverse?: boolean;
 }
 
 export const defaultDonchianChannelsParams: DonchianChannelsParams = {
   period: 20,
+  reverse: false,
 };
 
 const donchianChannelStrategy: Strategy = {
@@ -30,13 +32,17 @@ const donchianChannelStrategy: Strategy = {
       
       if (i > 0 && upper[i-1] && lower[i-1] && upper[i] && lower[i]) {
         // Buy signal: close breaks above the upper channel
-        if (data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!) {
-            d.buySignal = d.low;
-        }
+        const standardBuy = data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!;
 
         // Sell signal: close breaks below the lower channel
-        if (data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!) {
-            d.sellSignal = d.high;
+        const standardSell = data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

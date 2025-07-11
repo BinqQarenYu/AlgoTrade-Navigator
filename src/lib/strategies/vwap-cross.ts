@@ -4,10 +4,12 @@ import { calculateVWAP } from '@/lib/indicators';
 
 export interface VwapCrossParams {
   period: number;
+  reverse?: boolean;
 }
 
 export const defaultVwapCrossParams: VwapCrossParams = {
   period: 20,
+  reverse: false,
 };
 
 const vwapCrossStrategy: Strategy = {
@@ -25,12 +27,16 @@ const vwapCrossStrategy: Strategy = {
       d.vwap = vwap[i];
       if (i > 0 && vwap[i-1] !== null && vwap[i] !== null) {
         // Buy signal: close crosses above VWAP
-        if (data[i-1].close <= vwap[i-1]! && data[i].close > vwap[i]!) {
-          d.buySignal = d.low;
-        }
+        const standardBuy = data[i-1].close <= vwap[i-1]! && data[i].close > vwap[i]!;
         // Sell signal: close crosses below VWAP
-        if (data[i-1].close >= vwap[i-1]! && data[i].close < vwap[i]!) {
-          d.sellSignal = d.high;
+        const standardSell = data[i-1].close >= vwap[i-1]! && data[i].close < vwap[i]!;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

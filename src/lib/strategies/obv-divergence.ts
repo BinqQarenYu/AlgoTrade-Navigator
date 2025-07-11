@@ -4,10 +4,12 @@ import { calculateOBV, calculateSMA } from '@/lib/indicators';
 
 export interface ObvDivergenceParams {
   period: number;
+  reverse?: boolean;
 }
 
 export const defaultObvDivergenceParams: ObvDivergenceParams = {
   period: 20,
+  reverse: false,
 };
 
 const obvDivergenceStrategy: Strategy = {
@@ -26,17 +28,15 @@ const obvDivergenceStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.obv = obv[i];
       if (i > 0 && obv[i-1] !== null && obv[i] !== null && obvSmaPadded[i-1] !== null && obvSmaPadded[i] !== null) {
-        const obvCrossesUp = obv[i]! > obvSmaPadded[i]! && obv[i-1]! <= obvSmaPadded[i-1]!;
-        const obvCrossesDown = obv[i]! < obvSmaPadded[i]! && obv[i-1]! >= obvSmaPadded[i-1]!;
+        const standardBuy = obv[i]! > obvSmaPadded[i]! && obv[i-1]! <= obvSmaPadded[i-1]!;
+        const standardSell = obv[i]! < obvSmaPadded[i]! && obv[i-1]! >= obvSmaPadded[i-1]!;
         
-        // Buy signal: OBV crosses above its moving average, suggesting buying pressure is taking over
-        if (obvCrossesUp) {
-            d.buySignal = d.low;
-        }
-
-        // Sell signal: OBV crosses below its moving average, suggesting selling pressure is taking over
-        if (obvCrossesDown) {
-            d.sellSignal = d.high;
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

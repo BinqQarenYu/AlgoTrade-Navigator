@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA, calculateATR } from '@/lib/indicators';
@@ -11,6 +10,7 @@ export interface MtfEngulfingParams {
   atrLength: number;
   slAtrMultiplier: number;
   rrRatio: number;
+  reverse?: boolean;
 }
 
 export const defaultMtfEngulfingParams: MtfEngulfingParams = {
@@ -19,6 +19,7 @@ export const defaultMtfEngulfingParams: MtfEngulfingParams = {
   atrLength: 14,
   slAtrMultiplier: 1.5,
   rrRatio: 2.0,
+  reverse: false,
 };
 
 // Helper to map HTF data to LTF data
@@ -91,20 +92,29 @@ const mtfEngulfingStrategy: Strategy = {
       // Bearish Engulfing: Current red, previous green, current engulfs previous body
       const isBearishEngulfing = (d.close < d.open) && (prev.close > prev.open) && (d.close < prev.open) && (d.open > prev.close);
 
-      if (isUptrend && isBullishEngulfing) {
-        const atr = atrValues[i]!;
-        const stopLoss = d.close - (atr * params.slAtrMultiplier);
-        
-        d.buySignal = d.close;
-        d.stopLossLevel = stopLoss;
-      }
-      
-      if (isDowntrend && isBearishEngulfing) {
-        const atr = atrValues[i]!;
-        const stopLoss = d.close + (atr * params.slAtrMultiplier);
+      const standardBuy = isUptrend && isBullishEngulfing;
+      const standardSell = isDowntrend && isBearishEngulfing;
 
-        d.sellSignal = d.close;
-        d.stopLossLevel = stopLoss;
+      const atr = atrValues[i]!;
+
+      if (params.reverse) {
+        if (standardBuy) {
+            d.sellSignal = d.close;
+            d.stopLossLevel = d.close + (atr * params.slAtrMultiplier);
+        }
+        if (standardSell) {
+            d.buySignal = d.close;
+            d.stopLossLevel = d.close - (atr * params.slAtrMultiplier);
+        }
+      } else {
+        if (standardBuy) {
+            d.buySignal = d.close;
+            d.stopLossLevel = d.close - (atr * params.slAtrMultiplier);
+        }
+        if (standardSell) {
+            d.sellSignal = d.close;
+            d.stopLossLevel = d.close + (atr * params.slAtrMultiplier);
+        }
       }
     });
 

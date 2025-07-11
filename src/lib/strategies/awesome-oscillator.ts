@@ -5,11 +5,13 @@ import { calculateAwesomeOscillator } from '@/lib/indicators';
 export interface AwesomeOscillatorParams {
   shortPeriod: number;
   longPeriod: number;
+  reverse?: boolean;
 }
 
 export const defaultAwesomeOscillatorParams: AwesomeOscillatorParams = {
   shortPeriod: 5,
   longPeriod: 34,
+  reverse: false,
 };
 
 const awesomeOscillatorStrategy: Strategy = {
@@ -27,12 +29,16 @@ const awesomeOscillatorStrategy: Strategy = {
       d.awesome_oscillator = ao[i];
       if (i > 0 && ao[i-1] !== null && ao[i] !== null) {
         // Bullish Crossover (from below zero to above zero)
-        if (ao[i-1]! <= 0 && ao[i]! > 0) {
-          d.buySignal = d.low;
-        }
+        const standardBuy = ao[i-1]! <= 0 && ao[i]! > 0;
         // Bearish Crossover (from above zero to below zero)
-        if (ao[i-1]! >= 0 && ao[i]! < 0) {
-          d.sellSignal = d.high;
+        const standardSell = ao[i-1]! >= 0 && ao[i]! < 0;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

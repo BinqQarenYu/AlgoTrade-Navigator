@@ -7,6 +7,7 @@ export interface IchimokuCloudParams {
   kijunPeriod: number;
   senkouBPeriod: number;
   displacement: number;
+  reverse?: boolean;
 }
 
 export const defaultIchimokuCloudParams: IchimokuCloudParams = {
@@ -14,6 +15,7 @@ export const defaultIchimokuCloudParams: IchimokuCloudParams = {
   kijunPeriod: 26,
   senkouBPeriod: 52,
   displacement: 26,
+  reverse: false,
 };
 
 const ichimokuCloudStrategy: Strategy = {
@@ -63,13 +65,17 @@ const ichimokuCloudStrategy: Strategy = {
         const isBelowKumo = price < senkou_a_current && price < senkou_b_current;
 
         // Buy Signal: Bullish TK cross happens while price is above the Kumo
-        if (bullish_tk_cross && isAboveKumo) {
-            d.buySignal = d.low;
-        }
+        const standardBuy = bullish_tk_cross && isAboveKumo;
 
         // Sell Signal: Bearish TK cross happens while price is below the Kumo
-        if (bearish_tk_cross && isBelowKumo) {
-            d.sellSignal = d.high;
+        const standardSell = bearish_tk_cross && isBelowKumo;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
     }
 

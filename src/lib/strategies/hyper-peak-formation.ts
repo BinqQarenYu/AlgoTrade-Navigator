@@ -11,6 +11,7 @@ export interface HyperPFFParams {
     fibLevel1: number;
     fibLevel2: number;
     maxLookahead: number;
+    reverse?: boolean;
 }
 
 export const defaultHyperPFFParams: HyperPFFParams = {
@@ -21,6 +22,7 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     fibLevel1: 0.5,
     fibLevel2: 0.618,
     maxLookahead: 100,
+    reverse: false,
 };
 
 function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
@@ -113,12 +115,14 @@ const hyperPeakFormationStrategy: Strategy = {
                                 const fibLevel2 = pullbackLow + fibRange * params.fibLevel2;
                                 
                                 if (data[l].high >= fibLevel1) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel1;
+                                    if (params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel1;
+                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel1;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
                                 if (data[l].high >= fibLevel2) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel2;
+                                    if (params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel2;
+                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel2;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
@@ -163,12 +167,14 @@ const hyperPeakFormationStrategy: Strategy = {
                                 const fibLevel2 = pullbackHigh - fibRange * params.fibLevel2;
                                  
                                 if (data[l].low <= fibLevel1) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel1;
+                                    if (params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel1;
+                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel1;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                 }
                                  if (data[l].low <= fibLevel2) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel2;
+                                    if (params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel2;
+                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel2;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                  }

@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData } from '@/lib/types';
 import { calculateEMA, calculateCCI, calculateMACD } from '@/lib/indicators';
@@ -12,6 +11,7 @@ export interface EmaCciMacdParams {
   macdShortPeriod: number;
   macdLongPeriod: number;
   macdSignalPeriod: number;
+  reverse?: boolean;
 }
 
 export const defaultEmaCciMacdParams: EmaCciMacdParams = {
@@ -23,6 +23,7 @@ export const defaultEmaCciMacdParams: EmaCciMacdParams = {
   macdShortPeriod: 12,
   macdLongPeriod: 26,
   macdSignalPeriod: 9,
+  reverse: false,
 };
 
 const emaCciMacdStrategy: Strategy = {
@@ -62,7 +63,6 @@ const emaCciMacdStrategy: Strategy = {
         return;
       }
 
-      // --- BUY Trade Logic ---
       // Trend Confirmation: Fast EMA is above Medium, which is above Slow
       const wasInUptrend = prevEmaFast > prevEmaMedium && prevEmaMedium > prevEmaSlow;
       // Pullback Confirmation: CCI crosses back up from oversold territory.
@@ -70,11 +70,8 @@ const emaCciMacdStrategy: Strategy = {
       // Momentum Confirmation: MACD histogram is positive.
       const wasMacdBullish = prevMacdHist > 0;
       
-      if (wasInUptrend && cciBuyCross && wasMacdBullish) {
-          d.buySignal = d.low;
-      }
+      const standardBuy = wasInUptrend && cciBuyCross && wasMacdBullish;
       
-      // --- SELL Trade Logic ---
       // Trend Confirmation: Fast EMA is below Medium, which is below Slow
       const wasInDowntrend = prevEmaFast < prevEmaMedium && prevEmaMedium < prevEmaSlow;
       // Pullback Confirmation: CCI crosses back down from overbought territory.
@@ -82,8 +79,14 @@ const emaCciMacdStrategy: Strategy = {
       // Momentum Confirmation: MACD histogram is negative.
       const wasMacdBearish = prevMacdHist < 0;
 
-      if (wasInDowntrend && cciSellCross && wasMacdBearish) {
-        d.sellSignal = d.high;
+      const standardSell = wasInDowntrend && cciSellCross && wasMacdBearish;
+
+      if (params.reverse) {
+          if (standardBuy) d.sellSignal = d.high;
+          if (standardSell) d.buySignal = d.low;
+      } else {
+          if (standardBuy) d.buySignal = d.low;
+          if (standardSell) d.sellSignal = d.high;
       }
     });
 

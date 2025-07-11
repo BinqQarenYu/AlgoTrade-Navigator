@@ -6,12 +6,14 @@ export interface CciReversionParams {
   period: number;
   overbought: number;
   oversold: number;
+  reverse?: boolean;
 }
 
 export const defaultCciReversionParams: CciReversionParams = {
   period: 20,
   overbought: 100,
   oversold: -100,
+  reverse: false,
 };
 
 const cciReversionStrategy: Strategy = {
@@ -29,12 +31,16 @@ const cciReversionStrategy: Strategy = {
       d.cci = cci[i];
       if (i > 0 && cci[i-1] !== null && cci[i] !== null) {
         // Buy signal: CCI crosses back above oversold level
-        if (cci[i-1]! <= params.oversold && cci[i]! > params.oversold) {
-          d.buySignal = d.low;
-        }
+        const standardBuy = cci[i-1]! <= params.oversold && cci[i]! > params.oversold;
         // Sell signal: CCI crosses back below overbought level
-        if (cci[i-1]! >= params.overbought && cci[i]! < params.overbought) {
-          d.sellSignal = d.high;
+        const standardSell = cci[i-1]! >= params.overbought && cci[i]! < params.overbought;
+
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

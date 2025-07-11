@@ -11,6 +11,7 @@ export interface PffParams {
     fibLevel1: number;
     fibLevel2: number;
     maxLookahead: number;
+    reverse?: boolean;
 }
 
 export const defaultPffParams: PffParams = {
@@ -21,13 +22,9 @@ export const defaultPffParams: PffParams = {
     fibLevel1: 0.5,
     fibLevel2: 0.618,
     maxLookahead: 100,
+    reverse: false,
 };
 
-
-/**
- * Finds swing lows in the data, which are essential for identifying breaks of structure.
- * A swing low is a point where the low is lower than the lows of the surrounding bars.
- */
 function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
     const swingLows: number[] = [];
     for (let i = lookaround; i < data.length - lookaround; i++) {
@@ -45,10 +42,6 @@ function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
     return swingLows;
 }
 
-/**
- * Finds swing highs in the data.
- * A swing high is a point where the high is higher than the highs of the surrounding bars.
- */
 function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
     const swingHighs: number[] = [];
     for (let i = lookaround; i < data.length - lookaround; i++) {
@@ -125,12 +118,14 @@ const peakFormationFibStrategy: Strategy = {
                                 const fib618 = pullbackLow + fibRange * params.fibLevel2;
                                 
                                 if (data[l].high >= fib50) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
+                                    if(params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
+                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
                                 if (data[l].high >= fib618) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
+                                    if (params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
+                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
@@ -178,15 +173,17 @@ const peakFormationFibStrategy: Strategy = {
                                 const fib618 = pullbackHigh - fibRange * params.fibLevel2;
                                  
                                 if (data[l].low <= fib50) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
+                                    if(params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
+                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                 }
                                  if (data[l].low <= fib618) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
+                                    if(params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
+                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
-                                }
+                                 }
                             }
                             break; 
                         }

@@ -6,12 +6,14 @@ export interface StochasticCrossoverParams {
   period: number;
   smoothK: number;
   smoothD: number;
+  reverse?: boolean;
 }
 
 export const defaultStochasticCrossoverParams: StochasticCrossoverParams = {
   period: 14,
   smoothK: 3,
   smoothD: 3,
+  reverse: false,
 };
 
 const stochasticCrossoverStrategy: Strategy = {
@@ -31,12 +33,16 @@ const stochasticCrossoverStrategy: Strategy = {
 
       if (i > 0 && k[i-1] !== null && stochD[i-1] !== null && k[i] !== null && stochD[i] !== null) {
         // Bullish Crossover
-        if (k[i-1]! <= stochD[i-1]! && k[i]! > stochD[i]!) {
-          dItem.buySignal = dItem.low;
-        }
+        const standardBuy = k[i-1]! <= stochD[i-1]! && k[i]! > stochD[i]!;
         // Bearish Crossover
-        if (k[i-1]! >= stochD[i-1]! && k[i]! < stochD[i]!) {
-          dItem.sellSignal = dItem.high;
+        const standardSell = k[i-1]! >= stochD[i-1]! && k[i]! < stochD[i]!;
+
+        if (params.reverse) {
+            if (standardBuy) dItem.sellSignal = dItem.high;
+            if (standardSell) dItem.buySignal = dItem.low;
+        } else {
+            if (standardBuy) dItem.buySignal = dItem.low;
+            if (standardSell) dItem.sellSignal = dItem.high;
         }
       }
     });

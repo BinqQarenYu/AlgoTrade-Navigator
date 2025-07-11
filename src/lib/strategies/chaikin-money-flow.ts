@@ -4,10 +4,12 @@ import { calculateCMF } from '@/lib/indicators';
 
 export interface ChaikinMoneyFlowParams {
   period: number;
+  reverse?: boolean;
 }
 
 export const defaultChaikinMoneyFlowParams: ChaikinMoneyFlowParams = {
   period: 20,
+  reverse: false,
 };
 
 const chaikinMoneyFlowStrategy: Strategy = {
@@ -25,12 +27,16 @@ const chaikinMoneyFlowStrategy: Strategy = {
       d.cmf = cmf[i];
       if (i > 0 && cmf[i-1] !== null && cmf[i] !== null) {
         // Buy Signal: CMF crosses above zero
-        if (cmf[i-1]! <= 0 && cmf[i]! > 0) {
-          d.buySignal = d.low;
-        }
+        const standardBuy = cmf[i-1]! <= 0 && cmf[i]! > 0;
         // Sell Signal: CMF crosses below zero
-        if (cmf[i-1]! >= 0 && cmf[i]! < 0) {
-          d.sellSignal = d.high;
+        const standardSell = cmf[i-1]! >= 0 && cmf[i]! < 0;
+        
+        if (params.reverse) {
+            if (standardBuy) d.sellSignal = d.high;
+            if (standardSell) d.buySignal = d.low;
+        } else {
+            if (standardBuy) d.buySignal = d.low;
+            if (standardSell) d.sellSignal = d.high;
         }
       }
     });

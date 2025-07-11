@@ -5,11 +5,13 @@ import { calculateKeltnerChannels } from '@/lib/indicators';
 export interface KeltnerChannelsParams {
   period: number;
   multiplier: number;
+  reverse?: boolean;
 }
 
 export const defaultKeltnerChannelsParams: KeltnerChannelsParams = {
   period: 20,
   multiplier: 2,
+  reverse: false,
 };
 
 const keltnerChannelsStrategy: Strategy = {
@@ -28,17 +30,15 @@ const keltnerChannelsStrategy: Strategy = {
       d.keltner_middle = middle[i];
       d.keltner_lower = lower[i];
       
-      if (i > 0 && upper[i-1] && upper[i]) {
-        // Buy signal: close breaks above the upper channel
-        if (data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!) {
-            d.buySignal = d.low;
-        }
-      }
-      if (i > 0 && lower[i-1] && lower[i]) {
-        // Sell signal: close breaks below the lower channel
-        if (data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!) {
-            d.sellSignal = d.high;
-        }
+      const standardBuy = i > 0 && upper[i-1] && upper[i] && data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!;
+      const standardSell = i > 0 && lower[i-1] && lower[i] && data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!;
+
+      if (params.reverse) {
+          if (standardBuy) d.sellSignal = d.high;
+          if (standardSell) d.buySignal = d.low;
+      } else {
+          if (standardBuy) d.buySignal = d.low;
+          if (standardSell) d.sellSignal = d.high;
       }
     });
 
