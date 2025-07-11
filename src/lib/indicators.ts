@@ -155,6 +155,7 @@ export const calculateATR = (data: HistoricalData[], period: number): (number | 
     // Calculate initial ATR
     let initialTrSum = 0;
     for (let i = 1; i <= period; i++) {
+        if (!data[i] || !data[i-1]) continue; // Safety check
         const high = data[i].high;
         const low = data[i].low;
         const prevClose = data[i-1].close;
@@ -164,11 +165,11 @@ export const calculateATR = (data: HistoricalData[], period: number): (number | 
     prevAtr = initialTrSum / period;
     
     for (let i = 0; i < data.length; i++) {
-        if(i < period) {
+        if (i < period) {
             atr.push(null);
             continue;
         }
-        if(i === period) {
+        if (i === period) {
             atr.push(prevAtr);
             continue;
         }
