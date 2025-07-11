@@ -53,7 +53,7 @@ const mtfEngulfingStrategy: Strategy = {
   name: 'MTF Engulfing',
   description: 'Uses a Higher Timeframe EMA for trend and enters on a Lower Timeframe Engulfing candle.',
   
-  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol: string = 'BTCUSDT'): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.emaLength) return dataWithIndicators;
 
@@ -64,7 +64,7 @@ const mtfEngulfingStrategy: Strategy = {
     const htfStartTime = data[0].time;
     const htfEndTime = data[data.length - 1].time;
     // A real implementation might need to fetch slightly more data to ensure the EMA is accurate at the start.
-    const htfDataRaw = await getHistoricalKlines('BTCUSDT', htfBinanceInterval, htfStartTime, htfEndTime);
+    const htfDataRaw = await getHistoricalKlines(symbol, htfBinanceInterval, htfStartTime, htfEndTime);
     
     if (htfDataRaw.length === 0) {
       console.warn("Could not fetch HTF data for MTF Engulfing strategy.");

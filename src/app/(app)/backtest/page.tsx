@@ -356,7 +356,7 @@ export default function BacktestPage() {
 
       if (strategy) {
           const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          dataWithInd = await strategy.calculate(chartData, paramsForStrategy);
+          dataWithInd = await strategy.calculate(chartData, paramsForStrategy, symbol);
       } else {
           dataWithInd = chartData;
       }
@@ -367,14 +367,14 @@ export default function BacktestPage() {
     };
     
     calculateAndSetIndicators();
-  }, [chartData, selectedStrategy, strategyParams]);
+  }, [chartData, selectedStrategy, strategyParams, symbol]);
 
   const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[]}> => {
-    const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee } = params;
+    const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee, symbol } = params;
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data };
 
-    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams);
+    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -494,7 +494,7 @@ export default function BacktestPage() {
     });
 
     const paramsForStrategy = strategyParams[selectedStrategy] || {};
-    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy);
+    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -677,7 +677,8 @@ export default function BacktestPage() {
         const { summary } = await runSilentBacktest(chartData, {
             strategyId: selectedStrategy,
             strategyParams: params,
-            initialCapital, leverage, takeProfit, stopLoss, fee
+            initialCapital, leverage, takeProfit, stopLoss, fee,
+            symbol: symbol
         });
 
         if (summary && summary.profitFactor > bestProfitFactor) {
@@ -1254,5 +1255,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    

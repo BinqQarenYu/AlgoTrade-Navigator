@@ -4,6 +4,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -304,7 +305,7 @@ export interface Strategy {
   id: string;
   name: string;
   description: string;
-  calculate: (data: HistoricalData[], params?: any) => Promise<HistoricalData[]>;
+  calculate: (data: HistoricalData[], params?: any, symbol?: string) => Promise<HistoricalData[]>;
 }
 
 export type CoinSentimentData = {
@@ -576,10 +577,3 @@ export type DetectManipulationOutput = {
   pumpPeriod?: { startTime: number; endTime: number; };
   distributionPeriod?: { startTime: number; endTime: number; };
 };
-
-export interface Strategy {
-  id: string;
-  name: string;
-  description: string;
-  calculate: (data: HistoricalData[], params?: any) => Promise<HistoricalData[]>;
-}
