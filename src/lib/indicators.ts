@@ -148,40 +148,32 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
 };
 
 export const calculateATR = (data: HistoricalData[], period: number): (number | null)[] => {
-    if (data.length <= period) return Array(data.length).fill(null);
-    const atr: (number | null)[] = [];
-    let prevAtr: number | null = null;
-    
-    // Calculate initial ATR
-    let initialTrSum = 0;
-    for (let i = 1; i <= period; i++) {
-        if (!data[i] || !data[i-1]) continue; // Safety check
-        const high = data[i].high;
-        const low = data[i].low;
-        const prevClose = data[i-1].close;
-        const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-        initialTrSum += tr;
-    }
-    prevAtr = initialTrSum / period;
-    
-    for (let i = 0; i < data.length; i++) {
-        if (i < period) {
-            atr.push(null);
-            continue;
-        }
-        if (i === period) {
-            atr.push(prevAtr);
-            continue;
-        }
+    if (data.length < period) return Array(data.length).fill(null);
 
+    const trValues: number[] = [data[0].high - data[0].low]; // True Range values
+    for (let i = 1; i < data.length; i++) {
         const high = data[i].high;
         const low = data[i].low;
-        const prevClose = data[i-1].close;
-        const currentTr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-        
-        const currentAtr = ((prevAtr! * (period - 1)) + currentTr) / period;
-        atr.push(currentAtr);
-        prevAtr = currentAtr;
+        const prevClose = data[i - 1].close;
+        trValues.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+    }
+
+    const atr: (number | null)[] = [];
+    let currentAtr: number | null = null;
+
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            atr.push(null);
+        } else if (i === period - 1) {
+            // First ATR is the average of the first 'period' TRs
+            const initialTrSum = trValues.slice(0, period).reduce((acc, val) => acc + val, 0);
+            currentAtr = initialTrSum / period;
+            atr.push(currentAtr);
+        } else {
+            // Smoothed ATR for subsequent values
+            currentAtr = (currentAtr! * (period - 1) + trValues[i]) / period;
+            atr.push(currentAtr);
+        }
     }
     return atr;
 };
