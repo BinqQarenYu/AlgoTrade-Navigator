@@ -1150,5 +1150,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    
