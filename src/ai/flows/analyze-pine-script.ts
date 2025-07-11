@@ -2,9 +2,9 @@
 'use server';
 
 /**
- * @fileOverview A Pine Script analysis AI agent.
+ * @fileOverview A Pine Script analysis and revision AI agent.
  *
- * - analyzePineScript - A function that handles the Pine Script analysis process.
+ * - analyzePineScript - A function that handles the Pine Script analysis and revision process.
  * - AnalyzePineScriptInput - The input type for the analyzePineScript function.
  * - AnalyzePineScriptOutput - The return type for the analyzePineScript function.
  */
@@ -14,15 +14,21 @@ import { runAiFlow } from '@/lib/ai-service';
 import {z} from 'genkit';
 
 const AnalyzePineScriptInputSchema = z.object({
-  pineScript: z.string().describe('The Pine Script code to analyze.'),
+  pineScript: z.string().describe('The Pine Script code to analyze and revise.'),
 });
 export type AnalyzePineScriptInput = z.infer<typeof AnalyzePineScriptInputSchema>;
 
 const AnalyzePineScriptOutputSchema = z.object({
-  feedback: z
+  analysis: z
     .string()
     .describe(
-      'Detailed feedback on the Pine Script, including suggestions for optimization, potential risks, and code improvements.'
+      'Detailed feedback on the Pine Script, including logic explanation, potential risks, and optimization suggestions.'
+    ),
+  hasErrors: z.boolean().describe('Whether any errors were found in the original script.'),
+  revisedScript: z
+    .string()
+    .describe(
+      'The corrected and optimized version of the Pine Script. If no errors were found, this should be the original script with potential improvements.'
     ),
 });
 export type AnalyzePineScriptOutput = z.infer<typeof AnalyzePineScriptOutputSchema>;
@@ -31,20 +37,25 @@ const analyzePineScriptPrompt = ai.definePrompt({
   name: 'analyzePineScriptPrompt',
   input: {schema: AnalyzePineScriptInputSchema},
   output: {schema: AnalyzePineScriptOutputSchema},
-  prompt: `You are an expert in TradingView's Pine Script and quantitative trading strategies. Your task is to analyze the provided Pine Script code.
+  prompt: `You are an expert in TradingView's Pine Script and quantitative trading strategies. Your task is to analyze the provided Pine Script code and revise it if necessary.
 
-Please provide a thorough analysis covering the following points:
-1.  **Strategy Logic:** Explain the core logic of the strategy in simple terms. What are the entry and exit conditions?
-2.  **Potential Risks:** Identify potential risks associated with this strategy (e.g., overfitting, high sensitivity to market conditions, lack of risk management).
-3.  **Optimization Suggestions:** Suggest specific improvements or optimizations. This could include parameter tuning, adding filters (like volume or volatility), or improving the risk management (e.g., adding stop-loss or take-profit logic if it's missing).
-4.  **Code Quality:** Briefly comment on the code quality and suggest any improvements for clarity or efficiency.
+**Your Analysis Task:**
+1.  **Error Detection:** First, meticulously check the script for any syntax errors, logic errors, or common Pine Script pitfalls (e.g., repainting, incorrect use of functions). Set \`hasErrors\` to true if you find any.
+2.  **Revision:** Provide a corrected and optimized version of the script in the \`revisedScript\` field.
+    - If errors are found, your primary goal is to fix them to make the script functional.
+    - If no errors are found, suggest improvements for optimization, risk management (e.g., adding stop-loss/take-profit), or code clarity. The revised script should incorporate these suggestions.
+3.  **Detailed Analysis:** In the \`analysis\` field, provide a thorough breakdown:
+    -   **Strategy Logic:** Explain the core logic in simple terms.
+    -   **Corrections Made:** If you found errors, explain what they were and how you fixed them.
+    -   **Potential Risks:** Identify risks like overfitting or poor risk management.
+    -   **Optimization Suggestions:** Suggest further improvements beyond what you've implemented in the revised script.
 
-Pine Script to Analyze:
+**Pine Script to Analyze and Revise:**
 \`\`\`pinescript
 {{{pineScript}}}
 \`\`\`
 
-Provide your feedback in a clear, structured markdown format.
+Provide your response in the structured JSON format required. Ensure the \`revisedScript\` is complete and ready to be used.
 `,
 });
 
