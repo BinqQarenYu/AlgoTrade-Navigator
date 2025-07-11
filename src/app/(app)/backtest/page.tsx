@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -531,7 +530,7 @@ export default function BacktestPage() {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
         if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-        else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+        else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'signal'; }
         else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
 
         if (exitPrice !== null) {
@@ -1150,3 +1149,5 @@ export default function BacktestPage() {
     </div>
   )
 }
+
+    
