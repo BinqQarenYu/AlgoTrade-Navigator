@@ -130,8 +130,13 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         oversold: { min: -90, max: -70, step: 5 },
     },
     'ema-cci-macd': {
-        emaPeriod: { min: 50, max: 200, step: 25 },
+        emaFastPeriod: { min: 5, max: 15, step: 3 },
+        emaMediumPeriod: { min: 16, max: 30, step: 5 },
+        emaSlowPeriod: { min: 40, max: 60, step: 10 },
         cciPeriod: { min: 14, max: 28, step: 7 },
         cciLevel: { min: 100, max: 150, step: 25 },
+        macdShortPeriod: { min: 9, max: 15, step: 3 },
+        macdLongPeriod: { min: 20, max: 30, step: 5 },
+        macdSignalPeriod: { min: 7, max: 12, step: 2 },
     }
 };
