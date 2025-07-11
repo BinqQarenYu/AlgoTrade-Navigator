@@ -229,23 +229,22 @@ export default function BacktestPage() {
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const handleParamChange = (strategyId: string, paramName: string, value: string | string[]) => {
-    if (Array.isArray(value)) {
+  const handleParamChange = (strategyId: string, paramName: string, value: string | string[] | boolean) => {
+    if (typeof value === 'boolean') {
+      setStrategyParams(prev => ({
+            ...prev,
+            [strategyId]: { ...prev[strategyId], [paramName]: value }
+      }));
+    } else if (Array.isArray(value)) {
        setStrategyParams(prev => ({
             ...prev,
-            [strategyId]: {
-                ...prev[strategyId],
-                [paramName]: value,
-            }
+            [strategyId]: { ...prev[strategyId], [paramName]: value }
         }));
     } else {
         const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
         setStrategyParams(prev => ({
             ...prev,
-            [strategyId]: {
-                ...prev[strategyId],
-                [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
-            }
+            [strategyId]: { ...prev[strategyId], [paramName]: isNaN(parsedValue) ? 0 : parsedValue }
         }));
     }
   };
@@ -740,25 +739,41 @@ export default function BacktestPage() {
         handleParamChange(selectedStrategy, 'strategies', newSelection);
       };
 
+      const isReversed = params.reverse || false;
+
       return (
         <div className="space-y-4">
-          <Label>Ensemble Strategies</Label>
-          <p className="text-xs text-muted-foreground">Select the strategies to include in the consensus calculation. A signal is generated when a majority agree.</p>
-          <ScrollArea className="h-48 w-full rounded-md border p-4">
-            <div className="space-y-2">
-                {consensusStrategies.map((strategy) => (
-                    <div key={strategy.id} className="flex items-center space-x-2">
-                        <Checkbox 
-                            id={`consensus-${strategy.id}`} 
-                            checked={selectedSubStrategies.includes(strategy.id)}
-                            onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)}
-                            disabled={anyLoading}
-                        />
-                        <Label htmlFor={`consensus-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
-                    </div>
-                ))}
+          <div>
+              <Label>Ensemble Strategies</Label>
+              <p className="text-xs text-muted-foreground">Select the strategies to include in the consensus calculation. A signal is generated when a majority agree.</p>
+              <ScrollArea className="h-40 w-full rounded-md border p-4 mt-2">
+                <div className="space-y-2">
+                    {consensusStrategies.map((strategy) => (
+                        <div key={strategy.id} className="flex items-center space-x-2">
+                            <Checkbox 
+                                id={`consensus-${strategy.id}`} 
+                                checked={selectedSubStrategies.includes(strategy.id)}
+                                onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)}
+                                disabled={anyLoading}
+                            />
+                            <Label htmlFor={`consensus-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
+                        </div>
+                    ))}
+                </div>
+              </ScrollArea>
+          </div>
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={isReversed}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={anyLoading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the consensus. BUY on a SELL signal and vice-versa.</p>
             </div>
-          </ScrollArea>
+          </div>
         </div>
       );
     }
