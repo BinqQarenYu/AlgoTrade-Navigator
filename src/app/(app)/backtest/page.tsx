@@ -739,8 +739,6 @@ export default function BacktestPage() {
         handleParamChange(selectedStrategy, 'strategies', newSelection);
       };
 
-      const isReversed = params.reverse || false;
-
       return (
         <div className="space-y-4">
           <div>
@@ -762,30 +760,17 @@ export default function BacktestPage() {
                 </div>
               </ScrollArea>
           </div>
-          <div className="flex items-center space-x-2 pt-2">
-            <Switch
-              id="reverse-logic"
-              checked={isReversed}
-              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={anyLoading}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-              <p className="text-xs text-muted-foreground">Trade against the consensus. BUY on a SELL signal and vice-versa.</p>
-            </div>
-          </div>
         </div>
       );
     }
     
-    // Filter out 'strategies' and 'reverse' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse'));
+    // Filter out 'strategies' from the regular parameter display
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies'));
     const isReversed = params.reverse || false;
-
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
-             <div className="flex items-center space-x-2 pt-2">
+            <div className="flex items-center space-x-2 pt-2">
                 <Switch
                     id="reverse-logic"
                     checked={isReversed}
@@ -799,25 +784,28 @@ export default function BacktestPage() {
             </div>
         );
     }
-
-    if (Object.keys(params).length === 0) {
+    
+    if (Object.keys(filteredParams).length === 0) {
         return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
     }
 
-
-    const controls = Object.entries(filteredParams).map(([key, value]) => (
-      <div key={key} className="space-y-2">
-        <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-        <Input 
-          id={key}
-          type="number"
-          value={value as number}
-          onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
-          step={String(value).includes('.') ? '0.001' : '1'}
-          disabled={anyLoading}
-        />
-      </div>
-    ));
+    const controls = Object.entries(filteredParams).map(([key, value]) => {
+      // Exclude 'reverse' from the dynamic input controls since it's handled by the switch
+      if (key === 'reverse') return null;
+      return (
+        <div key={key} className="space-y-2">
+          <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
+          <Input 
+            id={key}
+            type="number"
+            value={value as number}
+            onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
+            step={String(value).includes('.') ? '0.001' : '1'}
+            disabled={anyLoading}
+          />
+        </div>
+      );
+    });
 
     const canOptimize = !!optimizationConfigs[selectedStrategy];
     const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
@@ -1185,5 +1173,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-
-    
