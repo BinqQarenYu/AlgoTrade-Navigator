@@ -64,6 +64,20 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [isHydrated ? state : defaultValue, setState];
 };
 
+/**
+ * Determines the appropriate grouping size and display precision for an asset based on its price.
+ * @param price The current mid-price of the asset.
+ * @returns An object with the calculated `grouping` and `precision`.
+ */
+const getGroupingAndPrecision = (price: number): { grouping: number; precision: number } => {
+    if (price > 10000) return { grouping: 10, precision: 2 };      // e.g., BTC
+    if (price > 1000) return { grouping: 0.5, precision: 2 };      // e.g., ETH
+    if (price > 10) return { grouping: 0.05, precision: 4 };       // e.g., SOL
+    if (price > 0.1) return { grouping: 0.001, precision: 6 };      // e.g., ADA
+    if (price > 0.0001) return { grouping: 0.000001, precision: 8 }; // e.g., SHIB
+    return { grouping: 0.00000001, precision: 10 };                 // e.g., PEPE
+};
+
 // Aggregates raw order book levels into larger price buckets
 const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel[] => {
     if (grouping <= 0) return levels;
@@ -227,27 +241,20 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         const bidLevels: OrderBookLevel[] = Array.from(bids.entries());
         const askLevels: OrderBookLevel[] = Array.from(asks.entries());
         
+        if (bidLevels.length === 0 || askLevels.length === 0) {
+            return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
+        }
+        
         const sortedBids = [...bidLevels].sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
         const sortedAsks = [...askLevels].sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
         
-        const lastBid = sortedBids.length > 0 ? parseFloat(sortedBids[0][0]) : 0;
-        const firstAsk = sortedAsks.length > 0 ? parseFloat(sortedAsks[0][0]) : 0;
-        const midPrice = lastBid > 0 && firstAsk > 0 ? (lastBid + firstAsk) / 2 : 0;
-        const calculatedSpread = firstAsk > 0 && lastBid > 0 ? firstAsk - lastBid : 0;
-
-        let grouping = 0.01;
-        if (midPrice > 50000) grouping = 50;
-        else if (midPrice > 10000) grouping = 10;
-        else if (midPrice > 1000) grouping = 1;
-        else if (midPrice > 100) grouping = 0.5;
-        else if (midPrice > 10) grouping = 0.1;
-        else if (midPrice > 1) grouping = 0.05;
-        else if (midPrice > 0.01) grouping = 0.001;
-        else if (midPrice > 0.0001) grouping = 0.00001;
-        else if (midPrice > 0.000001) grouping = 0.0000001;
-        else grouping = 0.00000001;
-
-        const calculatedPrecision = midPrice > 1 ? 2 : Math.max(2, -Math.floor(Math.log10(grouping) + 1));
+        const lastBid = parseFloat(sortedBids[0][0]);
+        const firstAsk = parseFloat(sortedAsks[0][0]);
+        const midPrice = (lastBid + firstAsk) / 2;
+        
+        // Use the new dynamic grouping function
+        const { grouping, precision: calculatedPrecision } = getGroupingAndPrecision(midPrice);
+        const calculatedSpread = firstAsk - lastBid;
 
         const aggregatedBids = groupLevels(sortedBids, grouping);
         const aggregatedAsks = groupLevels(sortedAsks, grouping);
