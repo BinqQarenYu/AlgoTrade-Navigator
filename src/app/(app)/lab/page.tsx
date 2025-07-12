@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -152,8 +151,9 @@ export default function LabPage() {
   const [stopLoss, setStopLoss] = usePersistentState<number>('lab-sl', 2);
   const [fee, setFee] = usePersistentState<number>('lab-fee', 0.04);
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined);
-  const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('lab-ai-validation', false);
+  const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('lab-ai-validation', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('lab-max-validations', 20);
+  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('lab-reverse-logic', false);
 
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -626,6 +626,18 @@ export default function LabPage() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
+         <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={useReverseLogic}
+              onCheckedChange={setUseReverseLogic}
+              disabled={anyLoading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
+          </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
@@ -651,7 +663,7 @@ export default function LabPage() {
 
     setTimeout(async () => {
       try {
-        const newProjectedCandles = generateProjectedCandles(chartData.slice(-100), projectionMode, projectionDuration, interval);
+        const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
         
         const strategyToTest = getStrategyById(selectedStrategy);
         if (!strategyToTest) {
@@ -679,6 +691,7 @@ export default function LabPage() {
         for (let i = 0; i < testedProjectedData.length; i++) {
           const d = testedProjectedData[i];
 
+          // Check for exits first
           if (positionType !== null) {
               let exitPrice: number | null = null;
               let closeReason: BacktestResult['closeReason'] = 'signal';
@@ -686,11 +699,11 @@ export default function LabPage() {
               if (positionType === 'long') {
                   if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
                   else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+                  else if (useReverseLogic ? d.buySignal : d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
               } else { // short
                   if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
                   else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+                  else if (useReverseLogic ? d.sellSignal : d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
               }
 
               if (exitPrice !== null) {
@@ -710,14 +723,18 @@ export default function LabPage() {
               }
           }
           
+          // Check for new entries
           if (positionType === null) {
-              if (d.buySignal) {
+              const buySignal = useReverseLogic ? d.sellSignal : d.buySignal;
+              const sellSignal = useReverseLogic ? d.buySignal : d.sellSignal;
+
+              if (buySignal) {
                   positionType = 'long';
                   entryPrice = d.close;
                   entryTime = d.time;
                   stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
                   takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-              } else if (d.sellSignal) {
+              } else if (sellSignal) {
                   positionType = 'short';
                   entryPrice = d.close;
                   entryTime = d.time;
@@ -727,6 +744,7 @@ export default function LabPage() {
           }
         }
 
+        // Close any open position at the end of the projection
         if (positionType !== null) {
             const lastCandle = testedProjectedData[testedProjectedData.length - 1];
             const exitPrice = lastCandle.close;
@@ -758,7 +776,7 @@ export default function LabPage() {
             averageWin: wins.length > 0 ? totalWins / wins.length : 0,
             averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
             profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
-            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: trades.reduce((s,t) => s + t.fee, 0)
+            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: trades.reduce((s,t) => s + (t.fee || 0), 0)
           };
           setForwardTestSummary(summary);
           setForwardTestTrades(trades);
