@@ -117,20 +117,9 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
     const connectAndSync = useCallback(async (currentSymbol: string) => {
-        if (wsRef.current) {
-            wsRef.current.close();
-            wsRef.current = null;
-        }
-
-        setIsConnecting(true);
-        setStreamError(null);
         let eventQueue: any[] = [];
         let snapshotLoaded = false;
         
-        // Clear previous data
-        setBids(new Map());
-        setAsks(new Map());
-
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
         wsRef.current = ws;
 
@@ -219,15 +208,29 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
 
     useEffect(() => {
+        // This is the main connection manager effect.
+        
+        // Always close any existing connection before starting.
+        if (wsRef.current) {
+            wsRef.current.onclose = null; // Prevent close handler from firing on manual close
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+
+        // Reset state when symbol changes or connection is lost/paused
+        setBids(new Map());
+        setAsks(new Map());
+        setStreamError(null);
+        setIsConnecting(true);
+        lastUpdateIdRef.current = null;
+        
         if (isStreamActive && isConnected && symbol) {
             connectAndSync(symbol);
         } else {
-             if (wsRef.current) {
-                wsRef.current.close();
-                wsRef.current = null;
-            }
+            setIsConnecting(false); // Not connecting if conditions aren't met
         }
 
+        // Cleanup function for when the component unmounts or dependencies change
         return () => {
             if (wsRef.current) {
                 wsRef.current.onclose = null;
