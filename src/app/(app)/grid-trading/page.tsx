@@ -264,7 +264,8 @@ export default function GridTradingPage() {
                     <TradingChart 
                         data={chartData} 
                         symbol={symbol} 
-                        interval={interval} 
+                        interval={interval}
+                        onIntervalChange={setInterval} 
                         gridLevels={calculatedGridLevels}
                         gridTrades={trades}
                         matchedGridTrades={backtestTrades}
