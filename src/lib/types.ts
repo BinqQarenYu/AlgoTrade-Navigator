@@ -11,6 +11,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -596,10 +597,4 @@ export type DetectManipulationOutput = {
   accumulationPeriod?: { startTime: number; endTime: number; };
   pumpPeriod?: { startTime: number; endTime: number; };
   distributionPeriod?: { startTime: number; endTime: number; };
-};
-
-export type FuturesFeeRate = {
-  level: string;
-  makerRate: string;
-  takerRate: string;
 };

@@ -9,7 +9,7 @@ import { z } from "zod"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
-import { getAccountBalance, getFuturesFeeRates } from "@/lib/binance-service"
+import { getAccountBalance } from "@/lib/binance-service"
 
 import {
   Card,
@@ -53,7 +53,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Label } from "@/components/ui/label"
 import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
-import type { ApiProfile, FuturesFeeRate } from "@/lib/types"
+import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -91,9 +91,6 @@ export default function SettingsPage() {
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
   const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
-  const [feeRates, setFeeRates] = useState<FuturesFeeRate[]>([]);
-  const [isFetchingFees, setIsFetchingFees] = useState(false);
-
 
   // Collapsible states
   const [isConnectionOpen, setConnectionOpen] = useState(false);
@@ -116,27 +113,6 @@ export default function SettingsPage() {
   useEffect(() => {
     setAiQuotaLimitInput(aiQuota.limit);
   }, [aiQuota.limit]);
-
-  // Fetch Fee rates
-   useEffect(() => {
-    const fetchFees = async () => {
-      setIsFetchingFees(true);
-      try {
-        const rates = await getFuturesFeeRates();
-        setFeeRates(rates);
-      } catch (error: any) {
-        console.error("Failed to fetch fee rates:", error);
-        toast({
-          title: "Could Not Load Fee Rates",
-          description: error.message,
-          variant: "destructive",
-        });
-      } finally {
-        setIsFetchingFees(false);
-      }
-    };
-    fetchFees();
-  }, [toast]);
 
 
   useEffect(() => {
@@ -513,55 +489,6 @@ export default function SettingsPage() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-
-      <Card>
-        <Collapsible open={isFeesOpen} onOpenChange={setIsFeesOpen}>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2"><Wallet/> Binance Futures Fee Tiers</CardTitle>
-              <CardDescription>Official fee rates for USDⓈ-M Futures trading.</CardDescription>
-            </div>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <ChevronDown className={cn("h-4 w-4 transition-transform", isFeesOpen && "rotate-180")} />
-              </Button>
-            </CollapsibleTrigger>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              {isFetchingFees ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ) : feeRates.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Level</TableHead>
-                      <TableHead>Maker Rate</TableHead>
-                      <TableHead>Taker Rate</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feeRates.map((rate, index) => (
-                      <TableRow key={index}>
-                        <TableCell><Badge variant="secondary">{rate.level}</Badge></TableCell>
-                        <TableCell>{rate.makerRate}%</TableCell>
-                        <TableCell>{rate.takerRate}%</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-sm text-muted-foreground">Could not fetch fee information.</p>
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
-
 
       <Card>
         <Collapsible open={isProfilesOpen} onOpenChange={setProfilesOpen}>

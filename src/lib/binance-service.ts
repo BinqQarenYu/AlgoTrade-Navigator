@@ -2,7 +2,7 @@
 
 'use server';
 
-import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult, FuturesFeeRate } from './types';
+import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
 import type { Ticker } from 'ccxt';
 import crypto from 'crypto';
 import ccxt from 'ccxt';
@@ -305,49 +305,3 @@ export const getDepthSnapshot = async (symbol: string): Promise<any> => {
         throw new Error(error.message || "Failed to connect to Binance for order book data.");
     }
 }
-
-/**
- * Fetches the current futures trading fee tiers from Binance.
- * This is a public endpoint and does not require API keys.
- */
-export const getFuturesFeeRates = async (): Promise<FuturesFeeRate[]> => {
-    console.log("Fetching futures fee rates from Binance...");
-    const url = `${BINANCE_API_URL}/fapi/v1/feeBurn`; // This endpoint shows fee rates
-
-    try {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            throw new Error(`Binance API Error: Failed to fetch fee rates (Status: ${response.status})`);
-        }
-        const data = await response.json();
-        // The endpoint is actually for fee burn status, but it contains the fee rate structure we need.
-        // The structure seems to be undocumented for this specific purpose, so we adapt to what's returned.
-        // Assuming the data is an array of fee tiers.
-        if (Array.isArray(data)) {
-            return data.map((tier: any) => ({
-                level: tier.vipLevel || 'N/A', // Adjust key based on actual response
-                makerRate: tier.makerCommission || 'N/A', // Adjust key
-                takerRate: tier.takerCommission || 'N/A', // Adjust key
-            }));
-        }
-
-        // It seems the `feeBurn` endpoint is no longer suitable. Let's use `exchangeInfo` as a fallback.
-        // It doesn't give tiers, but gives the general rate.
-        console.warn("FeeBurn endpoint did not return an array. Falling back to exchangeInfo.");
-        await binance.loadMarkets();
-        const btcMarket = binance.markets['BTC/USDT'];
-        if (btcMarket) {
-             return [{
-                level: 'General',
-                makerRate: String(btcMarket.maker),
-                takerRate: String(btcMarket.taker),
-            }];
-        }
-        
-        throw new Error("Could not determine fee rates from any available endpoint.");
-
-    } catch (error: any) {
-        console.error(`Error fetching futures fee rates from Binance API:`, error);
-        throw new Error(error.message || "Failed to connect to Binance for fee data.");
-    }
-};
