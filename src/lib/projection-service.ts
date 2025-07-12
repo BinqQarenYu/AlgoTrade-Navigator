@@ -36,15 +36,17 @@ export function generateProjectedCandles(
   let recentHigh = lastCandle.high;
   let recentLow = lastCandle.low;
   let avgVolume = lastCandle.volume;
-  let volumeStdDev = lastCandle.volume * 0.3; // Fallback deviation
+  
+  // New: Find peak volumes for more realistic spikes
+  const peakVolumes = [...recentData]
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 5)
+    .map(c => c.volume);
 
   if (recentData.length > 1) {
     let totalVolatility = 0;
     const volumes = recentData.map(c => c.volume);
     avgVolume = volumes.reduce((sum, v) => sum + v, 0) / volumes.length;
-
-    const variance = volumes.reduce((sum, v) => sum + Math.pow(v - avgVolume, 2), 0) / volumes.length;
-    volumeStdDev = Math.sqrt(variance);
 
     recentData.forEach(candle => {
       totalVolatility += candle.high - candle.low;
@@ -111,9 +113,13 @@ export function generateProjectedCandles(
     const high = Math.max(open, close) + Math.random() * (avgVolatility / 2);
     const low = Math.min(open, close) - Math.random() * (avgVolatility / 2);
 
-    // Generate realistic volume
-    const randomVolumeFactor = (Math.random() - 0.5) * 2; // -1 to 1
-    const volume = avgVolume + (randomVolumeFactor * volumeStdDev);
+    // Generate realistic volume with random spikes
+    let volume = avgVolume * (0.75 + Math.random() * 0.5); // Baseline volume with some variance
+    if (Math.random() < 0.05 && peakVolumes.length > 0) { // 5% chance of a volume spike
+        const peakVolume = peakVolumes[Math.floor(Math.random() * peakVolumes.length)];
+        volume = peakVolume * (0.8 + Math.random() * 0.4); // Use a peak volume with some variance
+    }
+
 
     const newCandle: HistoricalData = {
       time: nextTime,
