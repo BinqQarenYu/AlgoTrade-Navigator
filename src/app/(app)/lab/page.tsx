@@ -49,6 +49,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { generateProjectedCandles } from "@/lib/projection-service"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
@@ -613,9 +614,46 @@ export default function LabPage() {
     );
   };
 
-  const handleProjectAndTest = () => {
-    // Placeholder for Step 3 logic
-    toast({ title: "Coming Soon!", description: "Candlestick projection logic will be implemented next." });
+  const handleProjectAndTest = async () => {
+    if (chartData.length === 0) {
+      toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
+      return;
+    }
+    
+    setIsProjecting(true);
+    toast({ title: "Generating Projection..." });
+
+    // Use a timeout to allow the UI to update to the loading state
+    setTimeout(async () => {
+      try {
+        const lastCandle = chartData[chartData.length - 1];
+        const newProjectedCandles = generateProjectedCandles(lastCandle, projectionMode, projectionDuration, interval);
+        
+        const strategyToTest = getStrategyById(selectedStrategy);
+        if (!strategyToTest) {
+            setProjectedData(newProjectedCandles); // Show projection even if strategy is "none"
+            toast({ title: "Projection Generated", description: "No strategy selected to forward-test." });
+            setIsProjecting(false);
+            return;
+        }
+
+        const combinedData = [...chartData, ...newProjectedCandles];
+        const paramsForStrategy = strategyParams[selectedStrategy] || {};
+        
+        // Run the strategy on the full dataset
+        const dataWithSignals = await strategyToTest.calculate(combinedData, paramsForStrategy);
+        
+        // Extract only the projected part that now has signals
+        const testedProjectedData = dataWithSignals.slice(chartData.length);
+        
+        setProjectedData(testedProjectedData);
+        toast({ title: "Forward Test Complete", description: "Strategy signals have been applied to the projected data." });
+      } catch (e: any) {
+        toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
+      } finally {
+        setIsProjecting(false);
+      }
+    }, 50); // Small delay
   };
   
   const handleClearProjection = () => {
@@ -939,11 +977,11 @@ export default function LabPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-2">
                         <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || chartData.length === 0}>
-                            {isProjecting ? <Loader2 className="animate-spin" /> : <Play />}
+                            {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                             {isProjecting ? 'Generating...' : 'Project & Test Strategy'}
                         </Button>
                          <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0}>
-                            <Trash2 />
+                            <Trash2 className="mr-2 h-4 w-4" />
                             Clear Projection
                         </Button>
                     </CardFooter>
