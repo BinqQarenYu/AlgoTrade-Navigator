@@ -27,16 +27,17 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData, TradeSignal } from "@/lib/types"
+import type { HistoricalData, TradeSignal, DisciplineParams } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -172,20 +173,24 @@ export default function LiveTradingPage() {
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('live-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('live-params-open', false);
+  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('live-discipline-open', false);
   const [isPredictionOpen, setPredictionOpen] = usePersistentState<boolean>('live-prediction-open', true);
   const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('live-logs-open', true);
   
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+  const handleParamChange = (strategyId: string, paramName: string, value: any) => {
     setStrategyParams(prev => ({
         ...prev,
-        [strategyId]: {
-            ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
-        }
+        [strategyId]: { ...prev[strategyId], [paramName]: value }
     }));
   };
   
+  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
+      handleParamChange(selectedStrategy, 'discipline', {
+        ...strategyParams[selectedStrategy].discipline,
+        [paramName]: value,
+      });
+  };
+
   const handleResetParams = () => {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
@@ -353,7 +358,7 @@ export default function LiveTradingPage() {
       
     const takeProfitPrice = prediction.prediction === 'UP'
       ? entryPrice * (1 + tpPercent / 100)
-      : entryPrice * (1 - tpPercent / 100);
+      : entryPrice * (1 - (tpPercent / 100));
 
     return {
       action: prediction.prediction,
@@ -362,7 +367,7 @@ export default function LiveTradingPage() {
       takeProfit: takeProfitPrice,
       confidence: prediction.confidence,
       reasoning: `Live AI Prediction: ${prediction.reasoning}`,
-      timestamp: new Date(),
+      timestamp: new Date().getTime(),
       strategy: config.strategy,
       asset: config.symbol,
     };
@@ -380,9 +385,11 @@ export default function LiveTradingPage() {
 
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy];
-    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+    if (!params || !params.discipline) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const controls = Object.entries(params).map(([key, value]) => (
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'discipline'));
+
+    const controls = Object.entries(filteredParams).map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
         <Input 
@@ -400,15 +407,13 @@ export default function LiveTradingPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">{controls}</div>
-        <div className="pt-2 flex flex-col sm:flex-row gap-2">
-            {canReset && (
-                <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Reset to Default
-                </Button>
-            )}
-        </div>
+        {controls.length > 0 && <div className="grid grid-cols-2 gap-4">{controls}</div>}
+        {canReset && (
+            <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset to Default
+            </Button>
+        )}
       </div>
     );
   };
@@ -539,6 +544,16 @@ export default function LiveTradingPage() {
                   </CollapsibleContent>
                 </Collapsible>
 
+                {strategyParams[selectedStrategy]?.discipline && (
+                    <DisciplineSettings 
+                        params={strategyParams[selectedStrategy].discipline}
+                        onParamChange={handleDisciplineParamChange}
+                        isCollapsed={isDisciplineOpen}
+                        onCollapseChange={setDisciplineOpen}
+                        isDisabled={isRunning}
+                    />
+                )}
+
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="initial-capital">Initial Capital ($)</Label>
@@ -614,7 +629,7 @@ export default function LiveTradingPage() {
                   <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
                     <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
                     <div className="flex flex-col">
-                        <Label htmlFor="ai-prediction">Enable AI Prediction</Label>
+                        <Label htmlFor="ai-prediction">Enable AI Validation</Label>
                         <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
                     </div>
                   </div>
