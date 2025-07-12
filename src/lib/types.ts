@@ -6,6 +6,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -176,8 +177,8 @@ export type TradeSignal = {
   takeProfit: number;
   confidence: number;
   reasoning: string;
-  timestamp: Date;
-  exitTimestamp?: Date;
+  timestamp: number; // Changed from Date to number
+  exitTimestamp?: number; // Changed from Date to number
   strategy: string;
   peakPrice?: number;
   asset: string;

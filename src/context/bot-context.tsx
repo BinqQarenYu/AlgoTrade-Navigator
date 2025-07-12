@@ -43,6 +43,8 @@ import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-orde
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
 import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-consensus';
+import { defaultMtfEngulfingParams } from '@/lib/strategies/mtf-engulfing';
+import { defaultSmiMfiSupertrendParams } from '@/lib/strategies/smi-mfi-supertrend';
 
 
 // --- State Types ---
@@ -131,6 +133,8 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'liquidity-grab': defaultLiquidityGrabParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
     'code-based-consensus': defaultCodeBasedConsensusParams,
+    'mtf-engulfing': defaultMtfEngulfingParams,
+    'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
 };
 
 const KNOWN_INDICATORS = [
@@ -251,7 +255,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
         }
 
-        const dataWithSignals = await strategy.calculate(dataToAnalyze, config.strategyParams);
+        const dataWithSignals = await strategy.calculate(dataToAnalyze, config.strategyParams, config.symbol);
         const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
 
         if (!latestCandleWithSignal) {
@@ -293,7 +297,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
                 stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
                 confidence: prediction.confidence, reasoning: prediction.reasoning,
-                timestamp: new Date(latestCandleWithSignal.time), strategy: config.strategy,
+                timestamp: latestCandleWithSignal.time, strategy: config.strategy,
                 peakPrice: latestCandleWithSignal?.peakPrice
             };
             return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
@@ -816,7 +820,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
               const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
               const newPosition: SimulatedPosition = {
                 id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal!.action === 'UP' ? 'long' : 'short',
-                entryPrice: result.signal!.entryPrice, entryTime: result.signal!.timestamp.getTime(), size: newPosSize,
+                entryPrice: result.signal!.entryPrice, entryTime: result.signal!.timestamp, size: newPosSize,
                 stopLoss: result.signal!.stopLoss, takeProfit: result.signal!.takeProfit,
               };
               

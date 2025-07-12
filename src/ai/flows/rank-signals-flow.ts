@@ -20,7 +20,7 @@ const TradeSignalSchema = z.object({
   takeProfit: z.number().describe("The price at which to exit the trade for a profit."),
   confidence: z.number().min(0).max(1).describe("The confidence level of the signal from its source AI, if applicable."),
   reasoning: z.string().describe("The rationale provided by the original strategy or AI that generated this signal."),
-  timestamp: z.date().describe("The timestamp when the signal was generated."),
+  timestamp: z.number().describe("The UTC timestamp (in milliseconds) when the signal was generated."),
   strategy: z.string().describe("The name of the strategy that generated this signal."),
   peakPrice: z.number().optional().describe("The price of the structural peak/low that this signal is based on, if applicable."),
 });
