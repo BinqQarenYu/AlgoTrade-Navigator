@@ -6,7 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -651,7 +651,7 @@ export default function LabPage() {
 
     setTimeout(async () => {
       try {
-        const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
+        const newProjectedCandles = generateProjectedCandles(chartData.slice(-100), projectionMode, projectionDuration, interval);
         
         const strategyToTest = getStrategyById(selectedStrategy);
         if (!strategyToTest) {
@@ -669,7 +669,6 @@ export default function LabPage() {
         
         setProjectedData(testedProjectedData);
 
-        // --- Run backtest simulation on projected data ---
         const trades: BacktestResult[] = [];
         let positionType: 'long' | 'short' | null = null;
         let entryTime = 0;
@@ -680,7 +679,6 @@ export default function LabPage() {
         for (let i = 0; i < testedProjectedData.length; i++) {
           const d = testedProjectedData[i];
 
-          // Exit Logic
           if (positionType !== null) {
               let exitPrice: number | null = null;
               let closeReason: BacktestResult['closeReason'] = 'signal';
@@ -697,21 +695,21 @@ export default function LabPage() {
 
               if (exitPrice !== null) {
                   const tradeQuantity = (initialCapital * leverage) / entryPrice;
-                  const pnl = positionType === 'long' 
+                  const grossPnl = positionType === 'long' 
                       ? (exitPrice - entryPrice) * tradeQuantity
                       : (entryPrice - exitPrice) * tradeQuantity;
+                  const netPnl = grossPnl - (grossPnl * (fee/100));
 
                   trades.push({
                       id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
-                      exitTime: d.time, exitPrice, pnl, pnlPercent: (pnl / initialCapital) * 100,
+                      exitTime: d.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
                       closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                      fee: 0, reasoning: 'Projected Trade'
+                      fee: grossPnl * (fee/100), reasoning: 'Projected Trade'
                   });
                   positionType = null;
               }
           }
           
-          // Entry Logic
           if (positionType === null) {
               if (d.buySignal) {
                   positionType = 'long';
@@ -728,6 +726,23 @@ export default function LabPage() {
               }
           }
         }
+
+        if (positionType !== null) {
+            const lastCandle = testedProjectedData[testedProjectedData.length - 1];
+            const exitPrice = lastCandle.close;
+            const tradeQuantity = (initialCapital * leverage) / entryPrice;
+            const grossPnl = positionType === 'long' 
+                ? (exitPrice - entryPrice) * tradeQuantity
+                : (entryPrice - exitPrice) * tradeQuantity;
+            const netPnl = grossPnl - (grossPnl * (fee/100));
+
+            trades.push({
+                id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
+                exitTime: lastCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
+                closeReason: 'signal', stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+                fee: grossPnl * (fee/100), reasoning: 'Closed at end of projection'
+            });
+        }
         
         if (trades.length > 0) {
           const wins = trades.filter(t => t.pnl > 0);
@@ -743,7 +758,7 @@ export default function LabPage() {
             averageWin: wins.length > 0 ? totalWins / wins.length : 0,
             averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
             profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
-            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: 0
+            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: trades.reduce((s,t) => s + t.fee, 0)
           };
           setForwardTestSummary(summary);
           setForwardTestTrades(trades);
@@ -821,7 +836,8 @@ export default function LabPage() {
           <div className="xl:col-span-3 relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
               <TradingChart
-                  data={[...dataWithIndicators, ...projectedData]}
+                  data={dataWithIndicators}
+                  projectedData={projectedData}
                   symbol={symbol}
                   interval={interval}
                   onIntervalChange={setInterval}
