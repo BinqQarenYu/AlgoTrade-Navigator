@@ -483,9 +483,11 @@ export function TradingChart({
             mainLineSeries.setData(lineData);
         } else {
             mainLineSeries.setData([]);
-            const candlestickChartData = uniqueData.map(d => {
+            const realDataEndIndex = uniqueData.findIndex(d => (d as any).isProjected);
+            
+            const candlestickChartData = uniqueData.map((d, index) => {
                 const isHighlighted = isTradeHighlighted(d);
-                const isProjected = d.time > (data.find(c => !(c as any).isProjected)?.time ?? Number.MAX_SAFE_INTEGER);
+                const isProjected = realDataEndIndex !== -1 && index >= realDataEndIndex;
                 
                 let phaseColor: string | null = null;
                 if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
@@ -500,12 +502,14 @@ export function TradingChart({
                 }
 
                 let coloring = {};
+                
+                const baseUpColor = d.close >= d.open ? chartColors.barUpColor : chartColors.barDownColor;
+                const baseWickColor = d.close >= d.open ? chartColors.wickUpColor : chartColors.wickDownColor;
 
                 if (isHighlighted) {
                     coloring = { color: highlightColor, wickColor: highlightColor };
                 } else if (isProjected) {
-                    const baseColor = d.close >= d.open ? chartColors.barUpColor : chartColors.barDownColor;
-                    coloring = { color: baseColor + '80', wickColor: baseColor + '80', borderVisible: true, borderColor: baseColor + '99' }; // Add alpha for transparency
+                    coloring = { color: baseUpColor + '80', wickColor: baseWickColor + '80', borderVisible: true, borderColor: baseUpColor + '99' }; // Add alpha for transparency
                 } else if (phaseColor) {
                     coloring = { color: phaseColor, wickColor: phaseColor };
                 }

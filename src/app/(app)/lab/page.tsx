@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2 } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
@@ -50,6 +50,7 @@ import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { generateProjectedCandles } from "@/lib/projection-service"
+import { BacktestResults } from "@/components/backtest-results"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
@@ -156,6 +157,9 @@ export default function LabPage() {
   const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random'>('lab-projection-mode', 'neutral');
   const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('lab-projection-duration', '7d');
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
+  const [forwardTestSummary, setForwardTestSummary] = useState<BacktestSummary | null>(null);
+  const [forwardTestTrades, setForwardTestTrades] = useState<BacktestResult[]>([]);
+  const [selectedForwardTrade, setSelectedForwardTrade] = useState<BacktestResult | null>(null);
 
 
   // Collapsible states
@@ -235,6 +239,9 @@ export default function LabPage() {
     setConsensusResult(null);
     setManipulationResult(null);
     setReport(null);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    setProjectedData([]);
 
     const loadLastReports = async () => {
         try {
@@ -621,6 +628,8 @@ export default function LabPage() {
     }
     
     setIsProjecting(true);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
     toast({ title: "Generating Projection..." });
 
     // Use a timeout to allow the UI to update to the loading state
@@ -647,6 +656,61 @@ export default function LabPage() {
         const testedProjectedData = dataWithSignals.slice(chartData.length);
         
         setProjectedData(testedProjectedData);
+
+        // --- Calculate Forward Test Report ---
+        const trades: BacktestResult[] = [];
+        let positionType: 'long' | 'short' | null = null;
+        let entryPrice = 0;
+        const initialCapital = 10000;
+        const leverage = 1;
+        const takeProfit = 5;
+        const stopLoss = 2;
+        const fee = 0.04;
+        
+        for (let i = 0; i < testedProjectedData.length; i++) {
+          const d = testedProjectedData[i];
+
+          if (positionType === 'long') {
+            if (d.sellSignal) {
+              const pnl = (d.close - entryPrice) * (initialCapital / entryPrice);
+              trades.push({ type: 'long', entryPrice, exitPrice: d.close, pnl } as BacktestResult);
+              positionType = null;
+            }
+          } else if (positionType === 'short') {
+            if (d.buySignal) {
+              const pnl = (entryPrice - d.close) * (initialCapital / entryPrice);
+              trades.push({ type: 'short', entryPrice, exitPrice: d.close, pnl } as BacktestResult);
+              positionType = null;
+            }
+          }
+
+          if (positionType === null) {
+            if (d.buySignal) {
+              positionType = 'long';
+              entryPrice = d.close;
+            } else if (d.sellSignal) {
+              positionType = 'short';
+              entryPrice = d.close;
+            }
+          }
+        }
+        
+        if (trades.length > 0) {
+          const wins = trades.filter(t => t.pnl > 0);
+          const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+          const summary: BacktestSummary = {
+            totalTrades: trades.length,
+            winRate: (wins.length / trades.length) * 100,
+            totalPnl: totalPnl,
+            averageWin: wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0,
+            averageLoss: trades.length > wins.length ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0) / (trades.length - wins.length) : 0,
+            profitFactor: trades.length > wins.length && wins.length > 0 ? (wins.reduce((sum, t) => sum + t.pnl, 0) / Math.abs(trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0))) : Infinity,
+            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: 0
+          };
+          setForwardTestSummary(summary);
+          setForwardTestTrades(trades.map((t,i) => ({...t, id: `fwd-${i}`})));
+        }
+        
         toast({ title: "Forward Test Complete", description: "Strategy signals have been applied to the projected data." });
       } catch (e: any) {
         toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
@@ -658,7 +722,9 @@ export default function LabPage() {
   
   const handleClearProjection = () => {
     setProjectedData([]);
-    toast({ title: "Projection Cleared", description: "The chart has been reset to show only real market data." });
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    toast({ title: "Projection Cleared", description: "The chart and report have been reset." });
   };
 
   return (
@@ -731,6 +797,7 @@ export default function LabPage() {
                 scaleMode={scaleMode}
                 manipulationResult={manipulationResult}
                 showManipulationOverlay={showManipulationOverlay}
+                highlightedTrade={selectedForwardTrade}
             />
           </div>
           <div
@@ -988,6 +1055,14 @@ export default function LabPage() {
                 </CollapsibleContent>
              </Collapsible>
           </Card>
+
+          {forwardTestSummary && <BacktestResults 
+            results={forwardTestTrades} 
+            summary={forwardTestSummary} 
+            onSelectTrade={setSelectedForwardTrade}
+            selectedTradeId={selectedForwardTrade?.id}
+            title="Forward Test Report"
+          />}
 
           <MarketHeatmap />
 

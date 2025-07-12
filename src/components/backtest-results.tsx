@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info, ChevronDown, GripHorizontal, GitCompareArrows } from "lucide-react";
+import { Info, ChevronDown, GripHorizontal, GitCompareArrows, AreaChart } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Button } from "./ui/button";
 
@@ -111,6 +111,8 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [logHeight, setLogHeight]);
 
+  const isForwardTest = title.includes("Forward");
+  const isContrarianTest = title.includes("Contrarian");
 
   if (!summary) {
     return (
@@ -146,15 +148,19 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
   const returnColor = summary.totalReturnPercent >= 0 ? "text-green-500" : "text-red-500";
 
   return (
-    <Card className={cn(title.includes("Contrarian") && "border-amber-500/50")}>
+    <Card className={cn(
+        isContrarianTest && "border-amber-500/50",
+        isForwardTest && "border-blue-500/50"
+    )}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
-                {title.includes("Contrarian") && <GitCompareArrows className="h-5 w-5 text-amber-500"/>}
+                {isContrarianTest && <GitCompareArrows className="h-5 w-5 text-amber-500"/>}
+                {isForwardTest && <AreaChart className="h-5 w-5 text-blue-500"/>}
                 {title}
             </CardTitle>
-            <CardDescription>A summary of the simulated trading performance. Click a trade to view it on the chart.</CardDescription>
+            <CardDescription>{isForwardTest ? "Performance on the hypothetical projected data." : "A summary of the simulated trading performance. Click a trade to view it on the chart."}</CardDescription>
           </div>
           <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
