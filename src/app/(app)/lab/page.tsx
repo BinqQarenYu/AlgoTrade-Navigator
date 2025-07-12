@@ -184,7 +184,7 @@ export default function LabPage() {
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue) ? 0 : isNaN(parsedValue) ? 0 : parsedValue,
         }
     }));
   };
@@ -438,7 +438,6 @@ export default function LabPage() {
     };
 
     wsRef.current.onerror = () => {
-      console.error("Lab stream WebSocket error.");
       toast({ 
           title: "Stream Error",
           description: `Could not connect to live data for ${symbol}. The symbol may not be supported for streaming.`,
@@ -1174,4 +1173,5 @@ export default function LabPage() {
   )
 }
 
+    
     
