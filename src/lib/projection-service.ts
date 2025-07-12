@@ -6,8 +6,9 @@ import { intervalToMs } from './utils';
 
 /**
  * Generates a sequence of hypothetical future candlesticks based on a starting point and a specified mode.
+ * The projection is grounded in the asset's recent historical volatility and price range.
  *
- * @param historicalData The last 7 days of historical data for analysis.
+ * @param historicalData The recent historical data for analysis.
  * @param mode The projection mode ('upward', 'downward', 'neutral', 'random').
  * @param duration The time duration for the projection (e.g., '1d', '7d').
  * @param interval The candlestick interval (e.g., '1h', '4h').
@@ -26,75 +27,73 @@ export function generateProjectedCandles(
   const lastCandle = historicalData[historicalData.length - 1];
   const intervalMs = intervalToMs(interval);
 
-  // --- Analyze recent data ---
+  // --- 1. Analyze recent historical data (last 7 days) ---
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   const analysisStartDate = lastCandle.time - sevenDaysMs;
   const recentData = historicalData.filter(d => d.time >= analysisStartDate);
 
   let avgVolatility = 0;
-  let biggestDrops: number[] = [];
+  let recentHigh = lastCandle.high;
+  let recentLow = lastCandle.low;
 
   if (recentData.length > 1) {
     let totalVolatility = 0;
-    for (let i = 1; i < recentData.length; i++) {
-        const range = recentData[i].high - recentData[i].low;
-        totalVolatility += range;
-        
-        const drop = recentData[i-1].open - recentData[i].close;
-        if (drop > 0) {
-            biggestDrops.push(drop);
-        }
-    }
+    recentData.forEach(candle => {
+      totalVolatility += candle.high - candle.low;
+      if (candle.high > recentHigh) recentHigh = candle.high;
+      if (candle.low < recentLow) recentLow = candle.low;
+    });
     avgVolatility = totalVolatility / recentData.length;
-    biggestDrops.sort((a,b) => b-a);
   } else {
-    // Fallback if not enough data
-    avgVolatility = lastCandle.close * 0.015;
+    // Fallback if not enough data for analysis
+    avgVolatility = lastCandle.close * 0.015; // 1.5% of last price
   }
   
-  // --- Generate projected candles ---
+  // --- 2. Generate projected candles ---
   const durationMap = {
     '1d': 1 * 24 * 60 * 60 * 1000,
     '3d': 3 * 24 * 60 * 60 * 1000,
     '7d': 7 * 24 * 60 * 60 * 1000,
-    '1m': 30 * 24 * 60 * 60 * 1000, // Approximate 1 month
+    '1m': 30 * 24 * 60 * 60 * 1000,
   };
   
   const totalDurationMs = durationMap[duration];
   const numCandlesToGenerate = Math.floor(totalDurationMs / intervalMs);
 
   let currentCandle = { ...lastCandle };
+  
+  // Define drift factor based on mode
+  const driftFactor = avgVolatility * 0.1; // A small nudge each candle
 
   for (let i = 0; i < numCandlesToGenerate; i++) {
     const nextTime = currentCandle.time + intervalMs;
     const open = currentCandle.close;
 
-    let change = (Math.random() - 0.5) * avgVolatility * 1.5;
-
+    let baseChange = 0;
     switch (mode) {
       case 'upward':
-        change += Math.random() * avgVolatility * 0.75;
+        baseChange = driftFactor * (Math.random() + 0.5); // Consistently positive drift
         break;
       case 'downward':
-        change -= Math.random() * avgVolatility * 0.75; 
-        // Occasionally add a big drop based on historical data
-        if (biggestDrops.length > 0 && Math.random() < 0.1) { // 10% chance
-            const dropIndex = Math.floor(Math.random() * Math.min(biggestDrops.length, 5));
-            change -= biggestDrops[dropIndex];
-        }
+        baseChange = -driftFactor * (Math.random() + 0.5); // Consistently negative drift
         break;
       case 'neutral':
-        change *= 0.5;
+        baseChange = (Math.random() - 0.5) * driftFactor; // Random small drift around zero
         break;
       case 'random':
       default:
+        baseChange = (Math.random() - 0.5) * avgVolatility * 0.5; // More significant random changes
         break;
     }
 
-    const close = open + change;
+    const randomVolatility = (Math.random() - 0.5) * avgVolatility;
+    const close = open + baseChange + randomVolatility;
+    
+    // Make wicks based on avg volatility
     const high = Math.max(open, close) + Math.random() * (avgVolatility / 2);
     const low = Math.min(open, close) - Math.random() * (avgVolatility / 2);
-    const volume = currentCandle.volume * (0.95 - Math.random() * 0.1);
+
+    const volume = currentCandle.volume * (1.05 - Math.random() * 0.1); // +/- 5% volume change
 
     const newCandle: HistoricalData = {
       time: nextTime,
@@ -103,7 +102,7 @@ export function generateProjectedCandles(
       low,
       close,
       volume: Math.max(0, volume),
-      isProjected: true, // Custom flag to identify these candles
+      isProjected: true,
     } as HistoricalData;
 
     projectedCandles.push(newCandle);
