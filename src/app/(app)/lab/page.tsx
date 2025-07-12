@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -778,395 +777,401 @@ export default function LabPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 relative pb-4">
-          <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart
-                data={[...dataWithIndicators, ...projectedData]}
-                symbol={symbol}
-                interval={interval}
-                onIntervalChange={setInterval}
-                wallLevels={showAnalysis && showWalls ? walls : []}
-                spoofedWalls={showAnalysis ? spoofedWalls : []}
-                liquidityEvents={showAnalysis && showLiquidity ? liquidityEvents : []}
-                liquidityTargets={showAnalysis && showTargets ? liquidityTargets : []}
-                lineWidth={lineWidth}
-                consensusResult={showAnalysis ? consensusResult : null}
-                showAnalysis={showAnalysis}
-                chartType={chartType}
-                scaleMode={scaleMode}
-                manipulationResult={manipulationResult}
-                showManipulationOverlay={showManipulationOverlay}
-                highlightedTrade={selectedForwardTrade}
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+          <div className="xl:col-span-3 relative pb-4">
+            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+              <TradingChart
+                  data={[...dataWithIndicators, ...projectedData]}
+                  symbol={symbol}
+                  interval={interval}
+                  onIntervalChange={setInterval}
+                  wallLevels={showAnalysis && showWalls ? walls : []}
+                  spoofedWalls={showAnalysis ? spoofedWalls : []}
+                  liquidityEvents={showAnalysis && showLiquidity ? liquidityEvents : []}
+                  liquidityTargets={showAnalysis && showTargets ? liquidityTargets : []}
+                  lineWidth={lineWidth}
+                  consensusResult={showAnalysis ? consensusResult : null}
+                  showAnalysis={showAnalysis}
+                  chartType={chartType}
+                  scaleMode={scaleMode}
+                  manipulationResult={manipulationResult}
+                  showManipulationOverlay={showManipulationOverlay}
+                  highlightedTrade={selectedForwardTrade}
+              />
+            </div>
+            <div
+                onMouseDown={startChartResize}
+                className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+            >
+                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+            </div>
+          </div>
+
+          <div className="xl:col-span-2 space-y-6">
+            <Card>
+              <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Lab Controls</CardTitle>
+                    <CardDescription>Configure your dataset and analysis.</CardDescription>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
+                      </Button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="base-asset">Base</Label>
+                          <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
+                            <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                              {topAssets.map(asset => (
+                                <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="quote-asset">Quote</Label>
+                          <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isStreamActive}>
+                            <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                              {availableQuotes.map(asset => (
+                                <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="strategy">Strategy to Visualize</Label>
+                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                        <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">None (Candles Only)</SelectItem>
+                          {strategyMetadatas.map(strategy => (
+                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedStrategy !== 'none' && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                              {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                  <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                              ))}
+                          </div>
+                      )}
+                    </div>
+
+                    <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full">
+                          <BrainCircuit className="mr-2 h-4 w-4" />
+                          <span>Visual Strategy Parameters</span>
+                          <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                        {renderParameterControls()}
+                      </CollapsibleContent>
+                    </Collapsible>
+                    
+                    <Collapsible open={isConsensusStratOpen} onOpenChange={setIsConsensusStratOpen}>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="outline" size="sm" className="w-full">
+                          <BrainCircuit className="mr-2 h-4 w-4" />
+                          <span>Consensus Strategy Selection</span>
+                          <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isConsensusStratOpen && "rotate-180")} />
+                        </Button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
+                        <ScrollArea className="h-40 w-full">
+                            <div className="space-y-2">
+                            {strategyMetadatas.map((strategy) => (
+                                <div key={strategy.id} className="flex items-center space-x-2">
+                                    <Checkbox id={`strat-${strategy.id}`} checked={selectedConsensusStrategies.includes(strategy.id)} onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)} disabled={isConsensusRunning}/>
+                                    <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
+                                </div>
+                            ))}
+                            </div>
+                        </ScrollArea>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+                  <CardFooter className="flex flex-col gap-2">
+                    <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full">
+                          {isStreamActive ? <StopCircle /> : <Play />}
+                          {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
+                      </Button>
+                      <div className="flex w-full gap-2">
+                        <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
+                          {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                          {isReportPending ? "Generating..." : "AI Report"}
+                        </Button>
+                        <Button className="w-full" variant="outline" onClick={handleScanClick} disabled={!canAnalyze || isStreamActive}>
+                          {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                          {isScanning ? "Scanning..." : "Scan for Manipulation"}
+                        </Button>
+                      </div>
+                  </CardFooter>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+            <Card>
+              <Collapsible open={isAnalysisToolsOpen} onOpenChange={setIsAnalysisToolsOpen}>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2"><Settings/> Chart Settings</CardTitle>
+                      <CardDescription>Control chart appearance and analysis visibility.</CardDescription>
+                    </div>
+                    <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <ChevronDown className={cn("h-4 w-4 transition-transform", isAnalysisToolsOpen && "rotate-180")} />
+                          </Button>
+                      </CollapsibleTrigger>
+                  </CardHeader>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                              <Label htmlFor="chart-type">Chart Type</Label>
+                              <Select value={chartType} onValueChange={(v) => setChartType(v as any)}>
+                                  <SelectTrigger id="chart-type"><SelectValue/></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="candlestick">Candlestick</SelectItem>
+                                      <SelectItem value="line">Line</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                          <div className="space-y-2">
+                              <Label htmlFor="scale-mode">Price Scale</Label>
+                              <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as any)}>
+                                  <SelectTrigger id="scale-mode"><SelectValue/></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="linear">Linear</SelectItem>
+                                      <SelectItem value="logarithmic">Logarithmic</SelectItem>
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                      </div>
+                      <Separator/>
+                      <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                          <div className="flex items-center space-x-2">
+                              <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
+                              <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show All Analysis Drawings</Label>
+                          </div>
+                          {showAnalysis && (
+                            <>
+                              <div className="border-b -mx-3"></div>
+                              <div className="pl-2 space-y-3 pt-2">
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
+                                      <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Show Order Book Walls</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
+                                      <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Show Historical Grabs</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
+                                      <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
+                                      <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Show Manipulation Overlay</Label>
+                                  </div>
+                              </div>
+                            </>
+                          )}
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="line-width">Line Thickness</Label>
+                          <Slider
+                              id="line-width"
+                              min={1}
+                              max={5}
+                              step={1}
+                              value={[lineWidth]}
+                              onValueChange={(value) => setLineWidth(value[0])}
+                              disabled={anyLoading}
+                          />
+                      </div>
+                    </CardContent>
+                  </CollapsibleContent>
+              </Collapsible>
+            </Card>
+            
+            <Card>
+              <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                          <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
+                          <CardDescription>Generate random future candles to stress-test your strategy.</CardDescription>
+                      </div>
+                      <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} />
+                          </Button>
+                      </CollapsibleTrigger>
+                  </CardHeader>
+                  <CollapsibleContent>
+                      <CardContent className="space-y-4">
+                          <div>
+                              <Label>Projection Mode</Label>
+                              <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                                  <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                                  <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                                  <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                                  <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                              </RadioGroup>
+                          </div>
+                          <div>
+                              <Label>Projection Duration</Label>
+                              <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                                  <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
+                                  <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
+                                  <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
+                                  <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
+                              </RadioGroup>
+                          </div>
+                      </CardContent>
+                      <CardFooter className="flex-col gap-2">
+                          <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || chartData.length === 0}>
+                              {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                              {isProjecting ? 'Generating...' : 'Project & Test Strategy'}
+                          </Button>
+                          <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Clear Projection
+                          </Button>
+                      </CardFooter>
+                  </CollapsibleContent>
+              </Collapsible>
+            </Card>
+
+            <OrderBook 
+              symbol={symbol} 
+              isStreamActive={isStreamActive}
+              onWallsUpdate={handleOrderBookUpdate}
             />
           </div>
-          <div
-              onMouseDown={startChartResize}
-              className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
-          >
-              <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
-          </div>
         </div>
+        
+        {forwardTestSummary && (
+          <div className="mt-6">
+            <BacktestResults 
+              results={forwardTestTrades} 
+              summary={forwardTestSummary} 
+              onSelectTrade={setSelectedForwardTrade}
+              selectedTradeId={selectedForwardTrade?.id}
+              title="Forward Test Report"
+            />
+          </div>
+        )}
 
-        <div className="xl:col-span-2 space-y-6">
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
-            <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
+            <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle>Lab Controls</CardTitle>
-                  <CardDescription>Configure your dataset and analysis.</CardDescription>
+                  <CardTitle>AI Market Report</CardTitle>
+                  <CardDescription>A detailed analysis of the market data.</CardDescription>
                 </div>
                 <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
-                    </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isReportOpen && "rotate-180")} />
+                  </Button>
                 </CollapsibleTrigger>
               </CardHeader>
               <CollapsibleContent>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="base-asset">Base</Label>
-                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
-                          <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
-                          <SelectContent>
-                            {topAssets.map(asset => (
-                              <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="quote-asset">Quote</Label>
-                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isStreamActive}>
-                          <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
-                          <SelectContent>
-                            {availableQuotes.map(asset => (
-                              <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="strategy">Strategy to Visualize</Label>
-                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
-                      <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None (Candles Only)</SelectItem>
-                        {strategyMetadatas.map(strategy => (
-                          <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedStrategy !== 'none' && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                            {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                            ))}
-                        </div>
-                    )}
-                  </div>
-
-                  <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <BrainCircuit className="mr-2 h-4 w-4" />
-                        <span>Visual Strategy Parameters</span>
-                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                      {renderParameterControls()}
-                    </CollapsibleContent>
-                  </Collapsible>
-                  
-                   <Collapsible open={isConsensusStratOpen} onOpenChange={setIsConsensusStratOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <BrainCircuit className="mr-2 h-4 w-4" />
-                        <span>Consensus Strategy Selection</span>
-                        <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isConsensusStratOpen && "rotate-180")} />
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                       <ScrollArea className="h-40 w-full">
-                          <div className="space-y-2">
-                          {strategyMetadatas.map((strategy) => (
-                              <div key={strategy.id} className="flex items-center space-x-2">
-                                  <Checkbox id={`strat-${strategy.id}`} checked={selectedConsensusStrategies.includes(strategy.id)} onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)} disabled={isConsensusRunning}/>
-                                  <Label htmlFor={`strat-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
-                              </div>
-                          ))}
-                          </div>
-                      </ScrollArea>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </CardContent>
-                <CardFooter className="flex flex-col gap-2">
-                   <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full">
-                        {isStreamActive ? <StopCircle /> : <Play />}
-                        {isStreamActive ? "Stop Continuous Update" : "Start Continuous Update"}
-                    </Button>
-                    <div className="flex w-full gap-2">
-                      <Button className="w-full" variant="outline" onClick={handleGenerateReportClick} disabled={!canAnalyze || isStreamActive}>
-                        {isReportPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                        {isReportPending ? "Generating..." : "AI Report"}
-                      </Button>
-                      <Button className="w-full" variant="outline" onClick={handleScanClick} disabled={!canAnalyze || isStreamActive}>
-                        {isScanning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                        {isScanning ? "Scanning..." : "Scan for Manipulation"}
-                      </Button>
+                <CardContent>
+                  {isReportPending ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-3/4" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-5/6" />
                     </div>
-                </CardFooter>
+                  ) : report ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none space-y-4">
+                        <h3>{report.title}</h3>
+                        <p><strong>Summary:</strong> {report.summary}</p>
+                        <p><strong>Trend:</strong> {report.trendAnalysis}</p>
+                        <p><strong>Volatility:</strong> {report.volatilityAnalysis}</p>
+                        <p><strong>Key Levels:</strong> {report.keyLevels}</p>
+                        <p><strong>Outlook:</strong> {report.outlook}</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                      <p>Generate a report to see the AI analysis here.</p>
+                    </div>
+                  )}
+                </CardContent>
               </CollapsibleContent>
             </Collapsible>
           </Card>
           
           <Card>
-            <Collapsible open={isAnalysisToolsOpen} onOpenChange={setIsAnalysisToolsOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2"><Settings/> Chart Settings</CardTitle>
-                    <CardDescription>Control chart appearance and analysis visibility.</CardDescription>
-                  </div>
-                   <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isAnalysisToolsOpen && "rotate-180")} />
-                        </Button>
-                    </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                  <CardContent className="space-y-4">
-                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="chart-type">Chart Type</Label>
-                            <Select value={chartType} onValueChange={(v) => setChartType(v as any)}>
-                                <SelectTrigger id="chart-type"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="candlestick">Candlestick</SelectItem>
-                                    <SelectItem value="line">Line</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="scale-mode">Price Scale</Label>
-                            <Select value={scaleMode} onValueChange={(v) => setScaleMode(v as any)}>
-                                <SelectTrigger id="scale-mode"><SelectValue/></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="linear">Linear</SelectItem>
-                                    <SelectItem value="logarithmic">Logarithmic</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+            <Collapsible open={isManipulationCardOpen} onOpenChange={setManipulationCardOpen}>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle>Manipulation Scan Results</CardTitle>
+                  <CardDescription>AI-powered scan for pump & dump patterns.</CardDescription>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isManipulationCardOpen && "rotate-180")} />
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent>
+                  {isScanning ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-6 w-1/2" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-4/5" />
                     </div>
-                    <Separator/>
-                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
-                            <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show All Analysis Drawings</Label>
-                        </div>
-                        {showAnalysis && (
-                          <>
-                            <div className="border-b -mx-3"></div>
-                            <div className="pl-2 space-y-3 pt-2">
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
-                                    <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Show Order Book Walls</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                                    <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Show Historical Grabs</Label>
-                                 </div>
-                                 <div className="flex items-center space-x-2">
-                                    <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
-                                    <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
-                                 </div>
-                                 <div className="flex items-center space-x-2">
-                                    <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
-                                    <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Show Manipulation Overlay</Label>
-                                 </div>
-                            </div>
-                          </>
-                        )}
+                  ) : manipulationResult ? (
+                    <div className="space-y-4 prose prose-sm dark:prose-invert max-w-none">
+                      {manipulationResult.isManipulationSuspected ? (
+                          <Alert variant="destructive">
+                            <ShieldAlert className="h-4 w-4" />
+                            <AlertTitle>High Suspicion of Manipulation!</AlertTitle>
+                            <AlertDescription>
+                              Confidence: {(manipulationResult.confidence * 100).toFixed(1)}%. Current Phase: {manipulationResult.currentPhase}.
+                            </AlertDescription>
+                        </Alert>
+                      ) : (
+                          <Alert>
+                            <ShieldCheck className="h-4 w-4" />
+                            <AlertTitle>No Clear Manipulation Detected</AlertTitle>
+                            <AlertDescription>
+                              The AI did not find a strong pump & dump pattern in the provided data.
+                            </AlertDescription>
+                        </Alert>
+                      )}
+                      <p><strong>Reasoning:</strong> {manipulationResult.reasoning}</p>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="line-width">Line Thickness</Label>
-                        <Slider
-                            id="line-width"
-                            min={1}
-                            max={5}
-                            step={1}
-                            value={[lineWidth]}
-                            onValueChange={(value) => setLineWidth(value[0])}
-                            disabled={anyLoading}
-                        />
+                  ) : (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                      <p>Scan the chart to see manipulation analysis here.</p>
                     </div>
-                  </CardContent>
-                </CollapsibleContent>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
             </Collapsible>
           </Card>
-          
-          <Card>
-             <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
-                        <CardDescription>Generate random future candles to stress-test your strategy.</CardDescription>
-                    </div>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} />
-                        </Button>
-                    </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                    <CardContent className="space-y-4">
-                        <div>
-                            <Label>Projection Mode</Label>
-                             <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
-                                <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
-                                <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
-                                <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
-                                <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
-                             </RadioGroup>
-                        </div>
-                        <div>
-                            <Label>Projection Duration</Label>
-                            <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
-                                <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
-                                <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
-                                <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
-                                <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
-                            </RadioGroup>
-                        </div>
-                    </CardContent>
-                    <CardFooter className="flex-col gap-2">
-                        <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || chartData.length === 0}>
-                            {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                            {isProjecting ? 'Generating...' : 'Project & Test Strategy'}
-                        </Button>
-                         <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Clear Projection
-                        </Button>
-                    </CardFooter>
-                </CollapsibleContent>
-             </Collapsible>
-          </Card>
-
-          {forwardTestSummary && <BacktestResults 
-            results={forwardTestTrades} 
-            summary={forwardTestSummary} 
-            onSelectTrade={setSelectedForwardTrade}
-            selectedTradeId={selectedForwardTrade?.id}
-            title="Forward Test Report"
-          />}
-
-          <MarketHeatmap />
-
-          <OrderBook 
-            symbol={symbol} 
-            isStreamActive={isStreamActive}
-            onWallsUpdate={handleOrderBookUpdate}
-          />
-
-           <Card>
-              <Collapsible open={isReportOpen} onOpenChange={setReportOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>AI Market Report</CardTitle>
-                    <CardDescription>A detailed analysis of the market data.</CardDescription>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isReportOpen && "rotate-180")} />
-                    </Button>
-                  </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                  <CardContent>
-                    {isReportPending ? (
-                      <div className="space-y-4">
-                        <Skeleton className="h-6 w-3/4" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-5/6" />
-                      </div>
-                    ) : report ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none space-y-4">
-                          <h3>{report.title}</h3>
-                          <p><strong>Summary:</strong> {report.summary}</p>
-                          <p><strong>Trend:</strong> {report.trendAnalysis}</p>
-                          <p><strong>Volatility:</strong> {report.volatilityAnalysis}</p>
-                          <p><strong>Key Levels:</strong> {report.keyLevels}</p>
-                          <p><strong>Outlook:</strong> {report.outlook}</p>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                        <p>Generate a report to see the AI analysis here.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-           </Card>
-           
-           <Card>
-              <Collapsible open={isManipulationCardOpen} onOpenChange={setManipulationCardOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Manipulation Scan Results</CardTitle>
-                    <CardDescription>AI-powered scan for pump & dump patterns.</CardDescription>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isManipulationCardOpen && "rotate-180")} />
-                    </Button>
-                  </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                  <CardContent>
-                    {isScanning ? (
-                      <div className="space-y-4">
-                        <Skeleton className="h-6 w-1/2" />
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-4/5" />
-                      </div>
-                    ) : manipulationResult ? (
-                      <div className="space-y-4 prose prose-sm dark:prose-invert max-w-none">
-                        {manipulationResult.isManipulationSuspected ? (
-                           <Alert variant="destructive">
-                              <ShieldAlert className="h-4 w-4" />
-                              <AlertTitle>High Suspicion of Manipulation!</AlertTitle>
-                              <AlertDescription>
-                                Confidence: {(manipulationResult.confidence * 100).toFixed(1)}%. Current Phase: {manipulationResult.currentPhase}.
-                              </AlertDescription>
-                          </Alert>
-                        ) : (
-                           <Alert>
-                              <ShieldCheck className="h-4 w-4" />
-                              <AlertTitle>No Clear Manipulation Detected</AlertTitle>
-                              <AlertDescription>
-                                The AI did not find a strong pump & dump pattern in the provided data.
-                              </AlertDescription>
-                          </Alert>
-                        )}
-                        <p><strong>Reasoning:</strong> {manipulationResult.reasoning}</p>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                        <p>Scan the chart to see manipulation analysis here.</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Collapsible>
-           </Card>
-
         </div>
       </div>
     </div>
   )
 }
+
+    
