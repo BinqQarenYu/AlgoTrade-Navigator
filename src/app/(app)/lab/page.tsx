@@ -153,7 +153,6 @@ export default function LabPage() {
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined);
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('lab-ai-validation', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('lab-max-validations', 20);
-  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('lab-reverse-logic', false);
 
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -626,18 +625,6 @@ export default function LabPage() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
-         <div className="flex items-center space-x-2 pt-2">
-            <Switch
-              id="reverse-logic"
-              checked={useReverseLogic}
-              onCheckedChange={setUseReverseLogic}
-              disabled={anyLoading}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-            </div>
-          </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
@@ -699,11 +686,11 @@ export default function LabPage() {
               if (positionType === 'long') {
                   if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
                   else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (useReverseLogic ? d.buySignal : d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+                  else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
               } else { // short
                   if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
                   else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (useReverseLogic ? d.sellSignal : d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+                  else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
               }
 
               if (exitPrice !== null) {
@@ -725,16 +712,13 @@ export default function LabPage() {
           
           // Check for new entries
           if (positionType === null) {
-              const buySignal = useReverseLogic ? d.sellSignal : d.buySignal;
-              const sellSignal = useReverseLogic ? d.buySignal : d.sellSignal;
-
-              if (buySignal) {
+              if (d.buySignal) {
                   positionType = 'long';
                   entryPrice = d.close;
                   entryTime = d.time;
                   stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
                   takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-              } else if (sellSignal) {
+              } else if (d.sellSignal) {
                   positionType = 'short';
                   entryPrice = d.close;
                   entryTime = d.time;
