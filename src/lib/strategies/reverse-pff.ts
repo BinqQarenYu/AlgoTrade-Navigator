@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';

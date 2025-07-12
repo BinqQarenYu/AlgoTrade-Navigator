@@ -1,19 +1,22 @@
+
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateHeikinAshi } from '@/lib/indicators';
 
 export interface SmoothedHeikinAshiPullbackParams {
-  discipline: DisciplineParams;
+    reverse?: boolean;
+    discipline: DisciplineParams;
 }
 
 export const defaultSmoothedHeikinAshiPullbackParams: SmoothedHeikinAshiPullbackParams = {
-  discipline: {
-    enableDiscipline: true,
-    maxConsecutiveLosses: 2,
-    cooldownPeriodMinutes: 15,
-    dailyDrawdownLimit: 10,
-    onFailure: 'Cooldown',
-  },
+    reverse: false,
+    discipline: {
+        enableDiscipline: true,
+        maxConsecutiveLosses: 2,
+        cooldownPeriodMinutes: 15,
+        dailyDrawdownLimit: 10,
+        onFailure: 'Cooldown',
+    },
 };
 
 // --- Candlestick Pattern Helpers ---
