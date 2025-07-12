@@ -77,7 +77,7 @@ import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
-import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
+import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
@@ -422,7 +422,11 @@ export default function LabPage() {
 
     wsRef.current.onerror = () => {
       console.error("Lab stream WebSocket error.");
-      toast({ title: "Stream Error", variant: "destructive" });
+      toast({ 
+          title: "Stream Error",
+          description: `Could not connect to live data for ${symbol}. The symbol may not be supported for streaming.`,
+          variant: "destructive" 
+      });
       setIsStreamActive(false);
     };
 
@@ -883,8 +887,8 @@ export default function LabPage() {
 
           <OrderBook 
             symbol={symbol} 
-            onWallsUpdate={handleOrderBookUpdate}
             isStreamActive={isStreamActive}
+            onWallsUpdate={handleOrderBookUpdate}
           />
 
            <Card>
