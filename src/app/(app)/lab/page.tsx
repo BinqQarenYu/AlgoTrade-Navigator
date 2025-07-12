@@ -151,8 +151,7 @@ export default function LabPage() {
   const [stopLoss, setStopLoss] = usePersistentState<number>('lab-sl', 2);
   const [fee, setFee] = usePersistentState<number>('lab-fee', 0.04);
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined);
-  const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('lab-ai-validation', false);
-  const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('lab-max-validations', 20);
+  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('lab-reverse-logic', false);
 
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -196,13 +195,13 @@ export default function LabPage() {
   }, [selectedConsensusStrategies]);
 
 
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+  const handleParamChange = (strategyId: string, paramName: string, value: any) => {
+    const parsedValue = String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
     setStrategyParams(prev => ({
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : isNaN(parsedValue) ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
         }
     }));
   };
@@ -606,7 +605,26 @@ export default function LabPage() {
     const params = strategyParams[selectedStrategy];
     if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const controls = Object.entries(params).map(([key, value]) => (
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'reverse'));
+
+    if (Object.keys(filteredParams).length === 0) {
+        return (
+             <div className="flex items-center space-x-2 pt-2">
+                <Switch
+                  id="reverse-logic"
+                  checked={useReverseLogic}
+                  onCheckedChange={setUseReverseLogic}
+                  disabled={anyLoading}
+                />
+                <div className="flex flex-col">
+                  <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                  <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                </div>
+            </div>
+        );
+    }
+    
+    const controls = Object.entries(filteredParams).map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
         <Input 
@@ -625,6 +643,18 @@ export default function LabPage() {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
+        <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={useReverseLogic}
+              onCheckedChange={setUseReverseLogic}
+              disabled={anyLoading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
+        </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
@@ -661,7 +691,7 @@ export default function LabPage() {
         }
 
         const combinedData = [...chartData, ...newProjectedCandles];
-        const paramsForStrategy = strategyParams[selectedStrategy] || {};
+        const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic };
         
         const dataWithSignals = await strategyToTest.calculate(combinedData, paramsForStrategy);
         const testedProjectedData = dataWithSignals.slice(chartData.length);

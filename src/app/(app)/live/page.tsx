@@ -30,7 +30,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData, TradeSignal, DisciplineParams } from "@/lib/types"
+import type { HistoricalData, TradeSignal, DisciplineParams, LiveBotConfig } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -321,7 +321,8 @@ export default function LiveTradingPage() {
             toast({ title: "Cannot start bot", description: "Please connect to the API first.", variant: "destructive"});
             return;
         }
-        startLiveBot({
+        
+        const config: LiveBotConfig = {
             symbol,
             interval,
             strategy: selectedStrategy,
@@ -332,9 +333,11 @@ export default function LiveTradingPage() {
             stopLoss,
             marginType,
             useAIPrediction,
-            reverse: false, // Reverse logic removed from this page
+            reverse: strategyParams[selectedStrategy]?.reverse || false,
             fee
-        });
+        }
+
+        startLiveBot(config);
     }
   }
 
@@ -386,10 +389,27 @@ export default function LiveTradingPage() {
 
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy];
-    if (!params || !params.discipline) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'discipline'));
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'discipline' && key !== 'reverse'));
 
+    if (Object.keys(filteredParams).length === 0) {
+        return (
+            <div className="flex items-center space-x-2 pt-2">
+                <Switch
+                    id="reverse-logic"
+                    checked={params.reverse || false}
+                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                    disabled={isRunning}
+                />
+                <div className="flex flex-col">
+                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                </div>
+            </div>
+        );
+    }
+    
     const controls = Object.entries(filteredParams).map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
@@ -409,6 +429,18 @@ export default function LiveTradingPage() {
     return (
       <div className="space-y-4">
         {controls.length > 0 && <div className="grid grid-cols-2 gap-4">{controls}</div>}
+         <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={params.reverse || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={isRunning}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
+          </div>
         {canReset && (
             <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full">
                 <RotateCcw className="mr-2 h-4 w-4" />
