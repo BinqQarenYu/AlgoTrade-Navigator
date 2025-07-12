@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, Wall, SpoofedWall } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
@@ -266,7 +266,7 @@ export default function LabPage() {
       if (!strategy) continue;
 
       const paramsForStrategy = strategyParamsRef.current[strategyId] || {};
-      const dataWithIndicators = await strategy.calculate(currentChartData, paramsForStrategy);
+      const dataWithIndicators = await strategy.calculate(currentChartData, paramsForStrategy, symbol);
       const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
       if (lastCandle) {
@@ -285,7 +285,7 @@ export default function LabPage() {
       setConsensusResult(null);
     }
     setIsConsensusRunning(false);
-  }, []);
+  }, [symbol]);
 
   const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
     if (currentChartData.length < 20) {
