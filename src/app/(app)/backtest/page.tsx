@@ -34,7 +34,7 @@ import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2,
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
-import type { HistoricalData, BacktestResult, BacktestSummary } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
@@ -47,6 +47,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+
 
 // Import default parameters from all strategies to enable reset functionality
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -234,26 +236,21 @@ export default function BacktestPage() {
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('backtest-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
+  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('backtest-discipline-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
 
-  const handleParamChange = (strategyId: string, paramName: string, value: string | string[] | boolean) => {
-    if (typeof value === 'boolean') {
-      setStrategyParams(prev => ({
-            ...prev,
-            [strategyId]: { ...prev[strategyId], [paramName]: value }
-      }));
-    } else if (Array.isArray(value)) {
-       setStrategyParams(prev => ({
-            ...prev,
-            [strategyId]: { ...prev[strategyId], [paramName]: value }
-        }));
-    } else {
-        const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
-        setStrategyParams(prev => ({
-            ...prev,
-            [strategyId]: { ...prev[strategyId], [paramName]: isNaN(parsedValue) ? value : parsedValue }
-        }));
-    }
+  const handleParamChange = (strategyId: string, paramName: string, value: any) => {
+    setStrategyParams(prev => ({
+        ...prev,
+        [strategyId]: { ...prev[strategyId], [paramName]: value }
+    }));
+  };
+
+  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
+      handleParamChange(selectedStrategy, 'discipline', {
+        ...strategyParams[selectedStrategy].discipline,
+        [paramName]: value,
+      });
   };
   
   const handleResetParams = () => {
@@ -932,7 +929,7 @@ export default function BacktestPage() {
     }
     
     // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'htf'));
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'htf' && key !== 'discipline'));
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
@@ -1151,6 +1148,16 @@ export default function BacktestPage() {
                     {renderParameterControls()}
                   </CollapsibleContent>
                 </Collapsible>
+                
+                {strategyParams[selectedStrategy]?.discipline && (
+                    <DisciplineSettings 
+                        params={strategyParams[selectedStrategy].discipline}
+                        onParamChange={handleDisciplineParamChange}
+                        isCollapsed={isDisciplineOpen}
+                        onCollapseChange={setDisciplineOpen}
+                        isDisabled={anyLoading}
+                    />
+                )}
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
