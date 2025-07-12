@@ -235,15 +235,19 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         const midPrice = lastBid > 0 && firstAsk > 0 ? (lastBid + firstAsk) / 2 : 0;
         const calculatedSpread = firstAsk > 0 && lastBid > 0 ? firstAsk - lastBid : 0;
 
-        let grouping = 0.00000001; // Default for ultra-low-priced assets like PEPE
-        if (midPrice > 25000) grouping = 10;
+        let grouping = 0.01;
+        if (midPrice > 50000) grouping = 50;
+        else if (midPrice > 10000) grouping = 10;
         else if (midPrice > 1000) grouping = 1;
         else if (midPrice > 100) grouping = 0.5;
-        else if (midPrice > 1) grouping = 0.1;
+        else if (midPrice > 10) grouping = 0.1;
+        else if (midPrice > 1) grouping = 0.05;
         else if (midPrice > 0.01) grouping = 0.001;
         else if (midPrice > 0.0001) grouping = 0.00001;
-        
-        const calculatedPrecision = midPrice > 1 ? 2 : Math.max(2, -Math.floor(Math.log10(grouping)));
+        else if (midPrice > 0.000001) grouping = 0.0000001;
+        else grouping = 0.00000001;
+
+        const calculatedPrecision = midPrice > 1 ? 2 : Math.max(2, -Math.floor(Math.log10(grouping) + 1));
 
         const aggregatedBids = groupLevels(sortedBids, grouping);
         const aggregatedAsks = groupLevels(sortedAsks, grouping);
