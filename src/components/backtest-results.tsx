@@ -83,7 +83,7 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
 };
 
 export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId, title = "Backtest Results" }: BacktestResultsProps) {
-  const [isOpen, setIsOpen] = usePersistentState<boolean>(`backtest-results-open-${title.replace(/\s/g, '')}`, true);
+  const [isOpen, setIsOpen] = useState(true);
   const [logHeight, setLogHeight] = usePersistentState<number>(`backtest-results-height-${title.replace(/\s/g, '')}`, 288);
 
   const startResizing = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
