@@ -48,6 +48,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { RiskGuardian } from "@/lib/risk-guardian"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -502,6 +503,8 @@ export default function BacktestPage() {
     const baseParams = strategyParams[selectedStrategy] || {};
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
+    const riskGuardian = new RiskGuardian(paramsForStrategy.discipline, initialCapital);
+
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
@@ -522,37 +525,30 @@ export default function BacktestPage() {
       const d = dataWithSignals[i];
 
       // --- Exit Logic ---
-      if (positionType === 'long') {
+      if (positionType !== null) {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
-        if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-        else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-        else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
-
-        if (exitPrice !== null) {
-          const entryFeeValue = entryPrice * tradeQuantity * (fee / 100);
-          const exitFeeValue = exitPrice * tradeQuantity * (fee / 100);
-          const pnl = (exitPrice - entryPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
-          trades.push({
-            id: `trade-${trades.length}`, type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
-            pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
-          });
-          positionType = null;
+        if (positionType === 'long') {
+            if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+            else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+        } else { // short
+            if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+            else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
         }
-      } else if (positionType === 'short') {
-        let exitPrice: number | null = null;
-        let closeReason: BacktestResult['closeReason'] = 'signal';
-        if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-        else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'signal'; }
-        else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
 
         if (exitPrice !== null) {
           const entryFeeValue = entryPrice * tradeQuantity * (fee / 100);
           const exitFeeValue = exitPrice * tradeQuantity * (fee / 100);
-          const pnl = (entryPrice - exitPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
+          const pnl = positionType === 'long' 
+            ? (exitPrice - entryPrice) * tradeQuantity - (entryFeeValue + exitFeeValue)
+            : (entryPrice - exitPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
+
+          riskGuardian.registerTrade(pnl);
+
           trades.push({
-            id: `trade-${trades.length}`, type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
+            id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
             pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
             fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
@@ -563,6 +559,16 @@ export default function BacktestPage() {
       // --- Entry Logic (Only if not in a position) ---
       if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
+        
+        const { allowed, reason } = riskGuardian.canTrade();
+        if (!allowed) {
+            // Log discipline actions only for the main backtest
+            if (!contrarian) {
+                toast({ title: "Discipline Action", description: reason, variant: "destructive" });
+            }
+            continue; // Skip trade evaluation
+        }
+
         if (potentialSignal) {
           let isValidSignal = false;
           let prediction: PredictMarketOutput | null = null;
