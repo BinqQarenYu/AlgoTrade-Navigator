@@ -128,26 +128,24 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
         const values = [];
         // Handle floating point inaccuracies by fixing precision
         const precision = (String(step).split('.')[1] || '').length;
-        for (let i = min; i <= max; i = parseFloat((i + step).toFixed(precision))) {
-            values.push(i);
+        for (let i = min; i <= max; i += step) {
+            values.push(parseFloat(i.toFixed(precision)));
         }
         return values;
     });
 
     const combinations: any[] = [];
-    const max = ranges.length - 1;
+    const maxIndex = ranges.length - 1;
 
     function helper(arr: any[], i: number) {
         for (let j = 0, l = ranges[i].length; j < l; j++) {
             const a = arr.slice(0); // clone arr
             a.push(ranges[i][j]);
-            if (i === max) {
+            if (i === maxIndex) {
                 const combo: Record<string, number | string> = {};
                 keys.forEach((key, index) => {
                     combo[key] = a[index];
                 });
-                // Validation for common crossover strategies
-                if ('longPeriod' in combo && 'shortPeriod' in combo && (combo.longPeriod as number) <= (combo.shortPeriod as number)) return;
                 combinations.push(combo);
             } else {
                 helper(a, i + 1);
