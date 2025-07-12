@@ -850,6 +850,8 @@ export default function BacktestPage() {
     }
 
     if (selectedStrategy === 'smi-mfi-supertrend') {
+        const canOptimize = !!optimizationConfigs[selectedStrategy];
+        const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
         return (
             <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -893,6 +895,20 @@ export default function BacktestPage() {
                     <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
                     <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                     </div>
+                </div>
+                 <div className="pt-2 flex flex-col sm:flex-row gap-2">
+                    {canReset && (
+                        <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
+                            <RotateCcw className="mr-2 h-4 w-4" />
+                            Reset to Default
+                        </Button>
+                    )}
+                    {canOptimize && (
+                      <Button onClick={handleAutoTune} disabled={anyLoading} variant="outline" className="w-full">
+                        {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                        {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
+                      </Button>
+                    )}
                 </div>
             </div>
         );
