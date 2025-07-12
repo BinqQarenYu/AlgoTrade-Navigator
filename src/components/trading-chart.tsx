@@ -135,6 +135,8 @@ export function TradingChart({
         accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
         pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
         distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
+        projectionColor: isDarkMode ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.7)',
+        projectionWickColor: isDarkMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(156, 163, 175, 0.7)',
     };
     
     const chart = createChart(chartContainer, {
@@ -497,8 +499,13 @@ export function TradingChart({
                 }
 
                 let coloring = {};
+                // Check if it is a projected candle (has 'isProjected' flag or similar, for now we can check if it's beyond the original data length)
+                const isProjected = d.time > (data[data.length-1]?.time ?? 0);
+
                 if (isHighlighted) {
                     coloring = { color: highlightColor, wickColor: highlightColor };
+                } else if (isProjected) {
+                    coloring = { color: chartColors.projectionColor, upColor: chartColors.projectionColor, downColor: chartColors.projectionColor, wickColor: chartColors.projectionWickColor, borderVisible: true, borderColor: chartColors.projectionWickColor };
                 } else if (phaseColor) {
                     coloring = { color: phaseColor, wickColor: phaseColor };
                 }
@@ -1246,3 +1253,5 @@ export function TradingChart({
     </Card>
   );
 }
+
+    

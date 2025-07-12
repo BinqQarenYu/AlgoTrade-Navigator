@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck } from "lucide-react"
+import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2 } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
@@ -48,6 +48,7 @@ import { saveReport, getLatestReport } from "@/lib/data-service"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { Badge } from "@/components/ui/badge"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
@@ -149,6 +150,13 @@ export default function LabPage() {
   const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(null);
   const [isScanning, setIsScanning] = useState(false);
 
+  // Projection State
+  const [isProjecting, setIsProjecting] = useState(false);
+  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random'>('lab-projection-mode', 'neutral');
+  const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('lab-projection-duration', '7d');
+  const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
+
+
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('lab-controls-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('lab-params-open', false);
@@ -158,6 +166,7 @@ export default function LabPage() {
   const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
   const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
+  const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('lab-projection-card-open', true);
   
   const selectedConsensusStrategiesRef = useRef(selectedConsensusStrategies);
   useEffect(() => {
@@ -331,10 +340,11 @@ export default function LabPage() {
   
   // Effect to run analysis when data changes
   useEffect(() => {
-    if (chartData.length > 0) {
-      refreshChartAnalysis(chartData);
+    const fullChartData = [...chartData, ...projectedData];
+    if (fullChartData.length > 0) {
+      refreshChartAnalysis(fullChartData);
     }
-  }, [chartData, refreshChartAnalysis]);
+  }, [chartData, projectedData, refreshChartAnalysis]);
 
   useEffect(() => {
     if (!isClient || !symbol || !quoteAsset || isStreamActive) return;
@@ -347,6 +357,7 @@ export default function LabPage() {
         setIsFetchingData(true);
         if(!isStreamActive) {
             setChartData([]);
+            setProjectedData([]); // Clear projections on new data fetch
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }
         try {
@@ -564,7 +575,7 @@ export default function LabPage() {
     }
   }, []);
 
-  const anyLoading = isFetchingData || isReportPending || isScanning;
+  const anyLoading = isFetchingData || isReportPending || isScanning || isProjecting;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
   
   const renderParameterControls = () => {
@@ -600,6 +611,16 @@ export default function LabPage() {
         </div>
       </div>
     );
+  };
+
+  const handleProjectAndTest = () => {
+    // Placeholder for Step 3 logic
+    toast({ title: "Coming Soon!", description: "Candlestick projection logic will be implemented next." });
+  };
+  
+  const handleClearProjection = () => {
+    setProjectedData([]);
+    toast({ title: "Projection Cleared", description: "The chart has been reset to show only real market data." });
   };
 
   return (
@@ -657,7 +678,7 @@ export default function LabPage() {
         <div className="xl:col-span-3 relative pb-4">
           <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
             <TradingChart
-                data={dataWithIndicators}
+                data={[...dataWithIndicators, ...projectedData]}
                 symbol={symbol}
                 interval={interval}
                 onIntervalChange={setInterval}
@@ -881,6 +902,54 @@ export default function LabPage() {
                 </CollapsibleContent>
             </Collapsible>
           </Card>
+          
+          <Card>
+             <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
+                        <CardDescription>Generate random future candles to stress-test your strategy.</CardDescription>
+                    </div>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} />
+                        </Button>
+                    </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                    <CardContent className="space-y-4">
+                        <div>
+                            <Label>Projection Mode</Label>
+                             <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                                <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                                <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                                <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                                <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                             </RadioGroup>
+                        </div>
+                        <div>
+                            <Label>Projection Duration</Label>
+                            <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                                <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
+                                <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
+                                <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
+                                <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
+                            </RadioGroup>
+                        </div>
+                    </CardContent>
+                    <CardFooter className="flex-col gap-2">
+                        <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || chartData.length === 0}>
+                            {isProjecting ? <Loader2 className="animate-spin" /> : <Play />}
+                            {isProjecting ? 'Generating...' : 'Project & Test Strategy'}
+                        </Button>
+                         <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0}>
+                            <Trash2 />
+                            Clear Projection
+                        </Button>
+                    </CardFooter>
+                </CollapsibleContent>
+             </Collapsible>
+          </Card>
 
           <MarketHeatmap />
 
@@ -988,3 +1057,5 @@ export default function LabPage() {
     </div>
   )
 }
+
+    
