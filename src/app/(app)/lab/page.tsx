@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2 } from "lucide-react"
+import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2, CalendarIcon } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
@@ -50,6 +50,10 @@ import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { generateProjectedCandles } from "@/lib/projection-service"
 import { BacktestResults } from "@/components/backtest-results"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format, addDays } from "date-fns"
+
 
 import { useBot } from "@/context/bot-context"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
@@ -80,6 +84,10 @@ import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 
+interface DateRange {
+  from?: Date;
+  to?: Date;
+}
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -136,6 +144,16 @@ export default function LabPage() {
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab-scale-mode', 'linear');
   
+  // States ported from backtest page
+  const [initialCapital, setInitialCapital] = usePersistentState<number>('lab-initial-capital', 100);
+  const [leverage, setLeverage] = usePersistentState<number>('lab-leverage', 10);
+  const [takeProfit, setTakeProfit] = usePersistentState<number>('lab-tp', 5);
+  const [stopLoss, setStopLoss] = usePersistentState<number>('lab-sl', 2);
+  const [fee, setFee] = usePersistentState<number>('lab-fee', 0.04);
+  const [date, setDate] = usePersistentState<DateRange | undefined>('lab-date-range', undefined);
+  const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('lab-ai-validation', false);
+  const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('lab-max-validations', 20);
+
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
@@ -658,10 +676,7 @@ export default function LabPage() {
         let entryPrice = 0;
         let stopLossPrice = 0;
         let takeProfitPrice = 0;
-        const initialCapital = 10000;
-        const leverage = 1;
-        const fee = 0.04;
-
+        
         for (let i = 0; i < testedProjectedData.length; i++) {
           const d = testedProjectedData[i];
 
@@ -702,14 +717,14 @@ export default function LabPage() {
                   positionType = 'long';
                   entryPrice = d.close;
                   entryTime = d.time;
-                  stopLossPrice = d.stopLossLevel ?? (entryPrice * 0.98);
-                  takeProfitPrice = entryPrice * 1.05;
+                  stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
+                  takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
               } else if (d.sellSignal) {
                   positionType = 'short';
                   entryPrice = d.close;
                   entryTime = d.time;
-                  stopLossPrice = d.stopLossLevel ?? (entryPrice * 1.02);
-                  takeProfitPrice = entryPrice * 0.95;
+                  stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
+                  takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
               }
           }
         }
@@ -907,6 +922,140 @@ export default function LabPage() {
                       </CollapsibleContent>
                     </Collapsible>
                     
+                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="initial-capital">Initial Capital ($)</Label>
+                            <Input 
+                                id="initial-capital" 
+                                type="number" 
+                                value={initialCapital}
+                                onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
+                                placeholder="10000"
+                                disabled={anyLoading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="leverage">Leverage (x)</Label>
+                            <Input 
+                                id="leverage" 
+                                type="number" 
+                                value={leverage}
+                                onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
+                                placeholder="10"
+                                min="1"
+                                disabled={anyLoading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="fee">Fee (%)</Label>
+                            <Input 
+                                id="fee" 
+                                type="number" 
+                                value={fee}
+                                onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
+                                placeholder="0.04"
+                                disabled={anyLoading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="take-profit">Take Profit (%)</Label>
+                            <Input 
+                                id="take-profit" 
+                                type="number" 
+                                value={takeProfit}
+                                onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
+                                placeholder="5"
+                                disabled={anyLoading}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="stop-loss">Stop Loss (%)</Label>
+                            <Input 
+                                id="stop-loss" 
+                                type="number" 
+                                value={stopLoss}
+                                onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
+                                placeholder="2"
+                                disabled={anyLoading}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Date range</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant={"outline"}
+                              className={cn(
+                                "w-full justify-start text-left font-normal",
+                                !date && "text-muted-foreground"
+                              )}
+                              disabled={!isConnected || anyLoading}
+                            >
+                              <CalendarIcon className="mr-2 h-4 w-4" />
+                              {isClient && date?.from ? (
+                                date.to ? (
+                                  <>
+                                    {format(date.from, "LLL dd, y")} -{" "}
+                                    {format(date.to, "LLL dd, y")}
+                                  </>
+                                ) : (
+                                  format(date.from, "LLL dd, y")
+                                )
+                              ) : (
+                                <span>Pick a date</span>
+                              )}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto flex p-0" align="start">
+                            <div className="flex flex-col space-y-1 border-r p-3">
+                                <div className="px-1 pb-1">
+                                    <h4 className="font-medium text-sm text-muted-foreground">Presets</h4>
+                                </div>
+                                <div className="flex flex-col items-start space-y-1">
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start font-normal h-8 px-2"
+                                        onClick={() => setDate({ from: new Date(), to: new Date() })}
+                                    >
+                                        Today
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start font-normal h-8 px-2"
+                                        onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
+                                    >
+                                        Last 7 Days
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start font-normal h-8 px-2"
+                                        onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
+                                    >
+                                        Last 30 Days
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        className="w-full justify-start font-normal h-8 px-2"
+                                        onClick={() => setDate({ from: date?.from, to: new Date() })}
+                                    >
+                                        Until Today
+                                    </Button>
+                                </div>
+                            </div>
+                            <Calendar
+                              initialFocus
+                              mode="range"
+                              defaultMonth={date?.from}
+                              selected={date}
+                              onSelect={setDate}
+                              numberOfMonths={2}
+                            />
+                          </PopoverContent>
+                        </Popover>
+                    </div>
+
                     <Collapsible open={isConsensusStratOpen} onOpenChange={setIsConsensusStratOpen}>
                       <CollapsibleTrigger asChild>
                         <Button variant="outline" size="sm" className="w-full">
