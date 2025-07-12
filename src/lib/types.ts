@@ -9,6 +9,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -210,6 +211,7 @@ export type LiveBotConfig = {
     stopLoss: number;
     marginType: string;
     useAIPrediction: boolean;
+    reverse: boolean;
     fee: number;
 };
 

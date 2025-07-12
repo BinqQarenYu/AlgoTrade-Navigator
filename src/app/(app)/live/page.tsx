@@ -162,6 +162,7 @@ export default function LiveTradingPage() {
   const [fee, setFee] = usePersistentState<number>('live-fee', 0.04);
   const [marginType, setMarginType] = usePersistentState<string>("live-margin-type", "isolated");
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
+  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('live-reverse-logic', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
 
   // Local state for chart data, separate from the bot's data
@@ -332,6 +333,7 @@ export default function LiveTradingPage() {
             stopLoss,
             marginType,
             useAIPrediction,
+            reverse: useReverseLogic,
             fee
         });
     }
@@ -625,12 +627,22 @@ export default function LiveTradingPage() {
                     </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>AI-Powered Analysis</Label>
-                  <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                    <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
-                    <div className="flex flex-col">
-                        <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                        <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
+                  <Label>Analysis Tools</Label>
+                  <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
+                      <div className="flex flex-col">
+                          <Label htmlFor="ai-prediction">Enable AI Validation</Label>
+                          <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
+                      </div>
+                    </div>
+                     <div className="border-b -mx-3"></div>
+                     <div className="flex items-center space-x-2">
+                        <Switch id="reverse-logic" checked={useReverseLogic} onCheckedChange={setUseReverseLogic} disabled={isRunning} />
+                        <div className="flex flex-col">
+                            <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                            <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                        </div>
                     </div>
                   </div>
                 </div>

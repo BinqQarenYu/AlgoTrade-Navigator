@@ -238,7 +238,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
-    config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean },
+    config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean; reverse: boolean; },
     existingData?: HistoricalData[]
   ): Promise<SignalResult> => {
     try {
@@ -267,18 +267,24 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null };
         }
         
-        const strategySignal: 'BUY' | 'SELL' = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
+        let strategySignal: 'BUY' | 'SELL' | null = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
+        
+        // --- REVERSE LOGIC ---
+        if (config.reverse) {
+            strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
+        }
+        // --- END REVERSE LOGIC ---
 
         const prediction = config.useAIPrediction ? (
             canUseAi() ? await predictMarket({
                 symbol: config.symbol,
                 recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
-                strategySignal
+                strategySignal: strategySignal
             }) : null
         ) : {
             prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
             confidence: 1,
-            reasoning: `Signal from '${config.strategy}' without AI validation.`
+            reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).`
         };
 
         if (!prediction) { // This will be true if canUseAi returned false
@@ -577,7 +583,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
 
-    const result = await analyzeAsset({ ...config }, chartDataForAnalysis);
+    const result = await analyzeAsset({ ...config, reverse: false }, chartDataForAnalysis); // Manual analysis is never reversed by default
 
     if (manualAnalysisCancelRef.current) {
         addManualLog("Analysis canceled, results discarded.");
@@ -608,7 +614,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
                     return { ...current, logs: preservedLogs };
                 }
-                analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
+                analyzeAsset({ ...currentConfig, reverse: false }, current.chartData).then(reevalResult => {
                     if (!manualReevalIntervalRef.current) return;
                     if (reevalResult.signal) {
                         if (reevalResult.signal.action !== originalSignal.action) {
@@ -668,7 +674,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }));
 
         try {
-            const result = await analyzeAsset({ ...config, symbol: asset });
+            const result = await analyzeAsset({ ...config, symbol: asset, reverse: false });
             
             if (!multiSignalRunningRef.current) break;
 
