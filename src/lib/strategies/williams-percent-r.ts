@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateWilliamsR } from '@/lib/indicators';
 
 export interface WilliamsRParams {
@@ -7,6 +7,7 @@ export interface WilliamsRParams {
   overbought: number;
   oversold: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultWilliamsRParams: WilliamsRParams = {
@@ -14,6 +15,13 @@ export const defaultWilliamsRParams: WilliamsRParams = {
   overbought: -20,
   oversold: -80,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const williamsRStrategy: Strategy = {

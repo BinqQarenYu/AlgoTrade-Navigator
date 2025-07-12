@@ -1,17 +1,25 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateKeltnerChannels } from '@/lib/indicators';
 
 export interface KeltnerChannelsParams {
   period: number;
   multiplier: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultKeltnerChannelsParams: KeltnerChannelsParams = {
   period: 20,
   multiplier: 2,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const keltnerChannelsStrategy: Strategy = {

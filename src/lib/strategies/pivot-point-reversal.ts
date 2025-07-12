@@ -1,15 +1,23 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculatePivotPoints } from '@/lib/indicators';
 
 export interface PivotPointReversalParams {
   period: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultPivotPointReversalParams: PivotPointReversalParams = {
   period: 24,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const pivotPointReversalStrategy: Strategy = {

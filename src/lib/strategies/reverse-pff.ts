@@ -1,6 +1,6 @@
 'use client';
 
-import type { HistoricalData, Strategy } from '../types';
+import type { HistoricalData, Strategy, DisciplineParams } from '../types';
 import { calculateEMA } from '../indicators';
 
 export interface ReversePffParams {
@@ -12,6 +12,7 @@ export interface ReversePffParams {
     fibLevel2: number;
     maxLookahead: number;
     reverse?: boolean; // Added for consistency, though this strategy is already reversed
+    discipline: DisciplineParams;
 }
 
 export const defaultReversePffParams: ReversePffParams = {
@@ -23,6 +24,13 @@ export const defaultReversePffParams: ReversePffParams = {
     fibLevel2: 0.618,
     maxLookahead: 100,
     reverse: false,
+    discipline: {
+        enableDiscipline: true,
+        maxConsecutiveLosses: 2,
+        cooldownPeriodMinutes: 15,
+        dailyDrawdownLimit: 10,
+        onFailure: 'Cooldown',
+    },
 };
 
 function findSwingLows(data: HistoricalData[], lookaround: number): number[] {

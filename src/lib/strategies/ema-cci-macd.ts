@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateEMA, calculateCCI, calculateMACD } from '@/lib/indicators';
 
 export interface EmaCciMacdParams {
@@ -12,6 +12,7 @@ export interface EmaCciMacdParams {
   macdLongPeriod: number;
   macdSignalPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultEmaCciMacdParams: EmaCciMacdParams = {
@@ -24,6 +25,13 @@ export const defaultEmaCciMacdParams: EmaCciMacdParams = {
   macdLongPeriod: 26,
   macdSignalPeriod: 9,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const emaCciMacdStrategy: Strategy = {

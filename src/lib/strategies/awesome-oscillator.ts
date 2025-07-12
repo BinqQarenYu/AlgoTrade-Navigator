@@ -1,17 +1,25 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateAwesomeOscillator } from '@/lib/indicators';
 
 export interface AwesomeOscillatorParams {
   shortPeriod: number;
   longPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultAwesomeOscillatorParams: AwesomeOscillatorParams = {
   shortPeriod: 5,
   longPeriod: 34,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const awesomeOscillatorStrategy: Strategy = {

@@ -1,19 +1,27 @@
 
 'use client';
 
-import type { HistoricalData, Strategy } from '../types';
+import type { HistoricalData, Strategy, DisciplineParams } from '../types';
 import { calculateEMA, findFVGs } from '../indicators';
 
 export interface LiquidityOrderFlowParams {
   swingLookaround: number;
   emaTrendPeriod: number;
   maxLookahead: number;
+  discipline: DisciplineParams;
 }
 
 export const defaultLiquidityOrderFlowParams: LiquidityOrderFlowParams = {
   swingLookaround: 5,
   emaTrendPeriod: 200,
   maxLookahead: 50,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {

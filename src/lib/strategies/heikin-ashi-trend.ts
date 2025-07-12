@@ -1,16 +1,28 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateHeikinAshi } from '@/lib/indicators';
 
 export interface HeikinAshiTrendParams {
     reverse?: boolean;
+    discipline: DisciplineParams;
 }
+
+export const defaultHeikinAshiTrendParams: HeikinAshiTrendParams = {
+    reverse: false,
+    discipline: {
+        enableDiscipline: true,
+        maxConsecutiveLosses: 2,
+        cooldownPeriodMinutes: 15,
+        dailyDrawdownLimit: 10,
+        onFailure: 'Cooldown',
+    },
+};
 
 const heikinAshiTrendStrategy: Strategy = {
   id: 'heikin-ashi-trend',
   name: 'Heikin-Ashi Trend',
   description: 'Uses smoothed Heikin-Ashi candles to identify strong trends and generates signals on trend reversals.',
-  async calculate(data: HistoricalData[], params: HeikinAshiTrendParams = { reverse: false }): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: HeikinAshiTrendParams = defaultHeikinAshiTrendParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     
     if (data.length < 2) return dataWithIndicators;

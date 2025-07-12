@@ -1,6 +1,6 @@
 
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateEMA, calculateATR } from '@/lib/indicators';
 import { getHistoricalKlines } from '@/lib/binance-service';
 import { intervalToMs } from '@/lib/utils';
@@ -12,6 +12,7 @@ export interface MtfEngulfingParams {
   slAtrMultiplier: number;
   rrRatio: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultMtfEngulfingParams: MtfEngulfingParams = {
@@ -21,6 +22,13 @@ export const defaultMtfEngulfingParams: MtfEngulfingParams = {
   slAtrMultiplier: 1.5,
   rrRatio: 2.0,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 // Helper to map HTF data to LTF data

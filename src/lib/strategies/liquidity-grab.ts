@@ -1,17 +1,25 @@
 
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 
 export interface LiquidityGrabParams {
   swingLookaround: number;
   confirmationCandles: number;
   maxSweepLookahead: number;
+  discipline: DisciplineParams;
 }
 
 export const defaultLiquidityGrabParams: LiquidityGrabParams = {
   swingLookaround: 5,
   confirmationCandles: 3,
   maxSweepLookahead: 50,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 function isSwingHigh(data: HistoricalData[], index: number, lookaround: number): boolean {

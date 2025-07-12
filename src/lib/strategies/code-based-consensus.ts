@@ -1,17 +1,25 @@
 
 'use client';
 
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { getStrategyById } from './all-strategies';
 
 export interface CodeBasedConsensusParams {
   strategies: string[]; // Array of strategy IDs
   reverse: boolean; // If true, it will trade against the consensus
+  discipline: DisciplineParams;
 }
 
 export const defaultCodeBasedConsensusParams: CodeBasedConsensusParams = {
   strategies: ['ema-crossover', 'rsi-divergence', 'macd-crossover'],
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const codeBasedConsensusStrategy: Strategy = {

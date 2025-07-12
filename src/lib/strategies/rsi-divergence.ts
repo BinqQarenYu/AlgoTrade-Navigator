@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateRSI } from '@/lib/indicators';
 
 export interface RsiDivergenceParams {
@@ -7,6 +7,7 @@ export interface RsiDivergenceParams {
   oversold: number;
   overbought: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultRsiDivergenceParams: RsiDivergenceParams = {
@@ -14,6 +15,13 @@ export const defaultRsiDivergenceParams: RsiDivergenceParams = {
   oversold: 30,
   overbought: 70,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const rsiDivergenceStrategy: Strategy = {

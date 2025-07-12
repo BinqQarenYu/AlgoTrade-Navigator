@@ -1,6 +1,6 @@
 
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend, calculateMFI, calculateSMI, calculatePivotPoints } from '@/lib/indicators';
 
 export interface SmiMfiSupertrendParams {
@@ -12,6 +12,7 @@ export interface SmiMfiSupertrendParams {
   overbought: number;
   oversold: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultSmiMfiSupertrendParams: SmiMfiSupertrendParams = {
@@ -23,6 +24,13 @@ export const defaultSmiMfiSupertrendParams: SmiMfiSupertrendParams = {
   overbought: 40,
   oversold: -40,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const smiMfiSupertrendStrategy: Strategy = {

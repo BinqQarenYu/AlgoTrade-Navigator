@@ -1,15 +1,23 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateCMF } from '@/lib/indicators';
 
 export interface ChaikinMoneyFlowParams {
   period: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultChaikinMoneyFlowParams: ChaikinMoneyFlowParams = {
   period: 20,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const chaikinMoneyFlowStrategy: Strategy = {

@@ -1,17 +1,25 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSMA } from '@/lib/indicators';
 
 export interface SmaCrossoverParams {
   shortPeriod: number;
   longPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultSmaCrossoverParams: SmaCrossoverParams = {
   shortPeriod: 20,
   longPeriod: 50,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const smaCrossoverStrategy: Strategy = {

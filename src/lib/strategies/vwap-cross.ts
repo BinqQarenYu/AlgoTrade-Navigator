@@ -1,15 +1,23 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateVWAP } from '@/lib/indicators';
 
 export interface VwapCrossParams {
   period: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultVwapCrossParams: VwapCrossParams = {
   period: 20,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const vwapCrossStrategy: Strategy = {

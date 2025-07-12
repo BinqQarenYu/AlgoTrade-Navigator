@@ -1,15 +1,23 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateOBV, calculateSMA } from '@/lib/indicators';
 
 export interface ObvDivergenceParams {
   period: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultObvDivergenceParams: ObvDivergenceParams = {
   period: 20,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const obvDivergenceStrategy: Strategy = {

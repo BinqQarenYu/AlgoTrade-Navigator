@@ -8,6 +8,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -37,6 +38,14 @@ export type Trade = {
   price: number;
   time: string; // Formatted for display
   timestamp: number; // Raw for sorting
+};
+
+export type DisciplineParams = {
+  enableDiscipline: boolean;
+  maxConsecutiveLosses: number;
+  cooldownPeriodMinutes: number;
+  dailyDrawdownLimit: number;
+  onFailure: 'Cooldown' | 'Adapt';
 };
 
 export type HistoricalData = {

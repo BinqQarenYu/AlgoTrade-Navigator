@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateCCI } from '@/lib/indicators';
 
 export interface CciReversionParams {
@@ -7,6 +7,7 @@ export interface CciReversionParams {
   overbought: number;
   oversold: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultCciReversionParams: CciReversionParams = {
@@ -14,6 +15,13 @@ export const defaultCciReversionParams: CciReversionParams = {
   overbought: 100,
   oversold: -100,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const cciReversionStrategy: Strategy = {

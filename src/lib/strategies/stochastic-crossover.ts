@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateStochastic } from '@/lib/indicators';
 
 export interface StochasticCrossoverParams {
@@ -7,6 +7,7 @@ export interface StochasticCrossoverParams {
   smoothK: number;
   smoothD: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultStochasticCrossoverParams: StochasticCrossoverParams = {
@@ -14,6 +15,13 @@ export const defaultStochasticCrossoverParams: StochasticCrossoverParams = {
   smoothK: 3,
   smoothD: 3,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const stochasticCrossoverStrategy: Strategy = {

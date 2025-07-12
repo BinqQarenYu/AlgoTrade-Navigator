@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateCoppockCurve } from '@/lib/indicators';
 
 export interface CoppockCurveParams {
@@ -7,6 +7,7 @@ export interface CoppockCurveParams {
   shortRoC: number;
   wmaPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultCoppockCurveParams: CoppockCurveParams = {
@@ -14,6 +15,13 @@ export const defaultCoppockCurveParams: CoppockCurveParams = {
   shortRoC: 11,
   wmaPeriod: 10,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const coppockCurveStrategy: Strategy = {

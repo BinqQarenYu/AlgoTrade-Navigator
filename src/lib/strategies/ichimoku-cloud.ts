@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateIchimokuCloud } from '@/lib/indicators';
 
 export interface IchimokuCloudParams {
@@ -8,6 +8,7 @@ export interface IchimokuCloudParams {
   senkouBPeriod: number;
   displacement: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultIchimokuCloudParams: IchimokuCloudParams = {
@@ -16,6 +17,13 @@ export const defaultIchimokuCloudParams: IchimokuCloudParams = {
   senkouBPeriod: 52,
   displacement: 26,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const ichimokuCloudStrategy: Strategy = {

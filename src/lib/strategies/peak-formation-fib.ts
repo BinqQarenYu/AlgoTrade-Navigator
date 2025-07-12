@@ -1,6 +1,6 @@
 'use client';
 
-import type { HistoricalData, Strategy } from '../types';
+import type { HistoricalData, Strategy, DisciplineParams } from '../types';
 import { calculateEMA } from '../indicators';
 
 export interface PffParams {
@@ -12,6 +12,7 @@ export interface PffParams {
     fibLevel2: number;
     maxLookahead: number;
     reverse?: boolean;
+    discipline: DisciplineParams;
 }
 
 export const defaultPffParams: PffParams = {
@@ -23,6 +24,13 @@ export const defaultPffParams: PffParams = {
     fibLevel2: 0.618,
     maxLookahead: 100,
     reverse: false,
+    discipline: {
+        enableDiscipline: true,
+        maxConsecutiveLosses: 2,
+        cooldownPeriodMinutes: 15,
+        dailyDrawdownLimit: 10,
+        onFailure: 'Cooldown',
+    },
 };
 
 function findSwingLows(data: HistoricalData[], lookaround: number): number[] {

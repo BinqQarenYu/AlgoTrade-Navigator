@@ -1,17 +1,25 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateEMA } from '@/lib/indicators';
 
 export interface EmaCrossoverParams {
   shortPeriod: number;
   longPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultEmaCrossoverParams: EmaCrossoverParams = {
   shortPeriod: 12,
   longPeriod: 26,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const emaCrossoverStrategy: Strategy = {

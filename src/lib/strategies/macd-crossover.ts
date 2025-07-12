@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateMACD } from '@/lib/indicators';
 
 export interface MacdCrossoverParams {
@@ -7,6 +7,7 @@ export interface MacdCrossoverParams {
   longPeriod: number;
   signalPeriod: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultMacdCrossoverParams: MacdCrossoverParams = {
@@ -14,6 +15,13 @@ export const defaultMacdCrossoverParams: MacdCrossoverParams = {
   longPeriod: 26,
   signalPeriod: 9,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const macdCrossoverStrategy: Strategy = {

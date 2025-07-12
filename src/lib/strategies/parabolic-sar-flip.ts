@@ -1,5 +1,5 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateParabolicSAR } from '@/lib/indicators';
 
 export interface ParabolicSarFlipParams {
@@ -7,6 +7,7 @@ export interface ParabolicSarFlipParams {
   afIncrement: number;
   afMax: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultParabolicSarFlipParams: ParabolicSarFlipParams = {
@@ -14,6 +15,13 @@ export const defaultParabolicSarFlipParams: ParabolicSarFlipParams = {
   afIncrement: 0.02,
   afMax: 0.2,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const parabolicSarFlipStrategy: Strategy = {

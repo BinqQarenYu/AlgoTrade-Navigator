@@ -1,6 +1,20 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateHeikinAshi } from '@/lib/indicators';
+
+export interface SmoothedHeikinAshiPullbackParams {
+  discipline: DisciplineParams;
+}
+
+export const defaultSmoothedHeikinAshiPullbackParams: SmoothedHeikinAshiPullbackParams = {
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
+};
 
 // --- Candlestick Pattern Helpers ---
 const isBullishEngulfing = (current: HistoricalData, previous: HistoricalData): boolean => {
@@ -41,7 +55,7 @@ const smoothedHeikinAshiPullbackStrategy: Strategy = {
   id: 'smoothed-heikin-ashi-pullback',
   name: 'Smoothed Heikin Ashi Pullback',
   description: 'Enters a trend on a pullback to a Smoothed Heiken Ashi line, confirmed by classic candlestick patterns.',
-  async calculate(data: HistoricalData[]): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], params: SmoothedHeikinAshiPullbackParams = defaultSmoothedHeikinAshiPullbackParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < 2) return dataWithIndicators;
 

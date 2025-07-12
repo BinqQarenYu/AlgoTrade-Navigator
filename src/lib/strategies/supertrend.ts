@@ -1,17 +1,25 @@
 'use client';
-import type { Strategy, HistoricalData } from '@/lib/types';
+import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend } from '@/lib/indicators';
 
 export interface SupertrendParams {
   period: number;
   multiplier: number;
   reverse?: boolean;
+  discipline: DisciplineParams;
 }
 
 export const defaultSupertrendParams: SupertrendParams = {
   period: 10,
   multiplier: 3,
   reverse: false,
+  discipline: {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+  },
 };
 
 const supertrendStrategy: Strategy = {
