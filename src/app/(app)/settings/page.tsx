@@ -58,6 +58,7 @@ import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function SettingsPage() {
   const { toast } = useToast()
