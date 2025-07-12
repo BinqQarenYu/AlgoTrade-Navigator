@@ -364,7 +364,7 @@ export function TradingChart({
                     phaseColor = chartColors.accumulationVolumeColor;
                 } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
                     phaseColor = chartColors.pumpVolumeColor;
-                } else if (distributionPeriod && d.time >= distributionPeriod.endTime) { // Changed this line
+                } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
                     phaseColor = chartColors.distributionVolumeColor;
                 }
             }
@@ -485,6 +485,7 @@ export function TradingChart({
             mainLineSeries.setData([]);
             const candlestickChartData = uniqueData.map(d => {
                 const isHighlighted = isTradeHighlighted(d);
+                const isProjected = d.time > (data.find(c => !(c as any).isProjected)?.time ?? Number.MAX_SAFE_INTEGER);
                 
                 let phaseColor: string | null = null;
                 if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
@@ -493,19 +494,18 @@ export function TradingChart({
                       phaseColor = chartColors.accumulationColor;
                   } else if (pumpPeriod && d.time >= pumpPeriod.startTime && d.time <= pumpPeriod.endTime) {
                       phaseColor = chartColors.pumpColor;
-                  } else if (distributionPeriod && d.time >= distributionPeriod.endTime) { // Changed this line
+                  } else if (distributionPeriod && d.time >= distributionPeriod.startTime && d.time <= distributionPeriod.endTime) {
                       phaseColor = chartColors.distributionColor;
                   }
                 }
 
                 let coloring = {};
-                // Check if it is a projected candle (has 'isProjected' flag or similar, for now we can check if it's beyond the original data length)
-                const isProjected = d.time > (data[data.length-1]?.time ?? 0);
 
                 if (isHighlighted) {
                     coloring = { color: highlightColor, wickColor: highlightColor };
                 } else if (isProjected) {
-                    coloring = { color: chartColors.projectionColor, upColor: chartColors.projectionColor, downColor: chartColors.projectionColor, wickColor: chartColors.projectionWickColor, borderVisible: true, borderColor: chartColors.projectionWickColor };
+                    const baseColor = d.close >= d.open ? chartColors.barUpColor : chartColors.barDownColor;
+                    coloring = { color: baseColor + '80', wickColor: baseColor + '80', borderVisible: true, borderColor: baseColor + '99' }; // Add alpha for transparency
                 } else if (phaseColor) {
                     coloring = { color: phaseColor, wickColor: phaseColor };
                 }
@@ -1253,5 +1253,3 @@ export function TradingChart({
     </Card>
   );
 }
-
-    
