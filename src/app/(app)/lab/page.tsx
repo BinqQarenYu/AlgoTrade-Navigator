@@ -651,8 +651,7 @@ export default function LabPage() {
 
     setTimeout(async () => {
       try {
-        const lastCandle = chartData[chartData.length - 1];
-        const newProjectedCandles = generateProjectedCandles(lastCandle, projectionMode, projectionDuration, interval);
+        const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
         
         const strategyToTest = getStrategyById(selectedStrategy);
         if (!strategyToTest) {
