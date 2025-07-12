@@ -6,7 +6,7 @@ import { intervalToMs } from './utils';
 
 /**
  * Generates a sequence of hypothetical future candlesticks based on a starting point and a specified mode.
- * The projection is grounded in the asset's recent historical volatility and price range.
+ * The projection is grounded in the asset's recent historical volatility, price range, and volume characteristics.
  *
  * @param historicalData The recent historical data for analysis.
  * @param mode The projection mode ('upward', 'downward', 'neutral', 'random').
@@ -35,9 +35,17 @@ export function generateProjectedCandles(
   let avgVolatility = 0;
   let recentHigh = lastCandle.high;
   let recentLow = lastCandle.low;
+  let avgVolume = lastCandle.volume;
+  let volumeStdDev = lastCandle.volume * 0.3; // Fallback deviation
 
   if (recentData.length > 1) {
     let totalVolatility = 0;
+    const volumes = recentData.map(c => c.volume);
+    avgVolume = volumes.reduce((sum, v) => sum + v, 0) / volumes.length;
+
+    const variance = volumes.reduce((sum, v) => sum + Math.pow(v - avgVolume, 2), 0) / volumes.length;
+    volumeStdDev = Math.sqrt(variance);
+
     recentData.forEach(candle => {
       totalVolatility += candle.high - candle.low;
       if (candle.high > recentHigh) recentHigh = candle.high;
@@ -62,9 +70,10 @@ export function generateProjectedCandles(
 
   let currentCandle = { ...lastCandle };
   
-  const trendTargetPrice = mode === 'upward' 
-      ? recentHigh * 1.02 // Target 2% above recent high
-      : recentLow * 0.98; // Target 2% below recent low
+  // Define trend targets based on recent price action
+  const priceRange = recentHigh - recentLow;
+  const upwardTarget = recentHigh + priceRange * 0.2; // Target 20% above the recent range
+  const downwardTarget = recentLow;
 
   for (let i = 0; i < numCandlesToGenerate; i++) {
     const nextTime = currentCandle.time + intervalMs;
@@ -74,22 +83,21 @@ export function generateProjectedCandles(
     
     // Create a "gravitational" pull towards the target price for trend modes
     const progress = i / numCandlesToGenerate; // How far into the projection we are (0 to 1)
-    const distanceToTarget = trendTargetPrice - open;
-    const gravitationalPull = (distanceToTarget / (numCandlesToGenerate - i)) * Math.random();
 
     switch (mode) {
       case 'upward':
-        baseChange = gravitationalPull;
+        baseChange = (upwardTarget - open) * (progress * 0.05) * Math.random();
         break;
       case 'downward':
-        baseChange = gravitationalPull;
+        const gravity = (downwardTarget - open) * (progress * 0.05) * Math.random();
+        baseChange = gravity + (Math.random() - 0.5) * (avgVolatility * 0.1); // Add noise to gravity
         break;
       case 'neutral':
-        // No base change, just random volatility
+        // No base change, just random volatility around the opening price
         break;
       case 'random':
       default:
-        baseChange = (Math.random() - 0.5) * avgVolatility * 0.3; // More significant random changes
+        baseChange = (Math.random() - 0.55) * avgVolatility * 0.4; // More significant random changes with slight downward bias
         break;
     }
 
@@ -103,7 +111,9 @@ export function generateProjectedCandles(
     const high = Math.max(open, close) + Math.random() * (avgVolatility / 2);
     const low = Math.min(open, close) - Math.random() * (avgVolatility / 2);
 
-    const volume = currentCandle.volume * (1.05 - Math.random() * 0.1); // +/- 5% volume change
+    // Generate realistic volume
+    const randomVolumeFactor = (Math.random() - 0.5) * 2; // -1 to 1
+    const volume = avgVolume + (randomVolumeFactor * volumeStdDev);
 
     const newCandle: HistoricalData = {
       time: nextTime,
@@ -111,7 +121,7 @@ export function generateProjectedCandles(
       high,
       low: Math.max(0, low), // Prevent negative low price
       close,
-      volume: Math.max(0, volume),
+      volume: Math.max(0, volume), // Prevent negative volume
       isProjected: true,
     } as HistoricalData;
 
