@@ -1,5 +1,6 @@
 
 
+
 'use client';
 
 import type { HistoricalData } from './types';
@@ -494,7 +495,7 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             const slice = data.slice(i - period, i); // Use previous period's data
             
             // Add a guard clause to ensure the slice is not empty
-            if (slice.length === 0) {
+            if (slice.length === 0 || !slice[slice.length - 1]) {
                  Object.keys(result).forEach(k => result[k].push(null));
                  continue;
             }
