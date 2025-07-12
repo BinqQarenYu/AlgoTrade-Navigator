@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -11,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
-import { ChevronDown, Play, StopCircle } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import type { Wall, SpoofedWall } from '@/lib/types';
 import { getDepthSnapshot } from '@/lib/binance-service';
 
@@ -27,6 +28,7 @@ interface FormattedOrderBookLevel {
 
 interface OrderBookProps {
     symbol: string;
+    isStreamActive: boolean;
     onWallsUpdate: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
 }
 
@@ -103,7 +105,7 @@ const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel
 };
 
 
-export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
+export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
@@ -112,7 +114,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
     const lastUpdateIdRef = useRef<number | null>(null);
-    const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', true);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
@@ -337,14 +338,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     }, [formattedBids, formattedAsks, isStreamActive, onWallsUpdate]);
 
 
-    const handleToggleStream = () => {
-        if (!isConnected) {
-            toast({ title: "API Disconnected", description: "Please connect to the Binance API in settings to start the stream." });
-            return;
-        }
-        setIsStreamActive(prev => !prev);
-    }
-
     const OrderBookRow = ({ level, type }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask' }) => {
         const bgPercentage = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
         const bgColor = type === 'bid' ? 'bg-green-500/20' : 'bg-red-500/20';
@@ -438,18 +431,12 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                             {`Live depth for ${symbol}. Spread: $${spread.toFixed(precision)}. Grouping: ${groupingSize}`}
                         </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "outline"} size="icon" className="h-8 w-8">
-                            {isStreamActive ? <StopCircle /> : <Play />}
-                            <span className="sr-only">{isStreamActive ? "Stop Stream" : "Start Stream"}</span>
+                    <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
+                            <span className="sr-only">Toggle</span>
                         </Button>
-                        <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
-                                <span className="sr-only">Toggle</span>
-                            </Button>
-                        </CollapsibleTrigger>
-                    </div>
+                    </CollapsibleTrigger>
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent>
