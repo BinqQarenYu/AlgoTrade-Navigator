@@ -10,6 +10,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -127,6 +128,7 @@ export type HistoricalData = {
   aiConfidence?: number;
   // For Grid Trading
   gridLevels?: number[];
+  isProjected?: boolean;
 };
 
 export type Portfolio = {
@@ -594,4 +596,10 @@ export type DetectManipulationOutput = {
   accumulationPeriod?: { startTime: number; endTime: number; };
   pumpPeriod?: { startTime: number; endTime: number; };
   distributionPeriod?: { startTime: number; endTime: number; };
+};
+
+export type FuturesFeeRate = {
+  level: string;
+  makerRate: string;
+  takerRate: string;
 };
