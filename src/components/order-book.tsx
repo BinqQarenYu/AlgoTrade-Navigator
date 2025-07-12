@@ -18,6 +18,8 @@ import { getDepthSnapshot } from '@/lib/binance-service';
 
 // Types for the order book
 type OrderBookLevel = [string, string]; // [price, quantity]
+type OrderBookUpdate = { b: OrderBookLevel[], a: OrderBookLevel[], U: number, u: number, pu: number };
+
 
 interface FormattedOrderBookLevel {
     price: number;
@@ -66,42 +68,33 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [isHydrated ? state : defaultValue, setState];
 };
 
-/**
- * Determines the appropriate grouping size and display precision for an asset based on its price.
- * @param price The current mid-price of the asset.
- * @returns An object with the calculated `grouping` and `precision`.
- */
 const getGroupingAndPrecision = (price: number): { grouping: number; precision: number } => {
-    if (price > 10000) return { grouping: 10, precision: 2 };      // e.g., BTC
-    if (price > 1000) return { grouping: 0.5, precision: 2 };      // e.g., ETH
-    if (price > 10) return { grouping: 0.05, precision: 4 };       // e.g., SOL
-    if (price > 0.1) return { grouping: 0.001, precision: 6 };      // e.g., ADA
-    if (price > 0.0001) return { grouping: 0.000001, precision: 8 }; // e.g., SHIB
-    return { grouping: 0.00000001, precision: 10 };                 // e.g., PEPE
+    if (price > 10000) return { grouping: 10, precision: 2 };
+    if (price > 1000) return { grouping: 0.5, precision: 2 };
+    if (price > 10) return { grouping: 0.05, precision: 4 };
+    if (price > 0.1) return { grouping: 0.001, precision: 6 };
+    if (price > 0.0001) return { grouping: 0.000001, precision: 8 };
+    return { grouping: 0.00000001, precision: 10 };
 };
 
-// Aggregates raw order book levels into larger price buckets
-const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel[] => {
-    if (grouping <= 0) return levels;
-
-    const aggregated: { [key: string]: number } = {};
-    const precision = Math.max(0, -Math.floor(Math.log10(grouping)));
+const groupLevels = (levels: Map<string, string>, grouping: number, precision: number): Map<string, number> => {
+    const aggregated = new Map<string, number>();
+    if (grouping <= 0) {
+        for (const [priceStr, quantityStr] of levels.entries()) {
+            aggregated.set(priceStr, parseFloat(quantityStr));
+        }
+        return aggregated;
+    }
     
-    for (const [priceStr, quantityStr] of levels) {
+    for (const [priceStr, quantityStr] of levels.entries()) {
         const price = parseFloat(priceStr);
         const quantity = parseFloat(quantityStr);
-        // Group price levels into buckets (e.g., group 65123.45 into 65120 for a grouping of 10)
         const groupedPrice = Math.floor(price / grouping) * grouping;
         const key = groupedPrice.toFixed(precision);
 
-        if (aggregated[key]) {
-            aggregated[key] += quantity;
-        } else {
-            aggregated[key] = quantity;
-        }
+        aggregated.set(key, (aggregated.get(key) || 0) + quantity);
     }
-
-    return Object.entries(aggregated).map(([price, quantity]) => [price, String(quantity)]);
+    return aggregated;
 };
 
 
@@ -117,57 +110,80 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
+    const updateQueueRef = useRef<OrderBookUpdate[]>([]);
+
+    // This effect runs the batch update processor.
+    useEffect(() => {
+        const processQueue = () => {
+            if (updateQueueRef.current.length === 0) return;
+
+            const updatesToProcess = [...updateQueueRef.current];
+            updateQueueRef.current = [];
+
+            let lastValidUpdateId = lastUpdateIdRef.current;
+
+            setBids(prevBids => {
+                const newBids = new Map(prevBids);
+                for (const data of updatesToProcess) {
+                    if (data.U <= lastValidUpdateId!) continue;
+                    if (data.pu !== lastValidUpdateId) {
+                         console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
+                         // Trigger a full re-sync without relying on a full component re-mount
+                         connectAndSync(symbol);
+                         return prevBids; // Discard this batch
+                    }
+                    data.b.forEach(([p, q]) => {
+                        if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
+                    });
+                    lastValidUpdateId = data.u;
+                }
+                return newBids;
+            });
+            
+            setAsks(prevAsks => {
+                const newAsks = new Map(prevAsks);
+                 for (const data of updatesToProcess) {
+                    if (data.U <= lastValidUpdateId!) continue;
+                    if (data.pu !== lastValidUpdateId) return prevAsks;
+                    data.a.forEach(([p, q]) => {
+                        if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
+                    });
+                    lastValidUpdateId = data.u;
+                 }
+                return newAsks;
+            });
+
+            lastUpdateIdRef.current = lastValidUpdateId;
+        };
+
+        const intervalId = setInterval(processQueue, 250); // Process queue every 250ms
+        return () => clearInterval(intervalId);
+    }, [symbol]); // Re-create processor if symbol changes
+
+
     const connectAndSync = useCallback(async (currentSymbol: string) => {
-        let eventQueue: any[] = [];
         let snapshotLoaded = false;
         
         const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
         wsRef.current = ws;
 
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+            const data: OrderBookUpdate = JSON.parse(event.data);
             if (data.e !== 'depthUpdate') return;
 
-            if (!snapshotLoaded) {
-                eventQueue.push(data);
-                return;
-            }
-
-            if (data.U > lastUpdateIdRef.current!) {
-                if (data.pu === lastUpdateIdRef.current) {
-                    setBids(prevBids => {
-                        const newBids = new Map(prevBids);
-                        data.b.forEach(([p, q]: OrderBookLevel) => {
-                            if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
-                        });
-                        return newBids;
-                    });
-                    setAsks(prevAsks => {
-                        const newAsks = new Map(prevAsks);
-                        data.a.forEach(([p, q]: OrderBookLevel) => {
-                            if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
-                        });
-                        return newAsks;
-                    });
-                    lastUpdateIdRef.current = data.u;
-                } else {
-                    console.warn(`Order book for ${currentSymbol} out of sync. Re-syncing...`);
-                    connectAndSync(currentSymbol); // Reconnect if we've missed updates
-                }
+            if (snapshotLoaded) {
+                updateQueueRef.current.push(data);
             }
         };
 
         ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
         ws.onerror = () => {
-            const errorMsg = `Live order book data is not available for ${currentSymbol}. The symbol may be invalid or not supported for this data stream.`;
-            setStreamError(errorMsg);
+            setStreamError(`Live order book data is not available for ${currentSymbol}. The symbol may be invalid or not supported for this data stream.`);
             setIsConnecting(false);
-            if (wsRef.current) wsRef.current.close();
-            toast({ title: 'Stream Unavailable', description: `Could not connect to the order book for ${currentSymbol}.`, variant: 'destructive' });
+            if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
         };
         ws.onclose = () => {
             console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
-            // Don't set error on normal close, only on error
         };
 
         try {
@@ -175,26 +191,9 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             if (ws.readyState !== WebSocket.OPEN) return;
 
             lastUpdateIdRef.current = snapshot.lastUpdateId;
+            setBids(new Map(snapshot.bids));
+            setAsks(new Map(snapshot.asks));
             
-            const updatesToApply = eventQueue.filter(update => update.U > lastUpdateIdRef.current!);
-            const finalBids = new Map(snapshot.bids);
-            const finalAsks = new Map(snapshot.asks);
-            
-            updatesToApply.forEach(data => {
-                if (data.pu === lastUpdateIdRef.current) {
-                    data.b.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) finalBids.delete(p); else finalBids.set(p, q);
-                    });
-                    data.a.forEach(([p, q]: OrderBookLevel) => {
-                        if (parseFloat(q) === 0) finalAsks.delete(p); else finalAsks.set(p, q);
-                    });
-                    lastUpdateIdRef.current = data.u;
-                }
-            });
-            eventQueue = [];
-            
-            setBids(finalBids);
-            setAsks(finalAsks);
             snapshotLoaded = true;
             setIsConnecting(false);
             console.log(`Order book for ${currentSymbol} is now in sync.`);
@@ -203,35 +202,31 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             setStreamError(errorMsg);
             toast({ title: 'Order Book Error', description: errorMsg, variant: 'destructive' });
             setIsConnecting(false);
-            if (ws.readyState === WebSocket.OPEN) ws.close();
+            if (ws.readyState === WebSocket.OPEN) { ws.onclose = null; ws.close(); }
         }
     }, [toast]);
 
 
     useEffect(() => {
-        // This is the main connection manager effect.
-        
-        // Always close any existing connection before starting.
         if (wsRef.current) {
-            wsRef.current.onclose = null; // Prevent close handler from firing on manual close
+            wsRef.current.onclose = null;
             wsRef.current.close();
-            wsRef.current = null;
         }
+        wsRef.current = null;
+        updateQueueRef.current = []; // Clear queue on symbol change
 
-        // Reset state when symbol changes or connection is lost/paused
         setBids(new Map());
         setAsks(new Map());
         setStreamError(null);
-        setIsConnecting(true);
         lastUpdateIdRef.current = null;
         
         if (isStreamActive && isConnected && symbol) {
+            setIsConnecting(true);
             connectAndSync(symbol);
         } else {
-            setIsConnecting(false); // Not connecting if conditions aren't met
+            setIsConnecting(false);
         }
 
-        // Cleanup function for when the component unmounts or dependencies change
         return () => {
             if (wsRef.current) {
                 wsRef.current.onclose = null;
@@ -242,40 +237,39 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
     }, [isStreamActive, isConnected, symbol, connectAndSync]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
-        const bidLevels: OrderBookLevel[] = Array.from(bids.entries());
-        const askLevels: OrderBookLevel[] = Array.from(asks.entries());
-        
-        if (bidLevels.length === 0 || askLevels.length === 0) {
+        if (bids.size === 0 || asks.size === 0) {
             return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
         }
         
-        const sortedBids = [...bidLevels].sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
-        const sortedAsks = [...askLevels].sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+        const sortedBidsPrices = Array.from(bids.keys()).map(parseFloat).sort((a,b) => b-a);
+        const sortedAsksPrices = Array.from(asks.keys()).map(parseFloat).sort((a,b) => a-b);
         
-        const lastBid = parseFloat(sortedBids[0][0]);
-        const firstAsk = parseFloat(sortedAsks[0][0]);
+        if (sortedBidsPrices.length === 0 || sortedAsksPrices.length === 0) {
+             return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
+        }
+
+        const lastBid = sortedBidsPrices[0];
+        const firstAsk = sortedAsksPrices[0];
         const midPrice = (lastBid + firstAsk) / 2;
         
-        // Use the new dynamic grouping function
         const { grouping, precision: calculatedPrecision } = getGroupingAndPrecision(midPrice);
         const calculatedSpread = firstAsk - lastBid;
 
-        const aggregatedBids = groupLevels(sortedBids, grouping);
-        const aggregatedAsks = groupLevels(sortedAsks, grouping);
+        const aggregatedBids = groupLevels(bids, grouping, calculatedPrecision);
+        const aggregatedAsks = groupLevels(asks, grouping, calculatedPrecision);
         
-        const format = (levels: OrderBookLevel[], isBids: boolean): FormattedOrderBookLevel[] => {
-            const sortedLevels = [...levels].sort((a, b) => {
+        const format = (levels: Map<string, number>, isBids: boolean): FormattedOrderBookLevel[] => {
+            const sortedLevels = Array.from(levels.entries()).sort((a, b) => {
                 const priceA = parseFloat(a[0]);
                 const priceB = parseFloat(b[0]);
                 return isBids ? priceB - priceA : priceA - priceB;
             }).slice(0, 15);
 
-            const totalSize = sortedLevels.reduce((sum, level) => sum + parseFloat(level[1]), 0);
+            const totalSize = Array.from(levels.values()).reduce((sum, size) => sum + size, 0);
             let cumulativeTotal = 0;
 
-            return sortedLevels.map(level => {
-                const price = parseFloat(level[0]);
-                const size = parseFloat(level[1]);
+            return sortedLevels.map(([priceStr, size]) => {
+                const price = parseFloat(priceStr);
                 cumulativeTotal += size;
                 const isWall = totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT;
                 return { price, size, total: cumulativeTotal, isWall };
