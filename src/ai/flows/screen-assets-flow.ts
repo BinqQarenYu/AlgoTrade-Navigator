@@ -9,7 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { getTopCoins } from '@/lib/coingecko-service';
 
 const CriteriaSchema = z.object({
