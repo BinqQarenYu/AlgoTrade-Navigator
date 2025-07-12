@@ -381,58 +381,47 @@ export default function BacktestPage() {
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
-    let entryTime = 0;
-    let stopLossPrice = 0;
-    let takeProfitPrice = 0;
-    let tradeQuantity = 0;
     
     for (let i = 1; i < dataWithSignals.length; i++) {
         const d = dataWithSignals[i];
 
         if (positionType === 'long') {
             let exitPrice: number | null = null;
-            if (d.low <= stopLossPrice) exitPrice = stopLossPrice;
-            else if (d.high >= takeProfitPrice) exitPrice = takeProfitPrice;
+            const slPrice = entryPrice * (1 - (stopLoss || 0) / 100);
+            const tpPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+
+            if (d.low <= slPrice) exitPrice = slPrice;
+            else if (d.high >= tpPrice) exitPrice = tpPrice;
             else if (d.sellSignal) exitPrice = d.close;
 
             if (exitPrice !== null) {
-                const entryFee = entryPrice * tradeQuantity * (fee / 100);
-                const exitFee = exitPrice * tradeQuantity * (fee / 100);
-                const pnl = (exitPrice - entryPrice) * tradeQuantity - (entryFee + exitFee);
-                trades.push({ type: 'long', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl } as BacktestResult);
+                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
+                const grossPnl = (exitPrice - entryPrice) * quantity;
+                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
+                trades.push({ pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
                 positionType = null;
             }
         } else if (positionType === 'short') {
             let exitPrice: number | null = null;
-            if (d.high >= stopLossPrice) exitPrice = stopLossPrice;
-            else if (d.low <= takeProfitPrice) exitPrice = takeProfitPrice;
+            const slPrice = entryPrice * (1 + (stopLoss || 0) / 100);
+            const tpPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+
+            if (d.high >= slPrice) exitPrice = slPrice;
+            else if (d.low <= tpPrice) exitPrice = tpPrice;
             else if (d.buySignal) exitPrice = d.close;
 
             if (exitPrice !== null) {
-                const entryFee = entryPrice * tradeQuantity * (fee / 100);
-                const exitFee = exitPrice * tradeQuantity * (fee / 100);
-                const pnl = (entryPrice - exitPrice) * tradeQuantity - (entryFee + exitFee);
-                trades.push({ type: 'short', entryTime, entryPrice, exitTime: d.time, exitPrice, pnl } as BacktestResult);
+                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
+                const grossPnl = (entryPrice - exitPrice) * quantity;
+                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
+                trades.push({ pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
                 positionType = null;
             }
         }
 
         if (positionType === null) {
-            if (d.buySignal) {
-                positionType = 'long';
-                entryPrice = d.close;
-                entryTime = d.time;
-                stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-                takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-                tradeQuantity = (initialCapital * (leverage || 1)) / entryPrice;
-            } else if (d.sellSignal) {
-                positionType = 'short';
-                entryPrice = d.close;
-                entryTime = d.time;
-                stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-                takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-                tradeQuantity = (initialCapital * (leverage || 1)) / entryPrice;
-            }
+            if (d.buySignal) { positionType = 'long'; entryPrice = d.close; } 
+            else if (d.sellSignal) { positionType = 'short'; entryPrice = d.close; }
         }
     }
     
@@ -539,18 +528,20 @@ export default function BacktestPage() {
         }
 
         if (exitPrice !== null) {
-          const entryFeeValue = entryPrice * tradeQuantity * (fee / 100);
-          const exitFeeValue = exitPrice * tradeQuantity * (fee / 100);
-          const pnl = positionType === 'long' 
-            ? (exitPrice - entryPrice) * tradeQuantity - (entryFeeValue + exitFeeValue)
-            : (entryPrice - exitPrice) * tradeQuantity - (entryFeeValue + exitFeeValue);
+          const entryValue = entryPrice * tradeQuantity;
+          const exitValue = exitPrice * tradeQuantity;
+          const totalFee = (entryValue + exitValue) * (fee / 100);
+          const grossPnl = positionType === 'long' 
+            ? exitValue - entryValue
+            : entryValue - exitValue;
+          const netPnl = grossPnl - totalFee;
 
-          riskGuardian.registerTrade(pnl);
+          riskGuardian.registerTrade(netPnl);
 
           trades.push({
-            id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
-            pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: entryFeeValue + exitFeeValue, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
+            id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
+            pnlPercent: (netPnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+            fee: totalFee, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
         }
