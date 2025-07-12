@@ -221,6 +221,8 @@ export default function BacktestPage() {
   // State for backtest results
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
+  const [contrarianResults, setContrarianResults] = useState<BacktestResult[] | null>(null);
+  const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
 
   const [initialCapital, setInitialCapital] = usePersistentState<number>('backtest-initial-capital', 100);
@@ -320,6 +322,8 @@ export default function BacktestPage() {
         setDataWithIndicators([]);
         setBacktestResults([]);
         setSummaryStats(null);
+        setContrarianResults(null);
+        setContrarianSummary(null);
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
@@ -466,7 +470,7 @@ export default function BacktestPage() {
     }
   };
 
-  const runBacktest = async () => {
+  const runBacktest = async (contrarian = false) => {
     if (chartData.length === 0) {
       toast({
         title: "No Data",
@@ -476,11 +480,15 @@ export default function BacktestPage() {
       return;
     }
 
-    setIsBacktesting(true);
-    setBacktestResults([]);
-    setSummaryStats(null);
-    setSelectedTrade(null);
-
+    if (!contrarian) {
+        setIsBacktesting(true);
+        setBacktestResults([]);
+        setSummaryStats(null);
+        setContrarianResults(null);
+        setContrarianSummary(null);
+        setSelectedTrade(null);
+    }
+    
     const strategy = getStrategyById(selectedStrategy);
     if (!strategy) {
       toast({ title: "No Strategy Selected", variant: "destructive" });
@@ -489,11 +497,14 @@ export default function BacktestPage() {
     }
 
     toast({
-      title: "Backtest Started",
+      title: contrarian ? "Running Contrarian Analysis..." : "Backtest Started",
       description: `Running ${strategy.name} on ${symbol} (${interval}).`,
     });
+    
+    // Invert the 'reverse' parameter for the contrarian test
+    const baseParams = strategyParams[selectedStrategy] || {};
+    const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
-    const paramsForStrategy = strategyParams[selectedStrategy] || {};
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
@@ -559,7 +570,7 @@ export default function BacktestPage() {
           let isValidSignal = false;
           let prediction: PredictMarketOutput | null = null;
           
-          if (useAIValidation) {
+          if (useAIValidation && !contrarian) {
             if (aiValidationCount < maxAiValidations) {
               if (canUseAi()) {
                 aiValidationCount++;
@@ -635,16 +646,24 @@ export default function BacktestPage() {
       endingBalance: initialCapital + totalPnl,
       totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
     };
+    
+    if (contrarian) {
+        setContrarianResults(trades);
+        setContrarianSummary(summary);
+    } else {
+        setDataWithIndicators(dataWithSignals);
+        setBacktestResults(trades);
+        setSummaryStats(summary);
 
-    setDataWithIndicators(dataWithSignals);
-    setBacktestResults(trades);
-    setSummaryStats(summary);
+        toast({
+          title: "Backtest Complete",
+          description: "Strategy signals and results are now available.",
+        });
 
-    setIsBacktesting(false);
-    toast({
-      title: "Backtest Complete",
-      description: "Strategy signals and results are now available.",
-    });
+        // After main backtest finishes, run the contrarian one
+        await runBacktest(true);
+        setIsBacktesting(false);
+    }
   };
 
 
@@ -1313,6 +1332,15 @@ export default function BacktestPage() {
           onSelectTrade={setSelectedTrade}
           selectedTradeId={selectedTrade?.id}
         />}
+
+        {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
+            <BacktestResults 
+                results={contrarianResults || []} 
+                summary={contrarianSummary} 
+                onSelectTrade={() => {}} // Contrarian trades not selectable on chart
+                title="Contrarian Report"
+            />
+        )}
         
         <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
