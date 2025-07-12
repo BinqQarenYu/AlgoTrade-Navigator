@@ -1,11 +1,12 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getHistoricalKlines, getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -816,7 +817,6 @@ export default function LabPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <div className="space-y-6">
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
           <div className="xl:col-span-3 relative pb-4">
