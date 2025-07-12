@@ -62,33 +62,43 @@ export function generateProjectedCandles(
 
   let currentCandle = { ...lastCandle };
   
-  // Define drift factor based on mode
-  const driftFactor = avgVolatility * 0.1; // A small nudge each candle
+  const trendTargetPrice = mode === 'upward' 
+      ? recentHigh * 1.02 // Target 2% above recent high
+      : recentLow * 0.98; // Target 2% below recent low
 
   for (let i = 0; i < numCandlesToGenerate; i++) {
     const nextTime = currentCandle.time + intervalMs;
     const open = currentCandle.close;
 
     let baseChange = 0;
+    
+    // Create a "gravitational" pull towards the target price for trend modes
+    const progress = i / numCandlesToGenerate; // How far into the projection we are (0 to 1)
+    const distanceToTarget = trendTargetPrice - open;
+    const gravitationalPull = (distanceToTarget / (numCandlesToGenerate - i)) * Math.random();
+
     switch (mode) {
       case 'upward':
-        baseChange = driftFactor * (Math.random() + 0.5); // Consistently positive drift
+        baseChange = gravitationalPull;
         break;
       case 'downward':
-        baseChange = -driftFactor * (Math.random() + 0.5); // Consistently negative drift
+        baseChange = gravitationalPull;
         break;
       case 'neutral':
-        baseChange = (Math.random() - 0.5) * driftFactor; // Random small drift around zero
+        // No base change, just random volatility
         break;
       case 'random':
       default:
-        baseChange = (Math.random() - 0.5) * avgVolatility * 0.5; // More significant random changes
+        baseChange = (Math.random() - 0.5) * avgVolatility * 0.3; // More significant random changes
         break;
     }
 
     const randomVolatility = (Math.random() - 0.5) * avgVolatility;
-    const close = open + baseChange + randomVolatility;
-    
+    let close = open + baseChange + randomVolatility;
+
+    // Ensure price doesn't go negative
+    close = Math.max(0, close);
+
     // Make wicks based on avg volatility
     const high = Math.max(open, close) + Math.random() * (avgVolatility / 2);
     const low = Math.min(open, close) - Math.random() * (avgVolatility / 2);
@@ -99,7 +109,7 @@ export function generateProjectedCandles(
       time: nextTime,
       open,
       high,
-      low,
+      low: Math.max(0, low), // Prevent negative low price
       close,
       volume: Math.max(0, volume),
       isProjected: true,
