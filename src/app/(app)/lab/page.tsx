@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -605,7 +606,7 @@ export default function LabPage() {
     const params = strategyParams[selectedStrategy];
     if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'reverse'));
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'reverse' && key !== 'discipline'));
 
     if (Object.keys(filteredParams).length === 0) {
         return (
@@ -911,7 +912,7 @@ export default function LabPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="base-asset">Base</Label>
                           <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || anyLoading || isStreamActive}>
@@ -931,6 +932,22 @@ export default function LabPage() {
                               {availableQuotes.map(asset => (
                                 <SelectItem key={asset} value={asset}>{asset}</SelectItem>
                               ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="interval">Interval</Label>
+                          <Select onValueChange={setInterval} value={interval} disabled={anyLoading}>
+                            <SelectTrigger id="interval">
+                              <SelectValue placeholder="Select interval" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1m">1 Minute</SelectItem>
+                              <SelectItem value="5m">5 Minutes</SelectItem>
+                              <SelectItem value="15m">15 Minutes</SelectItem>
+                              <SelectItem value="1h">1 Hour</SelectItem>
+                              <SelectItem value="4h">4 Hours</SelectItem>
+                              <SelectItem value="1d">1 Day</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
