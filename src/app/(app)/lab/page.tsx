@@ -630,7 +630,6 @@ export default function LabPage() {
     setForwardTestTrades([]);
     toast({ title: "Generating Projection..." });
 
-    // Use a timeout to allow the UI to update to the loading state
     setTimeout(async () => {
       try {
         const lastCandle = chartData[chartData.length - 1];
@@ -638,7 +637,7 @@ export default function LabPage() {
         
         const strategyToTest = getStrategyById(selectedStrategy);
         if (!strategyToTest) {
-            setProjectedData(newProjectedCandles); // Show projection even if strategy is "none"
+            setProjectedData(newProjectedCandles);
             toast({ title: "Projection Generated", description: "No strategy selected to forward-test." });
             setIsProjecting(false);
             return;
@@ -647,10 +646,7 @@ export default function LabPage() {
         const combinedData = [...chartData, ...newProjectedCandles];
         const paramsForStrategy = strategyParams[selectedStrategy] || {};
         
-        // Run the strategy on the full dataset
         const dataWithSignals = await strategyToTest.calculate(combinedData, paramsForStrategy);
-        
-        // Extract only the projected part that now has signals
         const testedProjectedData = dataWithSignals.slice(chartData.length);
         
         setProjectedData(testedProjectedData);
@@ -658,37 +654,60 @@ export default function LabPage() {
         // --- Calculate Forward Test Report ---
         const trades: BacktestResult[] = [];
         let positionType: 'long' | 'short' | null = null;
+        let entryTime = 0;
         let entryPrice = 0;
+        let stopLossPrice = 0;
+        let takeProfitPrice = 0;
         const initialCapital = 10000;
-        const leverage = 1;
-        const takeProfit = 5;
-        const stopLoss = 2;
+        const leverage = 1; // Simplified for projection
         const fee = 0.04;
-        
+
         for (let i = 0; i < testedProjectedData.length; i++) {
           const d = testedProjectedData[i];
 
-          if (positionType === 'long') {
-            if (d.sellSignal) {
-              const pnl = (d.close - entryPrice) * (initialCapital / entryPrice);
-              trades.push({ type: 'long', entryPrice, exitPrice: d.close, pnl } as BacktestResult);
-              positionType = null;
+          // --- Exit Logic ---
+          if (positionType !== null) {
+            let exitPrice: number | null = null;
+            let closeReason: BacktestResult['closeReason'] = 'signal';
+            if (positionType === 'long') {
+                if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+                else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+                else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+            } else { // short
+                if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+                else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+                else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
             }
-          } else if (positionType === 'short') {
-            if (d.buySignal) {
-              const pnl = (entryPrice - d.close) * (initialCapital / entryPrice);
-              trades.push({ type: 'short', entryPrice, exitPrice: d.close, pnl } as BacktestResult);
+
+            if (exitPrice !== null) {
+              const tradeQuantity = (initialCapital * leverage) / entryPrice;
+              const pnl = positionType === 'long' 
+                ? (exitPrice - entryPrice) * tradeQuantity
+                : (entryPrice - exitPrice) * tradeQuantity;
+
+              trades.push({
+                id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl,
+                pnlPercent: (pnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+                fee: 0, reasoning: 'Projected Trade'
+              });
               positionType = null;
             }
           }
 
+          // --- Entry Logic (Only if not in a position) ---
           if (positionType === null) {
             if (d.buySignal) {
               positionType = 'long';
               entryPrice = d.close;
+              entryTime = d.time;
+              stopLossPrice = d.stopLossLevel ?? (entryPrice * 0.98); // Fallback
+              takeProfitPrice = entryPrice * 1.05; // Fallback
             } else if (d.sellSignal) {
               positionType = 'short';
               entryPrice = d.close;
+              entryTime = d.time;
+              stopLossPrice = d.stopLossLevel ?? (entryPrice * 1.02); // Fallback
+              takeProfitPrice = entryPrice * 0.95; // Fallback
             }
           }
         }
@@ -702,11 +721,11 @@ export default function LabPage() {
             totalPnl: totalPnl,
             averageWin: wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0,
             averageLoss: trades.length > wins.length ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0) / (trades.length - wins.length) : 0,
-            profitFactor: trades.length > wins.length && wins.length > 0 ? (wins.reduce((sum, t) => sum + t.pnl, 0) / Math.abs(trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0))) : Infinity,
+            profitFactor: trades.length > wins.length && wins.length > 0 ? (wins.reduce((sum, t) => sum + t.pnl, 0) / Math.abs(trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0) || 1)) : Infinity,
             initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: 0
           };
           setForwardTestSummary(summary);
-          setForwardTestTrades(trades.map((t,i) => ({...t, id: `fwd-${i}`})));
+          setForwardTestTrades(trades);
         }
         
         toast({ title: "Forward Test Complete", description: "Strategy signals have been applied to the projected data." });
@@ -1172,6 +1191,3 @@ export default function LabPage() {
     </div>
   )
 }
-
-    
-    
