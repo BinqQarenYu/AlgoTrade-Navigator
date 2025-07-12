@@ -726,16 +726,20 @@ export default function LabPage() {
 
               if (exitPrice !== null) {
                   const tradeQuantity = (initialCapital * leverage) / entryPrice;
+                  const entryValue = entryPrice * tradeQuantity;
+                  const exitValue = exitPrice * tradeQuantity;
+                  const totalFee = (entryValue + exitValue) * (fee / 100);
+
                   const grossPnl = positionType === 'long' 
-                      ? (exitPrice - entryPrice) * tradeQuantity
-                      : (entryPrice - exitPrice) * tradeQuantity;
-                  const netPnl = grossPnl - (grossPnl * (fee/100));
+                      ? (exitValue - entryValue)
+                      : (entryValue - exitValue);
+                  const netPnl = grossPnl - totalFee;
 
                   trades.push({
                       id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
                       exitTime: d.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
                       closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                      fee: grossPnl * (fee/100), reasoning: 'Projected Trade'
+                      fee: totalFee, reasoning: 'Projected Trade'
                   });
                   positionType = null;
               }
@@ -764,16 +768,20 @@ export default function LabPage() {
             const lastCandle = testedProjectedData[testedProjectedData.length - 1];
             const exitPrice = lastCandle.close;
             const tradeQuantity = (initialCapital * leverage) / entryPrice;
+            const entryValue = entryPrice * tradeQuantity;
+            const exitValue = exitPrice * tradeQuantity;
+            const totalFee = (entryValue + exitValue) * (fee / 100);
+
             const grossPnl = positionType === 'long' 
-                ? (exitPrice - entryPrice) * tradeQuantity
-                : (entryPrice - exitPrice) * tradeQuantity;
-            const netPnl = grossPnl - (grossPnl * (fee/100));
+                ? (exitValue - entryValue)
+                : (entryValue - exitValue);
+            const netPnl = grossPnl - totalFee;
 
             trades.push({
                 id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
                 exitTime: lastCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
                 closeReason: 'signal', stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                fee: grossPnl * (fee/100), reasoning: 'Closed at end of projection'
+                fee: totalFee, reasoning: 'Closed at end of projection'
             });
         }
         
