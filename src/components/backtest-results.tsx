@@ -165,7 +165,6 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
           <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                  <span className="sr-only">Toggle</span>
               </Button>
           </CollapsibleTrigger>
         </CardHeader>
@@ -233,11 +232,11 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="font-mono text-xs">{format(new Date(trade.entryTime), 'MM/dd HH:mm')}</div>
+                                        <div className="font-mono text-xs">{typeof trade.entryTime === 'number' && !isNaN(trade.entryTime) ? format(new Date(trade.entryTime), 'MM/dd HH:mm') : 'N/A'}</div>
                                         <div>${formatPrice(trade.entryPrice)}</div>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="font-mono text-xs">{format(new Date(trade.exitTime), 'MM/dd HH:mm')}</div>
+                                        <div className="font-mono text-xs">{typeof trade.exitTime === 'number' && !isNaN(trade.exitTime) ? format(new Date(trade.exitTime), 'MM/dd HH:mm') : 'N/A'}</div>
                                         <div>${formatPrice(trade.exitPrice)}</div>
                                     </TableCell>
                                     <TableCell className="capitalize">
