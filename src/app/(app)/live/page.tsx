@@ -160,8 +160,6 @@ export default function LiveTradingPage() {
   const [leverage, setLeverage] = usePersistentState<number>('live-leverage', 10);
   const [takeProfit, setTakeProfit] = usePersistentState<number>('live-tp', 5);
   const [stopLoss, setStopLoss] = usePersistentState<number>('live-sl', 2);
-  const [fee, setFee] = usePersistentState<number>('live-fee', 0.04);
-  const [marginType, setMarginType] = usePersistentState<string>("live-margin-type", "isolated");
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
 
@@ -330,10 +328,10 @@ export default function LiveTradingPage() {
             leverage,
             takeProfit,
             stopLoss,
-            marginType,
+            marginType: "ISOLATED", // Hardcoded for safety
             useAIPrediction,
             reverse: strategyParams[selectedStrategy]?.reverse || false,
-            fee
+            fee: 0.04 // Hardcoded fee
         }
 
         startLiveBot(config);
@@ -581,17 +579,6 @@ export default function LiveTradingPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="fee">Fee (%)</Label>
-                        <Input 
-                            id="fee" 
-                            type="number" 
-                            value={fee}
-                            onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
-                            placeholder="0.04"
-                            disabled={isRunning}
-                        />
-                    </div>
-                    <div className="space-y-2">
                         <Label htmlFor="take-profit">Take Profit (%)</Label>
                         <Input 
                             id="take-profit" 
@@ -612,18 +599,6 @@ export default function LiveTradingPage() {
                             placeholder="2"
                             disabled={isRunning}
                         />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="margin-type">Margin Type</Label>
-                      <Select onValueChange={setMarginType} value={marginType} disabled={isRunning}>
-                        <SelectTrigger id="margin-type">
-                          <SelectValue placeholder="Select margin type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="isolated">Isolated</SelectItem>
-                          <SelectItem value="cross">Cross</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                 </div>
                 <div className="space-y-2">
@@ -739,3 +714,5 @@ export default function LiveTradingPage() {
     </div>
   )
 }
+
+    
