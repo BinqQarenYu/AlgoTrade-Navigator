@@ -12,7 +12,7 @@ import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
-import { intervalToMs } from '@/lib/utils';
+import { intervalToMs } from "@/lib/utils";
 import { RiskGuardian } from '@/lib/risk-guardian';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -158,7 +158,7 @@ const KNOWN_INDICATORS = [
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey, activeProfile, canUseAi } = useApi();
+  const { apiKey, secretKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -314,6 +314,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
         if (aiConfirms) {
+            if (config.useAIPrediction) consumeAiCredit(); // Consume credit only on confirmed signals
             const currentPrice = latestCandleWithSignal.close;
             const stopLossPrice = latestCandleWithSignal?.stopLossLevel ? latestCandleWithSignal.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
             const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
@@ -334,7 +335,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         console.error(`Analysis failed for ${config.symbol}:`, e);
         return { status: 'error', log: e.message || 'Unknown error', signal: null };
     }
-  }, [canUseAi]);
+  }, [canUseAi, consumeAiCredit]);
 
   // --- Live Bot Logic ---
   const runLiveBotCycle = useCallback(async (isNewCandle: boolean = false) => {
@@ -366,12 +367,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
             const quantity = (config.initialCapital * config.leverage) / currentPosition.entryPrice;
             try {
-                await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
-                toast({ title: "Position Closed (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.symbol} placed.` });
-                setLiveBotState(prev => ({ ...prev, activePosition: null, prediction: null }));
-                // PNL registration for discipline
-                const pnl = side === 'SELL' ? (latestCandle.close - currentPosition.entryPrice) * quantity : (currentPosition.entryPrice - latestCandle.close) * quantity;
+                const orderResult = await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
+                toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.symbol} placed.` });
+                
+                // PNL calculation for discipline
+                const pnl = side === 'SELL' 
+                    ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity 
+                    : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
                 riskGuardianRef.current?.registerTrade(pnl);
+
+                setLiveBotState(prev => ({ ...prev, activePosition: null, prediction: null }));
             } catch (e: any) {
                 addLiveLog(`Failed to close position: ${e.message}`);
                 toast({ title: "Close Order Failed (Live)", description: e.message, variant: "destructive" });
@@ -1392,3 +1397,4 @@ export const useBot = () => {
   }
   return context;
 };
+
