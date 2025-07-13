@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -143,7 +144,7 @@ export default function LiveTradingPage() {
     setStrategyParams,
   } = useBot();
 
-  const { isRunning, logs, prediction, isPredicting, chartData: botChartData } = liveBotState;
+  const { isRunning, logs, prediction, isPredicting, chartData: botChartData, activePosition } = liveBotState;
   
   const [isClient, setIsClient] = useState(false)
   
@@ -248,14 +249,12 @@ export default function LiveTradingPage() {
     }
   }, [baseAsset, quoteAsset, setQuoteAsset]);
 
-  // Sync local chart with bot's chart data when running
   useEffect(() => {
     if (isRunning) {
         setChartData(botChartData);
     }
   }, [isRunning, botChartData]);
   
-  // Effect to fetch initial chart data when bot is NOT running
   useEffect(() => {
     if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
         if (!isRunning) setChartData([]);
@@ -342,44 +341,14 @@ export default function LiveTradingPage() {
   }
 
   const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
-    const { isRunning, prediction, chartData: botChartData, config } = liveBotState;
-
-    if (!isRunning || !prediction || prediction.prediction === 'NEUTRAL' || !config) {
-      return null;
-    }
-    
-    const lastCandle = botChartData[botChartData.length - 1];
-    if (!lastCandle) return null;
-
-    const entryPrice = lastCandle.close;
-
-    const slPercent = config.stopLoss;
-    const tpPercent = config.takeProfit;
-
-    const stopLossPrice = prediction.prediction === 'UP' 
-      ? entryPrice * (1 - slPercent / 100)
-      : entryPrice * (1 + slPercent / 100);
-      
-    const takeProfitPrice = prediction.prediction === 'UP'
-      ? entryPrice * (1 + tpPercent / 100)
-      : entryPrice * (1 - (tpPercent / 100));
-
-    return {
-      action: prediction.prediction,
-      entryPrice: entryPrice,
-      stopLoss: stopLossPrice,
-      takeProfit: takeProfitPrice,
-      confidence: prediction.confidence,
-      reasoning: `Live AI Prediction: ${prediction.reasoning}`,
-      timestamp: new Date().getTime(),
-      strategy: config.strategy,
-      asset: config.symbol,
-    };
-}, [liveBotState]);
+    if (!isRunning || !activePosition) return null;
+    return activePosition;
+}, [isRunning, activePosition]);
 
 
   const anyLoading = isFetchingData;
-  const getPredictionBadgeVariant = (pred: string) => {
+  const getPredictionBadgeVariant = (pred?: string | null) => {
+    if (!pred) return 'secondary';
     switch (pred) {
         case 'UP': return 'default';
         case 'DOWN': return 'destructive';
@@ -694,11 +663,7 @@ export default function LiveTradingPage() {
             </CardHeader>
             <CollapsibleContent>
               <CardContent>
-                  {!useAIPrediction && isRunning ? (
-                      <div className="flex items-center justify-center h-24 text-muted-foreground">
-                          <p>AI Prediction is disabled for this session.</p>
-                      </div>
-                  ) : isPredicting ? (
+                  {isPredicting ? (
                       <div className="flex items-center justify-center h-24 text-muted-foreground">
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           <span>Analyzing market data...</span>

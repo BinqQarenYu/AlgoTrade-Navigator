@@ -13,6 +13,7 @@ import { addDays } from 'date-fns';
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
 import { intervalToMs } from '@/lib/utils';
+import { RiskGuardian } from '@/lib/risk-guardian';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -55,6 +56,7 @@ interface LiveBotState {
   prediction: PredictMarketOutput | null;
   config: LiveBotConfig | null;
   chartData: HistoricalData[];
+  activePosition: TradeSignal | null; // Tracks the currently open trade
 }
 
 interface ManualTraderState {
@@ -99,6 +101,11 @@ interface BotContextType {
   startGridSimulation: (config: GridConfig) => void;
   stopGridSimulation: () => void;
   runGridBacktest: (config: GridBacktestConfig) => void;
+  // Discipline state
+  showRecommendation: boolean;
+  strategyRecommendation: RankedTradeSignal | null;
+  activateRecommendedStrategy: (strategyId: string) => void;
+  dismissRecommendation: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -155,9 +162,27 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
-    isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: []
+    isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [], activePosition: null,
   });
   const liveBotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const liveWsRef = useRef<WebSocket | null>(null);
+  const riskGuardianRef = useRef<RiskGuardian | null>(null);
+
+  // --- Discipline state ---
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [strategyRecommendation, setStrategyRecommendation] = useState<RankedTradeSignal | null>(null);
+
+  const dismissRecommendation = () => {
+    setShowRecommendation(false);
+    setStrategyRecommendation(null);
+    if(riskGuardianRef.current) riskGuardianRef.current.resetCooldown();
+  };
+  
+  const activateRecommendedStrategy = (strategyId: string) => {
+    console.log(`Activating recommended strategy: ${strategyId}`);
+    dismissRecommendation();
+  };
+
 
   // --- Manual Trader State ---
   const [manualTraderState, setManualTraderState] = useState<ManualTraderState>({
@@ -204,8 +229,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [isTradingActive, setIsTradingActive] = useState(false);
 
   useEffect(() => {
-    // A "trading session" is now defined as any activity that can actively manage or place real trades.
-    // Simulation, monitoring, and one-off analysis are excluded to allow them to run in the background.
     const liveTradingBotRunning = liveBotState.isRunning;
     const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
     const gridIsRunning = gridState.isRunning;
@@ -217,7 +240,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // --- Helper Functions ---
   const addLog = useCallback((setter: React.Dispatch<React.SetStateAction<any>>, message: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    // Defensive check to prevent crash if logs array becomes undefined
     setter((prev: any) => ({ ...prev, logs: [`[${timestamp}] ${message}`, ...(prev.logs || [])].slice(0, 100) }));
   }, []);
 
@@ -269,12 +291,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         let strategySignal: 'BUY' | 'SELL' | null = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
         
-        // --- REVERSE LOGIC ---
         if (config.reverse) {
             strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
         }
-        // --- END REVERSE LOGIC ---
-
+        
         const prediction = config.useAIPrediction ? (
             canUseAi() ? await predictMarket({
                 symbol: config.symbol,
@@ -287,7 +307,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).`
         };
 
-        if (!prediction) { // This will be true if canUseAi returned false
+        if (!prediction) { 
             return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
         }
         
@@ -317,47 +337,129 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [canUseAi]);
 
   // --- Live Bot Logic ---
-  const runLiveBotPrediction = useCallback(async () => {
-    const currentConfig = liveBotState.config;
-    if (!liveBotState.isRunning || !currentConfig) return;
+  const runLiveBotCycle = useCallback(async (isNewCandle: boolean = false) => {
+    if (!liveBotState.isRunning || !liveBotState.config || !apiKey || !secretKey) return;
 
-    // Check if there's already an open position before analyzing
-    if (liveBotState.prediction) {
-        addLiveLog("In an active trade signal. Skipping new analysis cycle.");
+    const config = liveBotState.config;
+    let currentPosition = liveBotState.activePosition;
+
+    // --- POSITION MANAGEMENT ---
+    if (currentPosition) {
+        if (!isNewCandle) return; // Only check SL/TP on new candles
+        
+        const latestCandle = liveBotState.chartData[liveBotState.chartData.length - 1];
+        let closePosition = false;
+        let closeReason = '';
+        
+        if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) {
+            closePosition = true; closeReason = 'Stop Loss hit.';
+        } else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) {
+            closePosition = true; closeReason = 'Take Profit hit.';
+        } else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) {
+            closePosition = true; closeReason = 'Stop Loss hit.';
+        } else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) {
+            closePosition = true; closeReason = 'Take Profit hit.';
+        }
+
+        if (closePosition) {
+            addLiveLog(`Closing position: ${closeReason}`);
+            const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
+            const quantity = (config.initialCapital * config.leverage) / currentPosition.entryPrice;
+            try {
+                await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
+                toast({ title: "Position Closed (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.symbol} placed.` });
+                setLiveBotState(prev => ({ ...prev, activePosition: null, prediction: null }));
+                // PNL registration for discipline
+                const pnl = side === 'SELL' ? (latestCandle.close - currentPosition.entryPrice) * quantity : (currentPosition.entryPrice - latestCandle.close) * quantity;
+                riskGuardianRef.current?.registerTrade(pnl);
+            } catch (e: any) {
+                addLiveLog(`Failed to close position: ${e.message}`);
+                toast({ title: "Close Order Failed (Live)", description: e.message, variant: "destructive" });
+            }
+        }
+        return; // Don't look for new trades if we are in a position
+    }
+
+    // --- TRADE ENTRY LOGIC ---
+    if (!currentPosition) {
+      const { allowed, reason, mode } = riskGuardianRef.current?.canTrade() ?? { allowed: true, reason: '', mode: 'none' };
+      if (!allowed) {
+        addLiveLog(`Discipline action: ${reason}`);
+        if(mode === 'adapt') {
+            setShowRecommendation(true);
+            setStrategyRecommendation({} as any); // Placeholder for AI recommendation
+        }
         return;
+      }
+
+      setLiveBotState(prev => ({ ...prev, isPredicting: true }));
+      const result = await analyzeAsset(config, liveBotState.chartData);
+      setLiveBotState(prev => ({ ...prev, isPredicting: false }));
+
+      if (result.signal) {
+          addLiveLog(`New trade signal found: ${result.signal.action} at ${result.signal.entryPrice}`);
+          const side: OrderSide = result.signal.action === 'UP' ? 'BUY' : 'SELL';
+          const quantity = (config.initialCapital * config.leverage) / result.signal.entryPrice;
+          
+          try {
+              await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
+              toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.symbol} placed.` });
+              setLiveBotState(prev => ({ ...prev, activePosition: result.signal, prediction: { prediction: result.signal!.action, confidence: result.signal!.confidence, reasoning: result.signal!.reasoning } }));
+          } catch (e: any) {
+              addLiveLog(`Failed to open position: ${e.message}`);
+              toast({ title: "Open Order Failed (Live)", description: e.message, variant: "destructive" });
+          }
+      } else {
+          addLiveLog(`No trade signal found. Reason: ${result.log}`);
+      }
     }
+  }, [liveBotState.isRunning, liveBotState.config, liveBotState.activePosition, liveBotState.chartData, addLiveLog, analyzeAsset, apiKey, secretKey, toast]);
 
-    setLiveBotState(prev => ({ ...prev, isPredicting: true, prediction: null }));
-    
-    const result = await analyzeAsset(currentConfig);
-    
-    if (result.signal) {
-        const aiPrediction: PredictMarketOutput = {
-            prediction: result.signal.action,
-            confidence: result.signal.confidence,
-            reasoning: result.signal.reasoning,
-        };
-        setLiveBotState(prev => ({ ...prev, prediction: aiPrediction }));
-        addLiveLog(`AI Prediction: ${aiPrediction.prediction} (Confidence: ${(aiPrediction.confidence * 100).toFixed(1)}%).`);
-    } else {
-        addLiveLog(`No actionable signal found. Reason: ${result.log}`);
-    }
-
-    setLiveBotState(prev => ({ ...prev, isPredicting: false }));
-
-  }, [liveBotState.isRunning, liveBotState.config, liveBotState.prediction, addLiveLog, analyzeAsset]);
 
   const startLiveBot = async (config: LiveBotConfig) => {
     addLiveLog("Starting bot...");
+    riskGuardianRef.current = new RiskGuardian(config.strategyParams.discipline, config.initialCapital);
     
-    setLiveBotState(prev => ({...prev, isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: []}));
+    setLiveBotState({ isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], isPredicting: false, activePosition: null });
+
     try {
       const klines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
       setLiveBotState(prev => ({ ...prev, chartData: klines }));
       addLiveLog(`Loaded ${klines.length} initial candles for ${config.symbol}.`);
       
-      runLiveBotPrediction(); // Initial run
-      liveBotIntervalRef.current = setInterval(runLiveBotPrediction, 30000); // 30 seconds
+      // Initial run
+      runLiveBotCycle(true);
+      
+      // WebSocket for live candle updates
+      if (liveWsRef.current) liveWsRef.current.close();
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+      liveWsRef.current = ws;
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.e === 'kline') {
+          const newCandle: HistoricalData = {
+            time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
+            low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
+          };
+          
+          setLiveBotState(prev => {
+            let newChartData = [...prev.chartData];
+            if (newChartData.length > 0 && newChartData[newChartData.length - 1].time === newCandle.time) {
+                newChartData[newChartData.length - 1] = newCandle;
+            } else {
+                newChartData.push(newCandle);
+                runLiveBotCycle(true); // A new candle has closed, run the full cycle
+            }
+            return { ...prev, chartData: newChartData.slice(-1000) };
+          });
+        }
+      };
+      
+      ws.onopen = () => addLiveLog("Live data stream connected.");
+      ws.onerror = () => addLiveLog("Live data stream error.");
+      ws.onclose = () => addLiveLog("Live data stream closed.");
+
       toast({ title: "Live Bot Started", description: `Monitoring ${config.symbol} on the ${config.interval} interval.`});
 
     } catch (error: any) {
@@ -368,11 +470,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const stopLiveBot = () => {
-    if (liveBotIntervalRef.current) {
-        clearInterval(liveBotIntervalRef.current);
-        liveBotIntervalRef.current = null;
+    if (liveWsRef.current) {
+        liveWsRef.current.close();
+        liveWsRef.current = null;
     }
-    setLiveBotState({ isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [] });
+    setLiveBotState({ isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [], activePosition: null });
+    riskGuardianRef.current = null;
     addLiveLog("Bot stopped by user.");
     toast({ title: "Live Bot Stopped" });
   };
@@ -384,11 +487,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         manualWsRef.current.close(1000, "Signal reset by user");
         manualWsRef.current = null;
     }
-    if (manualReevalIntervalRef.current) { // Clear interval on reset
+    if (manualReevalIntervalRef.current) {
         clearInterval(manualReevalIntervalRef.current);
         manualReevalIntervalRef.current = null;
     }
-    manualConfigRef.current = null; // Clear stored config
+    manualConfigRef.current = null;
     setManualTraderState(prev => ({
         ...prev,
         isAnalyzing: false,
@@ -417,10 +520,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             description: "The signal will remain on the chart. Dismiss it manually when you're done."
         });
         setManualTraderState(prev => ({ ...prev, isExecuting: false }));
-        return; // End here for simulation
+        return; 
     }
 
-    // --- Real Execution Logic ---
     if (activeProfile.permissions === 'ReadOnly') {
         addManualLog(`Read-only key detected. Simulating trade locally for ${signal.asset}...`);
         toast({
@@ -439,11 +541,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const orderResult = await placeOrder(signal.asset, side, quantity, apiKey, secretKey);
         
         toast({
-            title: "Order Placed (Simulated)",
+            title: "Order Placed",
             description: `${side} order for ${orderResult.quantity.toFixed(5)} ${signal.asset} submitted. Order ID: ${orderResult.orderId}`
         });
 
-        // Reset the signal only after successful REAL execution
         resetManualSignal();
 
     } catch (e: any) {
@@ -455,7 +556,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile]);
 
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
-    // This function is for loading the initial chart data on the manual page.
     setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
     addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
     try {
@@ -557,23 +657,20 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
     manualAnalysisCancelRef.current = false;
     manualConfigRef.current = config;
-    // 1. Set analyzing state and clear previous data
     setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null, chartData: [] }));
     addManualLog("Running analysis...");
     
-    // 2. Perform all async operations first
     let chartDataForAnalysis: HistoricalData[];
     try {
         addManualLog(`Fetching chart data for ${config.symbol}...`);
         chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
     } catch (e: any) {
         addManualLog(`Failed to load chart data: ${e.message}`);
-        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] })); // End analysis on error
+        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
         toast({ title: "Analysis Failed", description: "Could not load market data.", variant: "destructive" });
         return;
     }
 
-    // Update state with fetched chart data
     setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis, logs: prev.logs || [] }));
     addManualLog(`Loaded ${chartDataForAnalysis.length} historical candles.`);
 
@@ -583,7 +680,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
 
-    const result = await analyzeAsset({ ...config, reverse: false }, chartDataForAnalysis); // Manual analysis is never reversed by default
+    const result = await analyzeAsset({ ...config, reverse: false }, chartDataForAnalysis);
 
     if (manualAnalysisCancelRef.current) {
         addManualLog("Analysis canceled, results discarded.");
@@ -591,13 +688,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    // 3. Update state based on async result
     if (result.signal) {
         addManualLog(`NEW SIGNAL: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}. SL: $${result.signal.stopLoss.toFixed(4)}, TP: $${result.signal.takeProfit.toFixed(4)}`);
         toast({ title: "Trade Signal Generated!", description: "Monitoring for invalidation and re-evaluation." });
         connectManualWebSocket(config.symbol, config.interval);
 
-        // Re-evaluation Logic
         if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
         const reevalTime = intervalToMs(config.interval);
         addManualLog(`Signal found. Re-evaluating every ${config.interval}.`);
@@ -715,8 +810,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     setMultiSignalState({ isRunning: true, config, results: initialResults, logs: [] });
     
-    runMultiSignalCheck(); // Initial run
-    multiSignalIntervalRef.current = setInterval(runMultiSignalCheck, 60000); // 1 minute interval
+    runMultiSignalCheck();
+    multiSignalIntervalRef.current = setInterval(runMultiSignalCheck, 60000);
 
     toast({ title: "Multi-Signal Monitor Started", description: `Monitoring ${config.assets.length} assets.` });
   }, [addMultiLog, toast, runMultiSignalCheck]);
@@ -753,7 +848,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
         
         toast({
-            title: "Close Order Submitted (Simulated)",
+            title: "Close Order Submitted",
             description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. Order ID: ${orderResult.orderId}`
         });
     } catch (e: any) {
@@ -770,26 +865,24 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       let { chartData, openPositions, tradeHistory, portfolio } = current;
       const config = current.config;
 
-      // Update chart data
       if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
         chartData[chartData.length - 1] = newCandle;
       } else {
         chartData.push(newCandle);
-        chartData = chartData.slice(-1000); // Keep chart data from getting too large
+        chartData = chartData.slice(-1000);
       }
 
       const updatedPositions = [...openPositions];
       const newTrades: SimulatedTrade[] = [];
 
-      // Check open positions for SL/TP
       for (const pos of openPositions) {
         let exitPrice: number | null = null;
-        let closeReason: SimulatedTrade['closeReason'] = 'signal'; // Default, will be updated
+        let closeReason: SimulatedTrade['closeReason'] = 'signal';
 
         if (pos.side === 'long') {
           if (newCandle.low <= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
           else if (newCandle.high >= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
-        } else { // short
+        } else {
           if (newCandle.high >= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
           else if (newCandle.low <= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
         }
@@ -816,12 +909,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
       const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
       
-      // Look for new trades only if no position is open
       if (stillOpenPositions.length === 0) {
         analyzeAsset(config, chartData).then(result => {
           if (result.signal) {
             setSimulationState(prev => {
-              // Re-check inside the async callback if we are still flat
               if (prev.openPositions.length > 0) return prev;
               const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
               const newPosition: SimulatedPosition = {
@@ -837,7 +928,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         });
       }
       
-      // Calculate summary stats
       const allTrades = [...tradeHistory, ...newTrades];
       const wins = allTrades.filter(t => t.pnl > 0);
       const losses = allTrades.filter(t => t.pnl <= 0);
@@ -884,9 +974,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const startSimulation = useCallback(async (config: SimulationConfig) => {
     addSimLog("Starting simulation...");
-    stopSimulation(); // Ensure any previous simulation is stopped
+    stopSimulation();
     
-    // Reset state
     setSimulationState({
         isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Simulation starting...`],
         chartData: [],
@@ -905,7 +994,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         ws.onopen = () => addSimLog("Live data connection established.");
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.e === 'kline' && data.k.x) { // k.x is true if the candle is closed
+            if (data.e === 'kline' && data.k.x) {
                 const newCandle: HistoricalData = {
                     time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
                     low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
@@ -946,7 +1035,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         let { openOrders, trades, summary, grid, config } = current;
 
-        // Update the current candle being built
         if (!currentCandleRef.current || currentCandleRef.current.time !== time) {
             currentCandleRef.current = { time, open: price, high: price, low: price, close: price, volume: 0 };
         } else {
@@ -955,7 +1043,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             currentCandleRef.current.close = price;
         }
 
-        // Check for Stop Loss or Take Profit first
         if (config.stopLossPrice && price <= config.stopLossPrice) {
             addGridLog(`GLOBAL STOP LOSS triggered at ${price}. Stopping forward-test.`);
             stopGridSimulation();
@@ -967,7 +1054,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             return { ...current, isRunning: false };
         }
         
-        // Trailing Logic
         const highestGridLine = Math.max(...grid.levels);
         const lowestGridLine = Math.min(...grid.levels);
 
@@ -988,12 +1074,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         if (gridShifted) {
-             const currentPrice = price; // Use the latest price to reset orders
+             const currentPrice = price; 
             if (config.direction === 'long') {
                 openOrders = grid.levels.filter(p => p <= currentPrice).map(p => ({ price: p, side: 'buy' }));
             } else if (config.direction === 'short') {
                 openOrders = grid.levels.filter(p => p >= currentPrice).map(p => ({ price: p, side: 'sell' }));
-            } else { // neutral
+            } else { 
                 openOrders = grid.levels.map(p => ({ price: p, side: p < currentPrice ? 'buy' : 'sell' }));
             }
             config.lowerPrice = Math.min(...grid.levels);
@@ -1011,7 +1097,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const trade: GridTrade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
                 newTrades.push(trade);
                 
-                // For directional grids, place a take-profit order
                 if (config.direction === 'long' && isBuy) {
                     const newSellPrice = order.price + grid.profitPerGrid;
                     if (newSellPrice <= config.upperPrice) {
@@ -1023,7 +1108,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    // Place the opposite order back on the grid
                     const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
@@ -1035,9 +1119,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     summary.gridPnl += grid.profitPerGrid * grid.quantityPerGrid;
                     summary.totalTrades += 1;
                 }
-                return false; // Remove this order
+                return false;
             }
-            return true; // Keep this order
+            return true;
         });
         
         return {
@@ -1052,7 +1136,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addGridLog, stopGridSimulation]);
 
   const startGridSimulation = useCallback(async (config: GridConfig) => {
-    stopGridSimulation(); // Ensure previous session is fully stopped
+    stopGridSimulation();
     addGridLog(`Creating grid for ${config.symbol}...`);
     
     let gridLevels: number[] = [];
@@ -1063,7 +1147,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         for (let i = 0; i < config.gridCount; i++) {
             gridLevels.push(config.lowerPrice + i * priceStep);
         }
-    } else { // Geometric
+    } else {
         const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
         for (let i = 0; i < config.gridCount; i++) {
             const price = config.lowerPrice * Math.pow(ratio, i);
@@ -1094,7 +1178,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         } else if (config.direction === 'short') {
             initialOrders = gridLevels.filter(p => p >= currentPrice).map(price => ({ price, side: 'sell' }));
             addGridLog(`Short mode: Placing ${initialOrders.length} sell orders.`);
-        } else { // Neutral
+        } else {
             initialOrders = gridLevels.map(price => ({ price, side: price < currentPrice ? 'buy' : 'sell' }));
             addGridLog(`Neutral mode: Placing ${initialOrders.filter(o=>o.side==='buy').length} buy and ${initialOrders.filter(o=>o.side==='sell').length} sell orders.`);
         }
@@ -1135,7 +1219,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const trade = JSON.parse(event.data);
             if (trade.e === 'aggTrade') {
                 const price = parseFloat(trade.p);
-                const time = trade.T; // Trade time
+                const time = trade.T;
                 handleGridTick(price, time);
             }
         };
@@ -1160,7 +1244,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         toast({ title: "Data Loaded", description: `Running backtest on ${klines.length} candles...` });
 
-        // Initialize grid
         let gridLevels: number[] = [];
         let profitPerGrid = 0;
         if (config.mode === 'arithmetic') {
@@ -1183,7 +1266,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             openOrders = gridLevels.filter(p => p <= initialPrice).map(price => ({ price, side: 'buy' }));
         } else if (config.direction === 'short') {
             openOrders = gridLevels.filter(p => p >= initialPrice).map(price => ({ price, side: 'sell' }));
-        } else { // Neutral
+        } else {
             openOrders = gridLevels.map(price => ({ price, side: price < initialPrice ? 'buy' : 'sell' }));
         }
 
@@ -1196,32 +1279,30 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
             const ordersThisCandle: { price: number, side: 'buy' | 'sell' }[] = [];
             
-            // Determine which orders are hit by this candle's range
             for (const order of openOrders) {
                 if (order.side === 'buy' && candle.low <= order.price) {
                     ordersThisCandle.push(order);
                 } else if (order.side === 'sell' && candle.high >= order.price) {
                     ordersThisCandle.push(order);
                 } else {
-                    stillOpenOrders.push(order); // This order was not hit
+                    stillOpenOrders.push(order);
                 }
             }
 
-            // Process hit orders (sells first to match buys)
             ordersThisCandle.sort((a,b) => a.side === 'sell' ? -1 : 1);
 
             for (const order of ordersThisCandle) {
                 const trade: GridTrade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
                 
                 if (trade.side === 'buy') {
-                    openBuys.push(trade); // Add to inventory
+                    openBuys.push(trade);
                     const takeProfitPrice = order.price + profitPerGrid;
                     if (takeProfitPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: takeProfitPrice, side: 'sell' });
                     }
-                } else { // It's a sell
+                } else {
                     if (openBuys.length > 0) {
-                        const matchedBuy = openBuys.shift()!; // FIFO
+                        const matchedBuy = openBuys.shift()!;
                         const pnl = (trade.price - matchedBuy.price) * quantityPerGrid;
                         gridPnl += pnl;
                         matchedTrades.push({ id: `match_${matchedBuy.id}`, pnl, buy: matchedBuy, sell: trade });
@@ -1240,7 +1321,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const unrealizedPnl = openBuys.reduce((acc, buy) => acc + (endPrice - buy.price) * quantityPerGrid, 0);
 
         const totalPnl = gridPnl + unrealizedPnl;
-        const maxDrawdown = 0; // Simplified for now
+        const maxDrawdown = 0;
         const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100);
         const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
         
@@ -1294,6 +1375,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       startGridSimulation,
       stopGridSimulation,
       runGridBacktest,
+      showRecommendation,
+      strategyRecommendation,
+      activateRecommendedStrategy,
+      dismissRecommendation,
     }}>
       {children}
     </BotContext.Provider>
