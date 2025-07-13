@@ -14,8 +14,8 @@ const binance = new ccxt.binance({
     options: { defaultType: 'future' },
 });
 
-// Helper for authenticated Binance API calls
-const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
+// Helper for authenticated Binance API calls (GET requests)
+const callAuthenticatedGetApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
   const signature = crypto
     .createHmac('sha256', secretKey)
     .update(queryString)
@@ -51,7 +51,7 @@ export const getAccountBalance = async (apiKey: string, secretKey: string): Prom
   console.log("Fetching real account balance from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
-  const { data, usedWeight } = await callAuthenticatedApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
+  const { data, usedWeight } = await callAuthenticatedGetApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
 
   const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
@@ -65,7 +65,7 @@ export const getOpenPositions = async (apiKey: string, secretKey: string): Promi
   console.log("Fetching open positions from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
-  const { data, usedWeight } = await callAuthenticatedApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
+  const { data, usedWeight } = await callAuthenticatedGetApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
 
   const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
@@ -88,7 +88,7 @@ export const getTradeHistory = async (symbol: string, apiKey: string, secretKey:
     console.log(`Fetching trade history for ${symbol} from Binance...`);
     const timestamp = Date.now();
     const queryString = `symbol=${symbol}&timestamp=${timestamp}&limit=50`;
-    const { data, usedWeight } = await callAuthenticatedApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
+    const { data, usedWeight } = await callAuthenticatedGetApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
 
     const tradesData = data.map((trade: any): Trade => ({
         id: String(trade.id),
@@ -239,32 +239,58 @@ export const placeOrder = async (
   apiKey: string, 
   secretKey: string
 ): Promise<OrderResult> => {
-  console.log(`--- SIMULATING TRADE EXECUTION ---`);
-  console.log(`- Profile: Active`);
-  console.log(`- Timestamp: ${new Date().toISOString()}`);
-  console.log(`- Symbol: ${symbol}`);
-  console.log(`- Side: ${side}`);
-  console.log(`- Quantity: ${quantity.toFixed(5)}`);
-  console.log(`---------------------------------`);
-
-  // In a real application, this would make an authenticated POST request to /fapi/v1/order
-  // For this prototype, we'll just return a mock success response.
-  
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-
   if (!apiKey || !secretKey) {
       throw new Error("API keys are not configured. Cannot place order.");
   }
-  
-  return {
-    orderId: `mock_${Date.now()}`,
+
+  const timestamp = Date.now();
+  const params: any = {
     symbol,
     side,
-    quantity,
-    price: 12345.67, // This would be the actual fill price in a real response
-    timestamp: Date.now(),
+    type: 'MARKET',
+    quantity: quantity.toFixed(5), // Use appropriate precision for the asset
+    timestamp,
   };
+
+  const queryString = Object.keys(params)
+    .map(key => `${key}=${params[key]}`)
+    .join('&');
+
+  const signature = crypto
+    .createHmac('sha256', secretKey)
+    .update(queryString)
+    .digest('hex');
+
+  const url = `${BINANCE_API_URL}/fapi/v1/order?${queryString}&signature=${signature}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-MBX-APIKEY': apiKey, 'Content-Type': 'application/json' },
+      cache: 'no-store',
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Binance API Error: ${responseData.msg || 'Failed to place order'} (Code: ${responseData.code})`);
+    }
+
+    return {
+      orderId: String(responseData.orderId),
+      symbol: responseData.symbol,
+      side: responseData.side,
+      quantity: parseFloat(responseData.origQty),
+      price: parseFloat(responseData.avgPrice), // Avg fill price for market orders
+      timestamp: responseData.updateTime,
+    };
+  } catch (error: any) {
+    console.error(`Error placing order on Binance:`, error);
+    if (error.message.includes('Binance API Error')) {
+      throw error;
+    }
+    throw new Error("Failed to send order to Binance. Please check your network and API permissions.");
+  }
 };
 
 export const getDepthSnapshot = async (symbol: string): Promise<any> => {
