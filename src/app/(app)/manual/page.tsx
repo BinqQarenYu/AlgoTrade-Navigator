@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -28,7 +27,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal } from "lucide-react"
-import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, TradeSignal } from "@/lib/types"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -45,6 +44,7 @@ import { Progress } from "@/components/ui/progress"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -143,6 +143,7 @@ export default function ManualTradingPage() {
   // Collapsible states
   const [isGeneratorOpen, setGeneratorOpen] = usePersistentState<boolean>('manual-generator-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('manual-params-open', false);
+  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('manual-discipline-open', false);
   const [isIntelOpen, setIntelOpen] = usePersistentState<boolean>('manual-intel-open', true);
   const [isSignalOpen, setSignalOpen] = usePersistentState<boolean>('manual-signal-open', true);
   const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('manual-logs-open', true);
@@ -310,6 +311,13 @@ export default function ManualTradingPage() {
     }));
   };
   
+  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
+      handleParamChange(selectedStrategy, 'discipline', {
+        ...strategyParams[selectedStrategy].discipline,
+        [paramName]: value,
+      });
+  };
+
   const handleResetParams = () => {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
@@ -541,6 +549,16 @@ export default function ManualTradingPage() {
                     {renderParameterControls()}
                   </CollapsibleContent>
                 </Collapsible>
+                
+                {strategyParams[selectedStrategy]?.discipline && (
+                    <DisciplineSettings 
+                        params={strategyParams[selectedStrategy].discipline}
+                        onParamChange={handleDisciplineParamChange}
+                        isCollapsed={isDisciplineOpen}
+                        onCollapseChange={setDisciplineOpen}
+                        isDisabled={isThisPageTrading}
+                    />
+                )}
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">

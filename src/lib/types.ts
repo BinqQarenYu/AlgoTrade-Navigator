@@ -1,18 +1,5 @@
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -192,8 +179,8 @@ export type TradeSignal = {
   takeProfit: number;
   confidence: number;
   reasoning: string;
-  timestamp: number; // Changed from Date to number
-  exitTimestamp?: number; // Changed from Date to number
+  timestamp: number; 
+  exitTimestamp?: number;
   strategy: string;
   peakPrice?: number;
   asset: string;
@@ -231,14 +218,6 @@ export type ManualTraderConfig = {
     fee: number;
 }
 
-export interface ManualTraderState {
-  isAnalyzing: boolean;
-  isExecuting: boolean;
-  logs: string[];
-  signal: TradeSignal | null;
-  chartData: HistoricalData[];
-}
-
 export type MultiSignalConfig = {
     assets: string[];
     interval: string;
@@ -262,13 +241,6 @@ export interface MultiSignalState {
   logs: string[];
 }
 
-export type ScreenerConfig = {
-  asset: string;
-  strategies: string[];
-  strategyParams: Record<string, any>;
-  interval: string;
-};
-
 export type PricePredictionOutput = {
     predictedPrice: number;
     predictedDirection: 'UP' | 'DOWN' | 'NEUTRAL';
@@ -282,15 +254,6 @@ export type StrategyAnalysisInput = {
     signal: 'BUY' | 'SELL' | 'HOLD' | null;
     indicatorValues: Record<string, any>;
 };
-
-
-export interface ScreenerState {
-  isRunning: boolean;
-  config: ScreenerConfig | null;
-  prediction: PricePredictionOutput | null;
-  strategyInputs: StrategyAnalysisInput[];
-  logs: string[];
-}
 
 export type SimulationConfig = LiveBotConfig;
 export type SimulatedTrade = BacktestResult;
@@ -414,38 +377,6 @@ export type SavedManipulationScan = {
 
 export type SavedReport = SavedMarketReport | SavedManipulationScan;
 
-export interface ApiContextType {
-  profiles: ApiProfile[];
-  activeProfile: ApiProfile | null;
-  apiKey: string | null;
-  secretKey: string | null;
-  coingeckoApiKey: string | null;
-  coinmarketcapApiKey: string | null;
-  
-  addProfile: (profile: ApiProfile) => void;
-  updateProfile: (profile: ApiProfile) => void;
-  deleteProfile: (profileId: string) => void;
-  setActiveProfile: (profileId: string | null) => void;
-  setCoingeckoApiKey: (key: string | null) => void;
-  setCoinmarketcapApiKey: (key: string | null) => void;
-  
-  isConnected: boolean;
-  setIsConnected: (status: boolean) => void;
-  apiLimit: { used: number; limit: number };
-  setApiLimit: (limit: { used: number; limit: number }) => void;
-  rateLimitThreshold: number;
-  setRateLimitThreshold: (limit: number) => void;
-
-  aiQuota: {
-    used: number;
-    limit: number;
-    lastReset: string; // YYYY-MM-DD
-  };
-  setAiQuotaLimit: (newLimit: number) => void;
-  canUseAi: () => boolean;
-  consumeAiCredit: () => void;
-}
-
 export type GridConfig = {
     symbol: string;
     interval: string;
@@ -512,46 +443,6 @@ export type GridState = {
         totalTrades: number;
     } | null;
 };
-
-
-export interface BotContextType {
-  liveBotState: any;
-  manualTraderState: ManualTraderState;
-  multiSignalState: MultiSignalState;
-  screenerState: ScreenerState;
-  simulationState: SimulationState;
-  gridState: GridState;
-  gridBacktestState: {
-    isBacktesting: boolean;
-    backtestSummary: GridBacktestSummary | null;
-    backtestTrades: MatchedGridTrade[];
-    unmatchedTrades: GridTrade[];
-  };
-  strategyParams: Record<string, any>;
-  setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  isTradingActive: boolean;
-  startLiveBot: (config: LiveBotConfig) => void;
-  stopLiveBot: () => void;
-  runManualAnalysis: (config: ManualTraderConfig) => void;
-  cancelManualAnalysis: () => void;
-  resetManualSignal: () => void;
-  cleanManualChart: () => void;
-  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
-  setManualChartData: (symbol: string, interval: string) => void;
-  startMultiSignalMonitor: (config: MultiSignalConfig) => void;
-  stopMultiSignalMonitor: () => void;
-  startScreener: (config: ScreenerConfig) => void;
-  stopScreener: () => void;
-  closePosition: (position: Position) => void;
-  startSimulation: (config: SimulationConfig) => void;
-  stopSimulation: () => void;
-  startGridSimulation: (config: GridConfig) => void;
-  stopGridSimulation: () => void;
-  runGridBacktest: (config: GridBacktestConfig) => void;
-  // Test trade functions
-  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', quantity: number) => void;
-  closeTestPosition: () => void;
-}
 
 export type Wall = {
   price: number;
