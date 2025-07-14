@@ -9,7 +9,7 @@ import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-fl
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
-import { Camera, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
+import { Camera, AlertTriangle, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
 import { formatPrice, formatLargeNumber, intervalToMs } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
 
@@ -239,6 +239,18 @@ export function TradingChart({
         ...commonLineOptions,
         color: '#3b82f6',
     });
+    
+    const commonPanelOptions = {
+        height: 80,
+        priceScaleId: '',
+        lastValueVisible: false,
+        priceLineVisible: false,
+    };
+    const commonIndicatorPanelOptions = {
+        ...commonPanelOptions,
+        priceFormat: { type: 'volume', precision: 4 },
+        priceScale: { autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+    }
 
     chartRef.current = {
         chart,
@@ -292,6 +304,14 @@ export function TradingChart({
         volumeLeg3TextPriceLine: null,
         dumpLineSeries: chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, ...commonLineOptions }),
         dumpVolumeTextPriceLine: null,
+        // Physics Panels
+        depthTotalSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#a78bfa' }),
+        depthImbalanceSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#f472b6' }),
+        stiffnessSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#f59e0b' }),
+        pressureSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#ef4444' }),
+        bpiSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#22c55e' }),
+        bpiThresholdLine: null,
+        sentimentSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#60a5fa' }),
     };
     
     const resizeObserver = new ResizeObserver(handleResize);
@@ -414,13 +434,23 @@ export function TradingChart({
 
         const signalMarkers = showAnalysis ? uniqueData
           .map(d => {
+            let marker = null;
             if (d.buySignal) {
-              return { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
+              marker = { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
             }
             if (d.sellSignal) {
-              return { time: toTimestamp(d.time), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Sell' };
+              marker = { time: toTimestamp(d.time), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Sell' };
             }
-            return null;
+             if (d.predicted_next_pump_prob && d.predicted_next_pump_prob > 0.7) {
+              marker = { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Pump?'};
+            }
+            if (d.predicted_next_dump_prob && d.predicted_next_dump_prob > 0.7) {
+              marker = { time: toTimestamp(d.time), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Dump?'};
+            }
+            if (d.predicted_next_burst_prob && d.predicted_next_burst_prob > 0.8) {
+               marker = marker || { time: toTimestamp(d.time), position: 'belowBar', color: '#f59e0b', shape: 'circle', text: 'Burst!'};
+            }
+            return marker;
           })
           .filter((m): m is any => m !== null) : [];
           
@@ -1185,6 +1215,51 @@ export function TradingChart({
             chartRef.current.matchedGridTradeLine = newLine;
         }
     }, [highlightedTrade]);
+    
+    // Effect for Physics Panels
+    useEffect(() => {
+        if (!chartRef.current?.chart || !physicsConfig) return;
+        const { chart, depthTotalSeries, depthImbalanceSeries, stiffnessSeries, pressureSeries, bpiSeries, sentimentSeries, bpiThresholdLine: existingThresholdLine } = chartRef.current;
+        const { showDepth, showImbalance, showStiffness, showPressure, showBPI, showSentiment, bpiThreshold } = physicsConfig;
+        
+        const setDataForPanel = (series: any, dataKey: keyof HistoricalData, visible: boolean) => {
+            if (visible && combinedData.some(d => d[dataKey] != null)) {
+                const panelData = combinedData
+                    .filter(d => d[dataKey] != null)
+                    .map(d => ({ time: toTimestamp(d.time), value: d[dataKey] as number }));
+                series.setData(panelData);
+                series.applyOptions({ visible: true });
+            } else {
+                series.setData([]);
+                series.applyOptions({ visible: false });
+            }
+        };
+
+        setDataForPanel(depthTotalSeries, 'depthTotal', showDepth);
+        setDataForPanel(depthImbalanceSeries, 'depth_imbalance_ratio', showImbalance);
+        setDataForPanel(stiffnessSeries, 'k1_stiffness_range', showStiffness);
+        setDataForPanel(pressureSeries, 'pressure_depth', showPressure);
+        setDataForPanel(bpiSeries, 'burst_potential_index_N', showBPI);
+        setDataForPanel(sentimentSeries, 'sentimentScore', showSentiment);
+        
+        // Handle BPI Threshold line
+        if (existingThresholdLine) {
+            bpiSeries.removePriceLine(existingThresholdLine);
+            chartRef.current.bpiThresholdLine = null;
+        }
+        if (showBPI && bpiThreshold > 0) {
+            const newLine = bpiSeries.createPriceLine({
+                price: bpiThreshold,
+                color: '#ef4444',
+                lineWidth: 1,
+                lineStyle: LineStyle.Dotted,
+                axisLabelVisible: true,
+                title: 'Burst Threshold',
+            });
+            chartRef.current.bpiThresholdLine = newLine;
+        }
+
+    }, [physicsConfig, combinedData]);
 
 
 
