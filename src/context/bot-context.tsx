@@ -434,7 +434,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setLiveBotState({ isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], isPredicting: false, activePosition: null });
 
     try {
-      const klines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+      const klines = await getLatestKlinesByLimit(config.symbol, config.interval, 1000);
       setLiveBotState(prev => ({ ...prev, chartData: klines }));
       addLiveLog(`Loaded ${klines.length} initial candles for ${config.symbol}.`);
       
