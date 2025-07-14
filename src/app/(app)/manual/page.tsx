@@ -28,7 +28,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal } from "lucide-react"
-import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig } from "@/lib/types"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, TradeSignal } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -71,6 +71,8 @@ import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -98,6 +100,8 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'volume-delta': defaultVolumeDeltaParams,
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
 
 export default function ManualTradingPage() {
@@ -299,14 +303,10 @@ export default function ManualTradingPage() {
 
   const hasActiveSignal = signal !== null;
   
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+  const handleParamChange = (strategyId: string, paramName: string, value: any) => {
     setStrategyParams(prev => ({
         ...prev,
-        [strategyId]: {
-            ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
-        }
+        [strategyId]: { ...prev[strategyId], [paramName]: value }
     }));
   };
   
@@ -361,7 +361,7 @@ export default function ManualTradingPage() {
     const params = strategyParams[selectedStrategy];
     if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const controls = Object.entries(params).map(([key, value]) => (
+    const controls = Object.entries(params).filter(([key]) => key !== 'reverse' && key !== 'discipline').map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
         <Input 
@@ -379,15 +379,25 @@ export default function ManualTradingPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">{controls}</div>
-        <div className="pt-2 flex flex-col sm:flex-row gap-2">
-            {canReset && (
-                <Button onClick={handleResetParams} disabled={isThisPageTrading} variant="secondary" className="w-full">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Reset to Default
-                </Button>
-            )}
-        </div>
+        {controls.length > 0 && <div className="grid grid-cols-2 gap-4">{controls}</div>}
+         <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={params.reverse || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={isThisPageTrading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
+          </div>
+        {canReset && (
+            <Button onClick={handleResetParams} disabled={isThisPageTrading} variant="secondary" className="w-full">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset to Default
+            </Button>
+        )}
       </div>
     );
   };
@@ -484,7 +494,21 @@ export default function ManualTradingPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 col-span-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="interval">Interval</Label>
+                      <Select onValueChange={handleIntervalChange} value={interval} disabled={isThisPageTrading}>
+                        <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1m">1 Minute</SelectItem>
+                          <SelectItem value="5m">5 Minutes</SelectItem>
+                          <SelectItem value="15m">15 Minutes</SelectItem>
+                          <SelectItem value="1h">1 Hour</SelectItem>
+                          <SelectItem value="4h">4 Hours</SelectItem>
+                          <SelectItem value="1d">1 Day</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
                       <Label htmlFor="strategy">Strategy</Label>
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
                         <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
@@ -502,20 +526,6 @@ export default function ManualTradingPage() {
                                 ))}
                             </div>
                         )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="interval">Interval</Label>
-                      <Select onValueChange={handleIntervalChange} value={interval} disabled={isThisPageTrading}>
-                        <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1m">1 Minute</SelectItem>
-                          <SelectItem value="5m">5 Minutes</SelectItem>
-                          <SelectItem value="15m">15 Minutes</SelectItem>
-                          <SelectItem value="1h">1 Hour</SelectItem>
-                          <SelectItem value="4h">4 Hours</SelectItem>
-                          <SelectItem value="1d">1 Day</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                 </div>
 
@@ -799,7 +809,7 @@ export default function ManualTradingPage() {
               <div>
                 <CardTitle>Trade Signal</CardTitle>
                 <CardDescription>
-                    {signal ? `Signal for ${symbol} generated at ${signal.timestamp.toLocaleTimeString()}` : "Signals will appear here after analysis."}
+                    {signal ? `Signal for ${symbol} generated at ${new Date(signal.timestamp).toLocaleTimeString()}` : "Signals will appear here after analysis."}
                 </CardDescription>
               </div>
               <CollapsibleTrigger asChild>
