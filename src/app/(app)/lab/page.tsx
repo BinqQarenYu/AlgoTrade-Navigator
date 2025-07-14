@@ -202,6 +202,7 @@ export default function LabPage() {
   const [isConfirmingScan, setIsConfirmingScan] = useState(false);
   const [isConsensusStratOpen, setIsConsensusStratOpen] = usePersistentState<boolean>('lab-consensus-strat-open', false);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
+  const [isPhysicsPanelsOpen, setIsPhysicsPanelsOpen] = usePersistentState<boolean>('lab-physics-panels-open', true);
   const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
   const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('lab-projection-card-open', true);
   
@@ -1253,36 +1254,43 @@ export default function LabPage() {
                           )}
                       </div>
                        <Separator/>
-                        <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                            <Label className="flex-1 cursor-pointer font-semibold">Physics Panels</Label>
-                            <div className="border-b -mx-3"></div>
-                            <div className="pl-2 space-y-3 pt-2">
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-depth" checked={physicsChartConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} />
-                                    <Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-imbalance" checked={physicsChartConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} />
-                                    <Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-stiffness" checked={physicsChartConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} />
-                                    <Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <Switch id="show-pressure" checked={physicsChartConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} />
-                                    <Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label>
-                                </div>
-                                 <div className="flex items-center space-x-2">
-                                    <Switch id="show-bpi" checked={physicsChartConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} />
-                                    <Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label>
-                                </div>
-                                <div className="space-y-2 pt-2">
-                                    <Label htmlFor="bpi-threshold">BPI Threshold</Label>
-                                    <Input id="bpi-threshold" type="number" step="0.1" value={physicsChartConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} />
-                                </div>
-                            </div>
-                        </div>
+                        <Collapsible open={isPhysicsPanelsOpen} onOpenChange={setIsPhysicsPanelsOpen} className="p-3 border rounded-md bg-muted/50 space-y-4">
+                          <CollapsibleTrigger asChild>
+                              <div className="flex w-full items-center justify-between cursor-pointer">
+                                <Label className="flex-1 font-semibold">Physics Panels</Label>
+                                <ChevronDown className={cn("h-4 w-4 transition-transform", isPhysicsPanelsOpen && "rotate-180")} />
+                              </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-4 space-y-3">
+                              <div className="border-b -mx-3"></div>
+                              <div className="pl-2 space-y-3 pt-2">
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-depth" checked={physicsChartConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} />
+                                      <Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-imbalance" checked={physicsChartConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} />
+                                      <Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-stiffness" checked={physicsChartConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} />
+                                      <Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-pressure" checked={physicsChartConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} />
+                                      <Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                      <Switch id="show-bpi" checked={physicsChartConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} />
+                                      <Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label>
+                                  </div>
+                                  <div className="space-y-2 pt-2">
+                                      <Label htmlFor="bpi-threshold">BPI Threshold</Label>
+                                      <Input id="bpi-threshold" type="number" step="0.1" value={physicsChartConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} />
+                                  </div>
+                              </div>
+                          </CollapsibleContent>
+                        </Collapsible>
                       <div className="space-y-2">
                           <Label htmlFor="line-width">Line Thickness</Label>
                           <Slider
