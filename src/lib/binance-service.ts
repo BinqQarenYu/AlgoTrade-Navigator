@@ -11,7 +11,9 @@ const BINANCE_API_URL = 'https://fapi.binance.com';
 // CCXT instance for public market data
 const binance = new ccxt.binance({
     options: { defaultType: 'future' },
+    enableRateLimit: true, // Enable built-in rate limiting
 });
+binance.loadMarkets(); // Pre-load markets
 
 // Helper for authenticated Binance API calls (GET requests)
 const callAuthenticatedGetApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
@@ -126,7 +128,7 @@ export const getHistoricalKlines = async (
     try {
         await binance.loadMarkets();
         // Use CCXT's unified method to fetch OHLCV data
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit);
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit, { 'newUpdates': false });
 
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -170,7 +172,7 @@ export const getLatestKlinesByLimit = async (
         await binance.loadMarkets();
         // Use CCXT's unified method to fetch OHLCV data.
         // Providing 'undefined' for 'since' fetches the most recent candles.
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit);
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit, { 'newUpdates': false });
 
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -190,7 +192,7 @@ export const getLatestKlinesByLimit = async (
         console.error(`Error fetching latest klines via CCXT:`, error);
         if (error instanceof ccxt.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof ccxt.ExchangeError) {
+        } else if (error instanceof cc.ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
@@ -202,7 +204,7 @@ export const get24hTickerStats = async (symbols: string[]): Promise<Record<strin
     if (symbols.length === 0) return {};
     console.log(`Fetching 24h ticker stats for ${symbols.length} symbols...`);
     try {
-        const tickers = await binance.fetchTickers(symbols);
+        const tickers = await binance.fetchTickers(symbols, { 'newUpdates': false });
         return tickers;
     } catch (error: any) {
         console.error(`Error fetching tickers via CCXT:`, error);
@@ -216,7 +218,7 @@ export const get24hTickerStats = async (symbols: string[]): Promise<Record<strin
                 const tickersObject: Record<string, Ticker> = {};
                 await Promise.all(symbols.map(async (symbol) => {
                     try {
-                        const ticker = await binance.fetchTicker(symbol);
+                        const ticker = await binance.fetchTicker(symbol, { 'newUpdates': false });
                         tickersObject[ticker.symbol] = ticker;
                     } catch (e) {
                         console.warn(`Could not fetch individual ticker for ${symbol}`, e);
