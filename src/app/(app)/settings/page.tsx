@@ -90,6 +90,7 @@ export default function SettingsPage() {
   const { executeTestTrade, closeTestPosition } = useBot();
 
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [clientIpAddress, setClientIpAddress] = useState<string | null>(null)
   const [serverIpAddress, setServerIpAddress] = useState<string | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -99,18 +100,18 @@ export default function SettingsPage() {
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
 
   // State for test controls
-  const [isTestCardOpen, setTestCardOpen] = usePersistentState<boolean>('settings-test-card-open', false);
+  const [isTestCardOpen, setTestCardOpen] = usePersistentState<boolean>('settings-test-card-open', true);
   const [testSymbol, setTestSymbol] = usePersistentState<string>('settings-test-symbol', 'BTCUSDT');
   const [testCapital, setTestCapital] = usePersistentState<number>('settings-test-capital', 10);
   const [testLeverage, setTestLeverage] = usePersistentState<number>('settings-test-leverage', 1);
 
   // Collapsible states
-  const [isConnectionOpen, setConnectionOpen] = useState(false);
-  const [isIpOpen, setIpOpen] = useState(false);
+  const [isConnectionOpen, setConnectionOpen] = useState(true);
+  const [isIpOpen, setIpOpen] = useState(true);
   const [isIntegrationsOpen, setIntegrationsOpen] = useState(false);
   const [isRateLimitOpen, setRateLimitOpen] = useState(false);
   const [isAiQuotaOpen, setAiQuotaOpen] = useState(false);
-  const [isProfilesOpen, setProfilesOpen] = useState(false);
+  const [isProfilesOpen, setProfilesOpen] = useState(true);
   const [isFeesOpen, setIsFeesOpen] = useState(false);
 
 
@@ -165,7 +166,8 @@ export default function SettingsPage() {
       });
       return;
     }
-
+    
+    setConnectionError(null);
     setIsConnecting(true)
 
     if (!isConnected) {
@@ -179,11 +181,16 @@ export default function SettingsPage() {
         setApiLimit({ used: usedWeight, limit: 1200 })
       } catch (error: any) {
         setIsConnected(false)
-        toast({
-          title: "Connection Failed",
-          description: error.message || "Please check your API keys and permissions.",
-          variant: "destructive",
-        })
+        if (error.message && error.message.includes('-2015')) {
+            // Specific handling for the -2015 IP/permissions error
+            setConnectionError(error.message);
+        } else {
+            toast({
+                title: "Connection Failed",
+                description: error.message || "Please check your API keys and permissions.",
+                variant: "destructive",
+            });
+        }
       }
     } else {
       setIsConnected(false)
@@ -274,7 +281,24 @@ export default function SettingsPage() {
               </CollapsibleTrigger>
             </CardHeader>
             <CollapsibleContent>
-              <CardContent>
+              <CardContent className="space-y-4">
+                 {connectionError && (
+                    <Alert variant="destructive">
+                        <ShieldAlert className="h-4 w-4" />
+                        <AlertTitle>Connection Failed (Error -2015)</AlertTitle>
+                        <AlertDescription>
+                            <p>Binance rejected the connection. This is usually due to one of two issues:</p>
+                            <ul className="list-disc pl-5 mt-2 space-y-1">
+                                <li>
+                                    <strong>IP Whitelist:</strong> If your key has IP restrictions, you MUST add the server's IP address (shown below) to your key's whitelist in Binance.
+                                </li>
+                                <li>
+                                    <strong>Permissions:</strong> Ensure your API key has "Enable Futures" permissions checked in Binance.
+                                </li>
+                            </ul>
+                        </AlertDescription>
+                    </Alert>
+                )}
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Status: <span className={cn(
