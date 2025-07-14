@@ -680,7 +680,7 @@ export default function LiveTradingPage() {
                 <Button 
                     variant="destructive" 
                     className="w-full"
-                    disabled={isRunning || !isConnected || !activePosition}
+                    disabled={isRunning || !isConnected}
                     onClick={() => closeTestPosition(symbol)}
                 >
                     <XCircle className="mr-2 h-4 w-4" />
