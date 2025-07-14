@@ -107,7 +107,7 @@ interface BotContextType {
   activateRecommendedStrategy: (strategyId: string) => void;
   dismissRecommendation: () => void;
   // Test trade functions
-  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', quantity: number) => void;
+  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
   closeTestPosition: () => void;
 }
 
@@ -1347,7 +1347,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
   
   // --- Test Trade Logic ---
-  const executeTestTrade = useCallback(async (symbol: string, side: 'BUY' | 'SELL', quantity: number) => {
+  const executeTestTrade = useCallback(async (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => {
     if (!activeProfile || !apiKey || !secretKey) {
         toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
         return;
@@ -1357,8 +1357,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    addLiveLog(`Executing test order: ${side} ${quantity} ${symbol}...`);
+    addLiveLog(`Executing test order: ${side} ${capital}x${leverage} on ${symbol}...`);
     try {
+        const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
+        if (klines.length === 0) {
+            throw new Error("Could not fetch current price to calculate quantity.");
+        }
+        const currentPrice = klines[0].close;
+        const quantity = (capital * leverage) / currentPrice;
+
         const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
         toast({
             title: "Test Order Placed Successfully",
@@ -1379,10 +1386,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const { asset, action, entryPrice } = liveBotState.activePosition;
     const { initialCapital, leverage } = liveBotState.config;
     const side: OrderSide = action === 'UP' ? 'SELL' : 'BUY';
-    const quantity = (initialCapital * leverage) / entryPrice;
 
-    executeTestTrade(asset, side, quantity);
-  }, [liveBotState.activePosition, liveBotState.config, executeTestTrade, toast]);
+    executeTestTrade(asset, side, initialCapital, leverage);
+  }, [liveBotState.activePosition, liveBotState.config, executeTestTrade]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1443,4 +1449,3 @@ export const useBot = () => {
   }
   return context;
 };
-

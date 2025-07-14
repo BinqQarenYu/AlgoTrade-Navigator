@@ -39,7 +39,7 @@ import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
-
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
 import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
@@ -59,7 +59,6 @@ import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
 import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
 import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
-import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
 import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
@@ -164,6 +163,10 @@ export default function LiveTradingPage() {
   const [stopLoss, setStopLoss] = usePersistentState<number>('live-sl', 2);
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
+
+  // State for test trade inputs
+  const [testCapital, setTestCapital] = usePersistentState<number>('live-test-capital', 10);
+  const [testLeverage, setTestLeverage] = usePersistentState<number>('live-test-leverage', 1);
 
   // Local state for chart data, separate from the bot's data
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
@@ -500,7 +503,7 @@ export default function LiveTradingPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-2">
                       <Label htmlFor="strategy">Strategy</Label>
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}>
                         <SelectTrigger id="strategy">
@@ -626,15 +629,40 @@ export default function LiveTradingPage() {
         <Card>
              <CardHeader>
                 <CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle>
-                <CardDescription>Manually execute small trades to test your API connection.</CardDescription>
+                <CardDescription>Manually execute trades to test your API connection and settings.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-2">
+            <CardContent className="flex flex-col gap-4">
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="test-capital">Test Capital ($)</Label>
+                        <Input 
+                            id="test-capital" 
+                            type="number" 
+                            value={testCapital}
+                            onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)}
+                            placeholder="10"
+                            disabled={isRunning || !isConnected}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="test-leverage">Test Leverage (x)</Label>
+                      <Input
+                        id="test-leverage"
+                        type="number"
+                        min="1"
+                        value={testLeverage}
+                        onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)}
+                        placeholder="1"
+                        disabled={isRunning || !isConnected}
+                      />
+                    </div>
+                </div>
                 <div className="flex gap-2">
                     <Button 
                         variant="outline" 
                         className="w-full"
                         disabled={isRunning || !isConnected}
-                        onClick={() => executeTestTrade(symbol, 'BUY', 0.001)}
+                        onClick={() => executeTestTrade(symbol, 'BUY', testCapital, testLeverage)}
                     >
                         <TrendingUp className="mr-2 h-4 w-4 text-green-500" />
                         Test Buy
@@ -643,7 +671,7 @@ export default function LiveTradingPage() {
                         variant="outline" 
                         className="w-full"
                         disabled={isRunning || !isConnected}
-                        onClick={() => executeTestTrade(symbol, 'SELL', 0.001)}
+                        onClick={() => executeTestTrade(symbol, 'SELL', testCapital, testLeverage)}
                     >
                         <TrendingDown className="mr-2 h-4 w-4 text-red-500" />
                         Test Sell
@@ -658,7 +686,7 @@ export default function LiveTradingPage() {
                     <XCircle className="mr-2 h-4 w-4" />
                     Close Test Position
                 </Button>
-                <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. The quantity is fixed at a very small amount (e.g., 0.001 for BTC) for testing purposes.</p>
+                <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. Ensure the capital and leverage are set to amounts you are comfortable with for testing.</p>
             </CardContent>
         </Card>
 
