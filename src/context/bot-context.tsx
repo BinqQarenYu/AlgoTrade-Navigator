@@ -244,9 +244,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setManualTraderState(prev => {
         if (!prev.chartData) return prev;
         const cleaned = prev.chartData.map(({ time, open, high, low, close, volume }) => ({ time, open, high, low, close, volume }));
-        return { ...prev, chartData: cleaned };
+        return { ...prev, chartData: cleaned, signal: null };
     });
-    addManualLog("Cleared indicators from chart.");
+    addManualLog("Cleared indicators and signals from chart.");
   }, [addManualLog]);
 
   // --- Reusable Analysis Logic ---
@@ -674,66 +674,79 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addManualLog]);
 
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
+    // Clear any existing interval to prevent duplicates.
     if (manualReevalIntervalRef.current) {
-        clearInterval(manualReevalIntervalRef.current);
+      clearInterval(manualReevalIntervalRef.current);
     }
     manualAnalysisCancelRef.current = false;
     manualConfigRef.current = config;
-
+  
     setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
     addManualLog("Starting continuous analysis...");
-    
+  
     const performAnalysis = async () => {
-        if (manualAnalysisCancelRef.current) {
-            return;
-        }
-        
-        addManualLog("Analyzing for signal...");
-        
-        let chartDataForAnalysis: HistoricalData[];
-        try {
-            chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-        } catch (e: any) {
-            addManualLog(`Data fetch failed: ${e.message}`);
-            toast({ title: "Data Fetch Failed", description: e.message, variant: "destructive" });
-            cancelManualAnalysis();
-            return;
-        }
-
+      // This ref is checked to see if the user has cancelled the process.
+      if (manualAnalysisCancelRef.current) {
+        return;
+      }
+      
+      addManualLog("Analyzing for signal...");
+      
+      let chartDataForAnalysis: HistoricalData[];
+      try {
+        chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+      } catch (e: any) {
+        // Log error but DO NOT cancel the loop.
+        addManualLog(`Data fetch failed: ${e.message}. Retrying on next interval.`);
+        toast({ title: "Data Fetch Failed", description: "Will retry automatically.", variant: "destructive" });
+        return; // Exit this iteration, the loop will run again.
+      }
+  
+      // Only proceed with analysis if we have data.
+      if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
         const result = await analyzeAsset(config, chartDataForAnalysis);
-        
-        setManualTraderState(prev => ({
-            ...prev,
-            chartData: result.dataWithIndicators || chartDataForAnalysis,
-            signal: result.signal || prev.signal, // Keep old signal if new analysis yields nothing
-        }));
+      
+        // Use a functional update for state to avoid stale state issues.
+        setManualTraderState(current => {
+          if (!current.isAnalyzing) return current; // Stop updates if user cancelled during async op
 
-        if (result.signal) {
+          const currentSignalTime = current.signal?.timestamp;
+          const newSignalTime = result.signal?.timestamp;
+
+          // If a new signal is found (different from the current one).
+          if (result.signal && currentSignalTime !== newSignalTime) {
             addManualLog(`NEW SIGNAL FOUND: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}.`);
-            if (!manualTraderState.signal || manualTraderState.signal.timestamp !== result.signal.timestamp) {
-                toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
-                 // If this is a new signal, connect the websocket for invalidation
-                 connectManualWebSocket(config.symbol, config.interval);
+            toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
+            connectManualWebSocket(config.symbol, config.interval);
+          } else if (!result.signal && current.signal) {
+            // A signal previously existed but is now gone.
+            addManualLog("Previous signal is now considered stale.");
+            toast({ title: "Signal Stale", description: "The previous signal is no longer valid." });
+            if (manualWsRef.current) {
+              manualWsRef.current.close();
             }
-        } else {
-            addManualLog(`No signal found. Reason: ${result.log}`);
-             if (manualTraderState.signal) {
-                setManualTraderState(prev => ({...prev, signal: null}));
-                addManualLog("Previous signal is now considered stale.");
-                toast({ title: "Signal Stale", description: "The previous signal is no longer valid." });
-                if (manualWsRef.current) {
-                    manualWsRef.current.close();
-                }
-             }
-        }
+          } else if (!result.signal) {
+             addManualLog(`No new signal found. Reason: ${result.log}`);
+          }
+          
+          return {
+              ...current,
+              chartData: result.dataWithIndicators || chartDataForAnalysis,
+              signal: result.signal || null, // Always update with the latest result
+          };
+        });
+      }
     };
     
-    performAnalysis(); 
+    // Perform the first analysis immediately.
+    await performAnalysis(); 
     
+    // Set up the interval for subsequent analyses.
     const reevalTime = intervalToMs(config.interval);
     addManualLog(`Will re-evaluate every ${config.interval}.`);
     manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
-  }, [addManualLog, toast, analyzeAsset, cancelManualAnalysis, connectManualWebSocket, manualTraderState.signal]);
+  
+  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
