@@ -384,7 +384,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
             const quantity = (config.initialCapital * config.leverage) / currentPosition.entryPrice;
             try {
-                const orderResult = await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
+                const orderResult = await placeOrder(config.symbol, side, quantity, apiKey, secretKey, true);
                 toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.symbol} placed.` });
                 
                 const pnl = side === 'SELL' 
@@ -856,7 +856,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: `Submitting close order...`, description: `${side} ${quantity} ${symbol}` });
 
     try {
-        const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
+        const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey, true);
         
         toast({
             title: "Close Order Submitted",
@@ -1379,31 +1379,36 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
 
   const closeTestPosition = useCallback(async (symbol: string, capital: number, leverage: number) => {
-    // Note: Since we don't have real-time position tracking for manual test trades,
-    // this function assumes there's a position and attempts to close it by sending
-    // an opposing order. We have to guess the side. This is not ideal but is the
-    // best we can do without full position state management for this feature.
-    // For simplicity, we'll try to close both sides.
     addLiveLog(`Attempting to close any open test position for ${symbol}...`);
     
-    try {
-      // First, try to sell (to close a long)
-      await executeTestTrade(symbol, 'SELL', capital, leverage);
-    } catch (e) {
-      // This will likely fail if there is no long position, which is expected.
-      addLiveLog("Could not execute closing SELL order (maybe no LONG position was open).");
+    if (!activeProfile || !apiKey || !secretKey) {
+        toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
+        return;
     }
+    
+    // We don't know the exact size of the position, so we estimate it based on capital/leverage.
+    // This is not perfect but is the best we can do for a stateless close button.
+    const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
+    if (klines.length === 0) {
+      toast({ title: "Close Failed", description: "Could not fetch current price.", variant: "destructive" });
+      return;
+    }
+    const currentPrice = klines[0].close;
+    const quantity = (capital * leverage) / currentPrice;
+    
+    // Attempt to close both a long and a short position.
+    // One will fail if no position exists, which we can ignore.
+    const closeLongPromise = placeOrder(symbol, 'SELL', quantity, apiKey, secretKey, true)
+      .catch(e => addLiveLog(`Could not close LONG: ${e.message}`));
+      
+    const closeShortPromise = placeOrder(symbol, 'BUY', quantity, apiKey, secretKey, true)
+      .catch(e => addLiveLog(`Could not close SHORT: ${e.message}`));
 
-    try {
-      // Then, try to buy (to close a short)
-      await executeTestTrade(symbol, 'BUY', capital, leverage);
-    } catch (e) {
-       addLiveLog("Could not execute closing BUY order (maybe no SHORT position was open).");
-    }
+    await Promise.all([closeLongPromise, closeShortPromise]);
 
     toast({title: "Close Signal Sent", description: `Sent orders to close any open position for ${symbol}. Check your exchange for confirmation.`});
     
-  }, [executeTestTrade, addLiveLog, toast]);
+  }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
 
   // Cleanup on unmount
   useEffect(() => {

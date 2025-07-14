@@ -236,7 +236,8 @@ export const placeOrder = async (
   side: OrderSide, 
   quantity: number, 
   apiKey: string, 
-  secretKey: string
+  secretKey: string,
+  reduceOnly: boolean = false
 ): Promise<OrderResult> => {
   if (!apiKey || !secretKey) {
       throw new Error("API keys are not configured. Cannot place order.");
@@ -260,6 +261,10 @@ export const placeOrder = async (
     quantity: formattedQuantity,
     timestamp,
   };
+  
+  if (reduceOnly) {
+      params.reduceOnly = 'true';
+  }
 
   const queryString = Object.keys(params)
     .map(key => `${key}=${params[key]}`)
@@ -282,6 +287,10 @@ export const placeOrder = async (
     const responseData = await response.json();
 
     if (!response.ok) {
+      // Handle a specific error for reduceOnly orders on non-existent positions
+      if (responseData.code === -2022 && responseData.msg.includes('ReduceOnly Order is rejected')) {
+        throw new Error(`Close order failed: No open position for ${symbol} on the specified side.`);
+      }
       throw new Error(`Binance API Error: ${responseData.msg || 'Failed to place order'} (Code: ${responseData.code})`);
     }
 
@@ -290,12 +299,12 @@ export const placeOrder = async (
       symbol: responseData.symbol,
       side: responseData.side,
       quantity: parseFloat(responseData.origQty),
-      price: parseFloat(responseData.avgPrice), // Avg fill price for market orders
+      price: parseFloat(responseData.avgPrice || responseData.price), // Use avgPrice for market, price for limit
       timestamp: responseData.updateTime,
     };
   } catch (error: any) {
     console.error(`Error placing order on Binance:`, error);
-    if (error.message.includes('Binance API Error')) {
+    if (error.message.includes('Binance API Error') || error.message.includes('Close order failed')) {
       throw error;
     }
     throw new Error("Failed to send order to Binance. Please check your network and API permissions.");
