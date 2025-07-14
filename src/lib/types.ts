@@ -118,6 +118,28 @@ export type HistoricalData = {
   // For Grid Trading
   gridLevels?: number[];
   isProjected?: boolean;
+  // For Physics-Based Visualization
+  k1_stiffness_range?: number;
+  volume_resistance_index_N?: number;
+  pressure_depth?: number;
+  avg_pressure_depth_N?: number;
+  depthTotal?: number;
+  depth_imbalance_ratio?: number;
+  burst_potential_index_N?: number;
+  sentimentScore?: number;
+  predicted_next_pump_prob?: number;
+  predicted_next_dump_prob?: number;
+  predicted_next_burst_prob?: number;
+};
+
+export type PhysicsChartConfig = {
+  showDepth: boolean;
+  showImbalance: boolean;
+  showStiffness: boolean;
+  showPressure: boolean;
+  showBPI: boolean;
+  showSentiment: boolean;
+  bpiThreshold: number;
 };
 
 export type Portfolio = {

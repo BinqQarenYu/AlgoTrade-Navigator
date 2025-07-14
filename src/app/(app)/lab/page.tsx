@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2, CalendarIcon } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary, PhysicsChartConfig } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
@@ -177,6 +177,21 @@ export default function LabPage() {
   const [forwardTestSummary, setForwardTestSummary] = useState<BacktestSummary | null>(null);
   const [forwardTestTrades, setForwardTestTrades] = useState<BacktestResult[]>([]);
   const [selectedForwardTrade, setSelectedForwardTrade] = useState<BacktestResult | null>(null);
+
+  // New Physics Chart Config State
+  const [physicsChartConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab-physics-chart-config', {
+    showDepth: true,
+    showImbalance: true,
+    showStiffness: true,
+    showPressure: true,
+    showBPI: true,
+    showSentiment: true,
+    bpiThreshold: 2.5,
+  });
+
+  const handlePhysicsConfigChange = <K extends keyof PhysicsChartConfig>(key: K, value: PhysicsChartConfig[K]) => {
+    setPhysicsChartConfig(prev => ({ ...prev, [key]: value }));
+  };
 
 
   // Collapsible states
@@ -894,6 +909,7 @@ export default function LabPage() {
                   manipulationResult={manipulationResult}
                   showManipulationOverlay={showManipulationOverlay}
                   highlightedTrade={selectedForwardTrade}
+                  physicsConfig={physicsChartConfig}
               />
             </div>
             <div
@@ -1210,7 +1226,7 @@ export default function LabPage() {
                       <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                           <div className="flex items-center space-x-2">
                               <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
-                              <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show All Analysis Drawings</Label>
+                              <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Overlays</Label>
                           </div>
                           {showAnalysis && (
                             <>
@@ -1218,24 +1234,55 @@ export default function LabPage() {
                               <div className="pl-2 space-y-3 pt-2">
                                   <div className="flex items-center space-x-2">
                                       <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
-                                      <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Show Order Book Walls</Label>
+                                      <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
                                       <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                                      <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Show Historical Grabs</Label>
+                                      <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
                                       <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
-                                      <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Show Future Targets</Label>
+                                      <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
                                       <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
-                                      <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Show Manipulation Overlay</Label>
+                                      <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Manipulation Overlay</Label>
                                   </div>
                               </div>
                             </>
                           )}
                       </div>
+                       <Separator/>
+                        <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                            <Label className="flex-1 cursor-pointer font-semibold">Physics Panels</Label>
+                            <div className="border-b -mx-3"></div>
+                            <div className="pl-2 space-y-3 pt-2">
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-depth" checked={physicsChartConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} />
+                                    <Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-imbalance" checked={physicsChartConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} />
+                                    <Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-stiffness" checked={physicsChartConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} />
+                                    <Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-pressure" checked={physicsChartConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} />
+                                    <Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label>
+                                </div>
+                                 <div className="flex items-center space-x-2">
+                                    <Switch id="show-bpi" checked={physicsChartConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} />
+                                    <Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label>
+                                </div>
+                                <div className="space-y-2 pt-2">
+                                    <Label htmlFor="bpi-threshold">BPI Threshold</Label>
+                                    <Input id="bpi-threshold" type="number" step="0.1" value={physicsChartConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} />
+                                </div>
+                            </div>
+                        </div>
                       <div className="space-y-2">
                           <Label htmlFor="line-width">Line Thickness</Label>
                           <Slider

@@ -4,12 +4,12 @@
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade, PhysicsChartConfig } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
-import { Camera } from 'lucide-react';
+import { Camera, AlertTriangle, ArrowUp, ArrowDown } from 'lucide-react';
 import { formatPrice, formatLargeNumber, intervalToMs } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
 
@@ -27,6 +27,7 @@ const intervals = [
 
 export function TradingChart({ 
   data, 
+  projectedData,
   symbol, 
   interval, 
   tradeSignal = null,
@@ -47,8 +48,10 @@ export function TradingChart({
   scaleMode = 'linear',
   manipulationResult = null,
   showManipulationOverlay = true,
+  physicsConfig,
 }: { 
-  data: HistoricalData[]; 
+  data: HistoricalData[];
+  projectedData?: HistoricalData[];
   symbol: string; 
   interval: string; 
   tradeSignal?: TradeSignal | null;
@@ -69,14 +72,19 @@ export function TradingChart({
   scaleMode?: 'linear' | 'logarithmic';
   manipulationResult?: DetectManipulationOutput | null;
   showManipulationOverlay?: boolean;
+  physicsConfig?: PhysicsChartConfig;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const [spoofZone, setSpoofZone] = useState<{ top: number, bottom: number, startTime: number } | null>(null);
   const spoofZoneTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const combinedData = useMemo(() => {
+    return [...data, ...(projectedData || [])];
+  }, [data, projectedData]);
   
-  const lastCandle = data.length > 0 ? data[data.length - 1] : null;
-  const previousCandle = data.length > 1 ? data[data.length - 2] : null;
+  const lastCandle = combinedData.length > 0 ? combinedData[combinedData.length - 1] : null;
+  const previousCandle = combinedData.length > 1 ? combinedData[combinedData.length - 2] : null;
 
   const priceChange = lastCandle && previousCandle ? lastCandle.close - previousCandle.close : 0;
   const priceChangePercent = previousCandle && previousCandle.close !== 0 ? (priceChange / previousCandle.close) * 100 : 0;
@@ -300,12 +308,12 @@ export function TradingChart({
   }, []);
 
   useEffect(() => {
-    if (!chartRef.current || !data) return;
+    if (!chartRef.current || !combinedData) return;
     
     const { candlestickSeries, mainLineSeries, volumeSeries, smaShortSeries, smaLongSeries, emaMediumSeries, pocSeries, donchianUpperSeries, donchianMiddleSeries, donchianLowerSeries, tenkanSeries, kijunSeries, senkouASeries, senkouBSeries, chart, chartColors } = chartRef.current;
 
-    if (data.length > 0) {
-        const sortedData = [...data].sort((a, b) => a.time - b.time);
+    if (combinedData.length > 0) {
+        const sortedData = [...combinedData].sort((a, b) => a.time - b.time);
         const uniqueData = sortedData.filter((candle, index, self) =>
             index === 0 || candle.time > self[index - 1].time
         );
@@ -483,11 +491,10 @@ export function TradingChart({
             mainLineSeries.setData(lineData);
         } else {
             mainLineSeries.setData([]);
-            const realDataEndIndex = uniqueData.findIndex(d => (d as any).isProjected);
             
-            const candlestickChartData = uniqueData.map((d, index) => {
+            const candlestickChartData = uniqueData.map((d) => {
                 const isHighlighted = isTradeHighlighted(d);
-                const isProjected = realDataEndIndex !== -1 && index >= realDataEndIndex;
+                const isProjected = d.isProjected;
                 
                 let phaseColor: string | null = null;
                 if (showManipulationOverlay && manipulationResult?.isManipulationSuspected) {
@@ -547,7 +554,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, unmatchedGridTrades]);
+  }, [combinedData, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, unmatchedGridTrades]);
 
    // Effect to draw signal lines
     useEffect(() => {
@@ -636,7 +643,7 @@ export function TradingChart({
 
     // Effect to focus on a specific trade
     useEffect(() => {
-      if (!chartRef.current?.chart || !highlightedTrade || !data || data.length < 2) return;
+      if (!chartRef.current?.chart || !highlightedTrade || !combinedData || combinedData.length < 2) return;
 
       const { chart } = chartRef.current;
       const timeScale = chart.timeScale();
@@ -645,7 +652,7 @@ export function TradingChart({
       const exitTime = 'sell' in highlightedTrade ? highlightedTrade.sell.time : highlightedTrade.exitTime;
       
       const intervalMs = exitTime === entryTime 
-        ? (data[1].time - data[0].time)
+        ? (combinedData[1].time - combinedData[0].time)
         : (exitTime - entryTime);
 
       const paddingMs = intervalMs * 20;
@@ -658,7 +665,7 @@ export function TradingChart({
           to: toVisible,
       });
 
-    }, [highlightedTrade, data]);
+    }, [highlightedTrade, combinedData]);
 
     // Effect to draw wall lines from Order Book
     useEffect(() => {
@@ -779,7 +786,7 @@ export function TradingChart({
 
     // Effect to draw the target zone box
     useEffect(() => {
-      if (!chartRef.current?.chart || !data || data.length < 2) {
+      if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
           if (chartRef.current?.targetZoneSeries) {
               chartRef.current.targetZoneSeries.setData([]);
           }
@@ -797,8 +804,8 @@ export function TradingChart({
       
       if (showAnalysis && lastGrabEvent && buySideTarget && sellSideTarget) {
           const startTime = toTimestamp(lastGrabEvent.time);
-          const lastCandle = data[data.length - 1];
-          const intervalMs = data[1].time - data[0].time;
+          const lastCandle = combinedData[combinedData.length - 1];
+          const intervalMs = combinedData[1].time - combinedData[0].time;
           const futureBars = 20;
 
           const topPrice = buySideTarget.priceLevel;
@@ -807,7 +814,7 @@ export function TradingChart({
           const boxData = [];
           
           let lastTime = 0;
-          for(const candle of data) {
+          for(const candle of combinedData) {
               const candleTime = toTimestamp(candle.time);
               if (candleTime >= startTime) {
                   boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
@@ -825,12 +832,12 @@ export function TradingChart({
           targetZoneSeries.setData([]);
       }
 
-  }, [data, liquidityEvents, liquidityTargets, showAnalysis]);
+  }, [combinedData, liquidityEvents, liquidityTargets, showAnalysis]);
 
 
     // Effect to draw consensus price dot and arrow
     useEffect(() => {
-      if (!chartRef.current?.chart || !data || data.length < 2) {
+      if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
         if (chartRef.current?.consensusPointSeries) {
           chartRef.current.consensusPointSeries.setData([]);
           chartRef.current.consensusArrowSeries.setMarkers([]);
@@ -842,8 +849,8 @@ export function TradingChart({
       if (!consensusPointSeries || !consensusArrowSeries) return;
 
       if (consensusResult && showAnalysis) {
-        const lastCandle = data[data.length - 1];
-        const intervalMs = data[1].time - data[0].time;
+        const lastCandle = combinedData[combinedData.length - 1];
+        const intervalMs = combinedData[1].time - combinedData[0].time;
         const futureBarOffset = 10;
         const futureTime = toTimestamp(lastCandle.time + (futureBarOffset * intervalMs));
         
@@ -864,7 +871,7 @@ export function TradingChart({
         if (consensusPointSeries.setData) consensusPointSeries.setData([]);
         if (consensusArrowSeries.setMarkers) consensusArrowSeries.setMarkers([]);
       }
-    }, [consensusResult, data, showAnalysis]);
+    }, [consensusResult, combinedData, showAnalysis]);
 
      // Effect for volume leg line (Green to Red)
      useEffect(() => {
@@ -878,7 +885,7 @@ export function TradingChart({
           chartRef.current.volumeLegTextPriceLine = null;
       }
 
-      if (!showAnalysis || data.length < 2 || liquidityEvents.length < 2) return;
+      if (!showAnalysis || combinedData.length < 2 || liquidityEvents.length < 2) return;
       
       const sortedEvents = [...liquidityEvents].sort((a, b) => a.time - b.time);
       let startEvent: LiquidityEvent | null = null;
@@ -901,11 +908,11 @@ export function TradingChart({
           ]);
 
           // Calculate volume
-          const startIndex = data.findIndex(d => d.time >= startEvent!.time);
-          const endIndex = data.findIndex(d => d.time >= endEvent!.time);
+          const startIndex = combinedData.findIndex(d => d.time >= startEvent!.time);
+          const endIndex = combinedData.findIndex(d => d.time >= endEvent!.time);
 
           if (startIndex > -1 && endIndex > -1) {
-              const relevantCandles = data.slice(startIndex, endIndex + 1);
+              const relevantCandles = combinedData.slice(startIndex, endIndex + 1);
               const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
               const volumeText = `Vol (Up-Leg): ${formatLargeNumber(totalVolume, 2)}`;
               const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
@@ -920,7 +927,7 @@ export function TradingChart({
               });
           }
       }
-    }, [data, liquidityEvents, showAnalysis]);
+    }, [combinedData, liquidityEvents, showAnalysis]);
 
     // Effect for volume leg line (Last 2 Grabs)
     useEffect(() => {
@@ -934,7 +941,7 @@ export function TradingChart({
             chartRef.current.volumeLeg2TextPriceLine = null;
         }
 
-        if (!showAnalysis || data.length < 2 || liquidityEvents.length < 2) return;
+        if (!showAnalysis || combinedData.length < 2 || liquidityEvents.length < 2) return;
 
         const sortedEvents = [...liquidityEvents].sort((a, b) => a.time - b.time);
         
@@ -949,11 +956,11 @@ export function TradingChart({
             ]);
 
             // Calculate volume
-            const startIndex = data.findIndex(d => d.time >= startEvent.time);
-            const endIndex = data.findIndex(d => d.time >= endEvent.time);
+            const startIndex = combinedData.findIndex(d => d.time >= startEvent.time);
+            const endIndex = combinedData.findIndex(d => d.time >= endEvent.time);
 
             if (startIndex > -1 && endIndex > -1 && startIndex <= endIndex) {
-                const relevantCandles = data.slice(startIndex, endIndex + 1);
+                const relevantCandles = combinedData.slice(startIndex, endIndex + 1);
                 const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
                 const volumeText = `Vol (Last 2): ${formatLargeNumber(totalVolume, 2)}`;
                 const midpointPrice = (startEvent.priceLevel + endEvent.priceLevel) / 2;
@@ -968,7 +975,7 @@ export function TradingChart({
                 });
             }
         }
-    }, [data, liquidityEvents, showAnalysis]);
+    }, [combinedData, liquidityEvents, showAnalysis]);
 
     // Effect for volume leg line (last grab to now)
     useEffect(() => {
@@ -982,11 +989,11 @@ export function TradingChart({
             chartRef.current.volumeLeg3TextPriceLine = null;
         }
 
-        if (!showAnalysis || data.length < 2 || liquidityEvents.length < 1) return;
+        if (!showAnalysis || combinedData.length < 2 || liquidityEvents.length < 1) return;
 
         const sortedEvents = [...liquidityEvents].sort((a, b) => a.time - b.time);
         const startEvent = sortedEvents[sortedEvents.length - 1]; // The very last grab
-        const endCandle = data[data.length - 1]; // The current candle
+        const endCandle = combinedData[combinedData.length - 1]; // The current candle
 
         if (startEvent && endCandle && startEvent.time < endCandle.time) {
             // Draw the line
@@ -996,10 +1003,10 @@ export function TradingChart({
             ]);
 
             // Calculate volume
-            const startIndex = data.findIndex(d => d.time >= startEvent.time);
+            const startIndex = combinedData.findIndex(d => d.time >= startEvent.time);
             
             if (startIndex > -1) {
-                const relevantCandles = data.slice(startIndex);
+                const relevantCandles = combinedData.slice(startIndex);
                 const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
                 const volumeText = `Vol (Recent): ${formatLargeNumber(totalVolume, 2)}`;
                 const midpointPrice = (startEvent.priceLevel + endCandle.close) / 2;
@@ -1014,7 +1021,7 @@ export function TradingChart({
                 });
             }
         }
-    }, [data, liquidityEvents, showAnalysis]);
+    }, [combinedData, liquidityEvents, showAnalysis]);
     
     // Effect for the Dump Analysis Line
     useEffect(() => {
@@ -1028,12 +1035,12 @@ export function TradingChart({
             chartRef.current.dumpVolumeTextPriceLine = null;
         }
 
-        if (showManipulationOverlay && manipulationResult?.distributionPeriod && data.length > 0) {
+        if (showManipulationOverlay && manipulationResult?.distributionPeriod && combinedData.length > 0) {
             const { startTime } = manipulationResult.distributionPeriod;
             
-            const startIndex = data.findIndex(d => d.time >= startTime);
-            const startCandle = data[startIndex];
-            const endCandle = data[data.length - 1];
+            const startIndex = combinedData.findIndex(d => d.time >= startTime);
+            const startCandle = combinedData[startIndex];
+            const endCandle = combinedData[combinedData.length - 1];
 
             if (startCandle && endCandle) {
                 // Draw the line
@@ -1043,7 +1050,7 @@ export function TradingChart({
                 ]);
 
                 // Calculate volume
-                const relevantCandles = data.slice(startIndex);
+                const relevantCandles = combinedData.slice(startIndex);
                 const totalVolume = relevantCandles.reduce((sum, d) => sum + d.volume, 0);
                 const volumeText = `Vol (Dump): ${formatLargeNumber(totalVolume, 2)}`;
                 const midpointPrice = (startCandle.close + endCandle.close) / 2;
@@ -1058,7 +1065,7 @@ export function TradingChart({
                 });
             }
         }
-    }, [data, manipulationResult, showManipulationOverlay]);
+    }, [combinedData, manipulationResult, showManipulationOverlay]);
 
     // Effect to handle price scale mode changes
     useEffect(() => {
