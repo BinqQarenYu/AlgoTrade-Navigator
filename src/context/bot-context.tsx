@@ -682,8 +682,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     addManualLog("Starting continuous analysis...");
     
     const performAnalysis = async () => {
-        if (manualAnalysisCancelRef.current || manualTraderState.signal) {
-            cancelManualAnalysis();
+        // If user cancelled, stop the loop.
+        if (manualAnalysisCancelRef.current) {
+            if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
             return;
         }
         
@@ -701,16 +702,19 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         const result = await analyzeAsset(config, chartDataForAnalysis);
         
+        // This update is crucial for showing the indicators on the chart.
         setManualTraderState(prev => ({ ...prev, chartData: result.dataWithIndicators || chartDataForAnalysis }));
 
         if (result.signal) {
             addManualLog(`NEW SIGNAL FOUND: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}.`);
             toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
-            setManualTraderState(prev => ({ ...prev, signal: result.signal, isAnalyzing: false }));
+            setManualTraderState(prev => ({ ...prev, signal: result.signal }));
+            // Don't stop analysis, but connect websocket for invalidation
             connectManualWebSocket(config.symbol, config.interval);
-            if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
         } else {
             addManualLog(`No signal found. Reason: ${result.log}`);
+             // If a signal existed before but is now gone, clear it from state
+            setManualTraderState(prev => ({...prev, signal: null}));
         }
     };
     
@@ -719,7 +723,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const reevalTime = intervalToMs(config.interval);
     addManualLog(`Will re-evaluate every ${config.interval}.`);
     manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
-  }, [addManualLog, toast, analyzeAsset, cancelManualAnalysis, connectManualWebSocket, manualTraderState.signal]);
+  }, [addManualLog, toast, analyzeAsset, cancelManualAnalysis, connectManualWebSocket]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
