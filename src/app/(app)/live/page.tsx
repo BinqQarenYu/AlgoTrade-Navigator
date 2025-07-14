@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck, TestTube, TrendingUp, TrendingDown, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
 import type { HistoricalData, TradeSignal, DisciplineParams, LiveBotConfig } from "@/lib/types"
@@ -142,6 +142,8 @@ export default function LiveTradingPage() {
     isTradingActive,
     strategyParams,
     setStrategyParams,
+    executeTestTrade,
+    closeTestPosition,
   } = useBot();
 
   const { isRunning, logs, prediction, isPredicting, chartData: botChartData, activePosition } = liveBotState;
@@ -154,7 +156,7 @@ export default function LiveTradingPage() {
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
-  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', 'sma-crossover');
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', "sma-crossover");
   const [interval, setInterval] = usePersistentState<string>('live-interval', "1m");
   const [initialCapital, setInitialCapital] = usePersistentState<number>('live-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('live-leverage', 10);
@@ -328,7 +330,6 @@ export default function LiveTradingPage() {
             leverage,
             takeProfit,
             stopLoss,
-            marginType: "ISOLATED", // Hardcoded for safety
             useAIPrediction,
             reverse: strategyParams[selectedStrategy]?.reverse || false,
             fee: 0.04 // Hardcoded fee
@@ -622,6 +623,45 @@ export default function LiveTradingPage() {
           </Collapsible>
         </Card>
         
+        <Card>
+             <CardHeader>
+                <CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle>
+                <CardDescription>Manually execute small trades to test your API connection.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                    <Button 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={isRunning || !isConnected}
+                        onClick={() => executeTestTrade(symbol, 'BUY', 0.001)}
+                    >
+                        <TrendingUp className="mr-2 h-4 w-4 text-green-500" />
+                        Test Buy
+                    </Button>
+                    <Button 
+                        variant="outline" 
+                        className="w-full"
+                        disabled={isRunning || !isConnected}
+                        onClick={() => executeTestTrade(symbol, 'SELL', 0.001)}
+                    >
+                        <TrendingDown className="mr-2 h-4 w-4 text-red-500" />
+                        Test Sell
+                    </Button>
+                </div>
+                <Button 
+                    variant="destructive" 
+                    className="w-full"
+                    disabled={isRunning || !isConnected || !activePosition}
+                    onClick={() => closeTestPosition()}
+                >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Close Test Position
+                </Button>
+                <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. The quantity is fixed at a very small amount (e.g., 0.001 for BTC) for testing purposes.</p>
+            </CardContent>
+        </Card>
+
         <Card>
           <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
             <CardHeader className="flex flex-row items-center justify-between">

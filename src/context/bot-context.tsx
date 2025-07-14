@@ -106,6 +106,9 @@ interface BotContextType {
   strategyRecommendation: RankedTradeSignal | null;
   activateRecommendedStrategy: (strategyId: string) => void;
   dismissRecommendation: () => void;
+  // Test trade functions
+  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', quantity: number) => void;
+  closeTestPosition: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -343,6 +346,20 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     const config = liveBotState.config;
     let currentPosition = liveBotState.activePosition;
+    
+    // --- DISCIPLINE CHECK ---
+    const { allowed, reason, mode } = riskGuardianRef.current?.canTrade() ?? { allowed: true, reason: '', mode: 'none' };
+    if (!allowed) {
+      addLiveLog(`Discipline action: ${reason}`);
+      if(mode === 'adapt') {
+          // This should trigger the UI to show the recommendation modal.
+          // You might need a way to pass this state up or handle it here.
+          setShowRecommendation(true);
+          // For now, we'll just log it. A more robust implementation would involve the AI ranking flow.
+          setStrategyRecommendation({} as any); // Placeholder for AI recommendation
+      }
+      return; // Stop further trade evaluation if not allowed
+    }
 
     // --- POSITION MANAGEMENT ---
     if (currentPosition) {
@@ -370,7 +387,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 const orderResult = await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
                 toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.symbol} placed.` });
                 
-                // PNL calculation for discipline
                 const pnl = side === 'SELL' 
                     ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity 
                     : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
@@ -387,16 +403,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
     // --- TRADE ENTRY LOGIC ---
     if (!currentPosition) {
-      const { allowed, reason, mode } = riskGuardianRef.current?.canTrade() ?? { allowed: true, reason: '', mode: 'none' };
-      if (!allowed) {
-        addLiveLog(`Discipline action: ${reason}`);
-        if(mode === 'adapt') {
-            setShowRecommendation(true);
-            setStrategyRecommendation({} as any); // Placeholder for AI recommendation
-        }
-        return;
-      }
-
       setLiveBotState(prev => ({ ...prev, isPredicting: true }));
       const result = await analyzeAsset(config, liveBotState.chartData);
       setLiveBotState(prev => ({ ...prev, isPredicting: false }));
@@ -1339,6 +1345,44 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         setGridBacktestState({ isBacktesting: false, backtestSummary: null, backtestTrades: [], unmatchedTrades: [] });
     }
   }, [toast]);
+  
+  // --- Test Trade Logic ---
+  const executeTestTrade = useCallback(async (symbol: string, side: 'BUY' | 'SELL', quantity: number) => {
+    if (!activeProfile || !apiKey || !secretKey) {
+        toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
+        return;
+    }
+     if (activeProfile.permissions !== 'FuturesTrading') {
+        toast({ title: "Permission Denied", description: "Your active API key does not have Futures Trading permission.", variant: "destructive" });
+        return;
+    }
+    
+    addLiveLog(`Executing test order: ${side} ${quantity} ${symbol}...`);
+    try {
+        const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
+        toast({
+            title: "Test Order Placed Successfully",
+            description: `${side} order for ${orderResult.quantity} ${symbol} submitted.`
+        });
+        addLiveLog(`Test order successful. Order ID: ${orderResult.orderId}`);
+    } catch (e: any) {
+        toast({ title: "Test Order Failed", description: e.message, variant: "destructive" });
+        addLiveLog(`Test order failed: ${e.message}`);
+    }
+  }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
+
+  const closeTestPosition = useCallback(async () => {
+    if (!liveBotState.activePosition || !liveBotState.config) {
+        toast({ title: "No Position to Close", description: "The bot is not currently holding a position.", variant: "destructive" });
+        return;
+    }
+    const { asset, action, entryPrice } = liveBotState.activePosition;
+    const { initialCapital, leverage } = liveBotState.config;
+    const side: OrderSide = action === 'UP' ? 'SELL' : 'BUY';
+    const quantity = (initialCapital * leverage) / entryPrice;
+
+    executeTestTrade(asset, side, quantity);
+  }, [liveBotState.activePosition, liveBotState.config, executeTestTrade, toast]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1384,6 +1428,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       strategyRecommendation,
       activateRecommendedStrategy,
       dismissRecommendation,
+      executeTestTrade,
+      closeTestPosition,
     }}>
       {children}
     </BotContext.Provider>
