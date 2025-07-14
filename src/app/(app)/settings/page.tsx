@@ -63,6 +63,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useBot } from "@/context/bot-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { topAssets } from "@/lib/assets"
+import Link from "next/link"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -85,6 +86,10 @@ export default function SettingsPage() {
     setCoinmarketcapApiKey,
     aiQuota,
     setAiQuotaLimit,
+    telegramBotToken,
+    setTelegramBotToken,
+    telegramChatId,
+    setTelegramChatId,
   } = useApi()
   
   const { executeTestTrade, closeTestPosition } = useBot();
@@ -98,6 +103,9 @@ export default function SettingsPage() {
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
   const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
+  const [telegramTokenInput, setTelegramTokenInput] = useState(telegramBotToken || "");
+  const [telegramChatIdInput, setTelegramChatIdInput] = useState(telegramChatId || "");
+
 
   // State for test controls
   const [isTestCardOpen, setTestCardOpen] = usePersistentState<boolean>('settings-test-card-open', true);
@@ -113,6 +121,7 @@ export default function SettingsPage() {
   const [isAiQuotaOpen, setAiQuotaOpen] = useState(false);
   const [isProfilesOpen, setProfilesOpen] = useState(true);
   const [isFeesOpen, setIsFeesOpen] = useState(false);
+  const [isTelegramOpen, setIsTelegramOpen] = useState(false);
 
 
   useEffect(() => {
@@ -126,6 +135,14 @@ export default function SettingsPage() {
   useEffect(() => {
     setAiQuotaLimitInput(aiQuota.limit);
   }, [aiQuota.limit]);
+
+  useEffect(() => {
+    setTelegramTokenInput(telegramBotToken || "");
+  }, [telegramBotToken]);
+  
+  useEffect(() => {
+    setTelegramChatIdInput(telegramChatId || "");
+  }, [telegramChatId]);
 
 
   useEffect(() => {
@@ -228,6 +245,12 @@ export default function SettingsPage() {
     setAiQuotaLimit(aiQuotaLimitInput);
     toast({ title: "AI Quota Limit Updated", description: `Your new daily limit is ${aiQuotaLimitInput}.` });
   }
+
+  const handleSaveTelegramConfig = () => {
+    setTelegramBotToken(telegramTokenInput);
+    setTelegramChatId(telegramChatIdInput);
+    toast({ title: "Telegram Settings Saved" });
+  };
 
   const openEditForm = (profile: ApiProfile) => {
     setEditingProfile(profile);
@@ -402,6 +425,39 @@ export default function SettingsPage() {
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">
+             <div className="space-y-2">
+                <Label htmlFor="telegram-token">Telegram Bot Token (Optional)</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                    id="telegram-token"
+                    type="password"
+                    value={telegramTokenInput}
+                    onChange={(e) => setTelegramTokenInput(e.target.value)}
+                    placeholder="Enter your Telegram Bot Token"
+                    />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Create a bot with BotFather on Telegram to get a token.
+                </p>
+            </div>
+             <div className="space-y-2">
+                <Label htmlFor="telegram-chat-id">Telegram Chat ID (Optional)</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                    id="telegram-chat-id"
+                    value={telegramChatIdInput}
+                    onChange={(e) => setTelegramChatIdInput(e.target.value)}
+                    placeholder="Enter your personal Chat ID"
+                    />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    You can get your Chat ID by messaging the "@userinfobot" on Telegram.
+                </p>
+            </div>
+            <Button onClick={handleSaveTelegramConfig}><Save className="mr-2 h-4 w-4"/>Save Telegram Settings</Button>
+            
+            <hr className="border-border" />
+
             <div className="space-y-2">
                 <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
                 <div className="flex items-center gap-2">
