@@ -13,6 +13,7 @@ import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
 import { intervalToMs } from "@/lib/utils";
 import { RiskGuardian } from '@/lib/risk-guardian';
+import { sendTelegramMessage } from '@/lib/telegram-service';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -149,7 +150,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey, activeProfile, profiles, setActiveProfile, canUseAi, consumeAiCredit } = useApi();
+  const { apiKey, secretKey, activeProfile, profiles, setActiveProfile, canUseAi, consumeAiCredit, telegramBotToken, telegramChatId } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -223,9 +224,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const liveTradingBotRunning = liveBotState.isRunning;
     const manualTradePending = manualTraderState.isAnalyzing || manualTraderState.signal !== null || manualTraderState.isExecuting;
     const gridIsRunning = gridState.isRunning;
+    const multiSignalIsRunning = multiSignalState.isRunning;
 
-    setIsTradingActive(liveTradingBotRunning || manualTradePending || gridIsRunning);
-  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, manualTraderState.isExecuting, gridState.isRunning]);
+    setIsTradingActive(liveTradingBotRunning || manualTradePending || gridIsRunning || multiSignalIsRunning);
+  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, manualTraderState.isExecuting, gridState.isRunning, multiSignalState.isRunning]);
 
 
   // --- Helper Functions ---
@@ -276,7 +278,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
-        if (signalAge > 5) { // Only consider signals in the last 5 candles
+        if (signalAge > 15) { // Only consider signals in the last 15 candles
             return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null, dataWithIndicators };
         }
         
@@ -523,6 +525,28 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     setManualTraderState(prev => ({ ...prev, isExecuting: true }));
+    
+    // Send telegram notification if configured
+    if (telegramBotToken && telegramChatId && !isSimulation) {
+        const message = `
+🚨 *Manual Trade Execution* 🚨
+Action: *${signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
+Asset: *${signal.asset}*
+Entry: ~${signal.entryPrice.toFixed(4)}
+Stop Loss: ${signal.stopLoss.toFixed(4)}
+Take Profit: ${signal.takeProfit.toFixed(4)}
+        `;
+        try {
+            await sendTelegramMessage({
+                botToken: telegramBotToken,
+                chatId: telegramChatId,
+                message: message
+            });
+            toast({ title: "Telegram Notification Sent" });
+        } catch (e: any) {
+            toast({ title: "Telegram Failed", description: e.message, variant: "destructive" });
+        }
+    }
 
     if (isSimulation) {
         addManualLog(`SIMULATION: Starting simulated trade for ${signal.asset}...`);
@@ -564,7 +588,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     } finally {
         setManualTraderState(prev => ({ ...prev, isExecuting: false }));
     }
-  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile]);
+  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile, telegramBotToken, telegramChatId]);
 
   const setManualChartData = useCallback(async (symbol: string, interval: string) => {
     setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
@@ -706,25 +730,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
         const result = await analyzeAsset(config, chartDataForAnalysis);
       
-        // Use a functional update for state to avoid stale state issues.
         setManualTraderState(current => {
-          if (!current.isAnalyzing) return current; // Stop updates if user cancelled during async op
+          if (manualAnalysisCancelRef.current || !current.isAnalyzing) return current;
 
           const currentSignalTime = current.signal?.timestamp;
           const newSignalTime = result.signal?.timestamp;
 
-          // If a new signal is found (different from the current one).
           if (result.signal && currentSignalTime !== newSignalTime) {
             addManualLog(`NEW SIGNAL FOUND: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}.`);
             toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
             connectManualWebSocket(config.symbol, config.interval);
-          } else if (!result.signal && current.signal) {
-            // A signal previously existed but is now gone.
-            addManualLog("Previous signal is now considered stale.");
-            toast({ title: "Signal Stale", description: "The previous signal is no longer valid." });
-            if (manualWsRef.current) {
-              manualWsRef.current.close();
+             // Send telegram notification if configured
+            if (config.telegramEnabled && telegramBotToken && telegramChatId) {
+                const message = `
+🔔 *New Manual Trade Signal* 🔔
+Asset: *${result.signal.asset}*
+Action: *${result.signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
+Strategy: ${result.signal.strategy}
+Entry: ~${result.signal.entryPrice.toFixed(4)}
+SL: ${result.signal.stopLoss.toFixed(4)}
+TP: ${result.signal.takeProfit.toFixed(4)}
+`;
+                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId, message });
             }
+          } else if (!result.signal && current.signal) {
+            addManualLog("Previous signal is now considered stale.");
+            if (manualWsRef.current) manualWsRef.current.close();
           } else if (!result.signal) {
              addManualLog(`No new signal found. Reason: ${result.log}`);
           }
@@ -732,7 +763,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           return {
               ...current,
               chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal || null, // Always update with the latest result
+              signal: result.signal || null,
           };
         });
       }
@@ -746,7 +777,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     addManualLog(`Will re-evaluate every ${config.interval}.`);
     manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
   
-  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket]);
+  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket, telegramBotToken, telegramChatId]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
@@ -771,6 +802,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             
             if (!multiSignalRunningRef.current) break;
 
+            if (result.signal && config.telegramEnabled && telegramBotToken && telegramChatId) {
+                const message = `
+📢 *Multi-Signal Alert* 📢
+Asset: *${result.signal.asset}*
+Action: *${result.signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
+Strategy: ${result.signal.strategy}
+Entry: ~${result.signal.entryPrice.toFixed(4)}
+`;
+                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId, message });
+            }
+
             setMultiSignalState(prev => ({
                 ...prev,
                 results: { ...prev.results, [asset]: result }
@@ -789,7 +831,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (multiSignalRunningRef.current) {
         addMultiLog("Analysis cycle complete.");
     }
-  }, [analyzeAsset, addMultiLog]);
+  }, [analyzeAsset, addMultiLog, telegramBotToken, telegramChatId]);
 
 
   const startMultiSignalMonitor = useCallback((config: MultiSignalConfig) => {
@@ -1106,7 +1148,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
