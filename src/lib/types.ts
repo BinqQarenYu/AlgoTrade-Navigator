@@ -12,6 +12,7 @@
 
 
 
+
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -212,7 +213,6 @@ export type LiveBotConfig = {
     leverage: number;
     takeProfit: number;
     stopLoss: number;
-    marginType: string;
     useAIPrediction: boolean;
     reverse: boolean;
     fee: number;
@@ -548,6 +548,9 @@ export interface BotContextType {
   startGridSimulation: (config: GridConfig) => void;
   stopGridSimulation: () => void;
   runGridBacktest: (config: GridBacktestConfig) => void;
+  // Test trade functions
+  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', quantity: number) => void;
+  closeTestPosition: () => void;
 }
 
 export type Wall = {
