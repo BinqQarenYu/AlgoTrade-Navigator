@@ -423,7 +423,7 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isStreamActive]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive]);
   
   // Effect for live data stream
   const wsRef = useRef<WebSocket | null>(null);
