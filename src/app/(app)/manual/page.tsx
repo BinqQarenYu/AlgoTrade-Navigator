@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal, Play, StopCircle } from "lucide-react"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -436,7 +436,7 @@ export default function ManualTradingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will use one AI credit to validate the signal. Are you sure you want to proceed?
+                    This action will use one AI credit to validate the signal. If continuous monitoring is active, this may use credits repeatedly. Are you sure you want to proceed?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -624,7 +624,7 @@ export default function ManualTradingPage() {
                     <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isThisPageTrading} />
                     <div className="flex flex-col">
                         <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                        <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
+                        <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal. <span className="text-yellow-500 font-semibold">Warning:</span> If continuous monitoring is on, this may use AI credits on every interval.</p>
                     </div>
                   </div>
                 </div>
@@ -642,8 +642,8 @@ export default function ManualTradingPage() {
                 >
                     {isAnalyzing ? (
                         <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Cancel Analysis
+                            <StopCircle className="mr-2 h-4 w-4" />
+                            Stop Monitoring
                         </>
                     ) : hasActiveSignal ? (
                         <>
@@ -652,8 +652,8 @@ export default function ManualTradingPage() {
                         </>
                     ) : (
                         <>
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            Analyze for Signal
+                            <Play className="mr-2 h-4 w-4" />
+                            Start Monitoring for Signal
                         </>
                     )}
                 </Button>
@@ -839,7 +839,7 @@ export default function ManualTradingPage() {
             </CardHeader>
             <CollapsibleContent>
               <CardContent className="min-h-[240px]">
-                  {isAnalyzing ? (
+                  {isAnalyzing && !hasActiveSignal ? (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           <span>Searching for a trade setup...</span>
@@ -897,11 +897,11 @@ export default function ManualTradingPage() {
                       </div>
                   ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                          <p>Click "Analyze for Signal" to get a recommendation.</p>
+                          <p>Start monitoring to get a recommendation.</p>
                       </div>
                   )}
               </CardContent>
-               {signal && !isAnalyzing && (
+               {signal && (
                     <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
                         <Button
                             onClick={() => handleExecuteTrade(false)}
