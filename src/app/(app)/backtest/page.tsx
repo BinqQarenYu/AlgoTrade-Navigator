@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -771,6 +770,18 @@ export default function BacktestPage() {
              <div className="space-y-2">
               <Label htmlFor="signalStaleness">Signal Staleness</Label>
               <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading} />
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 pt-4">
+            <Switch
+              id="reverse-logic-hpf"
+              checked={params.reverse || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={anyLoading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic-hpf" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
           </div>
         </div>
