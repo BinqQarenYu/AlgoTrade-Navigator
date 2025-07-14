@@ -109,132 +109,111 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
     const lastUpdateIdRef = useRef<number | null>(null);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
-
+    const [isSyncing, setIsSyncing] = useState(false);
     const updateQueueRef = useRef<OrderBookUpdate[]>([]);
-
-    // This effect runs the batch update processor.
-    useEffect(() => {
-        const processQueue = () => {
-            if (updateQueueRef.current.length === 0) return;
-
-            const updatesToProcess = [...updateQueueRef.current];
-            updateQueueRef.current = [];
-
-            let lastValidUpdateId = lastUpdateIdRef.current;
-
-            setBids(prevBids => {
-                const newBids = new Map(prevBids);
-                for (const data of updatesToProcess) {
-                    if (data.U <= lastValidUpdateId!) continue;
-                    if (data.pu !== lastValidUpdateId) {
-                         console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
-                         // Trigger a full re-sync without relying on a full component re-mount
-                         connectAndSync(symbol);
-                         return prevBids; // Discard this batch
-                    }
-                    data.b.forEach(([p, q]) => {
-                        if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
-                    });
-                    lastValidUpdateId = data.u;
-                }
-                return newBids;
-            });
-            
-            setAsks(prevAsks => {
-                const newAsks = new Map(prevAsks);
-                 for (const data of updatesToProcess) {
-                    if (data.U <= lastValidUpdateId!) continue;
-                    if (data.pu !== lastValidUpdateId) return prevAsks;
-                    data.a.forEach(([p, q]) => {
-                        if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
-                    });
-                    lastValidUpdateId = data.u;
-                 }
-                return newAsks;
-            });
-
-            lastUpdateIdRef.current = lastValidUpdateId;
-        };
-
-        const intervalId = setInterval(processQueue, 250); // Process queue every 250ms
-        return () => clearInterval(intervalId);
-    }, [symbol]); // Re-create processor if symbol changes
-
-
+    
+    // Encapsulated sync logic
     const connectAndSync = useCallback(async (currentSymbol: string) => {
+        setIsSyncing(true);
+        setIsConnecting(true);
+        setStreamError(null);
+        updateQueueRef.current = [];
+        lastUpdateIdRef.current = null;
+
+        // Ensure any existing connection is closed before starting a new one
+        if (wsRef.current) {
+            wsRef.current.onclose = null; // Prevent close handler from re-triggering
+            wsRef.current.close();
+        }
+
         let snapshotLoaded = false;
         
-        const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
-        wsRef.current = ws;
-
-        ws.onmessage = (event) => {
-            const data: OrderBookUpdate = JSON.parse(event.data);
-            if (data.e !== 'depthUpdate') return;
-
-            if (snapshotLoaded) {
-                updateQueueRef.current.push(data);
-            }
-        };
-
-        ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
-        ws.onerror = () => {
-            setStreamError(`Live order book data is not available for ${currentSymbol}. The symbol may be invalid or not supported for this data stream.`);
-            setIsConnecting(false);
-            if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); }
-        };
-        ws.onclose = () => {
-            console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
-        };
-
         try {
             const snapshot = await getDepthSnapshot(currentSymbol);
-            if (ws.readyState !== WebSocket.OPEN) return;
-
+            if (!isSyncing) return; // Abort if sync was cancelled
+            
             lastUpdateIdRef.current = snapshot.lastUpdateId;
             setBids(new Map(snapshot.bids));
             setAsks(new Map(snapshot.asks));
-            
             snapshotLoaded = true;
-            setIsConnecting(false);
-            console.log(`Order book for ${currentSymbol} is now in sync.`);
-        } catch (error: any) {
-            const errorMsg = error.message.includes('Binance API Error') ? error.message : `Failed to load initial depth for ${currentSymbol}.`;
-            setStreamError(errorMsg);
-            toast({ title: 'Order Book Error', description: errorMsg, variant: 'destructive' });
-            setIsConnecting(false);
-            if (ws.readyState === WebSocket.OPEN) { ws.onclose = null; ws.close(); }
-        }
-    }, [toast]);
 
+            const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
+            wsRef.current = ws;
+
+            ws.onmessage = (event) => {
+                const data: OrderBookUpdate = JSON.parse(event.data);
+                if (data.e === 'depthUpdate' && lastUpdateIdRef.current !== null) {
+                    if (data.U <= lastUpdateIdRef.current) return;
+                     if (data.pu !== lastUpdateIdRef.current) {
+                        console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
+                        connectAndSync(symbol); // Trigger a full re-sync
+                        return;
+                    }
+                    updateQueueRef.current.push(data);
+                    lastUpdateIdRef.current = data.u;
+                }
+            };
+
+            ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
+            ws.onerror = () => {
+                setStreamError(`Live order book data is not available for ${currentSymbol}.`);
+                setIsConnecting(false);
+            };
+            ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
+            setIsConnecting(false);
+
+        } catch (error: any) {
+            setStreamError(error.message);
+            setIsConnecting(false);
+        } finally {
+            setIsSyncing(false);
+        }
+    }, [symbol, isSyncing]);
 
     useEffect(() => {
-        if (wsRef.current) {
-            wsRef.current.onclose = null;
-            wsRef.current.close();
-        }
-        wsRef.current = null;
-        updateQueueRef.current = []; // Clear queue on symbol change
-
-        setBids(new Map());
-        setAsks(new Map());
-        setStreamError(null);
-        lastUpdateIdRef.current = null;
-        
         if (isStreamActive && isConnected && symbol) {
-            setIsConnecting(true);
             connectAndSync(symbol);
-        } else {
-            setIsConnecting(false);
         }
 
         return () => {
+            setIsSyncing(false); // Cancel any ongoing sync when component state changes
             if (wsRef.current) {
                 wsRef.current.onclose = null;
                 wsRef.current.close();
-                wsRef.current = null;
             }
         };
     }, [isStreamActive, isConnected, symbol, connectAndSync]);
+
+    // Batch processor for WebSocket updates
+    useEffect(() => {
+        const intervalId = setInterval(() => {
+            if (updateQueueRef.current.length > 0) {
+                const updatesToProcess = [...updateQueueRef.current];
+                updateQueueRef.current = [];
+
+                setBids(prevBids => {
+                    const newBids = new Map(prevBids);
+                    updatesToProcess.forEach(data => 
+                        data.b.forEach(([p, q]) => {
+                            if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
+                        })
+                    );
+                    return newBids;
+                });
+                
+                setAsks(prevAsks => {
+                    const newAsks = new Map(prevAsks);
+                    updatesToProcess.forEach(data => 
+                        data.a.forEach(([p, q]) => {
+                            if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
+                        })
+                    );
+                    return newAsks;
+                });
+            }
+        }, 250); // Process queue every 250ms
+        return () => clearInterval(intervalId);
+    }, []);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
         if (bids.size === 0 || asks.size === 0) {
