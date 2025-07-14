@@ -126,7 +126,7 @@ export const getHistoricalKlines = async (
     const limit = 1500;
 
     try {
-        await binance.loadMarkets();
+        await binance.loadMarkets(true); // Force cache bypass
         // Use CCXT's unified method to fetch OHLCV data
         const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit, { 'newUpdates': false });
 
@@ -169,7 +169,7 @@ export const getLatestKlinesByLimit = async (
     console.log(`Fetching latest ${limit} klines for ${upperSymbol} (${interval})`);
 
     try {
-        await binance.loadMarkets();
+        await binance.loadMarkets(true); // Force cache bypass
         // Use CCXT's unified method to fetch OHLCV data.
         // Providing 'undefined' for 'since' fetches the most recent candles.
         const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit, { 'newUpdates': false });
@@ -192,7 +192,7 @@ export const getLatestKlinesByLimit = async (
         console.error(`Error fetching latest klines via CCXT:`, error);
         if (error instanceof ccxt.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof cc.ExchangeError) {
+        } else if (error instanceof ccxt.ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
@@ -324,26 +324,22 @@ export const getDepthSnapshot = async (symbol: string): Promise<any> => {
     try {
         const response = await fetch(url, { cache: 'no-store' });
         
-        if (!response.ok) {
+        const contentType = response.headers.get('content-type');
+        if (!response.ok || !contentType || !contentType.includes('application/json')) {
             const errorText = await response.text();
+            let errorMessage = `Binance API returned a non-OK or non-JSON response (Status: ${response.status}).`;
+            // Try to parse error if it's JSON, otherwise use the text.
             try {
                 const errorData = JSON.parse(errorText);
-                throw new Error(`Binance API Error: ${errorData.msg || 'Unknown error'} (Code: ${errorData.code || 'N/A'})`);
+                errorMessage = `Binance API Error: ${errorData.msg || 'Unknown error'} (Code: ${errorData.code || 'N/A'})`;
             } catch (e) {
-                // If parsing fails, it means the error was not JSON (e.g., HTML from a gateway).
-                throw new Error(`Binance API returned a non-JSON error (Status: ${response.status}).`);
+                // Not a JSON error, maybe HTML. Don't log the full page.
+                console.error("Received non-JSON error from Binance:", errorText.substring(0, 500));
             }
+            throw new Error(errorMessage);
         }
         
-        // If the response is okay, check the content type before parsing.
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-            return await response.json();
-        } else {
-            const responseText = await response.text();
-            console.error("Expected JSON but received different content type:", contentType, responseText.substring(0, 200));
-            throw new Error("Binance API returned an invalid response type. This may be due to maintenance or a connection issue.");
-        }
+        return await response.json();
         
     } catch (error: any) {
         console.error(`Error fetching depth snapshot from Binance API:`, error);
