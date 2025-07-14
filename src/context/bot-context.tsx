@@ -108,7 +108,7 @@ interface BotContextType {
   dismissRecommendation: () => void;
   // Test trade functions
   executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
-  closeTestPosition: () => void;
+  closeTestPosition: (symbol: string) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -1378,16 +1378,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
 
-  const closeTestPosition = useCallback(async () => {
-    if (!liveBotState.activePosition || !liveBotState.config) {
+  const closeTestPosition = useCallback(async (symbol: string) => {
+    if (!liveBotState.activePosition) {
         toast({ title: "No Position to Close", description: "The bot is not currently holding a position.", variant: "destructive" });
         return;
     }
-    const { asset, action, entryPrice } = liveBotState.activePosition;
-    const { initialCapital, leverage } = liveBotState.config;
+    const { action, entryPrice } = liveBotState.activePosition;
+    const { initialCapital, leverage } = liveBotState.config!;
     const side: OrderSide = action === 'UP' ? 'SELL' : 'BUY';
-
-    executeTestTrade(asset, side, initialCapital, leverage);
+    const quantity = (initialCapital * leverage) / entryPrice;
+    
+    executeTestTrade(symbol, side, initialCapital, leverage);
   }, [liveBotState.activePosition, liveBotState.config, executeTestTrade]);
 
   // Cleanup on unmount

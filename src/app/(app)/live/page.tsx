@@ -681,7 +681,7 @@ export default function LiveTradingPage() {
                     variant="destructive" 
                     className="w-full"
                     disabled={isRunning || !isConnected || !activePosition}
-                    onClick={() => closeTestPosition()}
+                    onClick={() => closeTestPosition(symbol)}
                 >
                     <XCircle className="mr-2 h-4 w-4" />
                     Close Test Position
