@@ -65,6 +65,7 @@ interface ManualTraderState {
   logs: string[];
   signal: TradeSignal | null;
   chartData: HistoricalData[];
+  signalInvalidated: boolean;
 }
 
 interface GridBacktestState {
@@ -178,7 +179,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   // --- Manual Trader State ---
   const [manualTraderState, setManualTraderState] = useState<ManualTraderState>({
-    isAnalyzing: false, isExecuting: false, logs: [], signal: null, chartData: []
+    isAnalyzing: false, isExecuting: false, logs: [], signal: null, chartData: [], signalInvalidated: false,
   });
   const manualWsRef = useRef<WebSocket | null>(null);
   const manualAnalysisCancelRef = useRef(false);
@@ -246,7 +247,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setManualTraderState(prev => {
         if (!prev.chartData) return prev;
         const cleaned = prev.chartData.map(({ time, open, high, low, close, volume }) => ({ time, open, high, low, close, volume }));
-        return { ...prev, chartData: cleaned, signal: null };
+        return { ...prev, chartData: cleaned, signal: null, signalInvalidated: false };
     });
     addManualLog("Cleared indicators and signals from chart.");
   }, [addManualLog]);
@@ -509,6 +510,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         ...prev,
         isAnalyzing: false, // Ensure analysis stops
         signal: null,
+        signalInvalidated: false,
         logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...(prev.logs || [])].slice(0, 100)
     }));
     toast({ title: "Signal Reset", description: "You can now run a new analysis." });
@@ -654,7 +656,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
                 toast({
                   title: "Trade Signal Invalidated",
                   description: "Market structure has changed. The trade idea is now void.",
-                  variant: "default"
+                  variant: "destructive"
                 });
              }, 0);
             
@@ -663,7 +665,9 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
             const newLogs = [newLog, ...currentLogs].slice(0, 100);
 
             manualWsRef.current?.close();
-            return { ...current, signal: null, chartData: newChartData, logs: newLogs };
+            // Instead of setting signal to null, set the invalidation flag
+            // The signal will be fully cleared when the user dismisses it.
+            return { ...current, signalInvalidated: true, chartData: newChartData, logs: newLogs };
           }
         }
         
@@ -694,39 +698,33 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
         manualWsRef.current = null;
     }
     addManualLog("Monitoring stopped by user.");
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: false }));
+    setManualTraderState(prev => ({ ...prev, isAnalyzing: false, signalInvalidated: false }));
   }, [addManualLog]);
 
   const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
-    // Clear any existing interval to prevent duplicates.
     if (manualReevalIntervalRef.current) {
       clearInterval(manualReevalIntervalRef.current);
     }
     manualAnalysisCancelRef.current = false;
     manualConfigRef.current = config;
   
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null }));
+    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null, signalInvalidated: false }));
     addManualLog("Starting continuous analysis...");
   
     const performAnalysis = async () => {
-      // This ref is checked to see if the user has cancelled the process.
       if (manualAnalysisCancelRef.current) {
         return;
       }
       
       addManualLog("Analyzing for signal...");
-      
       let chartDataForAnalysis: HistoricalData[];
       try {
         chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
       } catch (e: any) {
-        // Log error but DO NOT cancel the loop.
-        addManualLog(`Data fetch failed: ${e.message}. Retrying on next interval.`);
-        toast({ title: "Data Fetch Failed", description: "Will retry automatically.", variant: "destructive" });
-        return; // Exit this iteration, the loop will run again.
+        addManualLog(`Data fetch failed: ${e.message}. Will retry on next interval.`);
+        return;
       }
   
-      // Only proceed with analysis if we have data.
       if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
         const result = await analyzeAsset(config, chartDataForAnalysis);
       
@@ -740,19 +738,6 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
             addManualLog(`NEW SIGNAL FOUND: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}.`);
             toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
             connectManualWebSocket(config.symbol, config.interval);
-             // Send telegram notification if configured
-            if (config.telegramEnabled && telegramBotToken && telegramChatId) {
-                const message = `
-🔔 *New Manual Trade Signal* 🔔
-Asset: *${result.signal.asset}*
-Action: *${result.signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
-Strategy: ${result.signal.strategy}
-Entry: ~${result.signal.entryPrice.toFixed(4)}
-SL: ${result.signal.stopLoss.toFixed(4)}
-TP: ${result.signal.takeProfit.toFixed(4)}
-`;
-                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId, message });
-            }
           } else if (!result.signal && current.signal) {
             addManualLog("Previous signal is now considered stale.");
             if (manualWsRef.current) manualWsRef.current.close();
@@ -763,21 +748,21 @@ TP: ${result.signal.takeProfit.toFixed(4)}
           return {
               ...current,
               chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal || null,
+              signal: result.signal || current.signal,
+              signalInvalidated: false, // Reset invalidation on new analysis
           };
         });
       }
     };
     
-    // Perform the first analysis immediately.
     await performAnalysis(); 
     
-    // Set up the interval for subsequent analyses.
     const reevalTime = intervalToMs(config.interval);
     addManualLog(`Will re-evaluate every ${config.interval}.`);
+    if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
     manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
   
-  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket, telegramBotToken, telegramChatId]);
+  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
@@ -802,7 +787,7 @@ TP: ${result.signal.takeProfit.toFixed(4)}
             
             if (!multiSignalRunningRef.current) break;
 
-            if (result.signal && config.telegramEnabled && telegramBotToken && telegramChatId) {
+            if (result.signal && telegramBotToken && telegramChatId) {
                 const message = `
 📢 *Multi-Signal Alert* 📢
 Asset: *${result.signal.asset}*

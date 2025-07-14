@@ -84,6 +84,10 @@ body {
     animation: pulse-border 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
+  .animate-pulse-border-destructive {
+    animation: pulse-border-destructive 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
   @keyframes pulse-border {
     0%, 100% {
       border-color: hsl(var(--primary) / 0.7);
@@ -92,6 +96,17 @@ body {
     50% {
       border-color: hsl(var(--primary));
       box-shadow: 0 0 0.5rem 0.25rem hsl(var(--primary) / 0);
+    }
+  }
+
+  @keyframes pulse-border-destructive {
+    0%, 100% {
+      border-color: hsl(var(--destructive) / 0.7);
+      box-shadow: 0 0 0 0 hsl(var(--destructive) / 0.7);
+    }
+    50% {
+      border-color: hsl(var(--destructive));
+      box-shadow: 0 0 0.5rem 0.25rem hsl(var(--destructive) / 0);
     }
   }
 }

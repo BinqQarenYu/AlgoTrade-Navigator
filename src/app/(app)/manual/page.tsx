@@ -120,7 +120,7 @@ export default function ManualTradingPage() {
     cleanManualChart,
   } = useBot();
 
-  const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
+  const { isAnalyzing, logs, signal, chartData, isExecuting, signalInvalidated } = manualTraderState;
   
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('manual', 'BTC', 'USDT');
   
@@ -766,7 +766,7 @@ export default function ManualTradingPage() {
                                   {coinDetails.totalSupply && (
                                      <div className="flex justify-between items-center text-sm">
                                         <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Total</span>
-                                        <span className="font-semibold">{formatLargeNumber(coinDetails.totalSupply, 2)}</span>
+                                        <span className="font-semibold">${formatLargeNumber(coinDetails.totalSupply, 2)}</span>
                                     </div>
                                   )}
                               </div>
@@ -821,7 +821,10 @@ export default function ManualTradingPage() {
           </Collapsible>
         </Card>
 
-        <Card className={cn(hasActiveSignal && "animate-pulse-border border-2 border-primary/70")}>
+        <Card className={cn(
+            signalInvalidated ? "animate-pulse-border-destructive border-2 border-destructive/70" :
+            hasActiveSignal && "animate-pulse-border border-2 border-primary/70"
+        )}>
           <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -846,6 +849,14 @@ export default function ManualTradingPage() {
                       </div>
                   ) : signal ? (
                       <div className="space-y-4">
+                          {signalInvalidated && (
+                              <Alert variant="destructive">
+                                  <AlertTitle>Signal Invalidated</AlertTitle>
+                                  <AlertDescription>
+                                      Market structure has changed. This signal is no longer valid. Please reset the signal.
+                                  </AlertDescription>
+                              </Alert>
+                          )}
                           <div className="flex justify-between items-center">
                               <span className="text-sm text-muted-foreground">Recommended Action</span>
                               <Badge variant={signal.action === 'UP' ? 'default' : 'destructive'} className="text-base px-4 py-1">
@@ -905,7 +916,7 @@ export default function ManualTradingPage() {
                     <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
                         <Button
                             onClick={() => handleExecuteTrade(false)}
-                            disabled={isExecuting || activeProfile?.permissions !== 'FuturesTrading'}
+                            disabled={isExecuting || signalInvalidated || activeProfile?.permissions !== 'FuturesTrading'}
                             className={cn(signal.action === 'UP' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
                             title={activeProfile?.permissions !== 'FuturesTrading' ? 'A key with Futures Trading permissions is required.' : `Execute ${signal.action} on Binance`}
                         >
@@ -914,7 +925,7 @@ export default function ManualTradingPage() {
                         </Button>
                         <Button
                             onClick={() => handleExecuteTrade(true)}
-                            disabled={isExecuting}
+                            disabled={isExecuting || signalInvalidated}
                             variant="secondary"
                         >
                             <Eye />
