@@ -161,7 +161,7 @@ const KNOWN_INDICATORS = [
 // --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
+  const { apiKey, secretKey, activeProfile, profiles, setActiveProfile, canUseAi, consumeAiCredit } = useApi();
   
   // --- Live Bot State ---
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({
@@ -340,6 +340,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [canUseAi, consumeAiCredit]);
 
+  const stopLiveBot = useCallback(() => {
+    if (liveWsRef.current) {
+        liveWsRef.current.close();
+        liveWsRef.current = null;
+    }
+    setLiveBotState({ isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [], activePosition: null });
+    riskGuardianRef.current = null;
+    addLiveLog("Bot stopped by user.");
+    toast({ title: "Live Bot Stopped" });
+  }, [addLiveLog, toast]);
+
   // --- Live Bot Logic ---
   const runLiveBotCycle = useCallback(async (isNewCandle: boolean = false) => {
     if (!liveBotState.isRunning || !liveBotState.config || !apiKey || !secretKey) return;
@@ -352,38 +363,35 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!allowed) {
       addLiveLog(`Discipline action: ${reason}`);
       if(mode === 'adapt') {
-          // This should trigger the UI to show the recommendation modal.
-          // You might need a way to pass this state up or handle it here.
           setShowRecommendation(true);
-          // For now, we'll just log it. A more robust implementation would involve the AI ranking flow.
           setStrategyRecommendation({} as any); // Placeholder for AI recommendation
       }
-      return; // Stop further trade evaluation if not allowed
+      return; 
     }
 
-    // --- POSITION MANAGEMENT ---
-    if (currentPosition) {
-        if (!isNewCandle) return; // Only check SL/TP on new candles
-        
-        const latestCandle = liveBotState.chartData[liveBotState.chartData.length - 1];
-        let closePosition = false;
-        let closeReason = '';
-        
-        if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) {
-            closePosition = true; closeReason = 'Stop Loss hit.';
-        } else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) {
-            closePosition = true; closeReason = 'Take Profit hit.';
-        } else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) {
-            closePosition = true; closeReason = 'Stop Loss hit.';
-        } else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) {
-            closePosition = true; closeReason = 'Take Profit hit.';
-        }
+    try {
+        // --- POSITION MANAGEMENT ---
+        if (currentPosition) {
+            if (!isNewCandle) return; 
+            
+            const latestCandle = liveBotState.chartData[liveBotState.chartData.length - 1];
+            let closePosition = false;
+            let closeReason = '';
+            
+            if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) {
+                closePosition = true; closeReason = 'Stop Loss hit.';
+            } else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) {
+                closePosition = true; closeReason = 'Take Profit hit.';
+            } else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) {
+                closePosition = true; closeReason = 'Stop Loss hit.';
+            } else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) {
+                closePosition = true; closeReason = 'Take Profit hit.';
+            }
 
-        if (closePosition) {
-            addLiveLog(`Closing position: ${closeReason}`);
-            const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
-            const quantity = (config.initialCapital * config.leverage) / currentPosition.entryPrice;
-            try {
+            if (closePosition) {
+                addLiveLog(`Closing position: ${closeReason}`);
+                const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
+                const quantity = (config.initialCapital * config.leverage) / currentPosition.entryPrice;
                 const orderResult = await placeOrder(config.symbol, side, quantity, apiKey, secretKey, true);
                 toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.symbol} placed.` });
                 
@@ -393,38 +401,58 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 riskGuardianRef.current?.registerTrade(pnl);
 
                 setLiveBotState(prev => ({ ...prev, activePosition: null, prediction: null }));
-            } catch (e: any) {
-                addLiveLog(`Failed to close position: ${e.message}`);
-                toast({ title: "Close Order Failed (Live)", description: e.message, variant: "destructive" });
             }
+            return; // Don't look for new trades if we are in a position
         }
-        return; // Don't look for new trades if we are in a position
-    }
 
-    // --- TRADE ENTRY LOGIC ---
-    if (!currentPosition) {
-      setLiveBotState(prev => ({ ...prev, isPredicting: true }));
-      const { signal, log } = await analyzeAsset(config, liveBotState.chartData);
-      setLiveBotState(prev => ({ ...prev, isPredicting: false }));
+        // --- TRADE ENTRY LOGIC ---
+        if (!currentPosition) {
+          setLiveBotState(prev => ({ ...prev, isPredicting: true }));
+          const { signal, log } = await analyzeAsset(config, liveBotState.chartData);
+          setLiveBotState(prev => ({ ...prev, isPredicting: false }));
 
-      if (signal) {
-          addLiveLog(`New trade signal found: ${signal.action} at ${signal.entryPrice}`);
-          const side: OrderSide = signal.action === 'UP' ? 'BUY' : 'SELL';
-          const quantity = (config.initialCapital * config.leverage) / signal.entryPrice;
-          
-          try {
+          if (signal) {
+              addLiveLog(`New trade signal found: ${signal.action} at ${signal.entryPrice}`);
+              const side: OrderSide = signal.action === 'UP' ? 'BUY' : 'SELL';
+              const quantity = (config.initialCapital * config.leverage) / signal.entryPrice;
+              
               await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
               toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.symbol} placed.` });
               setLiveBotState(prev => ({ ...prev, activePosition: signal, prediction: { prediction: signal.action, confidence: signal.confidence, reasoning: signal.reasoning } }));
-          } catch (e: any) {
-              addLiveLog(`Failed to open position: ${e.message}`);
-              toast({ title: "Open Order Failed (Live)", description: e.message, variant: "destructive" });
+          } else {
+              addLiveLog(`No trade signal found. Reason: ${log}`);
           }
-      } else {
-          addLiveLog(`No trade signal found. Reason: ${log}`);
-      }
+        }
+    } catch (e: any) {
+        addLiveLog(`CRITICAL ERROR in trade cycle: ${e.message}`);
+        
+        // Check for specific API key failure errors
+        if (e.message.includes('-2015') || e.message.toLowerCase().includes('invalid api-key')) {
+            toast({
+                title: "Live Trading API Key Failed!",
+                description: "The bot has been stopped for safety.",
+                variant: "destructive"
+            });
+            stopLiveBot();
+
+            // Fallback to a read-only profile
+            const readOnlyProfile = profiles.find(p => p.permissions === 'ReadOnly');
+            if (readOnlyProfile) {
+                setActiveProfile(readOnlyProfile.id);
+                toast({
+                    title: "Switched to Read-Only Profile",
+                    description: `Now using '${readOnlyProfile.name}' for market data. Trading is disabled.`
+                });
+            } else {
+                 toast({
+                    title: "Action Required",
+                    description: "No read-only profile found. Please add a valid API key in settings.",
+                    variant: "destructive"
+                });
+            }
+        }
     }
-  }, [liveBotState.isRunning, liveBotState.config, liveBotState.activePosition, liveBotState.chartData, addLiveLog, analyzeAsset, apiKey, secretKey, toast]);
+  }, [liveBotState.isRunning, liveBotState.config, liveBotState.activePosition, liveBotState.chartData, addLiveLog, analyzeAsset, apiKey, secretKey, toast, stopLiveBot, profiles, setActiveProfile]);
 
 
   const startLiveBot = async (config: LiveBotConfig) => {
@@ -478,17 +506,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Failed to Start Bot", description: error.message, variant: "destructive"});
         stopLiveBot();
     }
-  };
-
-  const stopLiveBot = () => {
-    if (liveWsRef.current) {
-        liveWsRef.current.close();
-        liveWsRef.current = null;
-    }
-    setLiveBotState({ isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [], activePosition: null });
-    riskGuardianRef.current = null;
-    addLiveLog("Bot stopped by user.");
-    toast({ title: "Live Bot Stopped" });
   };
   
 
