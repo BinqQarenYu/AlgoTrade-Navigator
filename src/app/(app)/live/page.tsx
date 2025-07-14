@@ -154,7 +154,7 @@ export default function LiveTradingPage() {
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
-  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', strategyMetadatas[0].id);
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', 'sma-crossover');
   const [interval, setInterval] = usePersistentState<string>('live-interval', "1m");
   const [initialCapital, setInitialCapital] = usePersistentState<number>('live-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('live-leverage', 10);
@@ -714,5 +714,3 @@ export default function LiveTradingPage() {
     </div>
   )
 }
-
-    
