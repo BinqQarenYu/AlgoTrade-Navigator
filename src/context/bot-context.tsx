@@ -279,8 +279,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
-        if (signalAge > 25) { // Only consider signals in the last 25 candles
-            return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null, dataWithIndicators };
+        // Use the strategy-specific staleness parameter if it exists, otherwise default to 15.
+        const stalenessThreshold = config.strategyParams?.signalStaleness ?? 15;
+        if (signalAge > stalenessThreshold) {
+            return { status: 'no_signal', log: `A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.`, signal: null, dataWithIndicators };
         }
         
         let strategySignal: 'BUY' | 'SELL' | null = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
@@ -713,6 +715,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
   
     const performAnalysis = async () => {
       if (manualAnalysisCancelRef.current) {
+        if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
         return;
       }
       
@@ -722,6 +725,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
         chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
       } catch (e: any) {
         addManualLog(`Data fetch failed: ${e.message}. Will retry on next interval.`);
+        // Do not cancel the analysis, just wait for the next interval.
         return;
       }
   

@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -11,6 +12,7 @@ export interface HyperPFFParams {
     fibLevel1: number;
     fibLevel2: number;
     maxLookahead: number;
+    signalStaleness: number; // How many candles a signal remains valid
     reverse?: boolean;
     discipline: DisciplineParams;
 }
@@ -23,6 +25,7 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     fibLevel1: 0.5,
     fibLevel2: 0.618,
     maxLookahead: 100,
+    signalStaleness: 25,
     reverse: false,
     discipline: {
         enableDiscipline: true,

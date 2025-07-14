@@ -747,6 +747,36 @@ export default function BacktestPage() {
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy] || {};
 
+    // Special UI for hyper-peak-formation
+    if (selectedStrategy === 'hyper-peak-formation') {
+      return (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="peakLookaround">Peak Lookaround</Label>
+              <Input id="peakLookaround" type="number" value={params.peakLookaround || 5} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="swingLookaround">Swing Lookaround</Label>
+              <Input id="swingLookaround" type="number" value={params.swingLookaround || 3} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emaShortPeriod">EMA Short</Label>
+              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 13} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emaLongPeriod">EMA Long</Label>
+              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 50} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading} />
+            </div>
+             <div className="space-y-2">
+              <Label htmlFor="signalStaleness">Signal Staleness</Label>
+              <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading} />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Special UI for code-based-consensus
     if (selectedStrategy === 'code-based-consensus') {
       const selectedSubStrategies = params.strategies || [];
