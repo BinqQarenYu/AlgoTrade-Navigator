@@ -164,10 +164,6 @@ export default function LiveTradingPage() {
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
 
-  // State for test trade inputs
-  const [testCapital, setTestCapital] = usePersistentState<number>('live-test-capital', 10);
-  const [testLeverage, setTestLeverage] = usePersistentState<number>('live-test-leverage', 1);
-
   // Local state for chart data, separate from the bot's data
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
@@ -626,70 +622,6 @@ export default function LiveTradingPage() {
           </Collapsible>
         </Card>
         
-        <Card>
-             <CardHeader>
-                <CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle>
-                <CardDescription>Manually execute trades to test your API connection and settings.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="test-capital">Test Capital ($)</Label>
-                        <Input 
-                            id="test-capital" 
-                            type="number" 
-                            value={testCapital}
-                            onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)}
-                            placeholder="10"
-                            disabled={isRunning || !isConnected}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="test-leverage">Test Leverage (x)</Label>
-                      <Input
-                        id="test-leverage"
-                        type="number"
-                        min="1"
-                        value={testLeverage}
-                        onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)}
-                        placeholder="1"
-                        disabled={isRunning || !isConnected}
-                      />
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <Button 
-                        variant="outline" 
-                        className="w-full"
-                        disabled={isRunning || !isConnected}
-                        onClick={() => executeTestTrade(symbol, 'BUY', testCapital, testLeverage)}
-                    >
-                        <TrendingUp className="mr-2 h-4 w-4 text-green-500" />
-                        Test Buy
-                    </Button>
-                    <Button 
-                        variant="outline" 
-                        className="w-full"
-                        disabled={isRunning || !isConnected}
-                        onClick={() => executeTestTrade(symbol, 'SELL', testCapital, testLeverage)}
-                    >
-                        <TrendingDown className="mr-2 h-4 w-4 text-red-500" />
-                        Test Sell
-                    </Button>
-                </div>
-                <Button 
-                    variant="destructive" 
-                    className="w-full"
-                    disabled={isRunning || !isConnected}
-                    onClick={() => closeTestPosition(symbol)}
-                >
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Close Test Position
-                </Button>
-                <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. Ensure the capital and leverage are set to amounts you are comfortable with for testing.</p>
-            </CardContent>
-        </Card>
-
         <Card>
           <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
             <CardHeader className="flex flex-row items-center justify-between">

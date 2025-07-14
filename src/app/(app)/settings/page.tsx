@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { zodResolver } from "@radix-ui/react-zod"
 import { z } from "zod"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -51,7 +51,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -59,6 +59,10 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Skeleton } from "@/components/ui/skeleton"
+import { usePersistentState } from "@/hooks/use-persistent-state"
+import { useBot } from "@/context/bot-context"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { topAssets } from "@/lib/assets"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -82,6 +86,8 @@ export default function SettingsPage() {
     aiQuota,
     setAiQuotaLimit,
   } = useApi()
+  
+  const { executeTestTrade, closeTestPosition } = useBot();
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [clientIpAddress, setClientIpAddress] = useState<string | null>(null)
@@ -91,6 +97,12 @@ export default function SettingsPage() {
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
   const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
+
+  // State for test controls
+  const [isTestCardOpen, setTestCardOpen] = usePersistentState<boolean>('settings-test-card-open', false);
+  const [testSymbol, setTestSymbol] = usePersistentState<string>('settings-test-symbol', 'BTCUSDT');
+  const [testCapital, setTestCapital] = usePersistentState<number>('settings-test-capital', 10);
+  const [testLeverage, setTestLeverage] = usePersistentState<number>('settings-test-leverage', 1);
 
   // Collapsible states
   const [isConnectionOpen, setConnectionOpen] = useState(false);
@@ -489,6 +501,92 @@ export default function SettingsPage() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
+
+      <Card>
+        <Collapsible open={isTestCardOpen} onOpenChange={setTestCardOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle>
+                    <CardDescription>Manually execute trades to test your API connection and settings.</CardDescription>
+                </div>
+                <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isTestCardOpen && "rotate-180")} />
+                    </Button>
+                </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+                <CardContent className="flex flex-col gap-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="test-symbol">Asset to Test</Label>
+                            <Select onValueChange={setTestSymbol} value={testSymbol} disabled={isConnected}>
+                                <SelectTrigger id="test-symbol"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {topAssets.map(asset => (
+                                        <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="test-capital">Test Capital ($)</Label>
+                            <Input 
+                                id="test-capital" 
+                                type="number" 
+                                value={testCapital}
+                                onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)}
+                                placeholder="10"
+                                disabled={isConnected}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="test-leverage">Test Leverage (x)</Label>
+                            <Input
+                                id="test-leverage"
+                                type="number"
+                                min="1"
+                                value={testLeverage}
+                                onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)}
+                                placeholder="1"
+                                disabled={isConnected}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button 
+                            variant="outline" 
+                            className="w-full"
+                            disabled={isConnected}
+                            onClick={() => executeTestTrade(testSymbol, 'BUY', testCapital, testLeverage)}
+                        >
+                            <TrendingUp className="mr-2 h-4 w-4 text-green-500" />
+                            Test Buy
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            className="w-full"
+                            disabled={isConnected}
+                            onClick={() => executeTestTrade(testSymbol, 'SELL', testCapital, testLeverage)}
+                        >
+                            <TrendingDown className="mr-2 h-4 w-4 text-red-500" />
+                            Test Sell
+                        </Button>
+                    </div>
+                    <Button 
+                        variant="destructive" 
+                        className="w-full"
+                        disabled={isConnected}
+                        onClick={() => closeTestPosition(testSymbol)}
+                    >
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Close Test Position
+                    </Button>
+                    <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. Ensure the capital and leverage are set to amounts you are comfortable with for testing.</p>
+                </CardContent>
+            </CollapsibleContent>
+        </Collapsible>
+    </Card>
 
       <Card>
         <Collapsible open={isProfilesOpen} onOpenChange={setProfilesOpen}>
