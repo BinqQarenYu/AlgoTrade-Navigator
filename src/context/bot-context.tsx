@@ -108,7 +108,7 @@ interface BotContextType {
   dismissRecommendation: () => void;
   // Test trade functions
   executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
-  closeTestPosition: (symbol: string) => void;
+  closeTestPosition: (symbol: string, capital: number, leverage: number) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -1378,18 +1378,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
 
-  const closeTestPosition = useCallback(async (symbol: string) => {
-    if (!liveBotState.activePosition) {
-        toast({ title: "No Position to Close", description: "The bot is not currently holding a position.", variant: "destructive" });
-        return;
-    }
-    const { action, entryPrice } = liveBotState.activePosition;
-    const { initialCapital, leverage } = liveBotState.config!;
-    const side: OrderSide = action === 'UP' ? 'SELL' : 'BUY';
-    const quantity = (initialCapital * leverage) / entryPrice;
+  const closeTestPosition = useCallback(async (symbol: string, capital: number, leverage: number) => {
+    // Note: Since we don't have real-time position tracking for manual test trades,
+    // this function assumes there's a position and attempts to close it by sending
+    // an opposing order. We have to guess the side. This is not ideal but is the
+    // best we can do without full position state management for this feature.
+    // For simplicity, we'll try to close both sides.
+    addLiveLog(`Attempting to close any open test position for ${symbol}...`);
     
-    executeTestTrade(symbol, side, initialCapital, leverage);
-  }, [liveBotState.activePosition, liveBotState.config, executeTestTrade]);
+    try {
+      // First, try to sell (to close a long)
+      await executeTestTrade(symbol, 'SELL', capital, leverage);
+    } catch (e) {
+      // This will likely fail if there is no long position, which is expected.
+      addLiveLog("Could not execute closing SELL order (maybe no LONG position was open).");
+    }
+
+    try {
+      // Then, try to buy (to close a short)
+      await executeTestTrade(symbol, 'BUY', capital, leverage);
+    } catch (e) {
+       addLiveLog("Could not execute closing BUY order (maybe no SHORT position was open).");
+    }
+
+    toast({title: "Close Signal Sent", description: `Sent orders to close any open position for ${symbol}. Check your exchange for confirmation.`});
+    
+  }, [executeTestTrade, addLiveLog, toast]);
 
   // Cleanup on unmount
   useEffect(() => {

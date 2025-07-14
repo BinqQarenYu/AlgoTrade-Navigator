@@ -502,7 +502,7 @@ export default function SettingsPage() {
         </Collapsible>
       </Card>
 
-      <Card>
+    <Card>
         <Collapsible open={isTestCardOpen} onOpenChange={setTestCardOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -520,7 +520,7 @@ export default function SettingsPage() {
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="test-symbol">Asset to Test</Label>
-                            <Select onValueChange={setTestSymbol} value={testSymbol} disabled={isConnected}>
+                            <Select onValueChange={setTestSymbol} value={testSymbol} disabled={!isConnected}>
                                 <SelectTrigger id="test-symbol"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     {topAssets.map(asset => (
@@ -537,7 +537,7 @@ export default function SettingsPage() {
                                 value={testCapital}
                                 onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)}
                                 placeholder="10"
-                                disabled={isConnected}
+                                disabled={!isConnected}
                             />
                         </div>
                         <div className="space-y-2">
@@ -549,7 +549,7 @@ export default function SettingsPage() {
                                 value={testLeverage}
                                 onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)}
                                 placeholder="1"
-                                disabled={isConnected}
+                                disabled={!isConnected}
                             />
                         </div>
                     </div>
@@ -557,7 +557,7 @@ export default function SettingsPage() {
                         <Button 
                             variant="outline" 
                             className="w-full"
-                            disabled={isConnected}
+                            disabled={!isConnected}
                             onClick={() => executeTestTrade(testSymbol, 'BUY', testCapital, testLeverage)}
                         >
                             <TrendingUp className="mr-2 h-4 w-4 text-green-500" />
@@ -566,7 +566,7 @@ export default function SettingsPage() {
                         <Button 
                             variant="outline" 
                             className="w-full"
-                            disabled={isConnected}
+                            disabled={!isConnected}
                             onClick={() => executeTestTrade(testSymbol, 'SELL', testCapital, testLeverage)}
                         >
                             <TrendingDown className="mr-2 h-4 w-4 text-red-500" />
@@ -576,8 +576,8 @@ export default function SettingsPage() {
                     <Button 
                         variant="destructive" 
                         className="w-full"
-                        disabled={isConnected}
-                        onClick={() => closeTestPosition(testSymbol)}
+                        disabled={!isConnected}
+                        onClick={() => closeTestPosition(testSymbol, testCapital, testLeverage)}
                     >
                         <XCircle className="mr-2 h-4 w-4" />
                         Close Test Position
