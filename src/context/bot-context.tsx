@@ -279,7 +279,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
-        if (signalAge > 15) { // Only consider signals in the last 15 candles
+        if (signalAge > 25) { // Only consider signals in the last 25 candles
             return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null, dataWithIndicators };
         }
         
@@ -748,7 +748,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
           return {
               ...current,
               chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal || current.signal,
+              signal: result.signal, // Always update to the latest, even if it's null
               signalInvalidated: false, // Reset invalidation on new analysis
           };
         });
@@ -1133,7 +1133,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
