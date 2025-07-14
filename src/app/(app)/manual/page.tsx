@@ -313,7 +313,7 @@ export default function ManualTradingPage() {
   
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
       handleParamChange(selectedStrategy, 'discipline', {
-        ...strategyParams[selectedStrategy].discipline,
+        ...strategyParams[selectedStrategy]?.discipline,
         [paramName]: value,
       });
   };
@@ -550,9 +550,9 @@ export default function ManualTradingPage() {
                   </CollapsibleContent>
                 </Collapsible>
                 
-                {strategyParams[selectedStrategy]?.discipline && (
+                {strategyParams[selectedStrategy] && (
                     <DisciplineSettings 
-                        params={strategyParams[selectedStrategy].discipline}
+                        params={strategyParams[selectedStrategy].discipline || defaultAwesomeOscillatorParams.discipline}
                         onParamChange={handleDisciplineParamChange}
                         isCollapsed={isDisciplineOpen}
                         onCollapseChange={setDisciplineOpen}
@@ -821,7 +821,7 @@ export default function ManualTradingPage() {
           </Collapsible>
         </Card>
 
-        <Card>
+        <Card className={cn(hasActiveSignal && "animate-pulse-border border-2 border-primary/70")}>
           <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
