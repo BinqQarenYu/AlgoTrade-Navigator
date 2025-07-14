@@ -265,7 +265,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const analyzeAsset = useCallback(async (
     config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean; reverse: boolean; },
     existingData?: HistoricalData[]
-  ): Promise<SignalResult> => {
+  ): Promise<SignalResult & { dataWithIndicators?: HistoricalData[] }> => {
     try {
         const dataToAnalyze = existingData && existingData.length > 50 
             ? existingData
@@ -280,16 +280,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
         }
 
-        const dataWithSignals = await strategy.calculate(dataToAnalyze, config.strategyParams, config.symbol);
-        const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
+        const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(dataToAnalyze)), config.strategyParams, config.symbol);
+        const latestCandleWithSignal = [...dataWithIndicators].reverse().find(d => d.buySignal || d.sellSignal);
 
         if (!latestCandleWithSignal) {
-             return { status: 'no_signal', log: 'No actionable trade setup found. Waiting for market conditions to align with strategy rules.', signal: null };
+             return { status: 'no_signal', log: 'No actionable trade setup found. Waiting for market conditions to align with strategy rules.', signal: null, dataWithIndicators };
         }
         
-        const signalAge = (dataWithSignals.length - 1) - dataWithSignals.indexOf(latestCandleWithSignal);
+        const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
         if (signalAge > 5) { // Only consider signals in the last 5 candles
-            return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null };
+            return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null, dataWithIndicators };
         }
         
         let strategySignal: 'BUY' | 'SELL' | null = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
@@ -301,7 +301,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const prediction = config.useAIPrediction ? (
             canUseAi() ? await predictMarket({
                 symbol: config.symbol,
-                recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
+                recentData: JSON.stringify(dataWithIndicators.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
                 strategySignal: strategySignal
             }) : null
         ) : {
@@ -311,7 +311,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         };
 
         if (!prediction) { 
-            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
+            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null, dataWithIndicators };
         }
         
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
@@ -330,9 +330,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 timestamp: latestCandleWithSignal.time, strategy: config.strategy,
                 peakPrice: latestCandleWithSignal?.peakPrice
             };
-            return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
+            return { status: 'monitoring', log: 'Signal found.', signal: newSignal, dataWithIndicators };
         } else {
-            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
+            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null, dataWithIndicators };
         }
     } catch (e: any) {
         console.error(`Analysis failed for ${config.symbol}:`, e);
@@ -404,24 +404,24 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     // --- TRADE ENTRY LOGIC ---
     if (!currentPosition) {
       setLiveBotState(prev => ({ ...prev, isPredicting: true }));
-      const result = await analyzeAsset(config, liveBotState.chartData);
+      const { signal, log } = await analyzeAsset(config, liveBotState.chartData);
       setLiveBotState(prev => ({ ...prev, isPredicting: false }));
 
-      if (result.signal) {
-          addLiveLog(`New trade signal found: ${result.signal.action} at ${result.signal.entryPrice}`);
-          const side: OrderSide = result.signal.action === 'UP' ? 'BUY' : 'SELL';
-          const quantity = (config.initialCapital * config.leverage) / result.signal.entryPrice;
+      if (signal) {
+          addLiveLog(`New trade signal found: ${signal.action} at ${signal.entryPrice}`);
+          const side: OrderSide = signal.action === 'UP' ? 'BUY' : 'SELL';
+          const quantity = (config.initialCapital * config.leverage) / signal.entryPrice;
           
           try {
               await placeOrder(config.symbol, side, quantity, apiKey, secretKey);
               toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.symbol} placed.` });
-              setLiveBotState(prev => ({ ...prev, activePosition: result.signal, prediction: { prediction: result.signal!.action, confidence: result.signal!.confidence, reasoning: result.signal!.reasoning } }));
+              setLiveBotState(prev => ({ ...prev, activePosition: signal, prediction: { prediction: signal.action, confidence: signal.confidence, reasoning: signal.reasoning } }));
           } catch (e: any) {
               addLiveLog(`Failed to open position: ${e.message}`);
               toast({ title: "Open Order Failed (Live)", description: e.message, variant: "destructive" });
           }
       } else {
-          addLiveLog(`No trade signal found. Reason: ${result.log}`);
+          addLiveLog(`No trade signal found. Reason: ${log}`);
       }
     }
   }, [liveBotState.isRunning, liveBotState.config, liveBotState.activePosition, liveBotState.chartData, addLiveLog, analyzeAsset, apiKey, secretKey, toast]);
@@ -682,7 +682,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
 
-    setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis, logs: prev.logs || [] }));
     addManualLog(`Loaded ${chartDataForAnalysis.length} historical candles.`);
 
     if (manualAnalysisCancelRef.current) {
@@ -692,6 +691,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const result = await analyzeAsset({ ...config, reverse: false }, chartDataForAnalysis);
+    
+    // Always update the chart data with indicators, regardless of signal
+    if (result.dataWithIndicators) {
+        setManualTraderState(prev => ({ ...prev, chartData: result.dataWithIndicators!, logs: prev.logs || [] }));
+    } else {
+        setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis, logs: prev.logs || [] }));
+    }
 
     if (manualAnalysisCancelRef.current) {
         addManualLog("Analysis canceled, results discarded.");
@@ -1386,8 +1392,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    // We don't know the exact size of the position, so we estimate it based on capital/leverage.
-    // This is not perfect but is the best we can do for a stateless close button.
     const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
     if (klines.length === 0) {
       toast({ title: "Close Failed", description: "Could not fetch current price.", variant: "destructive" });
@@ -1397,17 +1401,19 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const quantity = (capital * leverage) / currentPrice;
     
     // Attempt to close both a long and a short position.
-    // One will fail if no position exists, which we can ignore.
-    const closeLongPromise = placeOrder(symbol, 'SELL', quantity, apiKey, secretKey, true)
-      .catch(e => addLiveLog(`Could not close LONG: ${e.message}`));
-      
-    const closeShortPromise = placeOrder(symbol, 'BUY', quantity, apiKey, secretKey, true)
-      .catch(e => addLiveLog(`Could not close SHORT: ${e.message}`));
+    try {
+      await placeOrder(symbol, 'SELL', quantity, apiKey, secretKey, true);
+      toast({title: "Close Signal Sent", description: `Sent SELL order to close any open LONG position for ${symbol}.`});
+    } catch (e: any) {
+      addLiveLog(`Could not close LONG (may not exist): ${e.message}`);
+    }
 
-    await Promise.all([closeLongPromise, closeShortPromise]);
-
-    toast({title: "Close Signal Sent", description: `Sent orders to close any open position for ${symbol}. Check your exchange for confirmation.`});
-    
+    try {
+      await placeOrder(symbol, 'BUY', quantity, apiKey, secretKey, true);
+      toast({title: "Close Signal Sent", description: `Sent BUY order to close any open SHORT position for ${symbol}.`});
+    } catch (e: any) {
+      addLiveLog(`Could not close SHORT (may not exist): ${e.message}`);
+    }
   }, [addLiveLog, toast, activeProfile, apiKey, secretKey]);
 
   // Cleanup on unmount
