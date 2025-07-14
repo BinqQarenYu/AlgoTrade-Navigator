@@ -279,8 +279,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
-        // Use the strategy-specific staleness parameter if it exists, otherwise default to 15.
-        const stalenessThreshold = config.strategyParams?.signalStaleness ?? 15;
+        // Use the strategy-specific staleness parameter if it exists, otherwise default to a safe value.
+        const stalenessThreshold = config.strategyParams?.signalStaleness ?? 25; 
         if (signalAge > stalenessThreshold) {
             return { status: 'no_signal', log: `A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.`, signal: null, dataWithIndicators };
         }
@@ -725,22 +725,21 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
         chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
       } catch (e: any) {
         addManualLog(`Data fetch failed: ${e.message}. Will retry on next interval.`);
-        // Do not cancel the analysis, just wait for the next interval.
         return;
       }
   
       if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
         const result = await analyzeAsset(config, chartDataForAnalysis);
       
+        const currentSignalTime = manualTraderState.signal?.timestamp;
+        const newSignalTime = result.signal?.timestamp;
+        const hasNewSignal = result.signal && currentSignalTime !== newSignalTime;
+
         setManualTraderState(current => {
           if (manualAnalysisCancelRef.current || !current.isAnalyzing) return current;
 
-          const currentSignalTime = current.signal?.timestamp;
-          const newSignalTime = result.signal?.timestamp;
-
-          if (result.signal && currentSignalTime !== newSignalTime) {
-            addManualLog(`NEW SIGNAL FOUND: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}.`);
-            toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
+          if (hasNewSignal) {
+            addManualLog(`NEW SIGNAL FOUND: ${result.signal!.action} at $${result.signal!.entryPrice.toFixed(4)}.`);
             connectManualWebSocket(config.symbol, config.interval);
           } else if (!result.signal && current.signal) {
             addManualLog("Previous signal is now considered stale.");
@@ -752,10 +751,14 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
           return {
               ...current,
               chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal, // Always update to the latest, even if it's null
-              signalInvalidated: false, // Reset invalidation on new analysis
+              signal: result.signal,
+              signalInvalidated: false,
           };
         });
+
+        if (hasNewSignal) {
+           toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
+        }
       }
     };
     
@@ -766,7 +769,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
     if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
     manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
   
-  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket]);
+  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket, manualTraderState.signal]);
 
   // --- Multi-Signal Monitor Logic ---
   const runMultiSignalCheck = useCallback(async () => {
