@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
@@ -9,7 +8,7 @@ import ccxt from 'ccxt';
 
 const BINANCE_API_URL = 'https://fapi.binance.com';
 
-// CCXT instance for public market data (no API keys needed here)
+// CCXT instance for public market data
 const binance = new ccxt.binance({
     options: { defaultType: 'future' },
 });
@@ -242,13 +241,23 @@ export const placeOrder = async (
   if (!apiKey || !secretKey) {
       throw new Error("API keys are not configured. Cannot place order.");
   }
+  
+  await binance.loadMarkets(true); // Force a reload of market data to ensure precision is up-to-date
+  const market = binance.market(symbol);
+  
+  if (!market) {
+      throw new Error(`Could not find market data for symbol: ${symbol}`);
+  }
+
+  // Use ccxt's built-in precision handling
+  const formattedQuantity = binance.amountToPrecision(symbol, quantity);
 
   const timestamp = Date.now();
   const params: any = {
     symbol,
     side,
     type: 'MARKET',
-    quantity: quantity.toFixed(5), // Use appropriate precision for the asset
+    quantity: formattedQuantity,
     timestamp,
   };
 
