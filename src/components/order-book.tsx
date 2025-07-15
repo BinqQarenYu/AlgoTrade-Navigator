@@ -18,7 +18,7 @@ import { getDepthSnapshot } from '@/lib/binance-service';
 
 // Types for the order book
 type OrderBookLevel = [string, string]; // [price, quantity]
-type OrderBookUpdate = { e: 'depthUpdate', E: number, s: string, U: number, u: number, pu: number, b: OrderBookLevel[], a: OrderBookLevel[] };
+type OrderBookUpdate = { e: 'depthUpdate', E: number, s: string, U: number, u: number, b: OrderBookLevel[], a: OrderBookLevel[] };
 
 
 interface FormattedOrderBookLevel {
@@ -65,7 +65,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     }
   }, [key, state, isHydrated]);
 
-  return [isHydrated ? state : defaultValue, setState];
+  return [state, setState];
 };
 
 const getGroupingAndPrecision = (price: number): { grouping: number; precision: number } => {
@@ -97,27 +97,52 @@ const groupLevels = (levels: Map<string, string>, grouping: number, precision: n
     return aggregated;
 };
 
+const OrderBookRow = React.memo(({ level, type, maxTotal, precision }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask'; maxTotal: number; precision: number }) => {
+    const bgPercentage = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
+    const bgColor = type === 'bid' ? 'bg-green-500/20' : 'bg-red-500/20';
+    const textColor = type === 'bid' ? 'text-green-500' : 'text-red-500';
+
+    return (
+        <TableRow className={cn("relative font-mono text-xs hover:bg-muted/80", level.isWall && "bg-yellow-500/20 font-bold")}>
+            <TableCell className={cn("p-1 text-left relative", textColor)}>
+                {level.price.toFixed(precision)}
+                 <div 
+                    className={cn("absolute top-0 bottom-0 h-full -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
+                    style={{ width: `${bgPercentage}%` }}
+                />
+            </TableCell>
+            <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
+            <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
+        </TableRow>
+    );
+});
+OrderBookRow.displayName = 'OrderBookRow';
+
 
 export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
-    const [bids, setBids] = useState<Map<string, string>>(new Map());
-    const [asks, setAsks] = useState<Map<string, string>>(new Map());
+
+    const bidsRef = useRef<Map<string, string>>(new Map());
+    const asksRef = useRef<Map<string, string>>(new Map());
     const [isLoading, setIsLoading] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
     const lastUpdateIdRef = useRef<number | null>(null);
     const updateQueueRef = useRef<OrderBookUpdate[]>([]);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
+    const [lastRenderTime, setLastRenderTime] = useState(0);
+
     
     const connectAndSync = useCallback(async (currentSymbol: string) => {
         setIsLoading(true);
         setStreamError(null);
         updateQueueRef.current = [];
         lastUpdateIdRef.current = null;
-        setBids(new Map());
-        setAsks(new Map());
+        bidsRef.current.clear();
+        asksRef.current.clear();
+        setLastRenderTime(0); // Reset render trigger
 
         if (wsRef.current) {
             wsRef.current.onclose = null;
@@ -127,50 +152,76 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
 
         try {
             const snapshot = await getDepthSnapshot(currentSymbol);
-            lastUpdateIdRef.current = snapshot.lastUpdateId;
-            const initialBids = new Map(snapshot.bids);
-            const initialAsks = new Map(snapshot.asks);
             
-            const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
-            wsRef.current = ws;
-
-            ws.onmessage = (event) => {
-                const data: OrderBookUpdate = JSON.parse(event.data);
-                if (data.e === 'depthUpdate') {
-                    if (lastUpdateIdRef.current === null) {
-                         // Still waiting for snapshot, queue this update
-                        updateQueueRef.current.push(data);
-                        return;
-                    }
-
-                    if (data.U <= lastUpdateIdRef.current) {
-                        return; // Ignore old update
-                    }
-                    
-                    if (data.pu !== lastUpdateIdRef.current) {
-                        console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
-                        connectAndSync(symbol); // Trigger a full re-sync
-                        return;
-                    }
-                    updateQueueRef.current.push(data);
-                    lastUpdateIdRef.current = data.u;
-                }
-            };
+            bidsRef.current = new Map(snapshot.bids);
+            asksRef.current = new Map(snapshot.asks);
             
-            setBids(initialBids);
-            setAsks(initialAsks);
+            // Process any updates that arrived during the snapshot fetch
+            const updatesToApply = updateQueueRef.current.filter(update => update.u > snapshot.lastUpdateId);
 
-            ws.onopen = () => console.log(`Order book stream for ${currentSymbol} connected.`);
-            ws.onerror = () => {
-                setStreamError(`Live order book data is not available for ${currentSymbol}.`);
-            };
-            ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
+            updatesToApply.forEach(data => {
+                data.b.forEach(([p, q]) => {
+                    if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q);
+                });
+                data.a.forEach(([p, q]) => {
+                    if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q);
+                });
+            });
             
+            lastUpdateIdRef.current = updatesToApply.length > 0
+                ? updatesToApply[updatesToApply.length - 1].u
+                : snapshot.lastUpdateId;
+                
+            updateQueueRef.current = []; // Clear queue after processing
+
+            setLastRenderTime(Date.now()); // Trigger initial render with snapshot data
+
         } catch (error: any) {
-            setStreamError(error.message);
-        } finally {
+            setStreamError(error.message || `Failed to fetch snapshot for ${currentSymbol}.`);
             setIsLoading(false);
+            return;
         }
+
+        const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
+        wsRef.current = ws;
+
+        ws.onmessage = (event) => {
+            const data: OrderBookUpdate = JSON.parse(event.data);
+            if (data.e === 'depthUpdate') {
+                if (lastUpdateIdRef.current === null) {
+                    updateQueueRef.current.push(data); // Queue while waiting for snapshot
+                    return;
+                }
+                if (data.U <= lastUpdateIdRef.current!) return; // Ignore old update
+
+                if (data.pu !== lastUpdateIdRef.current!) {
+                    console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
+                    // Close the current connection and restart the process cleanly.
+                    if (wsRef.current) {
+                        wsRef.current.onclose = null; // Prevent close handler from firing
+                        wsRef.current.close();
+                    }
+                    connectAndSync(symbol);
+                    return;
+                }
+                
+                // Direct update to refs, no state change
+                data.b.forEach(([p, q]) => {
+                    if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q);
+                });
+                data.a.forEach(([p, q]) => {
+                    if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q);
+                });
+                lastUpdateIdRef.current = data.u;
+            }
+        };
+
+        ws.onopen = () => {
+             console.log(`Order book stream for ${currentSymbol} connected.`);
+             setIsLoading(false);
+        }
+        ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
+        ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
     }, [symbol]);
 
     useEffect(() => {
@@ -186,38 +237,18 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         };
     }, [isStreamActive, isConnected, symbol, connectAndSync]);
 
-    // Batch processor for WebSocket updates
+    // UI render loop
     useEffect(() => {
+        if (!isStreamActive) return;
         const intervalId = setInterval(() => {
-            if (updateQueueRef.current.length > 0) {
-                const updatesToProcess = [...updateQueueRef.current];
-                updateQueueRef.current = [];
-
-                setBids(prevBids => {
-                    const newBids = new Map(prevBids);
-                    updatesToProcess.forEach(data => 
-                        data.b.forEach(([p, q]) => {
-                            if (parseFloat(q) === 0) newBids.delete(p); else newBids.set(p, q);
-                        })
-                    );
-                    return newBids;
-                });
-                
-                setAsks(prevAsks => {
-                    const newAsks = new Map(prevAsks);
-                    updatesToProcess.forEach(data => 
-                        data.a.forEach(([p, q]) => {
-                            if (parseFloat(q) === 0) newAsks.delete(p); else newAsks.set(p, q);
-                        })
-                    );
-                    return newAsks;
-                });
-            }
-        }, 250); // Process queue every 250ms
+            setLastRenderTime(Date.now());
+        }, 500); // UI updates every 500ms
         return () => clearInterval(intervalId);
-    }, []);
+    }, [isStreamActive]);
     
     const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
+        const bids = bidsRef.current;
+        const asks = asksRef.current;
         if (bids.size === 0 || asks.size === 0) {
             return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
         }
@@ -244,7 +275,7 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
                 const priceA = parseFloat(a[0]);
                 const priceB = parseFloat(b[0]);
                 return isBids ? priceB - priceA : priceA - priceB;
-            }).slice(0, 15);
+            }).slice(0, 20);
 
             const totalSize = Array.from(levels.values()).reduce((sum, size) => sum + size, 0);
             let cumulativeTotal = 0;
@@ -260,8 +291,8 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         const fmtdBids = format(aggregatedBids, true);
         const fmtdAsks = format(aggregatedAsks, false);
         const calculatedMaxTotal = Math.max(
-            fmtdBids[fmtdBids.length - 1]?.total || 0,
-            fmtdAsks[fmtdAsks.length - 1]?.total || 0
+            fmtdBids.reduce((max, b) => Math.max(max, b.total), 0),
+            fmtdAsks.reduce((max, a) => Math.max(max, a.total), 0)
         );
 
         return {
@@ -273,7 +304,7 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             precision: calculatedPrecision,
         };
 
-    }, [bids, asks]);
+    }, [lastRenderTime]); // Only recompute when the render trigger updates
 
     // Effect to report walls and detect spoofs
     useEffect(() => {
@@ -304,34 +335,11 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             onWallsUpdate({ walls: allWalls, spoofs: [] });
         }
 
-
-        // Update the reference for the next comparison
         const newWallMap = new Map<string, Wall>();
         allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
         previousWallsRef.current = newWallMap;
 
     }, [formattedBids, formattedAsks, isStreamActive, onWallsUpdate]);
-
-
-    const OrderBookRow = ({ level, type }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask' }) => {
-        const bgPercentage = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
-        const bgColor = type === 'bid' ? 'bg-green-500/20' : 'bg-red-500/20';
-        const textColor = type === 'bid' ? 'text-green-500' : 'text-red-500';
-
-        return (
-            <TableRow className={cn("relative font-mono text-xs", level.isWall && "bg-yellow-500/20 font-bold")}>
-                <TableCell className={cn("p-1 text-left relative", textColor)}>
-                    {level.price.toFixed(precision)}
-                     <div 
-                        className={cn("absolute top-0 bottom-0 h-full -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
-                        style={{ width: `${bgPercentage}%` }}
-                    />
-                </TableCell>
-                <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
-                <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
-            </TableRow>
-        );
-    }
 
     const renderContent = () => {
         if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -370,7 +378,7 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" />)}
+                                {formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" maxTotal={maxTotal} precision={precision} />)}
                             </TableBody>
                         </Table>
                     </ScrollArea>
@@ -387,7 +395,7 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" />)}
+                                {formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" maxTotal={maxTotal} precision={precision} />)}
                             </TableBody>
                         </Table>
                     </ScrollArea>
@@ -422,5 +430,3 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         </Card>
     );
 }
-
-    
