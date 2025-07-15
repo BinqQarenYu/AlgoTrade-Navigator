@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -167,7 +168,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
     let isMounted = true;
     try {
       const item = window.localStorage.getItem(key);
-      if (item) {
+      if (item && item !== "undefined") {
         const parsed = JSON.parse(item);
         // Special handling for date ranges, as they need to be rehydrated as Date objects
         if (key.endsWith('-date-range') && parsed) {
@@ -191,7 +192,11 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
   useEffect(() => {
     if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
+      if (state !== undefined) {
+        window.localStorage.setItem(key, JSON.stringify(state));
+      } else {
+        window.localStorage.removeItem(key);
+      }
     }
   }, [key, state, isHydrated]);
 
