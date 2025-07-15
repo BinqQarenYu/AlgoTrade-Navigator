@@ -26,7 +26,7 @@ interface FormattedOrderBookLevel {
 
 interface OrderBookProps {
     symbol: string;
-    onWallsUpdate: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
+    onWallsUpdate?: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
 }
 
 const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
@@ -77,9 +77,8 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const [isStreaming, setIsStreaming] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
+    const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>(`lab-orderbook-card-open-${symbol}`, true);
     
-    // Refs for raw data and DOM elements to prevent re-renders
     const wsRef = useRef<WebSocket | null>(null);
     const bidsRef = useRef<Map<string, number>>(new Map());
     const asksRef = useRef<Map<string, number>>(new Map());
@@ -169,11 +168,15 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             setIsLoading(true);
             try {
                 const snapshot = await getDepthSnapshot(symbol);
-                const { precision } = getGroupingAndPrecision(parseFloat(snapshot.bids[0][0]));
+                if (!snapshot || !snapshot.bids || !snapshot.asks) {
+                    throw new Error("Invalid snapshot data received.");
+                }
+                const firstPrice = parseFloat(snapshot.bids[0]?.[0] || '0');
+                const { precision } = getGroupingAndPrecision(firstPrice);
                 precisionRef.current = precision;
 
-                bidsRef.current = new Map(snapshot.bids);
-                asksRef.current = new Map(snapshot.asks);
+                bidsRef.current = new Map(snapshot.bids.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)]));
+                asksRef.current = new Map(snapshot.asks.map(([p, q]: OrderBookLevel) => [p, parseFloat(q)]));
                 lastUpdateIdRef.current = snapshot.lastUpdateId;
                 
                 const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@depth`);
@@ -183,20 +186,26 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 ws.onmessage = (event) => {
                     const data = JSON.parse(event.data);
                     if (data.u > lastUpdateIdRef.current) {
-                         // Update bid and ask maps directly, don't set state
                         data.b.forEach(([price, qty]: OrderBookLevel) => {
-                            if (parseFloat(qty) === 0) bidsRef.current.delete(price);
-                            else bidsRef.current.set(price, parseFloat(qty));
+                            const quantity = parseFloat(qty);
+                            if (quantity === 0) bidsRef.current.delete(price);
+                            else bidsRef.current.set(price, quantity);
                         });
                         data.a.forEach(([price, qty]: OrderBookLevel) => {
-                            if (parseFloat(qty) === 0) asksRef.current.delete(price);
-                            else asksRef.current.set(price, parseFloat(qty));
+                            const quantity = parseFloat(qty);
+                            if (quantity === 0) asksRef.current.delete(price);
+                            else asksRef.current.set(price, quantity);
                         });
                         lastUpdateIdRef.current = data.u;
 
-                        const bestBid = Math.max(...Array.from(bidsRef.current.keys()).map(p => parseFloat(p)));
-                        const bestAsk = Math.min(...Array.from(asksRef.current.keys()).map(p => parseFloat(p)));
-                        setSpread(bestAsk - bestBid);
+                        const bidPrices = Array.from(bidsRef.current.keys()).map(p => parseFloat(p));
+                        const askPrices = Array.from(asksRef.current.keys()).map(p => parseFloat(p));
+                        
+                        if(bidPrices.length > 0 && askPrices.length > 0) {
+                            const bestBid = Math.max(...bidPrices);
+                            const bestAsk = Math.min(...askPrices);
+                            setSpread(bestAsk - bestBid);
+                        }
                     }
                 };
             } catch (e) {
@@ -208,7 +217,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
         connect();
         
-        const renderInterval = setInterval(updateDOM, 500); // UI update interval
+        const renderInterval = setInterval(updateDOM, 500); 
 
         return () => {
             clearInterval(renderInterval);
