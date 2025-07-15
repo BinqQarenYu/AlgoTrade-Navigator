@@ -283,7 +283,7 @@ export default function TradingLab2Page() {
             </div>
           </div>
           <OrderBook 
-            symbol={symbol} 
+            symbol="ADAUSDT"
             isStreamActive={isStreamActive}
             onWallsUpdate={handleOrderBookUpdate}
           />
@@ -387,3 +387,5 @@ export default function TradingLab2Page() {
     </div>
   )
 }
+
+    
