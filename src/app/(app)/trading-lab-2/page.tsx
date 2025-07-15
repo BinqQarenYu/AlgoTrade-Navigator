@@ -48,14 +48,30 @@ interface DateRange {
   to?: Date;
 }
 
-const mockProbabilityData = [
-  { price: 60000, probability: 0.1 },
-  { price: 60500, probability: 0.15 },
-  { price: 61000, probability: 0.2 },
-  { price: 61500, probability: 0.4 },
-  { price: 62000, probability: 0.1 },
-  { price: 62500, probability: 0.05 },
-];
+const generateMockQuantumField = (historicalData: HistoricalData[], interval: string): QuantumFieldData[] => {
+    if (historicalData.length === 0) return [];
+
+    const lastCandle = historicalData[historicalData.length - 1];
+    const intervalMs = intervalToMs(interval);
+    const recentData = historicalData.slice(-50); // Analyze last 50 candles for volatility
+    const avgVolatility = recentData.reduce((acc, c) => acc + (c.high - c.low), 0) / recentData.length;
+
+    const field: QuantumFieldData[] = [];
+
+    for (let t = 1; t <= 7; t++) {
+        const time = lastCandle.time + t * intervalMs;
+        const priceLevels: QuantumFieldData['priceLevels'] = [];
+        const centerPrice = lastCandle.close + (Math.random() - 0.45) * avgVolatility * t * 0.5; // Slight bullish drift
+
+        for (let p = -7; p <= 7; p++) {
+            const price = centerPrice + p * (avgVolatility / 4);
+            const probability = Math.exp(-Math.pow(p, 2) / (2 * Math.pow(t, 0.8))) / (Math.sqrt(2 * Math.PI) * Math.pow(t, 0.8));
+            priceLevels.push({ price, probability });
+        }
+        field.push({ time, priceLevels });
+    }
+    return field;
+};
 
 
 export default function TradingLab2Page() {
@@ -81,6 +97,7 @@ export default function TradingLab2Page() {
   const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
+  const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
 
   const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
@@ -177,6 +194,7 @@ export default function TradingLab2Page() {
         }
         setIsFetchingData(true);
         setChartData([]);
+        setQuantumFieldData([]); // Clear old projection
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         
         try {
@@ -205,6 +223,43 @@ export default function TradingLab2Page() {
       setSpoofedWalls(prev => [...prev, ...events.spoofs]);
     }
   }, []);
+
+  const handleRunForecast = () => {
+      if (chartData.length < 50) {
+          toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
+          return;
+      }
+      setQuantumFieldData(generateMockQuantumField(chartData, interval));
+      toast({ title: "Forecast Generated", description: "Quantum field simulation complete." });
+  };
+  
+  const densityData = useMemo(() => {
+      if (quantumFieldData.length === 0) return [];
+      const lastTimeStep = quantumFieldData[quantumFieldData.length - 1];
+      return lastTimeStep.priceLevels.map(level => ({
+          price: level.price,
+          probability: level.probability
+      })).sort((a,b) => a.price - b.price);
+  }, [quantumFieldData]);
+
+  const predictionSummary = useMemo(() => {
+      if (densityData.length === 0) return { trend: '---', target: 0, confidence: 0 };
+      
+      const lastPrice = chartData[chartData.length - 1].close;
+      const peak = densityData.reduce((max, p) => p.probability > max.probability ? p : max, densityData[0]);
+      
+      let trend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
+      if (peak.price > lastPrice * 1.005) trend = 'BULLISH';
+      else if (peak.price < lastPrice * 0.995) trend = 'BEARISH';
+      
+      const confidence = peak.probability * 100 * 2.5; // Scale for display
+
+      return {
+          trend,
+          target: peak.price,
+          confidence: Math.min(100, confidence)
+      };
+  }, [densityData, chartData]);
 
   const anyLoading = isFetchingData;
 
@@ -247,6 +302,7 @@ export default function TradingLab2Page() {
                   chartType={chartType}
                   scaleMode={scaleMode}
                   physicsConfig={physicsConfig}
+                  quantumFieldData={showQuantumField ? quantumFieldData : []}
               />
             </div>
             <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -369,17 +425,22 @@ export default function TradingLab2Page() {
                               <div className="p-4 rounded-lg bg-muted/50 border space-y-3 mt-1">
                                   <div className="flex justify-between items-center">
                                       <span className="font-medium">Probable Trend</span>
-                                      <span className="flex items-center gap-2 font-semibold text-green-500">
-                                          BULLISH <ArrowUp className="h-4 w-4" />
+                                      <span className={cn("flex items-center gap-2 font-semibold", 
+                                        predictionSummary.trend === 'BULLISH' && 'text-green-500',
+                                        predictionSummary.trend === 'BEARISH' && 'text-red-500',
+                                      )}>
+                                          {predictionSummary.trend}
+                                          {predictionSummary.trend === 'BULLISH' && <ArrowUp className="h-4 w-4" />}
+                                          {predictionSummary.trend === 'BEARISH' && <ArrowDown className="h-4 w-4" />}
                                       </span>
                                   </div>
                                   <div className="flex justify-between items-center">
                                       <span className="font-medium">Price Target</span>
-                                      <span className="font-semibold font-mono">${formatPrice(62000)}</span>
+                                      <span className="font-semibold font-mono">${formatPrice(predictionSummary.target)}</span>
                                   </div>
                                   <div className="flex justify-between items-center">
                                       <span className="font-medium">Confidence</span>
-                                      <span className="font-semibold">78%</span>
+                                      <span className="font-semibold">{predictionSummary.confidence.toFixed(1)}%</span>
                                   </div>
                               </div>
                           </div>
@@ -388,7 +449,7 @@ export default function TradingLab2Page() {
                               <Label className="text-xs text-muted-foreground">Probability Density at t=7</Label>
                               <div className="h-40 mt-1">
                                 <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={mockProbabilityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+                                    <BarChart data={densityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
                                         <Bar dataKey="probability" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
                                         <XAxis dataKey="price" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`} />
                                         <YAxis stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}/>
@@ -398,7 +459,7 @@ export default function TradingLab2Page() {
                           </div>
                       </CardContent>
                       <CardFooter>
-                          <Button className="w-full" disabled={anyLoading || !isConnected}>
+                          <Button className="w-full" disabled={anyLoading || !isConnected} onClick={handleRunForecast}>
                             <Play className="mr-2 h-4 w-4" />
                             Run Forecast
                           </Button>

@@ -147,7 +147,6 @@ export function TradingChart({
         distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
         projectionColor: isDarkMode ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.7)',
         projectionWickColor: isDarkMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(156, 163, 175, 0.7)',
-        quantumFieldColor: isDarkMode ? 'hsla(197, 78%, 52%, 0.15)' : 'hsla(197, 78%, 52%, 0.1)',
     };
     
     const chart = createChart(chartContainer, {
@@ -226,7 +225,7 @@ export function TradingChart({
         borderVisible: false,
         autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
     });
-
+    
     const quantumFieldSeries = chart.addCandlestickSeries({
         priceScaleId: 'left',
         wickVisible: false,
@@ -722,7 +721,7 @@ export function TradingChart({
         const newLines: any[] = [];
         if (showAnalysis && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
-                const title = wall.type === 'bid' ? `\u{00A0} BID WALL` : `\u{00A0} ASK WALL`;
+                const title = wall.type === 'bid' ? ` BID WALL` : ` ASK WALL`;
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
                     color: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
@@ -818,7 +817,7 @@ export function TradingChart({
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
-                    title: isBuySide ? `\u{00A0}BST (${formatPrice(target.priceLevel)})` : `\u{00A0}SST (${formatPrice(target.priceLevel)})`,
+                    title: isBuySide ? ` BST (${formatPrice(target.priceLevel)})` : ` SST (${formatPrice(target.priceLevel)})`,
                 });
                 newLines.push(line);
             });
@@ -1277,7 +1276,7 @@ export function TradingChart({
     // Effect for Quantum Field
     useEffect(() => {
         if (!chartRef.current?.chart) return;
-        const { quantumFieldSeries, chartColors } = chartRef.current;
+        const { quantumFieldSeries } = chartRef.current;
         if (!quantumFieldSeries) return;
 
         if (quantumFieldData && quantumFieldData.length > 0) {
@@ -1287,11 +1286,12 @@ export function TradingChart({
 
                 const minPrice = Math.min(...significantLevels.map(p => p.price));
                 const maxPrice = Math.max(...significantLevels.map(p => p.price));
-                const avgProb = significantLevels.reduce((sum, p) => sum + p.probability, 0) / significantLevels.length;
-                const maxProb = Math.max(...timeStep.priceLevels.map(p => p.probability));
+                
+                // Get the probability of the most likely price level in this time step
+                const peakProbability = Math.max(...timeStep.priceLevels.map(p => p.probability));
+                const opacity = Math.min(1, peakProbability * 5); // Scale opacity based on peak probability
 
-                const opacity = maxProb > 0 ? (avgProb / maxProb) : 0;
-                const color = `hsla(197, 78%, 52%, ${opacity * 0.5})`;
+                const color = `hsla(197, 78%, 52%, ${opacity * 0.2})`; // Use HSL for better color control
 
                 return {
                     time: toTimestamp(timeStep.time),
@@ -1308,7 +1308,6 @@ export function TradingChart({
         } else {
             quantumFieldSeries.setData([]);
         }
-
     }, [quantumFieldData]);
 
 
