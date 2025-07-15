@@ -1281,30 +1281,29 @@ export function TradingChart({
         if (!quantumFieldSeries) return;
 
         if (quantumFieldData && quantumFieldData.length > 0) {
-            const fieldData: any[] = [];
-            const maxProb = Math.max(...quantumFieldData.flatMap(t => t.priceLevels.map(p => p.probability)));
+            const fieldData = quantumFieldData.map(timeStep => {
+                const significantLevels = timeStep.priceLevels.filter(p => p.probability > 0.01);
+                if (significantLevels.length === 0) return null;
 
-            quantumFieldData.forEach(timeStep => {
-                // Determine the step between price levels for this time step
-                const levels = timeStep.priceLevels;
-                if (levels.length < 2) return;
-                const priceStep = levels[1].price - levels[0].price;
+                const minPrice = Math.min(...significantLevels.map(p => p.price));
+                const maxPrice = Math.max(...significantLevels.map(p => p.price));
+                const avgProb = significantLevels.reduce((sum, p) => sum + p.probability, 0) / significantLevels.length;
+                const maxProb = Math.max(...timeStep.priceLevels.map(p => p.probability));
 
-                levels.forEach(level => {
-                    const opacity = maxProb > 0 ? (level.probability / maxProb) : 0;
-                    const color = `hsla(197, 78%, 52%, ${opacity * 0.5})`; // Use HSL for smooth opacity
+                const opacity = maxProb > 0 ? (avgProb / maxProb) : 0;
+                const color = `hsla(197, 78%, 52%, ${opacity * 0.5})`;
 
-                    fieldData.push({
-                        time: toTimestamp(timeStep.time),
-                        open: level.price - (priceStep / 2),
-                        high: level.price + (priceStep / 2),
-                        low: level.price - (priceStep / 2),
-                        close: level.price + (priceStep / 2),
-                        color: color,
-                        borderColor: color,
-                    });
-                });
-            });
+                return {
+                    time: toTimestamp(timeStep.time),
+                    open: minPrice,
+                    high: maxPrice,
+                    low: minPrice,
+                    close: maxPrice,
+                    color: color,
+                    borderColor: color,
+                };
+            }).filter((d): d is any => d !== null);
+
             quantumFieldSeries.setData(fieldData);
         } else {
             quantumFieldSeries.setData([]);
