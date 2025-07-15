@@ -1292,8 +1292,10 @@ export function TradingChart({
                 const maxPrice = Math.max(...significantLevels.map(p => p.price));
                 
                 const peakProbability = Math.max(...timeStep.priceLevels.map(p => p.probability));
-                const opacity = (Math.min(1, peakProbability * 5) * 0.2).toFixed(3);
-                const color = `hsla(197, 78%, 52%, ${opacity})`;
+                // Add a small number to prevent probability from being zero, which could cause issues.
+                const opacity = (Math.min(1, (peakProbability + 1e-6) * 5) * 0.2).toFixed(3);
+                // Switched to rgba for better compatibility
+                const color = `rgba(34, 153, 228, ${opacity})`;
 
                 return {
                     time: toTimestamp(timeStep.time),
