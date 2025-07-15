@@ -126,13 +126,23 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
 
     const bidsRef = useRef<Map<string, string>>(new Map());
     const asksRef = useRef<Map<string, string>>(new Map());
+    
+    // --- State for the UI ---
+    // These refs hold the data that is actually rendered. They are updated less frequently.
+    const formattedBidsRef = useRef<FormattedOrderBookLevel[]>([]);
+    const formattedAsksRef = useRef<FormattedOrderBookLevel[]>([]);
+    const [lastRenderTime, setLastRenderTime] = useState(0); // This state's only job is to trigger re-renders.
+    const [spread, setSpread] = useState(0);
+    const [groupingSize, setGroupingSize] = useState(0.01);
+    const [precision, setPrecision] = useState(2);
+    const [maxTotal, setMaxTotal] = useState(0);
+
     const [isLoading, setIsLoading] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
     const lastUpdateIdRef = useRef<number | null>(null);
     const updateQueueRef = useRef<OrderBookUpdate[]>([]);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
-    const [lastRenderTime, setLastRenderTime] = useState(0);
 
     
     const connectAndSync = useCallback(async (currentSymbol: string) => {
@@ -142,7 +152,9 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         lastUpdateIdRef.current = null;
         bidsRef.current.clear();
         asksRef.current.clear();
-        setLastRenderTime(0); // Reset render trigger
+        formattedBidsRef.current = [];
+        formattedAsksRef.current = [];
+        setLastRenderTime(0);
 
         if (wsRef.current) {
             wsRef.current.onclose = null;
@@ -156,25 +168,18 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             bidsRef.current = new Map(snapshot.bids);
             asksRef.current = new Map(snapshot.asks);
             
-            // Process any updates that arrived during the snapshot fetch
             const updatesToApply = updateQueueRef.current.filter(update => update.u > snapshot.lastUpdateId);
 
             updatesToApply.forEach(data => {
-                data.b.forEach(([p, q]) => {
-                    if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q);
-                });
-                data.a.forEach(([p, q]) => {
-                    if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q);
-                });
+                data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
+                data.a.forEach(([p, q]) => { if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q); });
             });
             
             lastUpdateIdRef.current = updatesToApply.length > 0
                 ? updatesToApply[updatesToApply.length - 1].u
                 : snapshot.lastUpdateId;
                 
-            updateQueueRef.current = []; // Clear queue after processing
-
-            setLastRenderTime(Date.now()); // Trigger initial render with snapshot data
+            updateQueueRef.current = [];
 
         } catch (error: any) {
             setStreamError(error.message || `Failed to fetch snapshot for ${currentSymbol}.`);
@@ -189,37 +194,23 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
             const data: OrderBookUpdate = JSON.parse(event.data);
             if (data.e === 'depthUpdate') {
                 if (lastUpdateIdRef.current === null) {
-                    updateQueueRef.current.push(data); // Queue while waiting for snapshot
+                    updateQueueRef.current.push(data);
                     return;
                 }
-                if (data.U <= lastUpdateIdRef.current!) return; // Ignore old update
-
-                if (data.pu !== lastUpdateIdRef.current!) {
-                    console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
-                    // Close the current connection and restart the process cleanly.
-                    if (wsRef.current) {
-                        wsRef.current.onclose = null; // Prevent close handler from firing
-                        wsRef.current.close();
-                    }
+                if (data.U > lastUpdateIdRef.current! + 1 && data.pu !== lastUpdateIdRef.current!) {
+                     console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
                     connectAndSync(symbol);
                     return;
                 }
+                 if (data.u <= lastUpdateIdRef.current!) return;
                 
-                // Direct update to refs, no state change
-                data.b.forEach(([p, q]) => {
-                    if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q);
-                });
-                data.a.forEach(([p, q]) => {
-                    if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q);
-                });
+                data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
+                data.a.forEach(([p, q]) => { if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q); });
                 lastUpdateIdRef.current = data.u;
             }
         };
 
-        ws.onopen = () => {
-             console.log(`Order book stream for ${currentSymbol} connected.`);
-             setIsLoading(false);
-        }
+        ws.onopen = () => { setIsLoading(false); }
         ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
         ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
     }, [symbol]);
@@ -241,71 +232,58 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
     useEffect(() => {
         if (!isStreamActive) return;
         const intervalId = setInterval(() => {
-            setLastRenderTime(Date.now());
-        }, 500); // UI updates every 500ms
+            const bids = bidsRef.current;
+            const asks = asksRef.current;
+            if (bids.size === 0 || asks.size === 0) return;
+
+            const sortedBidsPrices = Array.from(bids.keys()).map(parseFloat).sort((a, b) => b - a);
+            const sortedAsksPrices = Array.from(asks.keys()).map(parseFloat).sort((a, b) => a - b);
+            if (sortedBidsPrices.length === 0 || sortedAsksPrices.length === 0) return;
+
+            const lastBid = sortedBidsPrices[0];
+            const firstAsk = sortedAsksPrices[0];
+            const midPrice = (lastBid + firstAsk) / 2;
+
+            const { grouping, precision: calculatedPrecision } = getGroupingAndPrecision(midPrice);
+            setSpread(firstAsk - lastBid);
+            setGroupingSize(grouping);
+            setPrecision(calculatedPrecision);
+            
+            const aggregatedBids = groupLevels(bids, grouping, calculatedPrecision);
+            const aggregatedAsks = groupLevels(asks, grouping, calculatedPrecision);
+            
+            const format = (levels: Map<string, number>, isBids: boolean): FormattedOrderBookLevel[] => {
+                const sortedLevels = Array.from(levels.entries()).sort((a, b) => {
+                    return isBids ? parseFloat(b[0]) - parseFloat(a[0]) : parseFloat(a[0]) - parseFloat(b[0]);
+                }).slice(0, 20);
+
+                const totalSize = Array.from(levels.values()).reduce((sum, size) => sum + size, 0);
+                let cumulativeTotal = 0;
+                return sortedLevels.map(([priceStr, size]) => {
+                    cumulativeTotal += size;
+                    return {
+                        price: parseFloat(priceStr), size, total: cumulativeTotal,
+                        isWall: totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT,
+                    };
+                });
+            };
+
+            const fmtdBids = format(aggregatedBids, true);
+            const fmtdAsks = format(aggregatedAsks, false);
+            
+            formattedBidsRef.current = fmtdBids;
+            formattedAsksRef.current = fmtdAsks;
+            
+            const calculatedMaxTotal = Math.max(
+                fmtdBids[fmtdBids.length-1]?.total || 0,
+                fmtdAsks[fmtdAsks.length-1]?.total || 0
+            );
+            setMaxTotal(calculatedMaxTotal);
+            setLastRenderTime(Date.now()); // Trigger the render
+        }, 500); 
         return () => clearInterval(intervalId);
     }, [isStreamActive]);
     
-    const { formattedBids, formattedAsks, spread, groupingSize, maxTotal, precision } = useMemo(() => {
-        const bids = bidsRef.current;
-        const asks = asksRef.current;
-        if (bids.size === 0 || asks.size === 0) {
-            return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
-        }
-        
-        const sortedBidsPrices = Array.from(bids.keys()).map(parseFloat).sort((a,b) => b-a);
-        const sortedAsksPrices = Array.from(asks.keys()).map(parseFloat).sort((a,b) => a-b);
-        
-        if (sortedBidsPrices.length === 0 || sortedAsksPrices.length === 0) {
-             return { formattedBids: [], formattedAsks: [], spread: 0, groupingSize: 0.01, maxTotal: 0, precision: 2 };
-        }
-
-        const lastBid = sortedBidsPrices[0];
-        const firstAsk = sortedAsksPrices[0];
-        const midPrice = (lastBid + firstAsk) / 2;
-        
-        const { grouping, precision: calculatedPrecision } = getGroupingAndPrecision(midPrice);
-        const calculatedSpread = firstAsk - lastBid;
-
-        const aggregatedBids = groupLevels(bids, grouping, calculatedPrecision);
-        const aggregatedAsks = groupLevels(asks, grouping, calculatedPrecision);
-        
-        const format = (levels: Map<string, number>, isBids: boolean): FormattedOrderBookLevel[] => {
-            const sortedLevels = Array.from(levels.entries()).sort((a, b) => {
-                const priceA = parseFloat(a[0]);
-                const priceB = parseFloat(b[0]);
-                return isBids ? priceB - priceA : priceA - priceB;
-            }).slice(0, 20);
-
-            const totalSize = Array.from(levels.values()).reduce((sum, size) => sum + size, 0);
-            let cumulativeTotal = 0;
-
-            return sortedLevels.map(([priceStr, size]) => {
-                const price = parseFloat(priceStr);
-                cumulativeTotal += size;
-                const isWall = totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT;
-                return { price, size, total: cumulativeTotal, isWall };
-            });
-        };
-
-        const fmtdBids = format(aggregatedBids, true);
-        const fmtdAsks = format(aggregatedAsks, false);
-        const calculatedMaxTotal = Math.max(
-            fmtdBids.reduce((max, b) => Math.max(max, b.total), 0),
-            fmtdAsks.reduce((max, a) => Math.max(max, a.total), 0)
-        );
-
-        return {
-            formattedBids: fmtdBids,
-            formattedAsks: fmtdAsks,
-            spread: calculatedSpread,
-            groupingSize: grouping,
-            maxTotal: calculatedMaxTotal,
-            precision: calculatedPrecision,
-        };
-
-    }, [lastRenderTime]); // Only recompute when the render trigger updates
-
     // Effect to report walls and detect spoofs
     useEffect(() => {
         if (!isStreamActive) {
@@ -315,16 +293,14 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         }
 
         const allWalls: Wall[] = [
-            ...formattedBids.filter(b => b.isWall).map(b => ({ price: b.price, type: 'bid' as const })),
-            ...formattedAsks.filter(a => a.isWall).map(a => ({ price: a.price, type: 'ask' as const }))
+            ...formattedBidsRef.current.filter(b => b.isWall).map(b => ({ price: b.price, type: 'bid' as const })),
+            ...formattedAsksRef.current.filter(a => a.isWall).map(a => ({ price: a.price, type: 'ask' as const }))
         ];
 
         const currentWallKeys = new Set(allWalls.map(w => `${w.type}_${w.price}`));
-        
         const spoofs: SpoofedWall[] = [];
         previousWallsRef.current.forEach((wall, key) => {
             if (!currentWallKeys.has(key)) {
-                // This wall was present before but is now gone -> potential spoof
                 spoofs.push({ ...wall, id: `${key}_${Date.now()}` });
             }
         });
@@ -339,7 +315,7 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
         previousWallsRef.current = newWallMap;
 
-    }, [formattedBids, formattedAsks, isStreamActive, onWallsUpdate]);
+    }, [lastRenderTime, isStreamActive, onWallsUpdate]); // Depends on the render trigger
 
     const renderContent = () => {
         if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -370,32 +346,28 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
                     <h4 className="text-sm font-semibold text-center">Bids (Buy Orders)</h4>
                     <ScrollArea className="h-[400px] border rounded-md">
                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
+                            <TableHeader><TableRow>
+                                <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
+                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
+                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
+                            </TableRow></TableHeader>
                             <TableBody>
-                                {formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" maxTotal={maxTotal} precision={precision} />)}
+                                {formattedBidsRef.current.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" maxTotal={maxTotal} precision={precision} />)}
                             </TableBody>
                         </Table>
                     </ScrollArea>
                 </div>
-                    <div className="space-y-1">
+                <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-center">Asks (Sell Orders)</h4>
                     <ScrollArea className="h-[400px] border rounded-md">
                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                    <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                                </TableRow>
-                            </TableHeader>
+                            <TableHeader><TableRow>
+                                <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
+                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
+                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
+                            </TableRow></TableHeader>
                             <TableBody>
-                                {formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" maxTotal={maxTotal} precision={precision} />)}
+                                {formattedAsksRef.current.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" maxTotal={maxTotal} precision={precision} />)}
                             </TableBody>
                         </Table>
                     </ScrollArea>
