@@ -412,7 +412,7 @@ export default function ManualTradingPage() {
               <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
-          </div>
+        </div>
         {canReset && (
             <Button onClick={handleResetParams} disabled={isThisPageTrading} variant="secondary" className="w-full">
                 <RotateCcw className="mr-2 h-4 w-4" />
@@ -532,7 +532,7 @@ export default function ManualTradingPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="strategy">Strategy</Label>
+                      <Label htmlFor="strategy">Signal Generation Strategy</Label>
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
                         <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                         <SelectContent>
