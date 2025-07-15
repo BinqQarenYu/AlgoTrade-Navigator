@@ -1167,15 +1167,45 @@ export default function BacktestPage() {
         </AlertDialogContent>
     </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <div className="xl:col-span-3 relative pb-4">
-        <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
+      <div className="xl:col-span-3">
+        <div className="relative pb-4">
+            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
+            </div>
+            <div
+                onMouseDown={startChartResize}
+                className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+            >
+                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+            </div>
         </div>
-        <div
-            onMouseDown={startChartResize}
-            className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
-        >
-            <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+        <div className="mt-4">
+            {isReplaying ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Replay Controls ({replayIndex + 1} / {fullChartData.length})</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center justify-center gap-2">
+                            <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
+                            <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                            <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
+                        </div>
+                        <Slider
+                            value={[replaySpeed]}
+                            onValueChange={(value) => setReplaySpeed(value[0])}
+                            min={100} max={2000} step={100}
+                            inverted
+                        />
+                        <p className="text-xs text-muted-foreground text-center">Replay Speed (Faster to Slower)</p>
+                    </CardContent>
+                </Card>
+            ) : (
+                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
+                    <Play className="mr-2 h-4 w-4"/> Start Replay
+                </Button>
+            )}
         </div>
       </div>
       <div className="xl:col-span-2 space-y-6">
@@ -1447,32 +1477,11 @@ export default function BacktestPage() {
                       </PopoverContent>
                     </Popover>
                 </div>
-                 {isReplaying && (
-                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                      <Label>Replay Controls ({replayIndex + 1} / {fullChartData.length})</Label>
-                      <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
-                        <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                        <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
-                      </div>
-                       <Slider
-                        value={[replaySpeed]}
-                        onValueChange={(value) => setReplaySpeed(value[0])}
-                        min={100} max={2000} step={100}
-                        inverted
-                      />
-                       <p className="text-xs text-muted-foreground text-center">Replay Speed (Faster to Slower)</p>
-                    </div>
-                )}
               </CardContent>
               <CardFooter className="flex-col gap-2">
                 <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
                   {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
-                </Button>
-                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
-                  <Play className="mr-2 h-4 w-4"/> Start Replay
                 </Button>
               </CardFooter>
             </CollapsibleContent>
