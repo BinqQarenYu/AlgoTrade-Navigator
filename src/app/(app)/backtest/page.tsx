@@ -49,7 +49,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { RiskGuardian } from "@/lib/risk-guardian"
-import { Slider } from "@/components/ui/slider"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -249,7 +248,7 @@ export default function BacktestPage() {
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayIndex, setReplayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [replaySpeed, setReplaySpeed] = useState(500); // ms per candle
+  const [replaySpeed, setReplaySpeed] = useState(500); // ms per candle. 1000=slow, 500=medium, 200=fast
   const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
@@ -1192,13 +1191,11 @@ export default function BacktestPage() {
                             <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
                             <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
                         </div>
-                        <Slider
-                            value={[replaySpeed]}
-                            onValueChange={(value) => setReplaySpeed(value[0])}
-                            min={100} max={2000} step={100}
-                            inverted
-                        />
-                        <p className="text-xs text-muted-foreground text-center">Replay Speed (Faster to Slower)</p>
+                         <div className="flex items-center justify-center gap-2">
+                           <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
+                           <Button size="sm" variant={replaySpeed === 500 ? 'default' : 'outline'} onClick={() => setReplaySpeed(500)}>Medium</Button>
+                           <Button size="sm" variant={replaySpeed === 200 ? 'default' : 'outline'} onClick={() => setReplaySpeed(200)}>Fast</Button>
+                        </div>
                     </CardContent>
                 </Card>
             ) : (
