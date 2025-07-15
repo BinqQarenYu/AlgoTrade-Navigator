@@ -95,20 +95,24 @@ const groupLevels = (levels: Map<string, string>, grouping: number, precision: n
 };
 
 // React.memo helps prevent re-renders if props haven't changed
-const OrderBookRow = React.memo(({ level, type, precision }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask'; precision: number }) => {
+const OrderBookRow = React.memo(({ level, type, precision, maxTotal }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask'; precision: number; maxTotal: number }) => {
+    const bgWidth = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
     return (
         <TableRow 
             data-price-level={level.price}
             className={cn("relative font-mono text-xs hover:bg-muted/80", level.isWall && "bg-yellow-500/20 font-bold")}>
-            <TableCell className={cn("p-1 text-left relative", type === 'bid' ? 'text-green-500' : 'text-red-500')}>
+             <td 
+                className={cn("p-1 text-left relative", type === 'bid' ? 'text-green-500' : 'text-red-500')}
+                style={{
+                  background: type === 'bid' 
+                    ? `linear-gradient(to left, rgba(34, 197, 94, 0.2) ${bgWidth}%, transparent ${bgWidth}%)` 
+                    : `linear-gradient(to right, rgba(239, 68, 68, 0.2) ${bgWidth}%, transparent ${bgWidth}%)`
+                }}
+            >
                 {level.price.toFixed(precision)}
-                <div 
-                    data-role="bg-bar"
-                    className={cn("absolute top-0 bottom-0 h-full -z-10", type === 'bid' ? 'bg-green-500/20 right-0' : 'bg-red-500/20 left-0')} 
-                />
-            </TableCell>
-            <TableCell className="p-1 text-right" data-role="size">{level.size.toFixed(4)}</TableCell>
-            <TableCell className="p-1 text-right" data-role="total">{level.total.toFixed(4)}</TableCell>
+            </td>
+            <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
+            <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
         </TableRow>
     );
 });
@@ -130,13 +134,13 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [spread, setSpread] = useState(0);
     const [groupingSize, setGroupingSize] = useState(0.01);
     const [precision, setPrecision] = useState(2);
+    const [maxTotal, setMaxTotal] = useState(0);
 
     const [isLoading, setIsLoading] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
     const lastUpdateIdRef = useRef<number | null>(null);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
-    const tableContainerRef = useRef<HTMLDivElement>(null);
 
     const stopStream = useCallback(() => {
         if (wsRef.current) {
@@ -231,7 +235,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             const aggregatedBids = groupLevels(bids, newGrouping.grouping, newGrouping.precision);
             const aggregatedAsks = groupLevels(asks, newGrouping.grouping, newGrouping.precision);
             
-            let maxTotal = 0;
+            let currentMaxTotal = 0;
             const format = (levels: Map<string, number>, isBids: boolean): FormattedOrderBookLevel[] => {
                 const sortedLevels = Array.from(levels.entries()).sort((a, b) => {
                     return isBids ? parseFloat(b[0]) - parseFloat(a[0]) : parseFloat(a[0]) - parseFloat(b[0]);
@@ -243,40 +247,17 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     cumulativeTotal += size;
                     return { price: parseFloat(priceStr), size, total: cumulativeTotal, isWall: totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT };
                 });
-                if(result.length > 0) maxTotal = Math.max(maxTotal, result[result.length - 1].total);
+                if(result.length > 0) currentMaxTotal = Math.max(currentMaxTotal, result[result.length - 1].total);
                 return result;
             };
 
             const fmtdBids = format(aggregatedBids, true);
             const fmtdAsks = format(aggregatedAsks, false).reverse();
 
-            // Only update state if the structure (price levels) changes
-            if (fmtdBids.length !== formattedBids.length || fmtdBids.some((b, i) => b.price !== formattedBids[i]?.price)) {
-                setFormattedBids(fmtdBids);
-            }
-            if (fmtdAsks.length !== formattedAsks.length || fmtdAsks.some((a, i) => a.price !== formattedAsks[i]?.price)) {
-                setFormattedAsks(fmtdAsks);
-            }
+            setFormattedBids(fmtdBids);
+            setFormattedAsks(fmtdAsks);
+            setMaxTotal(currentMaxTotal);
             
-            // Fast, direct DOM updates for dynamic values
-            if (tableContainerRef.current) {
-                fmtdBids.forEach(level => {
-                    const row = tableContainerRef.current!.querySelector(`[data-price-level="${level.price}"]`);
-                    if (row) {
-                        (row.querySelector('[data-role="size"]') as HTMLElement).textContent = level.size.toFixed(4);
-                        (row.querySelector('[data-role="total"]') as HTMLElement).textContent = level.total.toFixed(4);
-                        (row.querySelector('[data-role="bg-bar"]') as HTMLElement).style.width = `${(level.total / maxTotal) * 100}%`;
-                    }
-                });
-                fmtdAsks.forEach(level => {
-                    const row = tableContainerRef.current!.querySelector(`[data-price-level="${level.price}"]`);
-                     if (row) {
-                        (row.querySelector('[data-role="size"]') as HTMLElement).textContent = level.size.toFixed(4);
-                        (row.querySelector('[data-role="total"]') as HTMLElement).textContent = level.total.toFixed(4);
-                        (row.querySelector('[data-role="bg-bar"]') as HTMLElement).style.width = `${(level.total / maxTotal) * 100}%`;
-                    }
-                });
-            }
 
             // Wall detection logic
             const allWalls: Wall[] = [...fmtdBids, ...fmtdAsks].filter(l => l.isWall).map(l => ({ price: l.price, type: fmtdBids.includes(l) ? 'bid' : 'ask' }));
@@ -292,7 +273,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
         }, 500); 
         return () => clearInterval(intervalId);
-    }, [isStreamActive, groupingSize, precision]);
+    }, [isStreamActive, groupingSize, precision, onWallsUpdate]);
 
     const renderContent = () => {
         if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -301,13 +282,13 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         if (!isStreamActive) return <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md"><p>Order book stream is paused.</p></div>;
         
         return (
-            <div className="grid grid-cols-2 gap-4" ref={tableContainerRef}>
+            <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-center">Asks (Sell Orders)</h4>
                     <ScrollArea className="h-[400px] border rounded-md">
                         <Table>
                             <TableHeader><TableRow><TableHead className="h-8 p-1 text-left">Price (USD)</TableHead><TableHead className="h-8 p-1 text-right">Size</TableHead><TableHead className="h-8 p-1 text-right">Total</TableHead></TableRow></TableHeader>
-                            <TableBody>{formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" precision={precision} />)}</TableBody>
+                            <TableBody>{formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" precision={precision} maxTotal={maxTotal}/>)}</TableBody>
                         </Table>
                     </ScrollArea>
                 </div>
@@ -316,7 +297,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     <ScrollArea className="h-[400px] border rounded-md">
                         <Table>
                              <TableHeader><TableRow><TableHead className="h-8 p-1 text-left">Price (USD)</TableHead><TableHead className="h-8 p-1 text-right">Size</TableHead><TableHead className="h-8 p-1 text-right">Total</TableHead></TableRow></TableHeader>
-                            <TableBody>{formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" precision={precision} />)}</TableBody>
+                            <TableBody>{formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" precision={precision} maxTotal={maxTotal}/>)}</TableBody>
                         </Table>
                     </ScrollArea>
                 </div>
@@ -354,5 +335,3 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         </Card>
     );
 }
-
-    
