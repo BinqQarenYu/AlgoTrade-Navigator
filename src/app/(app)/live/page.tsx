@@ -31,7 +31,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck, TestTube, TrendingUp, TrendingDown, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addDays } from "date-fns"
-import type { HistoricalData, TradeSignal, DisciplineParams, LiveBotConfig } from "@/lib/types"
+import type { HistoricalData, TradeSignal, DisciplineParams, LiveBotConfig, Wall, SpoofedWall } from "@/lib/types"
 import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -39,6 +39,7 @@ import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { OrderBook } from "@/components/order-book"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -169,6 +170,10 @@ export default function LiveTradingPage() {
   const [isFetchingData, setIsFetchingData] = useState(false);
 
   const [ipAddress, setIpAddress] = useState<string | null>(null);
+
+  // Order book state
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('live-controls-open', true);
@@ -354,6 +359,13 @@ export default function LiveTradingPage() {
     }
   }
 
+  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+    setWalls(walls);
+    if (spoofs.length > 0) {
+      setSpoofedWalls(prev => [...prev, ...spoofs]);
+    }
+  }, []);
+
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy];
     if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
@@ -441,7 +453,7 @@ export default function LiveTradingPage() {
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 relative pb-4">
         <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} />
+            <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} wallLevels={walls} spoofedWalls={spoofedWalls} />
         </div>
         <div
             onMouseDown={startChartResize}
@@ -668,6 +680,8 @@ export default function LiveTradingPage() {
             </CollapsibleContent>
           </Collapsible>
         </Card>
+        
+        <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />
 
         <Card>
           <Collapsible open={isLogsOpen} onOpenChange={setLogsOpen}>

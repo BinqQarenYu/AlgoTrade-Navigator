@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -27,12 +28,12 @@ import {
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal, Play, StopCircle } from "lucide-react"
-import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams } from "@/lib/types"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams, Wall, SpoofedWall } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { topAssets } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice, formatLargeNumber } from "@/lib/utils"
 import { getCoinDetailsByTicker } from "@/lib/coingecko-service"
@@ -45,6 +46,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { OrderBook } from "@/components/order-book"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -139,6 +141,10 @@ export default function ManualTradingPage() {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [fearAndGreed, setFearAndGreed] = useState<FearAndGreedIndex | null>(null);
   const [isFetchingFng, setIsFetchingFng] = useState(false);
+  
+  // Order book state
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
 
   // Collapsible states
   const [isGeneratorOpen, setGeneratorOpen] = usePersistentState<boolean>('manual-generator-open', true);
@@ -333,6 +339,13 @@ export default function ManualTradingPage() {
     }
   };
 
+  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+    setWalls(walls);
+    if (spoofs.length > 0) {
+      setSpoofedWalls(prev => [...prev, ...spoofs]);
+    }
+  }, []);
+
   // Derived state for signal card
   const positionValue = initialCapital * leverage;
   let tradeQuantity = 0;
@@ -453,7 +466,9 @@ export default function ManualTradingPage() {
                 symbol={symbol} 
                 interval={interval} 
                 tradeSignal={signal} 
-                onIntervalChange={handleIntervalChange} />
+                onIntervalChange={handleIntervalChange}
+                wallLevels={walls}
+                spoofedWalls={spoofedWalls} />
         </div>
         <div
             onMouseDown={startChartResize}
@@ -527,13 +542,6 @@ export default function ManualTradingPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                       {selectedStrategy !== 'none' && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                                ))}
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -624,7 +632,7 @@ export default function ManualTradingPage() {
                     <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isThisPageTrading} />
                     <div className="flex flex-col">
                         <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                        <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal. <span className="text-yellow-500 font-semibold">Warning:</span> If continuous monitoring is on, this may use AI credits on every interval.</p>
+                        <p className="text-xs text-muted-foreground">Let an AI validate the strategy's signal before providing a recommendation.</p>
                     </div>
                   </div>
                 </div>
@@ -642,8 +650,8 @@ export default function ManualTradingPage() {
                 >
                     {isAnalyzing ? (
                         <>
-                            <StopCircle className="mr-2 h-4 w-4" />
-                            Stop Monitoring
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Cancel Analysis
                         </>
                     ) : hasActiveSignal ? (
                         <>
@@ -652,8 +660,8 @@ export default function ManualTradingPage() {
                         </>
                     ) : (
                         <>
-                            <Play className="mr-2 h-4 w-4" />
-                            Start Monitoring for Signal
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            Analyze for Signal
                         </>
                     )}
                 </Button>
@@ -820,6 +828,8 @@ export default function ManualTradingPage() {
               </CollapsibleContent>
           </Collapsible>
         </Card>
+
+        <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />
 
         <Card className={cn(
             signalInvalidated ? "animate-pulse-border-destructive border-2 border-destructive/70" :

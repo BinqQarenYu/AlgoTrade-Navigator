@@ -1357,7 +1357,7 @@ export default function LabPage() {
             </Card>
 
             <OrderBook 
-              symbol={symbol} 
+              symbol={symbol}
               isStreamActive={isStreamActive}
               onWallsUpdate={handleOrderBookUpdate}
             />
