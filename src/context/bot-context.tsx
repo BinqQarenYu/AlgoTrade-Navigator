@@ -272,20 +272,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(dataToAnalyze)), config.strategyParams, config.symbol);
-        const latestCandleWithSignal = [...dataWithIndicators].reverse().find(d => d.buySignal || d.sellSignal);
+        const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
-        if (!latestCandleWithSignal) {
-             return { status: 'no_signal', log: 'No actionable trade setup found. Waiting for market conditions to align with strategy rules.', signal: null, dataWithIndicators };
+        if (!lastCandle || (!lastCandle.buySignal && !lastCandle.sellSignal)) {
+             return { status: 'no_signal', log: 'No actionable trade setup found on the latest candle.', signal: null, dataWithIndicators };
         }
         
-        const signalAge = (dataWithIndicators.length - 1) - dataWithIndicators.indexOf(latestCandleWithSignal);
-        // Use the strategy-specific staleness parameter if it exists, otherwise default to a safe value.
-        const stalenessThreshold = config.strategyParams?.signalStaleness ?? 25; 
-        if (signalAge > stalenessThreshold) {
-            return { status: 'no_signal', log: `A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.`, signal: null, dataWithIndicators };
-        }
-        
-        let strategySignal: 'BUY' | 'SELL' | null = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
+        let strategySignal: 'BUY' | 'SELL' | null = lastCandle.buySignal ? 'BUY' : 'SELL';
         
         if (config.reverse) {
             strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
@@ -311,8 +304,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         
         if (aiConfirms) {
             if (config.useAIPrediction) consumeAiCredit(); // Consume credit only on confirmed signals
-            const currentPrice = latestCandleWithSignal.close;
-            const stopLossPrice = latestCandleWithSignal?.stopLossLevel ? latestCandleWithSignal.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
+            const currentPrice = lastCandle.close;
+            const stopLossPrice = lastCandle?.stopLossLevel ? lastCandle.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
             const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
             
             const newSignal: TradeSignal = {
@@ -320,8 +313,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
                 stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
                 confidence: prediction.confidence, reasoning: prediction.reasoning,
-                timestamp: latestCandleWithSignal.time, strategy: config.strategy,
-                peakPrice: latestCandleWithSignal?.peakPrice
+                timestamp: lastCandle.time, strategy: config.strategy,
+                peakPrice: lastCandle?.peakPrice
             };
             return { status: 'monitoring', log: 'Signal found.', signal: newSignal, dataWithIndicators };
         } else {
