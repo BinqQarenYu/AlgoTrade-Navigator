@@ -1,3 +1,4 @@
+
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -6,6 +7,7 @@ export interface VolumeDeltaParams {
   pocLookback: number;
   deltaLookback: number;
   pocProximityPercent: number;
+  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
@@ -13,6 +15,7 @@ export const defaultVolumeDeltaParams: VolumeDeltaParams = {
   pocLookback: 200,
   deltaLookback: 5,
   pocProximityPercent: 0.005,
+  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 2,
