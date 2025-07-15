@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, GripHorizontal, Play, StopCircle, Settings, Sigma, CalendarIcon, TrendingUp, ArrowUp, ArrowDown } from "lucide-react"
 import { cn, intervalToMs, formatPrice } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, PhysicsChartConfig, QuantumFieldData } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, PhysicsChartConfig, QuantumFieldData, QuantumPredictionSummary } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { OrderBook } from "@/components/order-book"
@@ -48,8 +48,8 @@ interface DateRange {
   to?: Date;
 }
 
-const generateMockQuantumField = (historicalData: HistoricalData[], interval: string): QuantumFieldData[] => {
-    if (historicalData.length === 0) return [];
+const generateMockQuantumField = (historicalData: HistoricalData[], interval: string): { field: QuantumFieldData[], summary: QuantumPredictionSummary } => {
+    if (historicalData.length === 0) return { field: [], summary: { trend: '---', target: 0, confidence: 0, sigma: 0, range: {min: 0, max: 0} } };
 
     const lastCandle = historicalData[historicalData.length - 1];
     const intervalMs = intervalToMs(interval);
@@ -68,9 +68,39 @@ const generateMockQuantumField = (historicalData: HistoricalData[], interval: st
             const probability = Math.exp(-Math.pow(p, 2) / (2 * Math.pow(t, 0.8))) / (Math.sqrt(2 * Math.PI) * Math.pow(t, 0.8));
             priceLevels.push({ price, probability });
         }
-        field.push({ time, priceLevels });
+        
+        // Calculate mean for this time step (for the channel visualization)
+        const mean = priceLevels.reduce((acc, level) => acc + level.price * level.probability, 0);
+        const variance = priceLevels.reduce((acc, level) => acc + Math.pow(level.price - mean, 2) * level.probability, 0);
+        const sigma = Math.sqrt(variance);
+
+        field.push({ time, priceLevels, mean, sigma });
     }
-    return field;
+
+    // Calculate final summary from the t=7 distribution
+    const lastTimeStep = field[field.length - 1];
+    const mean = lastTimeStep.mean!;
+    const sigma = lastTimeStep.sigma!;
+    const peak = lastTimeStep.priceLevels.reduce((max, p) => p.probability > max.probability ? p : max, lastTimeStep.priceLevels[0]);
+    
+    let trend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
+    if (mean > lastCandle.close * 1.002) trend = 'BULLISH';
+    else if (mean < lastCandle.close * 0.998) trend = 'BEARISH';
+    
+    const confidence = peak.probability * 100 * 2.5; // Scale for display
+
+    const summary: QuantumPredictionSummary = {
+        trend,
+        target: mean,
+        confidence: Math.min(100, confidence),
+        sigma: sigma,
+        range: {
+            min: mean - sigma,
+            max: mean + sigma,
+        }
+    };
+    
+    return { field, summary };
 };
 
 
@@ -98,6 +128,7 @@ export default function TradingLab2Page() {
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
+  const [predictionSummary, setPredictionSummary] = useState<QuantumPredictionSummary | null>(null);
 
   const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
@@ -195,6 +226,7 @@ export default function TradingLab2Page() {
         setIsFetchingData(true);
         setChartData([]);
         setQuantumFieldData([]); // Clear old projection
+        setPredictionSummary(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         
         try {
@@ -229,7 +261,9 @@ export default function TradingLab2Page() {
           toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
           return;
       }
-      setQuantumFieldData(generateMockQuantumField(chartData, interval));
+      const { field, summary } = generateMockQuantumField(chartData, interval);
+      setQuantumFieldData(field);
+      setPredictionSummary(summary);
       toast({ title: "Forecast Generated", description: "Quantum field simulation complete." });
   };
   
@@ -241,25 +275,6 @@ export default function TradingLab2Page() {
           probability: level.probability
       })).sort((a,b) => a.price - b.price);
   }, [quantumFieldData]);
-
-  const predictionSummary = useMemo(() => {
-      if (densityData.length === 0) return { trend: '---', target: 0, confidence: 0 };
-      
-      const lastPrice = chartData[chartData.length - 1].close;
-      const peak = densityData.reduce((max, p) => p.probability > max.probability ? p : max, densityData[0]);
-      
-      let trend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
-      if (peak.price > lastPrice * 1.005) trend = 'BULLISH';
-      else if (peak.price < lastPrice * 0.995) trend = 'BEARISH';
-      
-      const confidence = peak.probability * 100 * 2.5; // Scale for display
-
-      return {
-          trend,
-          target: peak.price,
-          confidence: Math.min(100, confidence)
-      };
-  }, [densityData, chartData]);
 
   const anyLoading = isFetchingData;
 
@@ -422,39 +437,59 @@ export default function TradingLab2Page() {
                       <CardContent className="space-y-6">
                            <div>
                               <Label className="text-xs text-muted-foreground">Prediction Summary</Label>
-                              <div className="p-4 rounded-lg bg-muted/50 border space-y-3 mt-1">
-                                  <div className="flex justify-between items-center">
-                                      <span className="font-medium">Probable Trend</span>
-                                      <span className={cn("flex items-center gap-2 font-semibold", 
-                                        predictionSummary.trend === 'BULLISH' && 'text-green-500',
-                                        predictionSummary.trend === 'BEARISH' && 'text-red-500',
-                                      )}>
-                                          {predictionSummary.trend}
-                                          {predictionSummary.trend === 'BULLISH' && <ArrowUp className="h-4 w-4" />}
-                                          {predictionSummary.trend === 'BEARISH' && <ArrowDown className="h-4 w-4" />}
-                                      </span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="font-medium">Price Target</span>
-                                      <span className="font-semibold font-mono">${formatPrice(predictionSummary.target)}</span>
-                                  </div>
-                                  <div className="flex justify-between items-center">
-                                      <span className="font-medium">Confidence</span>
-                                      <span className="font-semibold">{predictionSummary.confidence.toFixed(1)}%</span>
-                                  </div>
-                              </div>
+                              {predictionSummary ? (
+                                <div className="p-4 rounded-lg bg-muted/50 border space-y-3 mt-1">
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-medium">Probable Trend</span>
+                                        <span className={cn("flex items-center gap-2 font-semibold", 
+                                          predictionSummary.trend === 'BULLISH' && 'text-green-500',
+                                          predictionSummary.trend === 'BEARISH' && 'text-red-500',
+                                        )}>
+                                            {predictionSummary.trend}
+                                            {predictionSummary.trend === 'BULLISH' && <ArrowUp className="h-4 w-4" />}
+                                            {predictionSummary.trend === 'BEARISH' && <ArrowDown className="h-4 w-4" />}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-medium">Price Target (μ)</span>
+                                        <span className="font-semibold font-mono">${formatPrice(predictionSummary.target)}</span>
+                                    </div>
+                                     <div className="flex justify-between items-center">
+                                        <span className="font-medium">1-Sigma Range (68%)</span>
+                                        <span className="font-semibold font-mono text-xs">${formatPrice(predictionSummary.range.min)} - ${formatPrice(predictionSummary.range.max)}</span>
+                                    </div>
+                                     <div className="flex justify-between items-center">
+                                        <span className="font-medium">Accuracy (σ)</span>
+                                        <span className="font-semibold font-mono">${predictionSummary.sigma.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="font-medium">Confidence</span>
+                                        <span className="font-semibold">{predictionSummary.confidence.toFixed(1)}%</span>
+                                    </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center h-40 text-muted-foreground border border-dashed rounded-md">
+                                    <p>Run a forecast to see the summary.</p>
+                                </div>
+                              )}
                           </div>
 
                           <div>
                               <Label className="text-xs text-muted-foreground">Probability Density at t=7</Label>
                               <div className="h-40 mt-1">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={densityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
-                                        <Bar dataKey="probability" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
-                                        <XAxis dataKey="price" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`} />
-                                        <YAxis stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}/>
-                                    </BarChart>
-                                </ResponsiveContainer>
+                                {densityData.length > 0 ? (
+                                  <ResponsiveContainer width="100%" height="100%">
+                                      <BarChart data={densityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+                                          <Bar dataKey="probability" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
+                                          <XAxis dataKey="price" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`} />
+                                          <YAxis stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}/>
+                                      </BarChart>
+                                  </ResponsiveContainer>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full text-muted-foreground border border-dashed rounded-md">
+                                        <p>Run forecast for density graph.</p>
+                                    </div>
+                                )}
                               </div>
                           </div>
                       </CardContent>

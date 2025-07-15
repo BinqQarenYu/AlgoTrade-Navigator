@@ -147,6 +147,8 @@ export function TradingChart({
         distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
         projectionColor: isDarkMode ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.7)',
         projectionWickColor: isDarkMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(156, 163, 175, 0.7)',
+        quantumMeanColor: '#60a5fa', // blue-400
+        quantumSigmaColor: 'rgba(96, 165, 250, 0.2)', // blue-400 transparent
     };
     
     const chart = createChart(chartContainer, {
@@ -272,6 +274,8 @@ export function TradingChart({
         targetZoneSeries,
         manipulationZoneSeries,
         quantumFieldSeries,
+        quantumMeanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.quantumMeanColor }),
+        quantumSigmaAreaSeries: chart.addAreaSeries({ ...commonLineOptions, color: chartColors.quantumSigmaColor, topColor: 'rgba(0,0,0,0)', bottomColor: 'rgba(0,0,0,0)' }),
         chartColors, // Store colors for later use
         smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
         smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
@@ -1276,7 +1280,7 @@ export function TradingChart({
     // Effect for Quantum Field
     useEffect(() => {
         if (!chartRef.current?.chart) return;
-        const { quantumFieldSeries } = chartRef.current;
+        const { quantumFieldSeries, quantumMeanSeries, quantumSigmaAreaSeries, chartColors } = chartRef.current;
         if (!quantumFieldSeries) return;
 
         if (quantumFieldData && quantumFieldData.length > 0) {
@@ -1287,26 +1291,45 @@ export function TradingChart({
                 const minPrice = Math.min(...significantLevels.map(p => p.price));
                 const maxPrice = Math.max(...significantLevels.map(p => p.price));
                 
-                // Get the probability of the most likely price level in this time step
                 const peakProbability = Math.max(...timeStep.priceLevels.map(p => p.probability));
-                const opacity = Math.min(1, peakProbability * 5); // Scale opacity based on peak probability
-
-                const color = `hsla(197, 78%, 52%, ${opacity * 0.2})`; // Use HSL for better color control
+                const opacity = Math.min(1, peakProbability * 5); 
+                const color = `hsla(197, 78%, 52%, ${opacity * 0.2})`;
 
                 return {
                     time: toTimestamp(timeStep.time),
-                    open: minPrice,
-                    high: maxPrice,
-                    low: minPrice,
-                    close: maxPrice,
-                    color: color,
-                    borderColor: color,
+                    open: minPrice, high: maxPrice, low: minPrice, close: maxPrice,
+                    color: color, borderColor: color,
                 };
             }).filter((d): d is any => d !== null);
 
+            const meanLineData = quantumFieldData
+                .filter(d => d.mean !== undefined)
+                .map(d => ({ time: toTimestamp(d.time), value: d.mean! }));
+            
+            const sigmaAreaData = quantumFieldData
+                .filter(d => d.mean !== undefined && d.sigma !== undefined)
+                .map(d => ({
+                    time: toTimestamp(d.time),
+                    value: d.mean! + d.sigma!,
+                    value2: d.mean! - d.sigma!
+                }));
+
             quantumFieldSeries.setData(fieldData);
+            quantumMeanSeries.setData(meanLineData);
+            
+            // For AreaSeries, it uses value for top and value2 for bottom.
+            const areaSeriesData = sigmaAreaData.map(d => ({ time: d.time, value: d.value, value2: d.value2 }));
+            quantumSigmaAreaSeries.setData(areaSeriesData.map(d => ({ time: d.time, value: d.value, value2: d.value2 })));
+            quantumSigmaAreaSeries.applyOptions({
+              lineColor: 'transparent',
+              topColor: chartColors.quantumSigmaColor,
+              bottomColor: chartColors.quantumSigmaColor,
+            });
+
         } else {
             quantumFieldSeries.setData([]);
+            quantumMeanSeries.setData([]);
+            quantumSigmaAreaSeries.setData([]);
         }
     }, [quantumFieldData]);
 

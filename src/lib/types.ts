@@ -149,7 +149,20 @@ export type QuantumFieldData = {
         price: number;
         probability: number;
     }[];
+    mean?: number;
+    sigma?: number;
 }
+
+export type QuantumPredictionSummary = {
+  trend: 'BULLISH' | 'BEARISH' | 'RANGING' | '---';
+  target: number; // The Mean (μ)
+  confidence: number;
+  sigma: number; // The Standard Deviation (σ)
+  range: {
+    min: number; // μ - σ
+    max: number; // μ + σ
+  }
+};
 
 export type Portfolio = {
   balance: number;
