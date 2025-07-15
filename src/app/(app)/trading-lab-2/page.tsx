@@ -60,10 +60,6 @@ export default function TradingLab2Page() {
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab2-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab2-scale-mode', 'linear');
   
-  const [initialCapital, setInitialCapital] = usePersistentState<number>('lab2-initial-capital', 100);
-  const [leverage, setLeverage] = usePersistentState<number>('lab2-leverage', 10);
-  const [takeProfit, setTakeProfit] = usePersistentState<number>('lab2-tp', 5);
-  const [stopLoss, setStopLoss] = usePersistentState<number>('lab2-sl', 2);
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab2-date-range', undefined);
   
   const [isClient, setIsClient] = useState(false)
@@ -328,12 +324,7 @@ export default function TradingLab2Page() {
                         </Select>
                       </div>
                   </div>
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="space-y-2"><Label htmlFor="initial-capital">Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)} disabled={anyLoading}/></div>
-                      <div className="space-y-2"><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)} disabled={anyLoading}/></div>
-                      <div className="space-y-2"><Label htmlFor="take-profit">TP (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)} disabled={anyLoading}/></div>
-                      <div className="space-y-2"><Label htmlFor="stop-loss">SL (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)} disabled={anyLoading}/></div>
-                  </div>
+
                   <div className="space-y-2">
                     <Label>Date range</Label>
                     <Popover><PopoverTrigger asChild>
