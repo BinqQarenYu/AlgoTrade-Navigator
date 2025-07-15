@@ -180,7 +180,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
         }
       }
     } catch (e) {
-      console.error('Failed to parse stored state', e);
+      console.error('Failed to parse stored state for key:', key, e);
       localStorage.removeItem(key);
     } finally {
       if (isMounted) {
@@ -329,7 +329,6 @@ export default function BacktestPage() {
         }
         setIsFetchingData(true);
         setFullChartData([]);
-        setVisibleChartData([]);
         setBacktestResults([]);
         setSummaryStats(null);
         setContrarianResults(null);
@@ -360,8 +359,7 @@ export default function BacktestPage() {
   // Effect to calculate and display indicators
   useEffect(() => {
     const calculateAndSetIndicators = async () => {
-      const dataToProcess = isReplaying ? fullChartData : visibleChartData;
-      if (dataToProcess.length === 0) {
+      if (fullChartData.length === 0) {
         setVisibleChartData([]);
         return;
       }
@@ -371,9 +369,9 @@ export default function BacktestPage() {
 
       if (strategy) {
           const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          dataWithInd = await strategy.calculate(dataToProcess, paramsForStrategy, symbol);
+          dataWithInd = await strategy.calculate(fullChartData, paramsForStrategy, symbol);
       } else {
-          dataWithInd = dataToProcess;
+          dataWithInd = [...fullChartData];
       }
       
       const sliceEnd = isReplaying ? replayIndex + 1 : dataWithInd.length;
@@ -381,14 +379,7 @@ export default function BacktestPage() {
       setVisibleChartData(finalVisibleData);
     };
     
-    if (isReplaying) {
-      calculateAndSetIndicators();
-    } else {
-      setVisibleChartData(fullChartData);
-      if (fullChartData.length > 0) {
-          calculateAndSetIndicators();
-      }
-    }
+    calculateAndSetIndicators();
   }, [fullChartData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex]);
 
 
@@ -766,7 +757,6 @@ export default function BacktestPage() {
       clearInterval(replayIntervalRef.current);
       replayIntervalRef.current = null;
     }
-    setVisibleChartData(fullChartData);
     // Optionally run the full backtest report when replay is stopped
     runBacktest();
   };
@@ -1461,9 +1451,9 @@ export default function BacktestPage() {
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <Label>Replay Controls ({replayIndex + 1} / {fullChartData.length})</Label>
                       <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={!isPlaying && replayIndex <= 50}><StepBack/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
                         <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={!isPlaying && replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
                         <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
                       </div>
                        <Slider
