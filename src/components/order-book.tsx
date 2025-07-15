@@ -3,7 +3,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/context/api-context';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Play, StopCircle } from 'lucide-react';
 import type { Wall, SpoofedWall } from '@/lib/types';
 import { getDepthSnapshot } from '@/lib/binance-service';
 
@@ -30,7 +30,6 @@ interface FormattedOrderBookLevel {
 
 interface OrderBookProps {
     symbol: string;
-    isStreamActive: boolean;
     onWallsUpdate: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
 }
 
@@ -119,19 +118,24 @@ const OrderBookRow = React.memo(({ level, type, maxTotal, precision }: { level: 
 OrderBookRow.displayName = 'OrderBookRow';
 
 
-export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookProps) {
+export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
 
+    // State for managing stream connection
+    const [isStreamActive, setIsStreamActive] = useState(false);
+
+    // Refs for holding raw data without causing re-renders
     const bidsRef = useRef<Map<string, string>>(new Map());
     const asksRef = useRef<Map<string, string>>(new Map());
     
-    // --- State for the UI ---
-    // These refs hold the data that is actually rendered. They are updated less frequently.
+    // Refs for UI display data
     const formattedBidsRef = useRef<FormattedOrderBookLevel[]>([]);
     const formattedAsksRef = useRef<FormattedOrderBookLevel[]>([]);
-    const [lastRenderTime, setLastRenderTime] = useState(0); // This state's only job is to trigger re-renders.
+    
+    // State to trigger UI updates and store metadata
+    const [lastRenderTime, setLastRenderTime] = useState(0); 
     const [spread, setSpread] = useState(0);
     const [groupingSize, setGroupingSize] = useState(0.01);
     const [precision, setPrecision] = useState(2);
@@ -144,6 +148,16 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
 
+    const stopStream = useCallback(() => {
+        if (wsRef.current) {
+            wsRef.current.onclose = null; // Prevent onclose from triggering logic
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+        setIsLoading(false);
+        setStreamError(null);
+    }, []);
+
     
     const connectAndSync = useCallback(async (currentSymbol: string) => {
         setIsLoading(true);
@@ -152,81 +166,65 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
         lastUpdateIdRef.current = null;
         bidsRef.current.clear();
         asksRef.current.clear();
-        formattedBidsRef.current = [];
-        formattedAsksRef.current = [];
-        setLastRenderTime(0);
-
-        if (wsRef.current) {
-            wsRef.current.onclose = null;
-            wsRef.current.close();
-            wsRef.current = null;
-        }
 
         try {
             const snapshot = await getDepthSnapshot(currentSymbol);
-            
+            if (!isStreamActive) return; // Check if user cancelled during async operation
+
+            lastUpdateIdRef.current = snapshot.lastUpdateId;
             bidsRef.current = new Map(snapshot.bids);
             asksRef.current = new Map(snapshot.asks);
             
-            const updatesToApply = updateQueueRef.current.filter(update => update.u > snapshot.lastUpdateId);
+            const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
+            wsRef.current = ws;
 
-            updatesToApply.forEach(data => {
-                data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
-                data.a.forEach(([p, q]) => { if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q); });
-            });
-            
-            lastUpdateIdRef.current = updatesToApply.length > 0
-                ? updatesToApply[updatesToApply.length - 1].u
-                : snapshot.lastUpdateId;
-                
-            updateQueueRef.current = [];
+            ws.onmessage = (event) => {
+                const data: OrderBookUpdate = JSON.parse(event.data);
+                if (data.e === 'depthUpdate') {
+                    if (data.U <= lastUpdateIdRef.current!) return;
+                    if (data.pu !== lastUpdateIdRef.current!) {
+                        console.warn(`Order book for ${symbol} out of sync. Reconnecting...`);
+                        connectAndSync(symbol); // Resync
+                        return;
+                    }
+                    data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
+                    data.a.forEach(([p, q]) => { if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q); });
+                    lastUpdateIdRef.current = data.u;
+                }
+            };
+
+            ws.onopen = () => setIsLoading(false);
+            ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
+            ws.onclose = () => {
+                if (ws === wsRef.current) { // Ensure it's not an old connection closing
+                    console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
+                }
+            };
 
         } catch (error: any) {
             setStreamError(error.message || `Failed to fetch snapshot for ${currentSymbol}.`);
             setIsLoading(false);
-            return;
+            setIsStreamActive(false); // Stop trying if snapshot fails
         }
+    }, [isStreamActive, symbol]);
 
-        const ws = new WebSocket(`wss://fstream.binance.com/ws/${currentSymbol.toLowerCase()}@depth`);
-        wsRef.current = ws;
-
-        ws.onmessage = (event) => {
-            const data: OrderBookUpdate = JSON.parse(event.data);
-            if (data.e === 'depthUpdate') {
-                if (lastUpdateIdRef.current === null) {
-                    updateQueueRef.current.push(data);
-                    return;
-                }
-                if (data.U > lastUpdateIdRef.current! + 1 && data.pu !== lastUpdateIdRef.current!) {
-                     console.warn(`Order book for ${symbol} out of sync. Re-syncing...`);
-                    connectAndSync(symbol);
-                    return;
-                }
-                 if (data.u <= lastUpdateIdRef.current!) return;
-                
-                data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
-                data.a.forEach(([p, q]) => { if (parseFloat(q) === 0) asksRef.current.delete(p); else asksRef.current.set(p, q); });
-                lastUpdateIdRef.current = data.u;
-            }
-        };
-
-        ws.onopen = () => { setIsLoading(false); }
-        ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
-        ws.onclose = () => console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
-    }, [symbol]);
-
+    const handleToggleStream = () => {
+        const nextState = !isStreamActive;
+        setIsStreamActive(nextState);
+        if (!nextState) {
+            stopStream();
+        }
+    };
+    
+    // Effect to manage connection based on isStreamActive state
     useEffect(() => {
         if (isStreamActive && isConnected && symbol) {
             connectAndSync(symbol);
+        } else {
+            stopStream();
         }
-
-        return () => {
-            if (wsRef.current) {
-                wsRef.current.onclose = null;
-                wsRef.current.close();
-            }
-        };
-    }, [isStreamActive, isConnected, symbol, connectAndSync]);
+        return () => stopStream();
+    }, [isStreamActive, isConnected, symbol, connectAndSync, stopStream]);
 
     // UI render loop
     useEffect(() => {
@@ -397,6 +395,12 @@ export function OrderBook({ symbol, isStreamActive, onWallsUpdate }: OrderBookPr
                     <CardContent>
                         {renderContent()}
                     </CardContent>
+                    <CardFooter>
+                         <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full" disabled={isLoading || !isConnected}>
+                            {isLoading ? "Connecting..." : isStreamActive ? <StopCircle/> : <Play/>}
+                            {isLoading ? "Connecting..." : isStreamActive ? "Stop Stream" : "Start Stream"}
+                        </Button>
+                    </CardFooter>
                 </CollapsibleContent>
             </Collapsible>
         </Card>

@@ -69,7 +69,6 @@ export default function TradingLab2Page() {
   const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
-  const [isStreamActive, setIsStreamActive] = useState(false);
 
   const [physicsChartConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
@@ -156,78 +155,37 @@ export default function TradingLab2Page() {
   }, [chartData, refreshChartAnalysis]);
 
   useEffect(() => {
-    if (!isClient || !symbol || !quoteAsset || isStreamActive) return;
+    if (!isClient || !symbol || !quoteAsset) return;
 
     const fetchData = async () => {
         if (!isConnected) {
-            if(!isStreamActive) setChartData([]);
+            setChartData([]);
             return;
         }
         setIsFetchingData(true);
-        if(!isStreamActive) {
-            setChartData([]);
-            toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
-        }
+        setChartData([]);
+        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
+        
         try {
             const klines = await getLatestKlinesByLimit(symbol, interval, 500); 
-            if(!isStreamActive) {
-                setChartData(klines);
-                toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
-            }
+            setChartData(klines);
+            toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
-            if(!isStreamActive) {
-                toast({
-                    title: "Failed to Load Data",
-                    description: error.message || "Could not retrieve historical data from Binance.",
-                    variant: "destructive"
-                });
-                setChartData([]);
-            }
+            toast({
+                title: "Failed to Load Data",
+                description: error.message || "Could not retrieve historical data from Binance.",
+                variant: "destructive"
+            });
+            setChartData([]);
         } finally {
             setIsFetchingData(false);
         }
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive, toast]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast]);
   
-  const wsRef = useRef<WebSocket | null>(null);
-  useEffect(() => {
-    if (!isStreamActive || !symbol || !interval) return;
-
-    wsRef.current = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
-
-    wsRef.current.onopen = () => toast({ title: "Live Update Started", description: `Continuously updating analysis for ${symbol}.` });
-    wsRef.current.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.e !== 'kline') return;
-
-      const klineData = message.k;
-      const newCandle: HistoricalData = {
-        time: klineData.t, open: parseFloat(klineData.o), high: parseFloat(klineData.h),
-        low: parseFloat(klineData.l), close: parseFloat(klineData.c), volume: parseFloat(klineData.v),
-      };
-
-      setChartData(prevData => {
-        const updatedData = [...prevData];
-        const lastCandle = updatedData[updatedData.length - 1];
-        if (lastCandle && lastCandle.time === newCandle.time) {
-          updatedData[updatedData.length - 1] = newCandle;
-        } else {
-          updatedData.push(newCandle);
-        }
-        return updatedData.slice(-1000);
-      });
-    };
-    wsRef.current.onerror = () => toast({ title: "Stream Error", description: `Could not connect to live data for ${symbol}.`, variant: "destructive" });
-
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, [isStreamActive, symbol, interval, toast]);
-
-  const handleToggleStream = () => setIsStreamActive(!isStreamActive);
   const handleOrderBookUpdate = useCallback((events: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
     setWalls(events.walls);
     if (events.spoofs.length > 0) {
@@ -283,8 +241,7 @@ export default function TradingLab2Page() {
             </div>
           </div>
           <OrderBook 
-            symbol="ADAUSDT"
-            isStreamActive={isStreamActive}
+            symbol={symbol}
             onWallsUpdate={handleOrderBookUpdate}
           />
         </div>
@@ -304,13 +261,13 @@ export default function TradingLab2Page() {
                   <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="base-asset">Base</Label>
-                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={anyLoading || isStreamActive}><SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
+                        <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={anyLoading}><SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="quote-asset">Quote</Label>
-                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0 || isStreamActive}><SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
+                        <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0}><SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
                           <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
                         </Select>
                       </div>
@@ -337,10 +294,6 @@ export default function TradingLab2Page() {
                     </PopoverContent></Popover>
                   </div>
                 </CardContent>
-                <CardFooter><Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full" disabled={anyLoading || !isConnected}>
-                    {anyLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : isStreamActive ? <StopCircle /> : <Play />}
-                    {anyLoading ? "Loading Data..." : isStreamActive ? "Stop Live Feed" : "Start Live Feed"}
-                </Button></CardFooter>
               </CollapsibleContent>
             </Collapsible>
           </Card>
@@ -387,5 +340,3 @@ export default function TradingLab2Page() {
     </div>
   )
 }
-
-    
