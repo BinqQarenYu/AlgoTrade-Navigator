@@ -25,8 +25,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, ChevronDown, GripHorizontal, Play, StopCircle, Settings, Sigma, CalendarIcon } from "lucide-react"
-import { cn, intervalToMs } from "@/lib/utils"
+import { Loader2, Terminal, ChevronDown, GripHorizontal, Play, StopCircle, Settings, Sigma, CalendarIcon, TrendingUp, ArrowUp, ArrowDown } from "lucide-react"
+import { cn, intervalToMs, formatPrice } from "@/lib/utils"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, PhysicsChartConfig } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -41,11 +41,22 @@ import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidi
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
+import { Bar, BarChart, ResponsiveContainer } from "recharts"
 
 interface DateRange {
   from?: Date;
   to?: Date;
 }
+
+const mockProbabilityData = [
+  { price: 60000, probability: 0.1 },
+  { price: 60500, probability: 0.15 },
+  { price: 61000, probability: 0.2 },
+  { price: 61500, probability: 0.4 },
+  { price: 62000, probability: 0.1 },
+  { price: 62500, probability: 0.05 },
+];
+
 
 export default function TradingLab2Page() {
   const { toast } = useToast()
@@ -57,6 +68,7 @@ export default function TradingLab2Page() {
   const [chartHeight, setChartHeight] = usePersistentState<number>('lab2-chart-height', 600);
   const [lineWidth, setLineWidth] = usePersistentState<number>('lab2-line-width', 2);
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('lab2-show-analysis', true);
+  const [showQuantumField, setShowQuantumField] = usePersistentState<boolean>('lab2-show-quantum', true);
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab2-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab2-scale-mode', 'linear');
   
@@ -88,6 +100,7 @@ export default function TradingLab2Page() {
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('lab2-controls-open', true);
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab2-analysis-tools-open', true);
   const [isPhysicsPanelsOpen, setIsPhysicsPanelsOpen] = usePersistentState<boolean>('lab2-physics-panels-open', true);
+  const [isQuantumCardOpen, setIsQuantumCardOpen] = usePersistentState<boolean>('lab2-quantum-card-open', true);
   
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -233,7 +246,7 @@ export default function TradingLab2Page() {
                   showAnalysis={showAnalysis}
                   chartType={chartType}
                   scaleMode={scaleMode}
-                  physicsConfig={physicsChartConfig}
+                  physicsConfig={physicsConfig}
               />
             </div>
             <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -242,7 +255,6 @@ export default function TradingLab2Page() {
           </div>
           <OrderBook 
             symbol={symbol}
-            onWallsUpdate={handleOrderBookUpdate}
           />
         </div>
 
@@ -315,6 +327,7 @@ export default function TradingLab2Page() {
                     <Separator/>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                         <div className="flex items-center space-x-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label></div>
+                        <div className="flex items-center space-x-2"><Switch id="show-quantum-field" checked={showQuantumField} onCheckedChange={setShowQuantumField} /><Label htmlFor="show-quantum-field" className="flex-1 cursor-pointer font-semibold">Show Quantum Field</Label></div>
                     </div>
                     <Collapsible open={isPhysicsPanelsOpen} onOpenChange={setIsPhysicsPanelsOpen} className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <CollapsibleTrigger asChild><div className="flex w-full items-center justify-between cursor-pointer"><Label className="flex-1 font-semibold">Physics Panels</Label><ChevronDown className={cn("h-4 w-4 transition-transform", isPhysicsPanelsOpen && "rotate-180")} /></div></CollapsibleTrigger>
@@ -334,6 +347,55 @@ export default function TradingLab2Page() {
                   </CardContent>
                 </CollapsibleContent>
             </Collapsible>
+          </Card>
+          <Card>
+              <Collapsible open={isQuantumCardOpen} onOpenChange={setIsQuantumCardOpen}>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                          <CardTitle>Quantum Market Forecaster</CardTitle>
+                          <CardDescription>Forward-looking probability map of future price action.</CardDescription>
+                      </div>
+                      <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <ChevronDown className={cn("h-4 w-4 transition-transform", isQuantumCardOpen && "rotate-180")} />
+                          </Button>
+                      </CollapsibleTrigger>
+                  </CardHeader>
+                  <CollapsibleContent>
+                      <CardContent className="space-y-6">
+                           <div>
+                              <Label className="text-xs text-muted-foreground">Prediction Summary</Label>
+                              <div className="p-4 rounded-lg bg-muted/50 border space-y-3 mt-1">
+                                  <div className="flex justify-between items-center">
+                                      <span className="font-medium">Probable Trend</span>
+                                      <span className="flex items-center gap-2 font-semibold text-green-500">
+                                          BULLISH <ArrowUp className="h-4 w-4" />
+                                      </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <span className="font-medium">Price Target</span>
+                                      <span className="font-semibold font-mono">${formatPrice(62000)}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <span className="font-medium">Confidence</span>
+                                      <span className="font-semibold">78%</span>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div>
+                              <Label className="text-xs text-muted-foreground">Probability Density at t=7</Label>
+                              <div className="h-40 mt-1">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={mockProbabilityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
+                                        <Bar dataKey="probability" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                          </div>
+                      </CardContent>
+                  </CollapsibleContent>
+              </Collapsible>
           </Card>
         </div>
       </div>
