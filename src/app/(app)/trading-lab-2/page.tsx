@@ -82,7 +82,7 @@ export default function TradingLab2Page() {
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
 
-  const [physicsChartConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
+  const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
     showImbalance: true,
     showStiffness: true,
@@ -334,12 +334,12 @@ export default function TradingLab2Page() {
                       <CollapsibleContent className="pt-4 space-y-3">
                           <div className="border-b -mx-3"></div>
                           <div className="pl-2 space-y-3 pt-2">
-                            <div className="flex items-center space-x-2"><Switch id="show-depth" checked={physicsChartConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} /><Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label></div>
-                            <div className="flex items-center space-x-2"><Switch id="show-imbalance" checked={physicsChartConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} /><Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label></div>
-                            <div className="flex items-center space-x-2"><Switch id="show-stiffness" checked={physicsChartConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} /><Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label></div>
-                            <div className="flex items-center space-x-2"><Switch id="show-pressure" checked={physicsChartConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} /><Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label></div>
-                            <div className="flex items-center space-x-2"><Switch id="show-bpi" checked={physicsChartConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} /><Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label></div>
-                            <div className="space-y-2 pt-2"><Label htmlFor="bpi-threshold">BPI Threshold</Label><Input id="bpi-threshold" type="number" step="0.1" value={physicsChartConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} /></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-depth" checked={physicsConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} /><Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-imbalance" checked={physicsConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} /><Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-stiffness" checked={physicsConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} /><Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-pressure" checked={physicsConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} /><Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-bpi" checked={physicsConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} /><Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label></div>
+                            <div className="space-y-2 pt-2"><Label htmlFor="bpi-threshold">BPI Threshold</Label><Input id="bpi-threshold" type="number" step="0.1" value={physicsConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} /></div>
                           </div>
                       </CollapsibleContent>
                     </Collapsible>
