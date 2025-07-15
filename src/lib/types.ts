@@ -142,6 +142,15 @@ export type PhysicsChartConfig = {
   bpiThreshold: number;
 };
 
+// Represents the probability distribution for a single future time step
+export type QuantumFieldData = {
+    time: number;
+    priceLevels: {
+        price: number;
+        probability: number;
+    }[];
+}
+
 export type Portfolio = {
   balance: number;
   totalPnl: number;

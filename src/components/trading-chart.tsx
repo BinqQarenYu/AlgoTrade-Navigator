@@ -4,7 +4,7 @@
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade, PhysicsChartConfig } from '@/lib/types';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade, PhysicsChartConfig, QuantumFieldData } from '@/lib/types';
 import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -49,6 +49,7 @@ export function TradingChart({
   manipulationResult = null,
   showManipulationOverlay = true,
   physicsConfig,
+  quantumFieldData = [],
 }: { 
   data: HistoricalData[];
   projectedData?: HistoricalData[];
@@ -73,6 +74,7 @@ export function TradingChart({
   manipulationResult?: DetectManipulationOutput | null;
   showManipulationOverlay?: boolean;
   physicsConfig?: PhysicsChartConfig;
+  quantumFieldData?: QuantumFieldData[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -145,6 +147,7 @@ export function TradingChart({
         distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
         projectionColor: isDarkMode ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.7)',
         projectionWickColor: isDarkMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(156, 163, 175, 0.7)',
+        quantumFieldColor: isDarkMode ? 'hsla(197, 78%, 52%, 0.15)' : 'hsla(197, 78%, 52%, 0.1)',
     };
     
     const chart = createChart(chartContainer, {
@@ -224,6 +227,15 @@ export function TradingChart({
         autoscaleInfoProvider: () => null, // Prevents this series from affecting the main price scale
     });
 
+    const quantumFieldSeries = chart.addCandlestickSeries({
+        priceScaleId: 'left',
+        wickVisible: false,
+        borderVisible: false,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        autoscaleInfoProvider: () => null,
+    });
+
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: chartColors.barUpColor,
       downColor: chartColors.barDownColor,
@@ -260,6 +272,7 @@ export function TradingChart({
         spoofingZoneSeries,
         targetZoneSeries,
         manipulationZoneSeries,
+        quantumFieldSeries,
         chartColors, // Store colors for later use
         smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
         smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
@@ -1260,6 +1273,44 @@ export function TradingChart({
         }
 
     }, [physicsConfig, combinedData]);
+
+    // Effect for Quantum Field
+    useEffect(() => {
+        if (!chartRef.current?.chart) return;
+        const { quantumFieldSeries, chartColors } = chartRef.current;
+        if (!quantumFieldSeries) return;
+
+        if (quantumFieldData && quantumFieldData.length > 0) {
+            const fieldData: any[] = [];
+            const maxProb = Math.max(...quantumFieldData.flatMap(t => t.priceLevels.map(p => p.probability)));
+
+            quantumFieldData.forEach(timeStep => {
+                // Determine the step between price levels for this time step
+                const levels = timeStep.priceLevels;
+                if (levels.length < 2) return;
+                const priceStep = levels[1].price - levels[0].price;
+
+                levels.forEach(level => {
+                    const opacity = maxProb > 0 ? (level.probability / maxProb) : 0;
+                    const color = `hsla(197, 78%, 52%, ${opacity * 0.5})`; // Use HSL for smooth opacity
+
+                    fieldData.push({
+                        time: toTimestamp(timeStep.time),
+                        open: level.price - (priceStep / 2),
+                        high: level.price + (priceStep / 2),
+                        low: level.price - (priceStep / 2),
+                        close: level.price + (priceStep / 2),
+                        color: color,
+                        borderColor: color,
+                    });
+                });
+            });
+            quantumFieldSeries.setData(fieldData);
+        } else {
+            quantumFieldSeries.setData([]);
+        }
+
+    }, [quantumFieldData]);
 
 
 
