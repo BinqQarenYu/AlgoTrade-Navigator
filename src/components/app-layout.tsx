@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3 } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -31,6 +31,7 @@ const menuItems = [
   { href: "/manual", label: "Manual Trading", icon: ClipboardCheck },
   { href: "/multi-signal", label: "Multi-Signal", icon: LayoutGrid },
   { href: "/lab", label: "Trading Lab", icon: FlaskConical },
+  { href: "/trading-lab-2", label: "Trading Lab II", icon: Sigma },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
   { href: "/data", label: "Data", icon: Database },
   { href: "/settings", label: "Settings", icon: Settings },
