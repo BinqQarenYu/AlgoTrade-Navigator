@@ -236,7 +236,7 @@ export type RankedTradeSignal = TradeSignal & {
 };
     
 export type LiveBotConfig = {
-    symbol: string;
+    assets: string[];
     interval: string;
     strategy: string;
     strategyParams: any;
@@ -245,8 +245,6 @@ export type LiveBotConfig = {
     takeProfit: number;
     stopLoss: number;
     useAIPrediction: boolean;
-    reverse: boolean;
-    fee: number;
 };
 
 export type ManualTraderConfig = {
@@ -285,6 +283,19 @@ export interface MultiSignalState {
   logs: string[];
 }
 
+export type LiveBotStateForAsset = {
+  status: 'initializing' | 'running' | 'analyzing' | 'position_open' | 'error';
+  activePosition: TradeSignal | null;
+  logs: string[];
+};
+
+export type LiveBotState = {
+  isRunning: boolean;
+  config: LiveBotConfig | null;
+  bots: Record<string, LiveBotStateForAsset>; // Keyed by asset symbol
+};
+
+
 export type PricePredictionOutput = {
     predictedPrice: number;
     predictedDirection: 'UP' | 'DOWN' | 'NEUTRAL';
@@ -299,7 +310,7 @@ export type StrategyAnalysisInput = {
     indicatorValues: Record<string, any>;
 };
 
-export type SimulationConfig = LiveBotConfig;
+export type SimulationConfig = Omit<LiveBotConfig, 'assets'> & { symbol: string; fee: number; };
 export type SimulatedTrade = BacktestResult;
 
 export type SimulatedPosition = {

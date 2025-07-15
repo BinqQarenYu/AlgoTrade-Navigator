@@ -1,12 +1,9 @@
 
-
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
-import { TradingChart } from "@/components/trading-chart"
-import { getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -30,17 +27,17 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, ShieldCheck, TestTube, TrendingUp, TrendingDown, XCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { addDays } from "date-fns"
-import type { HistoricalData, TradeSignal, DisciplineParams, LiveBotConfig, Wall, SpoofedWall } from "@/lib/types"
-import type { PredictMarketOutput } from "@/ai/flows/predict-market-flow"
-import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
+import { topBases, pairsByBase, assetInfo } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
-import { OrderBook } from "@/components/order-book"
-import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
+import { usePersistentState } from "@/hooks/use-persistent-state"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import type { LiveBotConfig } from "@/lib/types"
+import { LiveTradingBotCard } from "@/components/live-trading-bot-card"
+
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
 import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
@@ -65,6 +62,8 @@ import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -86,51 +85,14 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'pivot-point-reversal': defaultPivotPointReversalParams,
     'reverse-pff': defaultReversePffParams,
     'rsi-divergence': defaultRsiDivergenceParams,
-    'sma-crossover': defaultSmaCrossoverParams,
     'stochastic-crossover': defaultStochasticCrossoverParams,
     'supertrend': defaultSupertrendParams,
     'volume-delta': defaultVolumeDeltaParams,
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
-
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
-        if (isMounted) {
-          setState(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-      localStorage.removeItem(key);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [isHydrated ? state : defaultValue, setState];
-};
 
 export default function LiveTradingPage() {
   const { toast } = useToast()
@@ -142,58 +104,33 @@ export default function LiveTradingPage() {
     isTradingActive,
     strategyParams,
     setStrategyParams,
-    executeTestTrade,
-    closeTestPosition,
   } = useBot();
 
-  const { isRunning, logs, prediction, isPredicting, chartData: botChartData, activePosition } = liveBotState;
+  const { isRunning, bots, config: runningConfig } = liveBotState;
   
-  const [isClient, setIsClient] = useState(false)
-  
-  // Local state for configuration UI
-  const [baseAsset, setBaseAsset] = usePersistentState<string>('live-base-asset', "BTC");
-  const [quoteAsset, setQuoteAsset] = usePersistentState<string>('live-quote-asset', "USDT");
-  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
-  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
-
-  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', "sma-crossover");
+  const [selectedAssets, setSelectedAssets] = usePersistentState<string[]>('live-assets', ["BTCUSDT", "ETHUSDT"]);
+  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('live-strategy', "peak-formation-fib");
   const [interval, setInterval] = usePersistentState<string>('live-interval', "1m");
   const [initialCapital, setInitialCapital] = usePersistentState<number>('live-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('live-leverage', 10);
   const [takeProfit, setTakeProfit] = usePersistentState<number>('live-tp', 5);
   const [stopLoss, setStopLoss] = usePersistentState<number>('live-sl', 2);
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('live-ai-prediction', false);
-  const [chartHeight, setChartHeight] = usePersistentState<number>('live-chart-height', 600);
-
-  // Local state for chart data, separate from the bot's data
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(false);
-
-  const [ipAddress, setIpAddress] = useState<string | null>(null);
-
-  // Order book state
-  const [walls, setWalls] = useState<Wall[]>([]);
-  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
-
-  // Collapsible states
-  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('live-controls-open', true);
+  const [isConfigOpen, setConfigOpen] = usePersistentState<boolean>('live-config-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('live-params-open', false);
   const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('live-discipline-open', false);
-  const [isPredictionOpen, setPredictionOpen] = usePersistentState<boolean>('live-prediction-open', true);
-  const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('live-logs-open', true);
+
+  const handleAssetToggle = (asset: string) => {
+    setSelectedAssets(prev => 
+        prev.includes(asset) ? prev.filter(a => a !== asset) : [...prev, asset]
+    );
+  };
   
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
     setStrategyParams(prev => ({
         ...prev,
         [strategyId]: { ...prev[strategyId], [paramName]: value }
     }));
-  };
-  
-  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
-      handleParamChange(selectedStrategy, 'discipline', {
-        ...strategyParams[selectedStrategy].discipline,
-        [paramName]: value,
-      });
   };
 
   const handleResetParams = () => {
@@ -205,117 +142,14 @@ export default function LiveTradingPage() {
     }
   }
 
-  const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
-    mouseDownEvent.preventDefault();
-    const startHeight = chartHeight;
-    const startPosition = mouseDownEvent.clientY;
-
-    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
-      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
-      if (newHeight >= 400 && newHeight <= 1200) {
-        setChartHeight(newHeight);
-      }
-    };
-
-    const onMouseUp = () => {
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = 'auto';
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-    
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [chartHeight, setChartHeight]);
-
-  useEffect(() => {
-    setIsClient(true)
-    const fetchIp = async () => {
-        try {
-        const response = await fetch('/api/ip');
-        const data = await response.json();
-        setIpAddress(data.ip);
-        } catch (error) {
-        console.error("Could not fetch IP address:", error);
-        setIpAddress("Unavailable");
-        }
-    };
-    fetchIp();
-  }, [])
-
-  useEffect(() => {
-    const quotes = getAvailableQuotesForBase(baseAsset);
-    setAvailableQuotes(quotes);
-    if (!quotes.includes(quoteAsset)) {
-      setQuoteAsset(quotes[0] || '');
-    }
-  }, [baseAsset, quoteAsset, setQuoteAsset]);
-
-  useEffect(() => {
-    if (isRunning) {
-        setChartData(botChartData);
-    }
-  }, [isRunning, botChartData]);
-  
-  useEffect(() => {
-    if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
-        if (!isRunning) setChartData([]);
-        return;
-    }
-
-    const fetchData = async () => {
-        setIsFetchingData(true);
-        setChartData([]);
-        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
-        try {
-            const from = addDays(new Date(), -1).getTime();
-            const to = new Date().getTime();
-            const klines = await getHistoricalKlines(symbol, interval, from, to);
-            setChartData(klines);
-            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
-        } catch (error: any) {
-            console.error("Failed to fetch historical data:", error);
-            toast({
-                title: "Failed to Load Data",
-                description: error.message || "Could not retrieve historical data from Binance.",
-                variant: "destructive"
-            });
-            setChartData([]);
-        } finally {
-            setIsFetchingData(false);
-        }
-    };
-
-    fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isRunning]);
-
-  const handleBaseAssetChange = (newBase: string) => {
-    setBaseAsset(newBase);
-    if (!isRunning) {
-      setChartData([]);
-    }
-  };
-
-  const handleQuoteAssetChange = (newQuote: string) => {
-    setQuoteAsset(newQuote);
-    if (!isRunning) {
-      setChartData([]);
-    }
-  };
-
-  const handleIntervalChange = useCallback((newInterval: string) => {
-    setInterval(newInterval);
-    if (!isRunning) {
-        setChartData([]);
-    }
-  }, [isRunning, setInterval]);
-  
   const handleBotToggle = async () => {
     if (isRunning) {
         stopLiveBot();
     } else {
+        if (selectedAssets.length === 0) {
+            toast({ title: "No Assets Selected", description: "Please select at least one asset to run.", variant: "destructive"});
+            return;
+        }
         if (selectedStrategy === 'none') {
             toast({ title: "No Strategy Selected", description: "Please select a strategy to run the live bot.", variant: "destructive"});
             return;
@@ -326,7 +160,7 @@ export default function LiveTradingPage() {
         }
         
         const config: LiveBotConfig = {
-            symbol,
+            assets: selectedAssets,
             interval,
             strategy: selectedStrategy,
             strategyParams: strategyParams[selectedStrategy],
@@ -335,104 +169,24 @@ export default function LiveTradingPage() {
             takeProfit,
             stopLoss,
             useAIPrediction,
-            reverse: strategyParams[selectedStrategy]?.reverse || false,
-            fee: 0.04 // Hardcoded fee
         }
 
         startLiveBot(config);
     }
   }
-
-  const tradeSignalForChart = useMemo<TradeSignal | null>(() => {
-    if (!isRunning || !activePosition) return null;
-    return activePosition;
-}, [isRunning, activePosition]);
-
-
-  const anyLoading = isFetchingData;
-  const getPredictionBadgeVariant = (pred?: string | null) => {
-    if (!pred) return 'secondary';
-    switch (pred) {
-        case 'UP': return 'default';
-        case 'DOWN': return 'destructive';
-        default: return 'secondary';
-    }
-  }
-
-  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
-    setWalls(walls);
-    if (spoofs.length > 0) {
-      setSpoofedWalls(prev => [...prev, ...spoofs]);
-    }
-  }, []);
-
-  const renderParameterControls = () => {
-    const params = strategyParams[selectedStrategy];
-    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
-
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'discipline' && key !== 'reverse'));
-
-    if (Object.keys(filteredParams).length === 0) {
-        return (
-            <div className="flex items-center space-x-2 pt-2">
-                <Switch
-                    id="reverse-logic"
-                    checked={params.reverse || false}
-                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={isRunning}
-                />
-                <div className="flex flex-col">
-                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-                </div>
-            </div>
-        );
-    }
-    
-    const controls = Object.entries(filteredParams).map(([key, value]) => (
-      <div key={key} className="space-y-2">
-        <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-        <Input 
-          id={key}
-          type="number"
-          value={value as number}
-          onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
-          step={String(value).includes('.') ? '0.001' : '1'}
-          disabled={isRunning}
-        />
-      </div>
-    ));
-
-    const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
-
-    return (
-      <div className="space-y-4">
-        {controls.length > 0 && <div className="grid grid-cols-2 gap-4">{controls}</div>}
-         <div className="flex items-center space-x-2 pt-2">
-            <Switch
-              id="reverse-logic"
-              checked={params.reverse || false}
-              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={isRunning}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-            </div>
-          </div>
-        {canReset && (
-            <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full">
-                <RotateCcw className="mr-2 h-4 w-4" />
-                Reset to Default
-            </Button>
-        )}
-      </div>
-    );
-  };
+  
+  const monitoredAssets = isRunning && runningConfig ? runningConfig.assets : [];
 
   return (
-    <div className="flex flex-col h-full">
-    {!isConnected && (
+    <div className="space-y-6">
+      <div className="text-left">
+          <h1 className="text-3xl font-bold tracking-tight text-primary">Multi-Asset Live Trading</h1>
+          <p className="text-muted-foreground mt-2">
+              Deploy and manage multiple trading bots concurrently from a single dashboard.
+          </p>
+      </div>
+
+      {!isConnected && (
         <Alert variant="destructive" className="mb-4">
             <Terminal className="h-4 w-4" />
             <AlertTitle>API Disconnected</AlertTitle>
@@ -440,291 +194,141 @@ export default function LiveTradingPage() {
                 Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable live trading features.
             </AlertDescription>
         </Alert>
-    )}
-     {isTradingActive && !isRunning && (
+      )}
+
+      {isTradingActive && !isRunning && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
             <AlertDescription>
-                Live Trading is disabled to prioritize another active trading session. Check the <Link href="/manual" className="font-bold underline">Manual Trading</Link> or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> page.
+                Live Trading is disabled to prioritize another active trading session. Check other pages.
             </AlertDescription>
         </Alert>
       )}
-    <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <div className="xl:col-span-3 relative pb-4">
-        <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={isRunning ? botChartData : chartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} tradeSignal={tradeSignalForChart} wallLevels={walls} spoofedWalls={spoofedWalls} />
-        </div>
-        <div
-            onMouseDown={startChartResize}
-            className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
-        >
-            <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
-        </div>
-      </div>
-      <div className="xl:col-span-2 space-y-6">
-        <Card>
-          <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+        <Card className="lg:col-span-1">
+          <Collapsible open={isConfigOpen} onOpenChange={setConfigOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2"><Bot/> Live Bot Controls</CardTitle>
-                <CardDescription>Configure and manage your live trading bot.</CardDescription>
+                <CardTitle>Master Configuration</CardTitle>
+                <CardDescription>Settings apply to all selected bots.</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
-                      <span className={cn(
-                        "h-2.5 w-2.5 rounded-full",
-                        isConnected ? "bg-green-500" : "bg-red-500"
-                      )} />
-                      <span>IP: {ipAddress || "Loading..."}</span>
-                  </div>
-                  <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
-                          <span className="sr-only">Toggle</span>
-                      </Button>
-                  </CollapsibleTrigger>
-              </div>
+              <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
+                  </Button>
+              </CollapsibleTrigger>
             </CardHeader>
             <CollapsibleContent>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}>
-                        <SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {topAssets.map(asset => (
-                            <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning || availableQuotes.length === 0}>
-                        <SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {availableQuotes.map(asset => (
-                            <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label htmlFor="strategy">Strategy</Label>
-                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}>
-                        <SelectTrigger id="strategy">
-                          <SelectValue placeholder="Select strategy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None (Candles Only)</SelectItem>
-                          {strategyMetadatas.map(strategy => (
-                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="interval">Interval</Label>
-                      <Select onValueChange={handleIntervalChange} value={interval} disabled={isRunning}>
-                        <SelectTrigger id="interval">
-                          <SelectValue placeholder="Select interval" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1m">1 Minute</SelectItem>
-                          <SelectItem value="5m">5 Minutes</SelectItem>
-                          <SelectItem value="15m">15 Minutes</SelectItem>
-                          <SelectItem value="1h">1 Hour</SelectItem>
-                          <SelectItem value="4h">4 Hours</SelectItem>
-                          <SelectItem value="1d">1 Day</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <div className="space-y-2">
+                    <Label>Assets to Trade</Label>
+                    <ScrollArea className="h-40 w-full rounded-md border p-4">
+                        <div className="space-y-4">
+                            {topBases.map((base) => {
+                                const quotes = pairsByBase[base] || [];
+                                if (quotes.length === 0) return null;
+                                return (
+                                    <div key={base}>
+                                        <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pl-2">
+                                            {quotes.map(quote => {
+                                                const symbol = `${base}${quote}`;
+                                                return (
+                                                    <div key={symbol} className="flex items-center space-x-2">
+                                                        <Checkbox id={symbol} checked={selectedAssets.includes(symbol)} onCheckedChange={() => handleAssetToggle(symbol)} disabled={isRunning}/>
+                                                        <Label htmlFor={symbol} className="font-normal text-muted-foreground">{quote}</Label>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </ScrollArea>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="strategy">Strategy</Label>
+                  <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}>
+                    <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                    <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interval">Interval</Label>
+                  <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
+                    <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1m">1m</SelectItem><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem><SelectItem value="1d">1d</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
                   <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full">
-                      <BrainCircuit className="mr-2 h-4 w-4" />
-                      <span>Strategy Parameters</span>
-                      <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
-                    </Button>
+                    <Button variant="outline" size="sm" className="w-full"><BrainCircuit/>Strategy Parameters<ChevronDown className={cn("ml-auto h-4 w-4", isParamsOpen && "rotate-180")} /></Button>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                    {renderParameterControls()}
+                     <div className="grid grid-cols-2 gap-4">
+                        {(Object.keys(strategyParams[selectedStrategy] || {}).filter(k => k !== 'discipline' && k !== 'reverse')).map(key => (
+                           <div key={key} className="space-y-2">
+                            <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
+                            <Input id={key} type="number" value={strategyParams[selectedStrategy][key]} onChange={e => handleParamChange(selectedStrategy, key, e.target.value)} disabled={isRunning}/>
+                           </div>
+                        ))}
+                     </div>
+                     <div className="flex items-center space-x-2 pt-2"><Switch id="reverse-logic" checked={strategyParams[selectedStrategy]?.reverse || false} onCheckedChange={(c) => handleParamChange(selectedStrategy, 'reverse', c)} disabled={isRunning}/><Label htmlFor="reverse-logic">Reverse Logic</Label></div>
+                     {DEFAULT_PARAMS_MAP[selectedStrategy] && <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full"><RotateCcw/>Reset to Default</Button>}
                   </CollapsibleContent>
                 </Collapsible>
+                 
+                <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline} onParamChange={(key, value) => handleParamChange(selectedStrategy, 'discipline', {...strategyParams[selectedStrategy].discipline, [key]: value})} isCollapsed={isDisciplineOpen} onCollapseChange={setDisciplineOpen} isDisabled={isRunning} />
 
-                {strategyParams[selectedStrategy]?.discipline && (
-                    <DisciplineSettings 
-                        params={strategyParams[selectedStrategy].discipline}
-                        onParamChange={handleDisciplineParamChange}
-                        isCollapsed={isDisciplineOpen}
-                        onCollapseChange={setDisciplineOpen}
-                        isDisabled={isRunning}
-                    />
-                )}
+                <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label htmlFor="capital">Capital/Bot ($)</Label><Input id="capital" type="number" value={initialCapital} onChange={e => setInitialCapital(parseFloat(e.target.value))} disabled={isRunning}/></div>
+                  <div className="space-y-2"><Label htmlFor="leverage">Leverage</Label><Input id="leverage" type="number" value={leverage} onChange={e => setLeverage(parseInt(e.target.value))} disabled={isRunning}/></div>
+                  <div className="space-y-2"><Label htmlFor="tp">Take Profit (%)</Label><Input id="tp" type="number" value={takeProfit} onChange={e => setTakeProfit(parseFloat(e.target.value))} disabled={isRunning}/></div>
+                  <div className="space-y-2"><Label htmlFor="sl">Stop Loss (%)</Label><Input id="sl" type="number" value={stopLoss} onChange={e => setStopLoss(parseFloat(e.target.value))} disabled={isRunning}/></div>
+                </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="initial-capital">Initial Capital ($)</Label>
-                        <Input 
-                            id="initial-capital" 
-                            type="number" 
-                            value={initialCapital}
-                            onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                            placeholder="100"
-                            disabled={isRunning}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="leverage">Leverage (x)</Label>
-                      <Input
-                        id="leverage"
-                        type="number"
-                        min="1"
-                        value={leverage}
-                        onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
-                        placeholder="10"
-                        disabled={isRunning}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="take-profit">Take Profit (%)</Label>
-                        <Input 
-                            id="take-profit" 
-                            type="number" 
-                            value={takeProfit}
-                            onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
-                            placeholder="5"
-                            disabled={isRunning}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="stop-loss">Stop Loss (%)</Label>
-                        <Input 
-                            id="stop-loss" 
-                            type="number" 
-                            value={stopLoss}
-                            onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
-                            placeholder="2"
-                            disabled={isRunning}
-                        />
-                    </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Analysis Tools</Label>
-                  <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/50">
-                    <Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} />
-                    <div className="flex flex-col">
-                        <Label htmlFor="ai-prediction">Enable AI Validation</Label>
-                        <p className="text-xs text-muted-foreground">Let an AI validate each signal. Disabling this runs the classic strategy only.</p>
-                    </div>
-                  </div>
-                </div>
+                <div className="flex items-center space-x-2 pt-2"><Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning}/><Label htmlFor="ai-prediction">Enable AI Validation</Label></div>
               </CardContent>
               <CardFooter>
-                <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning) || selectedStrategy === 'none'} variant={isRunning ? "destructive" : "default"}>
+                <Button className="w-full" onClick={handleBotToggle} disabled={!isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
                   {isRunning ? <StopCircle /> : <Play />}
-                  {isRunning ? "Stop Bot" : "Start Bot"}
+                  {isRunning ? "Stop All Bots" : "Start Trading"}
                 </Button>
               </CardFooter>
             </CollapsibleContent>
           </Collapsible>
         </Card>
-        
-        <Card>
-          <Collapsible open={isPredictionOpen} onOpenChange={setPredictionOpen}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Market Prediction</CardTitle>
-                <CardDescription>AI-powered validation of the strategy's signal.</CardDescription>
-              </div>
-              <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", isPredictionOpen && "rotate-180")} />
-                      <span className="sr-only">Toggle</span>
-                  </Button>
-              </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
+
+        <div className="lg:col-span-3">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Live Bot Dashboard</CardTitle>
+                  <CardDescription>
+                      {isRunning ? `Monitoring ${monitoredAssets.length} assets...` : "Bots are idle. Start trading to see live data."}
+                  </CardDescription>
+              </CardHeader>
               <CardContent>
-                  {isPredicting ? (
-                      <div className="flex items-center justify-center h-24 text-muted-foreground">
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          <span>Analyzing market data...</span>
-                      </div>
-                  ) : prediction ? (
-                      <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Prediction</span>
-                              <Badge variant={getPredictionBadgeVariant(prediction.prediction)} className="text-lg px-4 py-1">
-                                  {prediction.prediction}
-                              </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Confidence</span>
-                              <span className="font-semibold">{(prediction.confidence * 100).toFixed(1)}%</span>
-                          </div>
-                          <div>
-                              <p className="text-sm text-muted-foreground mt-2">{prediction.reasoning}</p>
-                          </div>
+                  {isRunning ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">
+                          {monitoredAssets.map(asset => (
+                              <LiveTradingBotCard key={asset} asset={asset} botState={bots[asset]} />
+                          ))}
                       </div>
                   ) : (
-                      <div className="flex items-center justify-center h-24 text-muted-foreground">
-                          <p>{isRunning ? 'Waiting for next cycle...' : 'Start the bot to get predictions.'}</p>
+                      <div className="flex items-center justify-center h-64 text-muted-foreground border border-dashed rounded-md">
+                          <p>The bot dashboard is currently inactive.</p>
                       </div>
                   )}
               </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-        
-        <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />
-
-        <Card>
-          <Collapsible open={isLogsOpen} onOpenChange={setLogsOpen}>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Activity/> Bot Status & Logs</CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                      Status: 
-                      <span className={cn(
-                          "font-semibold",
-                          isRunning ? "text-green-500" : "text-red-500"
-                      )}>
-                          {isRunning ? "Running" : "Idle"}
-                      </span>
-                  </CardDescription>
-                </div>
-                <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isLogsOpen && "rotate-180")} />
-                        <span className="sr-only">Toggle</span>
-                    </Button>
-                </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                  <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
-                      {logs.length > 0 ? (
-                          <pre className="text-xs whitespace-pre-wrap font-mono">
-                              {logs.join('\n')}
-                          </pre>
-                      ) : (
-                          <div className="flex items-center justify-center h-full text-muted-foreground">
-                              <p>Logs will appear here when the bot is running.</p>
-                          </div>
-                      )}
-                  </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-
+          </Card>
+        </div>
       </div>
-    </div>
     </div>
   )
 }
