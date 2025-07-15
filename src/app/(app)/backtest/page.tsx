@@ -459,7 +459,10 @@ export default function BacktestPage() {
   }
 
   const handleRunBacktestClick = () => {
-    if (isReplaying) stopReplay();
+    if (isReplaying) {
+      stopAndRunBacktest();
+      return;
+    }
     if (useAIValidation) {
         if (canUseAi()) {
             setIsConfirming(true);
@@ -478,7 +481,11 @@ export default function BacktestPage() {
       });
       return;
     }
-    if (isReplaying) stopReplay();
+    
+    if (isReplaying) {
+        console.warn("Attempted to run backtest while replay is active. This should be handled by stopAndRunBacktest.");
+        return;
+    }
 
     if (!contrarian) {
         setIsBacktesting(true);
@@ -677,7 +684,9 @@ export default function BacktestPage() {
         toast({ title: "Not Supported", description: "Auto-tuning is not configured for this strategy.", variant: "destructive" });
         return;
     }
-    if (isReplaying) stopReplay();
+    if (isReplaying) {
+      await stopAndRunBacktest();
+    }
     setIsOptimizing(true);
     toast({ title: "Starting Auto-Tune...", description: "This may take a moment. The UI may be unresponsive." });
 
@@ -756,7 +765,10 @@ export default function BacktestPage() {
       clearInterval(replayIntervalRef.current);
       replayIntervalRef.current = null;
     }
-    // Optionally run the full backtest report when replay is stopped
+  };
+
+  const stopAndRunBacktest = () => {
+    stopReplay();
     runBacktest();
   };
 
@@ -1189,7 +1201,7 @@ export default function BacktestPage() {
                             <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
                             <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
                             <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                            <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
+                            <Button variant="destructive" size="icon" onClick={stopAndRunBacktest}><History/></Button>
                         </div>
                          <div className="flex items-center justify-center gap-2">
                            <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
