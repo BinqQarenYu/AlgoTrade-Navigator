@@ -11,8 +11,10 @@ export const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.
     let isMounted = true;
     try {
       const item = window.localStorage.getItem(key);
-      if (item) {
+      // Check for null or the literal string "undefined" before parsing.
+      if (item && item !== "undefined") {
         const parsed = JSON.parse(item);
+        // Special handling for date ranges, as they need to be rehydrated as Date objects
         if (key.endsWith('-date-range') && parsed) {
           if (parsed.from) parsed.from = new Date(parsed.from);
           if (parsed.to) parsed.to = new Date(parsed.to);
@@ -34,7 +36,13 @@ export const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.
 
   useEffect(() => {
     if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
+      // Avoid saving `undefined` to localStorage.
+      if (state !== undefined) {
+        window.localStorage.setItem(key, JSON.stringify(state));
+      } else {
+        // If state becomes undefined, remove it from storage to avoid errors.
+        window.localStorage.removeItem(key);
+      }
     }
   }, [key, state, isHydrated]);
 
