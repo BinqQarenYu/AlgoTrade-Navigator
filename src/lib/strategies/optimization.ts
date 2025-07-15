@@ -49,7 +49,6 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
     'liquidity-grab': {
         swingLookaround: { min: 5, max: 15, step: 2 },
         confirmationCandles: { min: 1, max: 5, step: 1 },
-        maxSweepLookahead: { min: 10, max: 50, step: 10 },
     },
     'peak-formation-fib': {
         peakLookaround: { min: 3, max: 10, step: 1 },
@@ -66,11 +65,11 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         emaLongPeriod: { min: 40, max: 60, step: 5 },
         fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
+        signalStaleness: { min: 10, max: 50, step: 5 },
     },
     'liquidity-order-flow': {
         swingLookaround: { min: 3, max: 10, step: 1 },
         emaTrendPeriod: { min: 100, max: 200, step: 50 },
-        maxLookahead: { min: 25, max: 75, step: 25 },
     },
     'volume-delta': {
         pocLookback: { min: 100, max: 300, step: 50 },

@@ -9,10 +9,9 @@ export interface HyperPFFParams {
     swingLookaround: number;
     emaShortPeriod: number;
     emaLongPeriod: number;
-    fibLevel1: number;
-    fibLevel2: number;
-    maxLookahead: number;
-    signalStaleness: number; // How many candles a signal remains valid
+    fibLevel1: number; // e.g., 0.5
+    fibLevel2: number; // e.g., 0.618
+    signalStaleness: number; // How many candles a signal remains valid after a Break of Structure
     reverse?: boolean;
     discipline: DisciplineParams;
 }
@@ -24,7 +23,6 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     emaLongPeriod: 50,
     fibLevel1: 0.5,
     fibLevel2: 0.618,
-    maxLookahead: 100,
     signalStaleness: 25,
     reverse: false,
     discipline: {
@@ -36,9 +34,7 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     },
 };
 
-// --- NON-REPAINTING HELPERS ---
-
-// A swing high is confirmed only after 'lookaround' bars to its right have closed without making a higher high.
+// A swing high is confirmed only after 'lookaround' bars to its right have closed.
 function isConfirmedSwingHigh(data: HistoricalData[], index: number, lookaround: number): boolean {
     if (index < lookaround || index >= data.length - lookaround) return false;
     const currentHigh = data[index].high;
@@ -65,10 +61,10 @@ function isConfirmedSwingLow(data: HistoricalData[], index: number, lookaround: 
 const hyperPeakFormationStrategy: Strategy = {
     id: 'hyper-peak-formation',
     name: 'Hyper Peak Formation',
-    description: 'A version of Peak Formation Fib with tunable parameters for hyper-optimization.',
+    description: 'A non-repainting strategy that identifies market peaks, waits for a break of structure, and enters on a Fibonacci retracement.',
     async calculate(data: HistoricalData[], params: HyperPFFParams = defaultHyperPFFParams): Promise<HistoricalData[]> {
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
-        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, maxLookahead, reverse } = params;
+        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, signalStaleness, reverse } = params;
 
         if (data.length < emaLongPeriod) return dataWithIndicators;
 
@@ -191,6 +187,3 @@ const hyperPeakFormationStrategy: Strategy = {
 }
 
 export default hyperPeakFormationStrategy;
-
-
-    
