@@ -41,7 +41,7 @@ import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidi
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
-import { Bar, BarChart, ResponsiveContainer } from "recharts"
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 
 interface DateRange {
   from?: Date;
@@ -56,47 +56,6 @@ const mockProbabilityData = [
   { price: 62000, probability: 0.1 },
   { price: 62500, probability: 0.05 },
 ];
-
-
-// --- MOCK QUANTUM ENGINE ---
-const generateMockQuantumField = (historicalData: HistoricalData[], interval: string): QuantumFieldData[] => {
-    if (historicalData.length === 0) return [];
-
-    const lastCandle = historicalData[historicalData.length - 1];
-    const intervalMs = intervalToMs(interval);
-    const recentHigh = Math.max(...historicalData.slice(-20).map(d => d.high));
-    const recentLow = Math.min(...historicalData.slice(-20).map(d => d.low));
-    const priceRange = recentHigh - recentLow;
-
-    let field: QuantumFieldData[] = [];
-    let lastCenter = lastCandle.close;
-
-    for (let t = 1; t <= 7; t++) { // Evolve for 7 future candles
-        const time = lastCandle.time + (t * intervalMs);
-        
-        // Momentum drift (simple version)
-        const drift = (lastCandle.close - historicalData[historicalData.length - 2].close) * t * 0.1;
-        const centerPrice = lastCenter + drift;
-        
-        // Spreading
-        const spreadFactor = priceRange * 0.1 * (1 + t * 0.2); // Uncertainty grows over time
-        
-        const priceLevels = [];
-        const numLevels = 15; // Number of probability buckets
-        
-        for (let p = 0; p < numLevels; p++) {
-            const price = centerPrice - (spreadFactor / 2) + (p * spreadFactor / (numLevels - 1));
-            // Create a bell-curve-like probability distribution
-            const distanceFactor = Math.abs(p - (numLevels - 1) / 2);
-            const probability = Math.exp(-0.5 * Math.pow(distanceFactor, 2)) * Math.random(); // Add some noise
-            priceLevels.push({ price, probability });
-        }
-        
-        field.push({ time, priceLevels });
-        lastCenter = centerPrice;
-    }
-    return field;
-};
 
 
 export default function TradingLab2Page() {
@@ -122,7 +81,6 @@ export default function TradingLab2Page() {
   const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
-  const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
 
   const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
@@ -176,7 +134,6 @@ export default function TradingLab2Page() {
     if (currentChartData.length < 20) {
       setLiquidityEvents([]);
       setLiquidityTargets([]);
-      setQuantumFieldData([]);
       return;
     }
 
@@ -193,14 +150,12 @@ export default function TradingLab2Page() {
     }
     try {
         const dynamicParams = getDynamicParams();
-        const [resultEvents, targetEvents, qFieldData] = await Promise.all([
+        const [resultEvents, targetEvents] = await Promise.all([
             findLiquidityGrabs(currentChartData, dynamicParams),
             findLiquidityTargets(currentChartData, dynamicParams.lookaround),
-            generateMockQuantumField(currentChartData, interval)
         ]);
         setLiquidityEvents(resultEvents);
         setLiquidityTargets(targetEvents);
-        setQuantumFieldData(qFieldData);
     } catch (error: any) {
         console.error("Error analyzing liquidity automatically:", error);
     }
@@ -292,7 +247,6 @@ export default function TradingLab2Page() {
                   chartType={chartType}
                   scaleMode={scaleMode}
                   physicsConfig={physicsConfig}
-                  quantumFieldData={showQuantumField ? quantumFieldData : []}
               />
             </div>
             <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
@@ -301,6 +255,7 @@ export default function TradingLab2Page() {
           </div>
           <OrderBook 
             symbol={symbol}
+            onWallsUpdate={handleOrderBookUpdate}
           />
         </div>
 
@@ -435,11 +390,19 @@ export default function TradingLab2Page() {
                                 <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={mockProbabilityData} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
                                         <Bar dataKey="probability" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}/>
+                                        <XAxis dataKey="price" stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`} />
+                                        <YAxis stroke="#888888" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}/>
                                     </BarChart>
                                 </ResponsiveContainer>
                               </div>
                           </div>
                       </CardContent>
+                      <CardFooter>
+                          <Button className="w-full" disabled={anyLoading || !isConnected}>
+                            <Play className="mr-2 h-4 w-4" />
+                            Run Forecast
+                          </Button>
+                      </CardFooter>
                   </CollapsibleContent>
               </Collapsible>
           </Card>
