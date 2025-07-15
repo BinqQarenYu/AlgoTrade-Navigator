@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
@@ -29,7 +29,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows } from "lucide-react"
+import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import { cn } from "@/lib/utils"
 import { format, addDays } from "date-fns"
@@ -48,6 +48,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { RiskGuardian } from "@/lib/risk-guardian"
+import { Slider } from "@/components/ui/slider"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -212,8 +213,8 @@ export default function BacktestPage() {
 
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
-  const [dataWithIndicators, setDataWithIndicators] = useState<HistoricalData[]>([]);
+  const [fullChartData, setFullChartData] = useState<HistoricalData[]>([]);
+  const [visibleChartData, setVisibleChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -238,6 +239,13 @@ export default function BacktestPage() {
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('backtest-discipline-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
+  
+  // New state for Replay Mode
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState(500); // ms per candle
+  const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
     setStrategyParams(prev => ({
@@ -311,12 +319,12 @@ export default function BacktestPage() {
 
     const fetchData = async () => {
         if (!isConnected || !date?.from || !date?.to) {
-            setChartData([]);
+            setFullChartData([]);
             return;
         }
         setIsFetchingData(true);
-        setChartData([]);
-        setDataWithIndicators([]);
+        setFullChartData([]);
+        setVisibleChartData([]);
         setBacktestResults([]);
         setSummaryStats(null);
         setContrarianResults(null);
@@ -325,7 +333,7 @@ export default function BacktestPage() {
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
             const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
-            setChartData(klines); // This triggers the indicator calculation effect
+            setFullChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
         } catch (error: any)
 {
@@ -335,7 +343,7 @@ export default function BacktestPage() {
                 description: error.message || "Could not retrieve historical data from Binance.",
                 variant: "destructive"
             });
-            setChartData([]);
+            setFullChartData([]);
         } finally {
             setIsFetchingData(false);
         }
@@ -344,11 +352,12 @@ export default function BacktestPage() {
     fetchData();
   }, [symbol, quoteAsset, date, interval, isConnected, isClient, toast, isTradingActive]);
 
-  // Effect to calculate and display indicators when strategy or data changes
+  // Effect to calculate and display indicators
   useEffect(() => {
     const calculateAndSetIndicators = async () => {
-      if (chartData.length === 0) {
-        setDataWithIndicators([]);
+      const dataToProcess = isReplaying ? fullChartData : visibleChartData;
+      if (dataToProcess.length === 0) {
+        setVisibleChartData([]);
         return;
       }
       
@@ -357,18 +366,26 @@ export default function BacktestPage() {
 
       if (strategy) {
           const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          dataWithInd = await strategy.calculate(chartData, paramsForStrategy, symbol);
+          dataWithInd = await strategy.calculate(dataToProcess, paramsForStrategy, symbol);
       } else {
-          dataWithInd = chartData;
+          dataWithInd = dataToProcess;
       }
-
-      // Clear signals for display, we only want to see indicators, not past signals
-      const dataWithoutSignals = dataWithInd.map(d => ({...d, buySignal: undefined, sellSignal: undefined}));
-      setDataWithIndicators(dataWithoutSignals);
+      
+      const sliceEnd = isReplaying ? replayIndex + 1 : dataWithInd.length;
+      const finalVisibleData = dataWithInd.slice(0, sliceEnd);
+      setVisibleChartData(finalVisibleData);
     };
     
-    calculateAndSetIndicators();
-  }, [chartData, selectedStrategy, strategyParams, symbol]);
+    if (isReplaying) {
+      calculateAndSetIndicators();
+    } else {
+      setVisibleChartData(fullChartData);
+      if (fullChartData.length > 0) {
+          calculateAndSetIndicators();
+      }
+    }
+  }, [fullChartData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex]);
+
 
   const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[]}> => {
     const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee, symbol } = params;
@@ -447,6 +464,7 @@ export default function BacktestPage() {
   }
 
   const handleRunBacktestClick = () => {
+    if (isReplaying) stopReplay();
     if (useAIValidation) {
         if (canUseAi()) {
             setIsConfirming(true);
@@ -457,7 +475,7 @@ export default function BacktestPage() {
   };
 
   const runBacktest = async (contrarian = false) => {
-    if (chartData.length === 0) {
+    if (fullChartData.length === 0) {
       toast({
         title: "No Data",
         description: "Cannot run backtest without market data. Please connect your API and select a date range.",
@@ -465,6 +483,7 @@ export default function BacktestPage() {
       });
       return;
     }
+    if (isReplaying) stopReplay();
 
     if (!contrarian) {
         setIsBacktesting(true);
@@ -493,7 +512,7 @@ export default function BacktestPage() {
 
     const riskGuardian = new RiskGuardian(paramsForStrategy.discipline, initialCapital);
 
-    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(chartData)), paramsForStrategy, symbol);
+    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -552,11 +571,10 @@ export default function BacktestPage() {
         
         const { allowed, reason } = riskGuardian.canTrade();
         if (!allowed) {
-            // Log discipline actions only for the main backtest
             if (!contrarian) {
                 toast({ title: "Discipline Action", description: reason, variant: "destructive" });
             }
-            continue; // Skip trade evaluation
+            continue; 
         }
 
         if (potentialSignal) {
@@ -573,21 +591,20 @@ export default function BacktestPage() {
                       recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l:k.low, c:k.close, v:k.volume}))),
                       strategySignal: potentialSignal
                   });
-                   // Only consume credit after a successful response
                   consumeAiCredit();
                   if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
                     isValidSignal = true;
                   }
                 } catch(e) {
                   console.error("AI validation failed", e);
-                  isValidSignal = false; // Fail safe
+                  isValidSignal = false; 
                 }
               } else {
                 toast({ title: "AI Quota Reached", description: "Skipping AI validation for this trade." });
-                isValidSignal = true; // Fallback to non-AI validation
+                isValidSignal = true;
               }
             } else if (!aiLimitReachedNotified) {
-              toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed. Subsequent trades will not be AI-validated.` });
+              toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed.` });
               aiLimitReachedNotified = true;
               isValidSignal = true;
             } else {
@@ -644,7 +661,7 @@ export default function BacktestPage() {
         setContrarianResults(trades);
         setContrarianSummary(summary);
     } else {
-        setDataWithIndicators(dataWithSignals);
+        setFullChartData(dataWithSignals);
         setBacktestResults(trades);
         setSummaryStats(summary);
 
@@ -653,7 +670,6 @@ export default function BacktestPage() {
           description: "Strategy signals and results are now available.",
         });
 
-        // After main backtest finishes, run the contrarian one
         await runBacktest(true);
         setIsBacktesting(false);
     }
@@ -666,7 +682,7 @@ export default function BacktestPage() {
         toast({ title: "Not Supported", description: "Auto-tuning is not configured for this strategy.", variant: "destructive" });
         return;
     }
-
+    if (isReplaying) stopReplay();
     setIsOptimizing(true);
     toast({ title: "Starting Auto-Tune...", description: "This may take a moment. The UI may be unresponsive." });
 
@@ -686,7 +702,7 @@ export default function BacktestPage() {
     }
 
     for (const params of testCombinations) {
-        const { summary } = await runSilentBacktest(chartData, {
+        const { summary } = await runSilentBacktest(fullChartData, {
             strategyId: selectedStrategy,
             strategyParams: params,
             initialCapital, leverage, takeProfit, stopLoss, fee,
@@ -708,6 +724,82 @@ export default function BacktestPage() {
 
     setIsOptimizing(false);
   };
+  
+  // --- REPLAY MODE LOGIC ---
+  const startReplay = async () => {
+    if (fullChartData.length < 50) {
+      toast({ title: 'Not Enough Data', description: 'Load at least 50 candles to start replay.', variant: 'destructive' });
+      return;
+    }
+    setIsBacktesting(true); // Show a loading state
+    
+    // First, run the backtest silently on the full dataset to get all signals
+    const strategy = getStrategyById(selectedStrategy);
+    if (!strategy) {
+      setIsBacktesting(false);
+      return;
+    }
+    const paramsForStrategy = strategyParams[selectedStrategy] || {};
+    const calculatedData = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    setFullChartData(calculatedData); // Store data with all signals pre-calculated
+    setBacktestResults([]);
+    setSummaryStats(null);
+    setContrarianResults(null);
+    setContrarianSummary(null);
+    setSelectedTrade(null);
+    
+    setReplayIndex(50); // Start replay after first 50 candles for indicator warmup
+    setIsReplaying(true);
+    setIsBacktesting(false);
+    toast({ title: 'Replay Mode Started', description: 'Use the controls to step through the backtest.' });
+  };
+
+  const stopReplay = () => {
+    setIsReplaying(false);
+    setIsPlaying(false);
+    if (replayIntervalRef.current) {
+      clearInterval(replayIntervalRef.current);
+      replayIntervalRef.current = null;
+    }
+    setVisibleChartData(fullChartData);
+    // Optionally run the full backtest report when replay is stopped
+    runBacktest();
+  };
+
+  const handleReplayStep = (direction: 'forward' | 'backward') => {
+    setReplayIndex(prev => {
+      const newIndex = direction === 'forward' ? prev + 1 : prev - 1;
+      if (newIndex >= fullChartData.length || newIndex < 50) {
+        setIsPlaying(false); // Stop playing at the end
+        return prev;
+      }
+      return newIndex;
+    });
+  };
+
+  const togglePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  useEffect(() => {
+    if (isPlaying && isReplaying) {
+      replayIntervalRef.current = setInterval(() => {
+        handleReplayStep('forward');
+      }, replaySpeed);
+    } else {
+      if (replayIntervalRef.current) {
+        clearInterval(replayIntervalRef.current);
+        replayIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (replayIntervalRef.current) {
+        clearInterval(replayIntervalRef.current);
+      }
+    };
+  }, [isPlaying, isReplaying, replaySpeed]);
+
 
   const handleLoadScript = (script: string) => {
     const lowerScript = script.toLowerCase();
@@ -740,7 +832,7 @@ export default function BacktestPage() {
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
-    setChartData([]); // Clear raw data on interval change
+    setFullChartData([]);
   };
 
   const renderParameterControls = () => {
@@ -753,23 +845,23 @@ export default function BacktestPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="peakLookaround">Peak Lookaround</Label>
-              <Input id="peakLookaround" type="number" value={params.peakLookaround || 5} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading} />
+              <Input id="peakLookaround" type="number" value={params.peakLookaround || 5} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="swingLookaround">Swing Lookaround</Label>
-              <Input id="swingLookaround" type="number" value={params.swingLookaround || 3} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading} />
+              <Input id="swingLookaround" type="number" value={params.swingLookaround || 3} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emaShortPeriod">EMA Short</Label>
-              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 13} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading} />
+              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 13} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emaLongPeriod">EMA Long</Label>
-              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 50} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading} />
+              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 50} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
              <div className="space-y-2">
               <Label htmlFor="signalStaleness">Signal Staleness</Label>
-              <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading} />
+              <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
           </div>
           <div className="flex items-center space-x-2 pt-4">
@@ -777,7 +869,7 @@ export default function BacktestPage() {
               id="reverse-logic-hpf"
               checked={params.reverse || false}
               onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={anyLoading}
+              disabled={anyLoading || isReplaying}
             />
             <div className="flex flex-col">
               <Label htmlFor="reverse-logic-hpf" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -824,7 +916,7 @@ export default function BacktestPage() {
                                 id={`consensus-${strategy.id}`} 
                                 checked={selectedSubStrategies.includes(strategy.id)}
                                 onCheckedChange={() => handleConsensusStrategyToggle(strategy.id)}
-                                disabled={anyLoading}
+                                disabled={anyLoading || isReplaying}
                             />
                             <Label htmlFor={`consensus-${strategy.id}`} className="font-normal text-muted-foreground">{strategy.name}</Label>
                         </div>
@@ -837,7 +929,7 @@ export default function BacktestPage() {
                   id="reverse-logic-consensus"
                   checked={params.reverse || false}
                   onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                  disabled={anyLoading}
+                  disabled={anyLoading || isReplaying}
                 />
                 <div className="flex flex-col">
                   <Label htmlFor="reverse-logic-consensus" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -857,7 +949,7 @@ export default function BacktestPage() {
                     <Select
                         value={params.htf || '1D'}
                         onValueChange={(value) => handleParamChange(selectedStrategy, 'htf', value)}
-                        disabled={anyLoading}
+                        disabled={anyLoading || isReplaying}
                     >
                         <SelectTrigger id="htf"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -870,19 +962,19 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="emaLength">EMA Length</Label>
-                        <Input id="emaLength" type="number" value={params.emaLength || 21} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading} />
+                        <Input id="emaLength" type="number" value={params.emaLength || 21} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="atrLength">ATR Length</Label>
-                        <Input id="atrLength" type="number" value={params.atrLength || 14} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading} />
+                        <Input id="atrLength" type="number" value={params.atrLength || 14} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="slAtrMultiplier">SL ATR Multiplier</Label>
-                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 1.5} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading} />
+                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 1.5} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="rrRatio">Risk/Reward Ratio</Label>
-                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 2.0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading} />
+                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 2.0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
                  <div className="flex items-center space-x-2 pt-2">
@@ -890,7 +982,7 @@ export default function BacktestPage() {
                     id="reverse-logic"
                     checked={params.reverse || false}
                     onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading}
+                    disabled={anyLoading || isReplaying}
                     />
                     <div className="flex flex-col">
                     <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -909,31 +1001,31 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="supertrendPeriod">Supertrend Period</Label>
-                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 10} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading} />
+                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 10} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="supertrendMultiplier">Supertrend Multiplier</Label>
-                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 3} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading} />
+                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 3} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="mfiPeriod">MFI Period</Label>
-                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 14} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading} />
+                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 14} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="smiPeriod">SMI Period</Label>
-                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 5} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading} />
+                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 5} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="smiEmaPeriod">SMI EMA Period</Label>
-                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 3} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading} />
+                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 3} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="overbought">Overbought Level</Label>
-                        <Input id="overbought" type="number" value={params.overbought || 40} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading} />
+                        <Input id="overbought" type="number" value={params.overbought || 40} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="oversold">Oversold Level</Label>
-                        <Input id="oversold" type="number" value={params.oversold || -40} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading} />
+                        <Input id="oversold" type="number" value={params.oversold || -40} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
                  <div className="flex items-center space-x-2 pt-2">
@@ -941,7 +1033,7 @@ export default function BacktestPage() {
                     id="reverse-logic"
                     checked={params.reverse || false}
                     onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading}
+                    disabled={anyLoading || isReplaying}
                     />
                     <div className="flex flex-col">
                     <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -950,13 +1042,13 @@ export default function BacktestPage() {
                 </div>
                  <div className="pt-2 flex flex-col sm:flex-row gap-2">
                     {canReset && (
-                        <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
+                        <Button onClick={handleResetParams} disabled={anyLoading || isReplaying} variant="secondary" className="w-full">
                             <RotateCcw className="mr-2 h-4 w-4" />
                             Reset to Default
                         </Button>
                     )}
                     {canOptimize && (
-                      <Button onClick={handleAutoTune} disabled={anyLoading} variant="outline" className="w-full">
+                      <Button onClick={handleAutoTune} disabled={anyLoading || isReplaying} variant="outline" className="w-full">
                         {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                         {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
                       </Button>
@@ -976,7 +1068,7 @@ export default function BacktestPage() {
                     id="reverse-logic"
                     checked={params.reverse || false}
                     onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading}
+                    disabled={anyLoading || isReplaying}
                 />
                 <div className="flex flex-col">
                   <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -1000,7 +1092,7 @@ export default function BacktestPage() {
             value={value as number}
             onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
             step={String(value).includes('.') ? '0.001' : '1'}
-            disabled={anyLoading}
+            disabled={anyLoading || isReplaying}
           />
         </div>
       );
@@ -1017,7 +1109,7 @@ export default function BacktestPage() {
               id="reverse-logic"
               checked={params.reverse || false}
               onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={anyLoading}
+              disabled={anyLoading || isReplaying}
             />
             <div className="flex flex-col">
               <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
@@ -1026,13 +1118,13 @@ export default function BacktestPage() {
           </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
-                <Button onClick={handleResetParams} disabled={anyLoading} variant="secondary" className="w-full">
+                <Button onClick={handleResetParams} disabled={anyLoading || isReplaying} variant="secondary" className="w-full">
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Reset to Default
                 </Button>
             )}
             {canOptimize && (
-              <Button onClick={handleAutoTune} disabled={anyLoading} variant="outline" className="w-full">
+              <Button onClick={handleAutoTune} disabled={anyLoading || isReplaying} variant="outline" className="w-full">
                 {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                 {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
               </Button>
@@ -1082,7 +1174,7 @@ export default function BacktestPage() {
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 relative pb-4">
         <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-            <TradingChart data={dataWithIndicators} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
+            <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
         </div>
         <div
             onMouseDown={startChartResize}
@@ -1111,7 +1203,7 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading}>
+                      <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading || isReplaying}>
                         <SelectTrigger id="base-asset">
                           <SelectValue placeholder="Select asset" />
                         </SelectTrigger>
@@ -1124,7 +1216,7 @@ export default function BacktestPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0}>
+                      <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isReplaying}>
                         <SelectTrigger id="quote-asset">
                           <SelectValue placeholder="Select asset" />
                         </SelectTrigger>
@@ -1137,7 +1229,7 @@ export default function BacktestPage() {
                     </div>
                     <div className="space-y-2 col-span-2 md:col-span-4">
                         <Label htmlFor="strategy">Strategy</Label>
-                        <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}>
+                        <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading || isReplaying}>
                             <SelectTrigger id="strategy">
                             <SelectValue placeholder="Select strategy" />
                             </SelectTrigger>
@@ -1158,7 +1250,7 @@ export default function BacktestPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="interval">Interval</Label>
-                      <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}>
+                      <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading || isReplaying}>
                         <SelectTrigger id="interval">
                           <SelectValue placeholder="Select interval" />
                         </SelectTrigger>
@@ -1193,7 +1285,7 @@ export default function BacktestPage() {
                         onParamChange={handleDisciplineParamChange}
                         isCollapsed={isDisciplineOpen}
                         onCollapseChange={setDisciplineOpen}
-                        isDisabled={anyLoading}
+                        isDisabled={anyLoading || isReplaying}
                     />
                 )}
 
@@ -1206,7 +1298,7 @@ export default function BacktestPage() {
                             value={initialCapital}
                             onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
                             placeholder="10000"
-                            disabled={anyLoading}
+                            disabled={anyLoading || isReplaying}
                         />
                     </div>
                     <div className="space-y-2">
@@ -1218,7 +1310,7 @@ export default function BacktestPage() {
                             onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
                             placeholder="10"
                             min="1"
-                            disabled={anyLoading}
+                            disabled={anyLoading || isReplaying}
                         />
                     </div>
                     <div className="space-y-2">
@@ -1229,7 +1321,7 @@ export default function BacktestPage() {
                             value={fee}
                             onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
                             placeholder="0.04"
-                            disabled={anyLoading}
+                            disabled={anyLoading || isReplaying}
                         />
                     </div>
                     <div className="space-y-2">
@@ -1240,7 +1332,7 @@ export default function BacktestPage() {
                             value={takeProfit}
                             onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
                             placeholder="5"
-                            disabled={anyLoading}
+                            disabled={anyLoading || isReplaying}
                         />
                     </div>
                     <div className="space-y-2">
@@ -1251,7 +1343,7 @@ export default function BacktestPage() {
                             value={stopLoss}
                             onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
                             placeholder="2"
-                            disabled={anyLoading}
+                            disabled={anyLoading || isReplaying}
                         />
                     </div>
                 </div>
@@ -1260,7 +1352,7 @@ export default function BacktestPage() {
                   <Label>Analysis Tools</Label>
                   <div className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <div className="flex items-center space-x-2">
-                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading || selectedStrategy === 'code-based-consensus'} />
+                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading || isReplaying || selectedStrategy === 'code-based-consensus'} />
                         <div className="flex flex-col">
                             <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
                             <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
@@ -1277,7 +1369,7 @@ export default function BacktestPage() {
                                   value={maxAiValidations}
                                   onChange={(e) => setMaxAiValidations(parseInt(e.target.value, 10) || 0)}
                                   placeholder="20"
-                                  disabled={anyLoading}
+                                  disabled={anyLoading || isReplaying}
                               />
                               <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p>
                               </div>
@@ -1296,7 +1388,7 @@ export default function BacktestPage() {
                             "w-full justify-start text-left font-normal",
                             !date && "text-muted-foreground"
                           )}
-                          disabled={!isConnected || anyLoading}
+                          disabled={!isConnected || anyLoading || isReplaying}
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
                           {isClient && date?.from ? (
@@ -1360,11 +1452,32 @@ export default function BacktestPage() {
                       </PopoverContent>
                     </Popover>
                 </div>
+                 {isReplaying && (
+                    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
+                      <Label>Replay Controls ({replayIndex + 1} / {fullChartData.length})</Label>
+                      <div className="flex items-center justify-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={!isPlaying && replayIndex <= 50}><StepBack/></Button>
+                        <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={!isPlaying && replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                        <Button variant="destructive" size="icon" onClick={stopReplay}><History/></Button>
+                      </div>
+                       <Slider
+                        value={[replaySpeed]}
+                        onValueChange={(value) => setReplaySpeed(value[0])}
+                        min={100} max={2000} step={100}
+                        inverted
+                      />
+                       <p className="text-xs text-muted-foreground text-center">Replay Speed (Faster to Slower)</p>
+                    </div>
+                )}
               </CardContent>
-              <CardFooter>
-                <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || chartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
+              <CardFooter className="flex-col gap-2">
+                <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
                   {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Backtest"}
+                  {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
+                </Button>
+                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
+                  <Play className="mr-2 h-4 w-4"/> Start Replay
                 </Button>
               </CardFooter>
             </CollapsibleContent>
