@@ -3,7 +3,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/context/api-context';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -95,22 +94,21 @@ const groupLevels = (levels: Map<string, string>, grouping: number, precision: n
     return aggregated;
 };
 
-const OrderBookRow = React.memo(({ level, type, maxTotal, precision }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask'; maxTotal: number; precision: number }) => {
-    const bgPercentage = maxTotal > 0 ? (level.total / maxTotal) * 100 : 0;
-    const bgColor = type === 'bid' ? 'bg-green-500/20' : 'bg-red-500/20';
-    const textColor = type === 'bid' ? 'text-green-500' : 'text-red-500';
-
+// React.memo helps prevent re-renders if props haven't changed
+const OrderBookRow = React.memo(({ level, type, precision }: { level: FormattedOrderBookLevel; type: 'bid' | 'ask'; precision: number }) => {
     return (
-        <TableRow className={cn("relative font-mono text-xs hover:bg-muted/80", level.isWall && "bg-yellow-500/20 font-bold")}>
-            <TableCell className={cn("p-1 text-left relative", textColor)}>
+        <TableRow 
+            data-price-level={level.price}
+            className={cn("relative font-mono text-xs hover:bg-muted/80", level.isWall && "bg-yellow-500/20 font-bold")}>
+            <TableCell className={cn("p-1 text-left relative", type === 'bid' ? 'text-green-500' : 'text-red-500')}>
                 {level.price.toFixed(precision)}
-                 <div 
-                    className={cn("absolute top-0 bottom-0 h-full -z-10", bgColor, type === 'bid' ? 'right-0' : 'left-0')} 
-                    style={{ width: `${bgPercentage}%` }}
+                <div 
+                    data-role="bg-bar"
+                    className={cn("absolute top-0 bottom-0 h-full -z-10", type === 'bid' ? 'bg-green-500/20 right-0' : 'bg-red-500/20 left-0')} 
                 />
             </TableCell>
-            <TableCell className="p-1 text-right">{level.size.toFixed(4)}</TableCell>
-            <TableCell className="p-1 text-right">{level.total.toFixed(4)}</TableCell>
+            <TableCell className="p-1 text-right" data-role="size">{level.size.toFixed(4)}</TableCell>
+            <TableCell className="p-1 text-right" data-role="total">{level.total.toFixed(4)}</TableCell>
         </TableRow>
     );
 });
@@ -119,32 +117,30 @@ OrderBookRow.displayName = 'OrderBookRow';
 
 export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
-    const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
 
     const [isStreamActive, setIsStreamActive] = useState(false);
     const bidsRef = useRef<Map<string, string>>(new Map());
     const asksRef = useRef<Map<string, string>>(new Map());
+
+    // State for the visible, structured data (price levels). This changes infrequently.
+    const [formattedBids, setFormattedBids] = useState<FormattedOrderBookLevel[]>([]);
+    const [formattedAsks, setFormattedAsks] = useState<FormattedOrderBookLevel[]>([]);
     
-    const formattedBidsRef = useRef<FormattedOrderBookLevel[]>([]);
-    const formattedAsksRef = useRef<FormattedOrderBookLevel[]>([]);
-    
-    const [lastRenderTime, setLastRenderTime] = useState(0); 
     const [spread, setSpread] = useState(0);
     const [groupingSize, setGroupingSize] = useState(0.01);
     const [precision, setPrecision] = useState(2);
-    const [maxTotal, setMaxTotal] = useState(0);
 
     const [isLoading, setIsLoading] = useState(false);
     const [streamError, setStreamError] = useState<string | null>(null);
     const lastUpdateIdRef = useRef<number | null>(null);
-    const updateQueueRef = useRef<OrderBookUpdate[]>([]);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
+    const tableContainerRef = useRef<HTMLDivElement>(null);
 
     const stopStream = useCallback(() => {
         if (wsRef.current) {
-            wsRef.current.onclose = null; // Prevent onclose from triggering logic
+            wsRef.current.onclose = null;
             wsRef.current.close();
             wsRef.current = null;
         }
@@ -152,18 +148,18 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         setStreamError(null);
     }, []);
 
-    
     const connectAndSync = useCallback(async (currentSymbol: string) => {
         setIsLoading(true);
         setStreamError(null);
-        updateQueueRef.current = [];
         lastUpdateIdRef.current = null;
         bidsRef.current.clear();
         asksRef.current.clear();
+        setFormattedBids([]);
+        setFormattedAsks([]);
 
         try {
             const snapshot = await getDepthSnapshot(currentSymbol);
-            if (!isStreamActive) return; // Check if user cancelled during async operation
+            if (!isStreamActive) return;
 
             lastUpdateIdRef.current = snapshot.lastUpdateId;
             bidsRef.current = new Map(snapshot.bids);
@@ -178,7 +174,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     if (data.U <= lastUpdateIdRef.current!) return;
                     if (data.pu !== lastUpdateIdRef.current!) {
                         console.warn(`Order book for ${symbol} out of sync. Reconnecting...`);
-                        connectAndSync(symbol); // Resync
+                        connectAndSync(symbol);
                         return;
                     }
                     data.b.forEach(([p, q]) => { if (parseFloat(q) === 0) bidsRef.current.delete(p); else bidsRef.current.set(p, q); });
@@ -189,11 +185,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
             ws.onopen = () => setIsLoading(false);
             ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
-            ws.onclose = () => {
-                if (ws === wsRef.current) {
-                    console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
-                }
-            };
+            ws.onclose = () => { if (ws === wsRef.current) console.log(`Order book WebSocket disconnected for ${currentSymbol}`); };
 
         } catch (error: any) {
             setStreamError(error.message || `Failed to fetch snapshot for ${currentSymbol}.`);
@@ -203,11 +195,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     }, [isStreamActive, symbol]);
 
     const handleToggleStream = () => {
-        const nextState = !isStreamActive;
-        setIsStreamActive(nextState);
-        if (!nextState) {
-            stopStream();
-        }
+        setIsStreamActive(prev => !prev);
     };
     
     useEffect(() => {
@@ -219,6 +207,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         return () => stopStream();
     }, [isStreamActive, isConnected, symbol, connectAndSync, stopStream]);
 
+    // High-frequency update loop for UI values.
     useEffect(() => {
         if (!isStreamActive) return;
         const intervalId = setInterval(() => {
@@ -234,14 +223,15 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             const firstAsk = sortedAsksPrices[0];
             const midPrice = (lastBid + firstAsk) / 2;
 
-            const { grouping, precision: calculatedPrecision } = getGroupingAndPrecision(midPrice);
+            const newGrouping = getGroupingAndPrecision(midPrice);
+            if (newGrouping.grouping !== groupingSize) setGroupingSize(newGrouping.grouping);
+            if (newGrouping.precision !== precision) setPrecision(newGrouping.precision);
             setSpread(firstAsk - lastBid);
-            setGroupingSize(grouping);
-            setPrecision(calculatedPrecision);
             
-            const aggregatedBids = groupLevels(bids, grouping, calculatedPrecision);
-            const aggregatedAsks = groupLevels(asks, grouping, calculatedPrecision);
+            const aggregatedBids = groupLevels(bids, newGrouping.grouping, newGrouping.precision);
+            const aggregatedAsks = groupLevels(asks, newGrouping.grouping, newGrouping.precision);
             
+            let maxTotal = 0;
             const format = (levels: Map<string, number>, isBids: boolean): FormattedOrderBookLevel[] => {
                 const sortedLevels = Array.from(levels.entries()).sort((a, b) => {
                     return isBids ? parseFloat(b[0]) - parseFloat(a[0]) : parseFloat(a[0]) - parseFloat(b[0]);
@@ -249,115 +239,84 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
 
                 const totalSize = Array.from(levels.values()).reduce((sum, size) => sum + size, 0);
                 let cumulativeTotal = 0;
-                return sortedLevels.map(([priceStr, size]) => {
+                const result = sortedLevels.map(([priceStr, size]) => {
                     cumulativeTotal += size;
-                    return {
-                        price: parseFloat(priceStr), size, total: cumulativeTotal,
-                        isWall: totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT,
-                    };
+                    return { price: parseFloat(priceStr), size, total: cumulativeTotal, isWall: totalSize > 0 && (size / totalSize) > WALL_THRESHOLD_PERCENT };
                 });
+                if(result.length > 0) maxTotal = Math.max(maxTotal, result[result.length - 1].total);
+                return result;
             };
 
             const fmtdBids = format(aggregatedBids, true);
-            const fmtdAsks = format(aggregatedAsks, false);
+            const fmtdAsks = format(aggregatedAsks, false).reverse();
+
+            // Only update state if the structure (price levels) changes
+            if (fmtdBids.length !== formattedBids.length || fmtdBids.some((b, i) => b.price !== formattedBids[i]?.price)) {
+                setFormattedBids(fmtdBids);
+            }
+            if (fmtdAsks.length !== formattedAsks.length || fmtdAsks.some((a, i) => a.price !== formattedAsks[i]?.price)) {
+                setFormattedAsks(fmtdAsks);
+            }
             
-            formattedBidsRef.current = fmtdBids;
-            formattedAsksRef.current = fmtdAsks;
-            
-            const calculatedMaxTotal = Math.max(
-                fmtdBids[fmtdBids.length-1]?.total || 0,
-                fmtdAsks[fmtdAsks.length-1]?.total || 0
-            );
-            setMaxTotal(calculatedMaxTotal);
-            setLastRenderTime(Date.now());
+            // Fast, direct DOM updates for dynamic values
+            if (tableContainerRef.current) {
+                fmtdBids.forEach(level => {
+                    const row = tableContainerRef.current!.querySelector(`[data-price-level="${level.price}"]`);
+                    if (row) {
+                        (row.querySelector('[data-role="size"]') as HTMLElement).textContent = level.size.toFixed(4);
+                        (row.querySelector('[data-role="total"]') as HTMLElement).textContent = level.total.toFixed(4);
+                        (row.querySelector('[data-role="bg-bar"]') as HTMLElement).style.width = `${(level.total / maxTotal) * 100}%`;
+                    }
+                });
+                fmtdAsks.forEach(level => {
+                    const row = tableContainerRef.current!.querySelector(`[data-price-level="${level.price}"]`);
+                     if (row) {
+                        (row.querySelector('[data-role="size"]') as HTMLElement).textContent = level.size.toFixed(4);
+                        (row.querySelector('[data-role="total"]') as HTMLElement).textContent = level.total.toFixed(4);
+                        (row.querySelector('[data-role="bg-bar"]') as HTMLElement).style.width = `${(level.total / maxTotal) * 100}%`;
+                    }
+                });
+            }
+
+            // Wall detection logic
+            const allWalls: Wall[] = [...fmtdBids, ...fmtdAsks].filter(l => l.isWall).map(l => ({ price: l.price, type: fmtdBids.includes(l) ? 'bid' : 'ask' }));
+            const currentWallKeys = new Set(allWalls.map(w => `${w.type}_${w.price}`));
+            const spoofs: SpoofedWall[] = [];
+            previousWallsRef.current.forEach((wall, key) => {
+                if (!currentWallKeys.has(key)) spoofs.push({ ...wall, id: `${key}_${Date.now()}` });
+            });
+            onWallsUpdate({ walls: allWalls, spoofs });
+            const newWallMap = new Map<string, Wall>();
+            allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
+            previousWallsRef.current = newWallMap;
+
         }, 500); 
         return () => clearInterval(intervalId);
-    }, [isStreamActive]);
-    
-    useEffect(() => {
-        if (!isStreamActive) {
-            onWallsUpdate({ walls: [], spoofs: [] });
-            previousWallsRef.current.clear();
-            return;
-        }
-
-        const allWalls: Wall[] = [
-            ...formattedBidsRef.current.filter(b => b.isWall).map(b => ({ price: b.price, type: 'bid' as const })),
-            ...formattedAsksRef.current.filter(a => a.isWall).map(a => ({ price: a.price, type: 'ask' as const }))
-        ];
-
-        const currentWallKeys = new Set(allWalls.map(w => `${w.type}_${w.price}`));
-        const spoofs: SpoofedWall[] = [];
-        previousWallsRef.current.forEach((wall, key) => {
-            if (!currentWallKeys.has(key)) {
-                spoofs.push({ ...wall, id: `${key}_${Date.now()}` });
-            }
-        });
-        
-        if (spoofs.length > 0) {
-            onWallsUpdate({ walls: allWalls, spoofs: spoofs });
-        } else {
-            onWallsUpdate({ walls: allWalls, spoofs: [] });
-        }
-
-        const newWallMap = new Map<string, Wall>();
-        allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
-        previousWallsRef.current = newWallMap;
-
-    }, [lastRenderTime, isStreamActive, onWallsUpdate]);
+    }, [isStreamActive, groupingSize, precision]);
 
     const renderContent = () => {
         if (isLoading) return <Skeleton className="h-[400px] w-full" />;
-        if (!isConnected) {
-            return (
-                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                    <p>Connect API to view order book.</p>
-                </div>
-            );
-        }
-        if (streamError) {
-             return (
-                <div className="flex items-center justify-center h-48 text-destructive text-center border border-dashed border-destructive/50 rounded-md p-4">
-                    <p>{streamError}</p>
-                </div>
-            );
-        }
-        if (!isStreamActive) {
-            return (
-                <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
-                    <p>Order book stream is paused.</p>
-                </div>
-            );
-        }
+        if (!isConnected) return <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md"><p>Connect API to view order book.</p></div>;
+        if (streamError) return <div className="flex items-center justify-center h-48 text-destructive text-center border border-dashed border-destructive/50 rounded-md p-4"><p>{streamError}</p></div>;
+        if (!isStreamActive) return <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md"><p>Order book stream is paused.</p></div>;
+        
         return (
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                    <h4 className="text-sm font-semibold text-center">Bids (Buy Orders)</h4>
-                    <ScrollArea className="h-[400px] border rounded-md">
-                        <Table>
-                            <TableHeader><TableRow>
-                                <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                            </TableRow></TableHeader>
-                            <TableBody>
-                                {formattedBidsRef.current.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" maxTotal={maxTotal} precision={precision} />)}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
-                </div>
+            <div className="grid grid-cols-2 gap-4" ref={tableContainerRef}>
                 <div className="space-y-1">
                     <h4 className="text-sm font-semibold text-center">Asks (Sell Orders)</h4>
                     <ScrollArea className="h-[400px] border rounded-md">
                         <Table>
-                            <TableHeader><TableRow>
-                                <TableHead className="h-8 p-1 text-left text-muted-foreground">Price (USD)</TableHead>
-                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Size</TableHead>
-                                <TableHead className="h-8 p-1 text-right text-muted-foreground">Total</TableHead>
-                            </TableRow></TableHeader>
-                            <TableBody>
-                                {formattedAsksRef.current.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" maxTotal={maxTotal} precision={precision} />)}
-                            </TableBody>
+                            <TableHeader><TableRow><TableHead className="h-8 p-1 text-left">Price (USD)</TableHead><TableHead className="h-8 p-1 text-right">Size</TableHead><TableHead className="h-8 p-1 text-right">Total</TableHead></TableRow></TableHeader>
+                            <TableBody>{formattedAsks.map(ask => <OrderBookRow key={ask.price} level={ask} type="ask" precision={precision} />)}</TableBody>
+                        </Table>
+                    </ScrollArea>
+                </div>
+                 <div className="space-y-1">
+                    <h4 className="text-sm font-semibold text-center">Bids (Buy Orders)</h4>
+                    <ScrollArea className="h-[400px] border rounded-md">
+                        <Table>
+                             <TableHeader><TableRow><TableHead className="h-8 p-1 text-left">Price (USD)</TableHead><TableHead className="h-8 p-1 text-right">Size</TableHead><TableHead className="h-8 p-1 text-right">Total</TableHead></TableRow></TableHeader>
+                            <TableBody>{formattedBids.map(bid => <OrderBookRow key={bid.price} level={bid} type="bid" precision={precision} />)}</TableBody>
                         </Table>
                     </ScrollArea>
                 </div>
@@ -372,7 +331,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     <div className="flex-1">
                         <CardTitle>Live Order Book</CardTitle>
                         <CardDescription>
-                            {`Live depth for ${symbol}. Spread: $${spread.toFixed(precision)}. Grouping: ${groupingSize}`}
+                            {`Live depth for ${symbol}. Spread: $${spread.toFixed(precision)}`}
                         </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
@@ -382,7 +341,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                         <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                                 <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
-                                <span className="sr-only">Toggle</span>
                             </Button>
                         </CollapsibleTrigger>
                     </div>
@@ -396,3 +354,5 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         </Card>
     );
 }
+
+    
