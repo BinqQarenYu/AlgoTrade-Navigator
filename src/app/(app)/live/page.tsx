@@ -224,7 +224,7 @@ export default function LiveTradingPage() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                     <Label>Assets to Trade</Label>
-                    <ScrollArea className="h-40 w-full rounded-md border p-4">
+                    <ScrollArea className="h-60 w-full rounded-md border p-4">
                         <div className="space-y-4">
                             {topBases.map((base) => {
                                 const quotes = pairsByBase[base] || [];
@@ -232,7 +232,7 @@ export default function LiveTradingPage() {
                                 return (
                                     <div key={base}>
                                         <h4 className="font-medium text-sm mb-2">{base} - {assetInfo[base] || ''}</h4>
-                                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 pl-2">
+                                        <div className="grid grid-cols-3 gap-x-4 gap-y-2 pl-2">
                                             {quotes.map(quote => {
                                                 const symbol = `${base}${quote}`;
                                                 return (
