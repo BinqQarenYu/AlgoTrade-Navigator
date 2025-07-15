@@ -1,9 +1,8 @@
 
-
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/context/api-context';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
-import { ChevronDown, Play, StopCircle } from 'lucide-react';
+import { ChevronDown, Play, StopCircle, Loader2 } from 'lucide-react';
 import type { Wall, SpoofedWall } from '@/lib/types';
 import { getDepthSnapshot } from '@/lib/binance-service';
 
@@ -123,18 +122,13 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const { toast } = useToast();
     const wsRef = useRef<WebSocket | null>(null);
 
-    // State for managing stream connection
     const [isStreamActive, setIsStreamActive] = useState(false);
-
-    // Refs for holding raw data without causing re-renders
     const bidsRef = useRef<Map<string, string>>(new Map());
     const asksRef = useRef<Map<string, string>>(new Map());
     
-    // Refs for UI display data
     const formattedBidsRef = useRef<FormattedOrderBookLevel[]>([]);
     const formattedAsksRef = useRef<FormattedOrderBookLevel[]>([]);
     
-    // State to trigger UI updates and store metadata
     const [lastRenderTime, setLastRenderTime] = useState(0); 
     const [spread, setSpread] = useState(0);
     const [groupingSize, setGroupingSize] = useState(0.01);
@@ -196,7 +190,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             ws.onopen = () => setIsLoading(false);
             ws.onerror = () => setStreamError(`Live order book data is not available for ${currentSymbol}.`);
             ws.onclose = () => {
-                if (ws === wsRef.current) { // Ensure it's not an old connection closing
+                if (ws === wsRef.current) {
                     console.log(`Order book WebSocket disconnected for ${currentSymbol}`);
                 }
             };
@@ -204,7 +198,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         } catch (error: any) {
             setStreamError(error.message || `Failed to fetch snapshot for ${currentSymbol}.`);
             setIsLoading(false);
-            setIsStreamActive(false); // Stop trying if snapshot fails
+            setIsStreamActive(false);
         }
     }, [isStreamActive, symbol]);
 
@@ -216,7 +210,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         }
     };
     
-    // Effect to manage connection based on isStreamActive state
     useEffect(() => {
         if (isStreamActive && isConnected && symbol) {
             connectAndSync(symbol);
@@ -226,7 +219,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         return () => stopStream();
     }, [isStreamActive, isConnected, symbol, connectAndSync, stopStream]);
 
-    // UI render loop
     useEffect(() => {
         if (!isStreamActive) return;
         const intervalId = setInterval(() => {
@@ -277,12 +269,11 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 fmtdAsks[fmtdAsks.length-1]?.total || 0
             );
             setMaxTotal(calculatedMaxTotal);
-            setLastRenderTime(Date.now()); // Trigger the render
+            setLastRenderTime(Date.now());
         }, 500); 
         return () => clearInterval(intervalId);
     }, [isStreamActive]);
     
-    // Effect to report walls and detect spoofs
     useEffect(() => {
         if (!isStreamActive) {
             onWallsUpdate({ walls: [], spoofs: [] });
@@ -313,7 +304,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         allWalls.forEach(w => newWallMap.set(`${w.type}_${w.price}`, w));
         previousWallsRef.current = newWallMap;
 
-    }, [lastRenderTime, isStreamActive, onWallsUpdate]); // Depends on the render trigger
+    }, [lastRenderTime, isStreamActive, onWallsUpdate]);
 
     const renderContent = () => {
         if (isLoading) return <Skeleton className="h-[400px] w-full" />;
@@ -378,29 +369,28 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         <Card>
             <Collapsible open={isCardOpen} onOpenChange={setIsCardOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                         <CardTitle>Live Order Book</CardTitle>
                         <CardDescription>
                             {`Live depth for ${symbol}. Spread: $${spread.toFixed(precision)}. Grouping: ${groupingSize}`}
                         </CardDescription>
                     </div>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
-                            <span className="sr-only">Toggle</span>
+                    <div className="flex items-center gap-2">
+                         <Button onClick={handleToggleStream} variant="ghost" size="icon" className="h-8 w-8" disabled={isLoading || !isConnected}>
+                            {isLoading ? <Loader2 className="animate-spin" /> : isStreamActive ? <StopCircle className="text-destructive"/> : <Play/>}
                         </Button>
-                    </CollapsibleTrigger>
+                        <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <ChevronDown className={cn("h-4 w-4 transition-transform", isCardOpen && "rotate-180")} />
+                                <span className="sr-only">Toggle</span>
+                            </Button>
+                        </CollapsibleTrigger>
+                    </div>
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent>
                         {renderContent()}
                     </CardContent>
-                    <CardFooter>
-                         <Button onClick={handleToggleStream} variant={isStreamActive ? "destructive" : "default"} className="w-full" disabled={isLoading || !isConnected}>
-                            {isLoading ? "Connecting..." : isStreamActive ? <StopCircle/> : <Play/>}
-                            {isLoading ? "Connecting..." : isStreamActive ? "Stop Stream" : "Start Stream"}
-                        </Button>
-                    </CardFooter>
                 </CollapsibleContent>
             </Collapsible>
         </Card>
