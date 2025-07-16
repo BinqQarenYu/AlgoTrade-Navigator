@@ -152,7 +152,7 @@ export function TradingChart({
         distributionColor: 'rgba(239, 68, 68, 0.8)', // Red
         accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
         pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
-        distributionVolumeColor: 'rgba(239, 68, 68, 0.4)',
+        distributionVolumeColor: 'rgba(239, 83, 80, 0.4)',
         projectionColor: isDarkMode ? 'rgba(107, 114, 128, 0.5)' : 'rgba(209, 213, 219, 0.7)',
         projectionWickColor: isDarkMode ? 'rgba(156, 163, 175, 0.5)' : 'rgba(156, 163, 175, 0.7)',
         quantumMeanColor: '#60a5fa', // blue-400
@@ -282,8 +282,8 @@ export function TradingChart({
         targetZoneSeries,
         manipulationZoneSeries,
         quantumFieldSeries,
-        quantumMeanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.quantumMeanColor }),
-        quantumSigmaAreaSeries: chart.addAreaSeries({ ...commonLineOptions, color: chartColors.quantumSigmaColor, topColor: 'rgba(0,0,0,0)', bottomColor: 'rgba(0,0,0,0)' }),
+        quantumMeanSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.quantumMeanColor, lineStyle: LineStyle.Dotted }),
+        quantumSigmaAreaSeries: chart.addAreaSeries({ ...commonLineOptions, topColor: 'rgba(0,0,0,0)', bottomColor: 'rgba(0,0,0,0)', lineColor: 'transparent' }),
         chartColors, // Store colors for later use
         smaShortSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaShortColor }),
         smaLongSeries: chart.addLineSeries({ ...commonLineOptions, color: chartColors.smaLongColor }),
@@ -716,11 +716,6 @@ export function TradingChart({
       const fromVisible = toTimestamp(entryTime - paddingMs);
       const toVisible = toTimestamp(exitTime + paddingMs);
 
-      timeScale.setVisibleRange({
-          from: fromVisible,
-          to: toVisible,
-      });
-
     }, [highlightedTrade, combinedData]);
 
     // Effect to draw wall lines from Order Book
@@ -746,7 +741,7 @@ export function TradingChart({
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
                     title: title,
-                    axisLabelColor: textColor,
+                    axisLabelColor: lineColor,
                     axisLabelTextColor: '#FFFFFF',
                 });
                 newLines.push(line);
@@ -1277,7 +1272,7 @@ export function TradingChart({
     useEffect(() => {
         if (!chartRef.current?.chart) return;
         const { quantumFieldSeries, quantumMeanSeries, quantumSigmaAreaSeries, chartColors } = chartRef.current;
-        if (!quantumFieldSeries) return;
+        if (!quantumFieldSeries || !quantumMeanSeries || !quantumSigmaAreaSeries) return;
 
         if (quantumFieldData && quantumFieldData.length > 0) {
             const fieldData = quantumFieldData.map(timeStep => {
@@ -1288,9 +1283,7 @@ export function TradingChart({
                 const maxPrice = Math.max(...significantLevels.map(p => p.price));
                 
                 const peakProbability = Math.max(...timeStep.priceLevels.map(p => p.probability));
-                // Add a small number to prevent probability from being zero, which could cause issues.
                 const opacity = (Math.min(1, (peakProbability + 1e-6) * 5) * 0.2).toFixed(3);
-                // Switched to rgba for better compatibility
                 const color = `rgba(34, 153, 228, ${opacity})`;
 
                 return {
@@ -1308,16 +1301,16 @@ export function TradingChart({
                 .filter(d => d.mean !== undefined && d.sigma !== undefined)
                 .map(d => ({
                     time: toTimestamp(d.time),
-                    value: d.mean! + d.sigma!,
-                    value2: d.mean! - d.sigma!
+                    top: d.mean! + d.sigma!,
+                    bottom: d.mean! - d.sigma!
                 }));
-
+            
+            // Set the data for each series
             quantumFieldSeries.setData(fieldData);
             quantumMeanSeries.setData(meanLineData);
             
-            // For AreaSeries, it uses value for top and value2 for bottom.
-            const areaSeriesData = sigmaAreaData.map(d => ({ time: d.time, value: d.value, value2: d.value2 }));
-            quantumSigmaAreaSeries.setData(areaSeriesData.map(d => ({ time: d.time, value: d.value, value2: d.value2 })));
+            const areaData = sigmaAreaData.map(d => ({ time: d.time, value: d.top, value2: d.bottom }));
+            quantumSigmaAreaSeries.setData(areaData.map(d => ({ time: d.time, value: d.value, value2: d.value2 })));
             quantumSigmaAreaSeries.applyOptions({
               lineColor: 'transparent',
               topColor: chartColors.quantumSigmaColor,
@@ -1409,4 +1402,3 @@ export function TradingChart({
     </Card>
   );
 }
-
