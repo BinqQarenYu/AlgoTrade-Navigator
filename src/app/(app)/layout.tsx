@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AppLayout } from "@/components/app-layout";
@@ -5,7 +6,7 @@ import { ApiProvider } from "@/context/api-context";
 import { BotProvider, useBot } from "@/context/bot-context";
 import { StrategyRecommendation } from "@/components/trading-discipline/StrategyRecommendation";
 
-function AppWithDisciplineModals({ children }: { children: React.ReactNode }) {
+function AppLayoutWithProviders({ children }: { children: React.ReactNode }) {
   const {
     showRecommendation,
     strategyRecommendation,
@@ -22,7 +23,7 @@ function AppWithDisciplineModals({ children }: { children: React.ReactNode }) {
         onActivate={activateRecommendedStrategy}
         onDismiss={dismissRecommendation}
       />
-      {children}
+      <AppLayout>{children}</AppLayout>
     </>
   );
 }
@@ -31,9 +32,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <ApiProvider>
       <BotProvider>
-        <AppWithDisciplineModals>
-          <AppLayout>{children}</AppLayout>
-        </AppWithDisciplineModals>
+        <AppLayoutWithProviders>{children}</AppLayoutWithProviders>
       </BotProvider>
     </ApiProvider>
   );
