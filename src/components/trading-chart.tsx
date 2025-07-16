@@ -50,7 +50,6 @@ export function TradingChart({
   showManipulationOverlay = true,
   physicsConfig,
   quantumFieldData = [],
-  // Add new props to respect the toggles
   showWalls = true,
   showLiquidity = true,
   showTargets = true,
@@ -79,7 +78,6 @@ export function TradingChart({
   showManipulationOverlay?: boolean;
   physicsConfig?: PhysicsChartConfig;
   quantumFieldData?: QuantumFieldData[];
-  // Add new props to respect the toggles
   showWalls?: boolean;
   showLiquidity?: boolean;
   showTargets?: boolean;
@@ -710,9 +708,10 @@ export function TradingChart({
         const newLines: any[] = [];
         if (showAnalysis && showWalls && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
-                const title = wall.type === 'bid' ? ` BID WALL` : ` ASK WALL`;
-                const lineColor = wall.type === 'bid' ? '#3b82f6' : '#8b5cf6';
-                const textColor = wall.type === 'bid' ? '#60a5fa' : '#c084fc';
+                const isBid = wall.type === 'bid';
+                const title = isBid ? ` BID WALL` : ` ASK WALL`;
+                const lineColor = isBid ? '#60a5fa' : '#c084fc'; // Brighter blue for bid, brighter purple for ask
+                const textColor = isBid ? '#60a5fa' : '#c084fc';
 
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
@@ -795,9 +794,11 @@ export function TradingChart({
         if (!chartRef.current?.chart) return;
         const { candlestickSeries, chart } = chartRef.current;
 
+        // Clear previous target lines
         if (chartRef.current.targetPriceLines) {
             chartRef.current.targetPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
         }
+        chartRef.current.targetPriceLines = [];
         
         const newLines: any[] = [];
         if (showAnalysis && showTargets && liquidityTargets && liquidityTargets.length > 0) {
@@ -826,20 +827,11 @@ export function TradingChart({
                 });
                 newLines.push(line);
             }
-
+            
+             // FIX: Removed the crashing setVisibleRange call
             if (sellSideTarget && buySideTarget) {
-                const priceRange = buySideTarget.priceLevel - sellSideTarget.priceLevel;
-                const padding = priceRange * 0.1;
-                const topPrice = buySideTarget.priceLevel + padding;
-                const bottomPrice = sellSideTarget.priceLevel - padding;
-                
                 chart.priceScale('left').applyOptions({
-                    autoScale: false,
-                    scaleMargins: { top: 0, bottom: 0 },
-                });
-                chart.priceScale('left').setVisibleRange({
-                    from: bottomPrice,
-                    to: topPrice,
+                    autoScale: true, // Let the chart auto-scale to fit the new lines
                 });
             }
 
