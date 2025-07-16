@@ -11,7 +11,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
 import { ChevronDown, Play, StopCircle, Loader2 } from 'lucide-react';
-import type { OrderBookData } from '@/lib/types';
+import type { OrderBookData, Wall, SpoofedWall } from '@/lib/types';
 import { getDepthSnapshot } from '@/lib/binance-service';
 
 // Types for the order book
@@ -20,6 +20,7 @@ type OrderBookLevel = [string, string]; // [price, quantity]
 interface OrderBookProps {
     symbol: string;
     onUpdate?: (data: OrderBookData) => void;
+    onWallsUpdate?: ({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
 }
 
 const MAX_ROWS = 25; // Display top 25 levels
@@ -65,7 +66,7 @@ const getGroupingAndPrecision = (price: number): { grouping: number; precision: 
     return { grouping: 0.00000001, precision: 10 };
 };
 
-export function OrderBook({ symbol, onUpdate }: OrderBookProps) {
+export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
     const [isStreaming, setIsStreaming] = useState(true);
     const [isLoading, setIsLoading] = useState(false);

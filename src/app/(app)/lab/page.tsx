@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2, CalendarIcon } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary, PhysicsChartConfig } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary, PhysicsChartConfig, OrderBookData } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { generateMarketReport, GenerateMarketReportOutput } from "@/ai/flows/generate-market-report"
@@ -167,6 +167,7 @@ export default function LabPage() {
   const [isConsensusRunning, setIsConsensusRunning] = useState(false);
   const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [orderBookData, setOrderBookData] = useState<OrderBookData | null>(null);
 
   // Projection State
   const [isProjecting, setIsProjecting] = useState(false);
@@ -178,7 +179,7 @@ export default function LabPage() {
   const [selectedForwardTrade, setSelectedForwardTrade] = useState<BacktestResult | null>(null);
 
   // New Physics Chart Config State
-  const [physicsChartConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab-physics-chart-config', {
+  const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab-physics-chart-config', {
     showDepth: true,
     showImbalance: true,
     showStiffness: true,
@@ -423,7 +424,7 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive, toast]);
   
   // Effect for live data stream
   const wsRef = useRef<WebSocket | null>(null);
@@ -598,11 +599,15 @@ export default function LabPage() {
     );
   };
 
-  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+  const handleWallsUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
     setWalls(walls);
-    if (spoofs.length > 0) {
+    if (spoofs?.length > 0) {
       setSpoofedWalls(prev => [...prev, ...spoofs]);
     }
+  }, []);
+  
+  const handleOrderBookUpdate = useCallback((data: OrderBookData) => {
+    setOrderBookData(data);
   }, []);
 
   const anyLoading = isFetchingData || isReportPending || isScanning || isProjecting;
@@ -900,7 +905,7 @@ export default function LabPage() {
                   manipulationResult={manipulationResult}
                   showManipulationOverlay={showManipulationOverlay}
                   highlightedTrade={selectedForwardTrade}
-                  physicsConfig={physicsChartConfig}
+                  physicsConfig={physicsConfig}
               />
             </div>
             <div
@@ -1257,32 +1262,32 @@ export default function LabPage() {
                               <div className="border-b -mx-3"></div>
                               <div className="pl-2 space-y-3 pt-2">
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-depth" checked={physicsChartConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} />
+                                      <Switch id="show-depth" checked={physicsConfig.showDepth} onCheckedChange={(c) => handlePhysicsConfigChange('showDepth', c)} />
                                       <Label htmlFor="show-depth" className="flex-1 cursor-pointer text-muted-foreground">Depth Panel</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-imbalance" checked={physicsChartConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} />
+                                      <Switch id="show-imbalance" checked={physicsConfig.showImbalance} onCheckedChange={(c) => handlePhysicsConfigChange('showImbalance', c)} />
                                       <Label htmlFor="show-imbalance" className="flex-1 cursor-pointer text-muted-foreground">Imbalance Panel</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-stiffness" checked={physicsChartConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} />
+                                      <Switch id="show-stiffness" checked={physicsConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} />
                                       <Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-pressure" checked={physicsChartConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} />
+                                      <Switch id="show-pressure" checked={physicsConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} />
                                       <Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-bpi" checked={physicsChartConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} />
+                                      <Switch id="show-bpi" checked={physicsConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} />
                                       <Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label>
                                   </div>
                                   <div className="flex items-center space-x-2">
-                                      <Switch id="show-sentiment" checked={physicsChartConfig.showSentiment} onCheckedChange={(c) => handlePhysicsConfigChange('showSentiment', c)} />
+                                      <Switch id="show-sentiment" checked={physicsConfig.showSentiment} onCheckedChange={(c) => handlePhysicsConfigChange('showSentiment', c)} />
                                       <Label htmlFor="show-sentiment" className="flex-1 cursor-pointer text-muted-foreground">Sentiment Panel</Label>
                                   </div>
                                   <div className="space-y-2 pt-2">
                                       <Label htmlFor="bpi-threshold">BPI Threshold</Label>
-                                      <Input id="bpi-threshold" type="number" step="0.1" value={physicsChartConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} />
+                                      <Input id="bpi-threshold" type="number" step="0.1" value={physicsConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} />
                                   </div>
                               </div>
                           </CollapsibleContent>
@@ -1354,8 +1359,8 @@ export default function LabPage() {
 
             <OrderBook 
               symbol={symbol}
-              isStreamActive={isStreamActive}
               onUpdate={handleOrderBookUpdate}
+              onWallsUpdate={handleWallsUpdate}
             />
           </div>
         </div>
