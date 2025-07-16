@@ -42,7 +42,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
-import { calculatePressure, calculateStiffness, calculateDepthImbalance } from '@/lib/analysis/physics-analysis'
+import { calculatePressure, calculateStiffness, calculateDepthImbalance, calculateBPI, calculateSentiment } from '@/lib/analysis/physics-analysis'
 
 interface DateRange {
   from?: Date;
@@ -179,50 +179,50 @@ export default function TradingLab2Page() {
     setIsClient(true)
   }, []);
 
-  const runFullAnalysis = useCallback(async (
-    klineData: HistoricalData[], 
-    bookData: OrderBookData | null
-  ) => {
-      if (klineData.length === 0) {
-        setChartDataWithAnalysis([]);
-        setLiquidityEvents([]);
-        setLiquidityTargets([]);
-        return;
-      }
-      
-      let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
-      
-      // Physics Analysis
-      if (bookData) {
-        const [pressureData, stiffnessData, imbalanceRatio] = await Promise.all([
-            calculatePressure(dataToProcess, bookData.totalDepth),
-            calculateStiffness(dataToProcess),
-            calculateDepthImbalance(bookData)
-        ]);
-        
-        // Merge the results. Since pressure & stiffness add a property to each candle,
-        // we can just use the result of the last one.
-        dataToProcess = stiffnessData.map((candle, index) => ({
-            ...candle,
-            pressure_depth: pressureData[index]?.pressure_depth,
-            depth_imbalance_ratio: imbalanceRatio // Apply same ratio to all candles for now
-        }));
-      }
+  const runFullAnalysis = useCallback(async (klineData: HistoricalData[], bookData: OrderBookData | null) => {
+    if (klineData.length === 0) {
+      setChartDataWithAnalysis([]);
+      setLiquidityEvents([]);
+      setLiquidityTargets([]);
+      return;
+    }
 
-      // Liquidity Analysis
-      const getDynamicParams = () => ({ lookaround: 10 }); // Simplified for this example
-      try {
-          const [grabEvents, targetEvents] = await Promise.all([
-            findLiquidityGrabs(dataToProcess, { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 }),
-            findLiquidityTargets(dataToProcess, getDynamicParams().lookaround),
-          ]);
-          setLiquidityEvents(grabEvents);
-          setLiquidityTargets(targetEvents);
-      } catch (error) {
-          console.error("Error analyzing liquidity:", error);
-      }
+    let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
 
-      setChartDataWithAnalysis(dataToProcess);
+    // Run all physics calculations
+    const [stiffnessData, pressureData, bpiData, sentimentData, imbalanceRatio] = await Promise.all([
+      calculateStiffness(dataToProcess),
+      bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve(dataToProcess),
+      calculateBPI(dataToProcess), // BPI depends on stiffness
+      calculateSentiment(dataToProcess, 20),
+      bookData ? calculateDepthImbalance(bookData) : Promise.resolve(0)
+    ]);
+    
+    // Merge the results.
+    dataToProcess = dataToProcess.map((candle, index) => ({
+      ...candle,
+      k1_stiffness_range: stiffnessData[index]?.k1_stiffness_range,
+      pressure_depth: pressureData[index]?.pressure_depth,
+      depth_imbalance_ratio: imbalanceRatio,
+      burst_potential_index_N: bpiData[index]?.burst_potential_index_N,
+      sentimentScore: sentimentData[index]?.sentimentScore,
+    }));
+      
+
+    // Liquidity Analysis
+    const getDynamicParams = () => ({ lookaround: 10 });
+    try {
+      const [grabEvents, targetEvents] = await Promise.all([
+        findLiquidityGrabs(dataToProcess, { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 }),
+        findLiquidityTargets(dataToProcess, getDynamicParams().lookaround),
+      ]);
+      setLiquidityEvents(grabEvents);
+      setLiquidityTargets(targetEvents);
+    } catch (error) {
+      console.error("Error analyzing liquidity:", error);
+    }
+
+    setChartDataWithAnalysis(dataToProcess);
   }, []);
 
 
@@ -422,6 +422,7 @@ export default function TradingLab2Page() {
                             <div className="flex items-center space-x-2"><Switch id="show-stiffness" checked={physicsConfig.showStiffness} onCheckedChange={(c) => handlePhysicsConfigChange('showStiffness', c)} /><Label htmlFor="show-stiffness" className="flex-1 cursor-pointer text-muted-foreground">Stiffness Panel</Label></div>
                             <div className="flex items-center space-x-2"><Switch id="show-pressure" checked={physicsConfig.showPressure} onCheckedChange={(c) => handlePhysicsConfigChange('showPressure', c)} /><Label htmlFor="show-pressure" className="flex-1 cursor-pointer text-muted-foreground">Pressure Panel</Label></div>
                             <div className="flex items-center space-x-2"><Switch id="show-bpi" checked={physicsConfig.showBPI} onCheckedChange={(c) => handlePhysicsConfigChange('showBPI', c)} /><Label htmlFor="show-bpi" className="flex-1 cursor-pointer text-muted-foreground">BPI Panel</Label></div>
+                            <div className="flex items-center space-x-2"><Switch id="show-sentiment" checked={physicsConfig.showSentiment} onCheckedChange={(c) => handlePhysicsConfigChange('showSentiment', c)} /><Label htmlFor="show-sentiment" className="flex-1 cursor-pointer text-muted-foreground">Sentiment Panel</Label></div>
                             <div className="space-y-2 pt-2"><Label htmlFor="bpi-threshold">BPI Threshold</Label><Input id="bpi-threshold" type="number" step="0.1" value={physicsConfig.bpiThreshold} onChange={(e) => handlePhysicsConfigChange('bpiThreshold', parseFloat(e.target.value) || 0)} /></div>
                           </div>
                       </CollapsibleContent>

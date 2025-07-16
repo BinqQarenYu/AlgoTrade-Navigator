@@ -71,3 +71,89 @@ export async function calculateDepthImbalance(
     const imbalance = (totalBidValue - totalAskValue) / totalValue;
     return isNaN(imbalance) ? 0 : imbalance;
 }
+
+
+// --- NEW FUNCTIONS ---
+
+// Helper function for simple moving average, as it's needed for BPI
+const calculateSMA = (data: number[], period: number): (number | null)[] => {
+  if (data.length < period) return Array(data.length).fill(null);
+  
+  const sma: (number | null)[] = Array(period - 1).fill(null);
+  for (let i = period - 1; i < data.length; i++) {
+    const slice = data.slice(i - period + 1, i + 1);
+    const sum = slice.reduce((acc, val) => acc + val, 0);
+    sma.push(sum / period);
+  }
+  return sma;
+};
+
+/**
+ * Calculates the Burst Potential Index (BPI).
+ * BPI is defined as the average stiffness over a period divided by the current stiffness.
+ * A high BPI indicates a potential for a sharp price movement ("burst").
+ * @param data The historical data, which MUST already contain `k1_stiffness_range`.
+ * @param period The lookback period for calculating the average stiffness.
+ * @returns The historical data array with the `burst_potential_index_N` property added.
+ */
+export async function calculateBPI(
+    data: HistoricalData[],
+    period: number = 20
+): Promise<HistoricalData[]> {
+    const stiffnessValues = data.map(d => d.k1_stiffness_range || 0);
+    const avgStiffness = calculateSMA(stiffnessValues, period);
+
+    return data.map((candle, index) => {
+        const currentStiffness = candle.k1_stiffness_range;
+        const avg = avgStiffness[index];
+
+        if (currentStiffness === null || currentStiffness === undefined || avg === null || avg === undefined || currentStiffness === 0) {
+            return { ...candle, burst_potential_index_N: 0 };
+        }
+
+        const bpi = avg / currentStiffness;
+        return {
+            ...candle,
+            burst_potential_index_N: isNaN(bpi) ? 0 : bpi,
+        };
+    });
+}
+
+/**
+ * Calculates a simple sentiment score for each candle.
+ * The score is the ratio of net upward movement to total movement over a lookback period.
+ * Ranges from -1 (purely bearish) to +1 (purely bullish).
+ * @param data The historical k-line data.
+ * @param period The lookback period for the sentiment calculation.
+ * @returns The historical data array with the `sentimentScore` property added.
+ */
+export async function calculateSentiment(
+    data: HistoricalData[],
+    period: number = 20
+): Promise<HistoricalData[]> {
+    const scores: (number | null)[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            scores.push(null);
+            continue;
+        }
+
+        const slice = data.slice(i - period + 1, i + 1);
+        let netMovement = 0;
+        let totalMovement = 0;
+
+        slice.forEach(candle => {
+            const move = candle.close - candle.open;
+            netMovement += move;
+            totalMovement += Math.abs(move);
+        });
+
+        const score = totalMovement > 0 ? netMovement / totalMovement : 0;
+        scores.push(score);
+    }
+    
+    return data.map((candle, index) => ({
+        ...candle,
+        sentimentScore: scores[index],
+    }));
+}
