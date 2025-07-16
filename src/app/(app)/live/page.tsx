@@ -178,7 +178,7 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
 
 export default function LiveTradingPage() {
     const { toast } = useToast();
-    const { isConnected, isTradingActive, startAllBots, stopAllBots } = useApi();
+    const { isConnected, isTradingActive, startAllBots, stopAllBots, strategyParams: globalStrategyParams, setStrategyParams } = useApi();
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
@@ -210,7 +210,12 @@ export default function LiveTradingPage() {
     const handleBotConfigChange = <K extends keyof BotInstance>(id: string, field: K, value: BotInstance[K]) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
-                const updatedBot = { ...bot, [field]: value };
+                let updatedValue = value;
+                if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital') {
+                    // Ensure these fields don't become NaN if the input is cleared
+                    updatedValue = (value === '' || isNaN(value as number)) ? 0 : value;
+                }
+                const updatedBot = { ...bot, [field]: updatedValue };
                 // If the strategy changes, reset its parameters to the new strategy's defaults
                 if (field === 'strategy') {
                     updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || {};
@@ -226,7 +231,9 @@ export default function LiveTradingPage() {
             if (bot.id === botId) {
                 const parsedValue = typeof value === 'boolean' 
                     ? value
-                    : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                    : (value === '' || isNaN(value as number)) 
+                        ? 0 
+                        : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
 
                 return {
                     ...bot,
@@ -373,7 +380,7 @@ export default function LiveTradingPage() {
                                                 <Input
                                                     type="number"
                                                     value={bot.capital}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
+                                                    onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
                                                     className="w-28"
                                                     disabled={isTradingActive}
                                                 />
@@ -391,7 +398,7 @@ export default function LiveTradingPage() {
                                                 <Input
                                                     type="number"
                                                     value={bot.takeProfit}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
+                                                    onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
                                                     className="w-24"
                                                     disabled={isTradingActive}
                                                 />
@@ -400,7 +407,7 @@ export default function LiveTradingPage() {
                                                 <Input
                                                     type="number"
                                                     value={bot.stopLoss}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
+                                                    onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
                                                     className="w-24"
                                                     disabled={isTradingActive}
                                                 />
