@@ -219,7 +219,7 @@ export default function LiveTradingPage() {
     };
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
-         let parsedValue = value;
+        let parsedValue = value;
         if (typeof value !== 'object' && typeof value !== 'boolean') {
             parsedValue = (value === '' || isNaN(value as number))
                 ? 0
@@ -228,13 +228,11 @@ export default function LiveTradingPage() {
 
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
-                return {
-                    ...bot,
-                    strategyParams: {
-                        ...bot.strategyParams,
-                        [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
-                    }
-                }
+                const updatedParams = {
+                    ...bot.strategyParams,
+                    [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
+                };
+                return { ...bot, strategyParams: updatedParams };
             }
             return bot;
         }))
@@ -346,9 +344,8 @@ export default function LiveTradingPage() {
                             </TableHeader>
                             <TableBody>
                                 {botInstances.map((bot, index) => {
-                                    const isRunning = !!runningBots[bot.id];
+                                    const isRunning = !!runningBots[bot.id] && runningBots[bot.id]?.status !== 'idle' && runningBots[bot.id]?.status !== 'error';
                                     const botStatus = runningBots[bot.id]?.status;
-                                    const isAnyBotRunning = Object.values(runningBots).some(s => s.status !== 'idle' && s.status !== 'error');
 
                                     return (
                                         <React.Fragment key={bot.id}>
@@ -421,7 +418,7 @@ export default function LiveTradingPage() {
                                                             variant={isRunning ? "destructive" : "default"}
                                                             size="sm"
                                                             onClick={() => handleToggleBot(bot.id)}
-                                                            disabled={!isConnected || (isAnyBotRunning && !isRunning)}
+                                                            disabled={!isConnected}
                                                         >
                                                             {isRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
                                                             {isRunning ? 'Stop' : 'Start'}
