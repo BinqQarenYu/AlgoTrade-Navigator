@@ -177,24 +177,13 @@ export default function TradingLab2Page() {
     let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
     
     const imbalanceRatio = bookData ? await calculateDepthImbalance(bookData) : 0;
+    const dataWithStiffness = await calculateStiffness(dataToProcess);
 
-    // Run all physics calculations
-    const [stiffnessData, pressureData, bpiData, sentimentData] = await Promise.all([
-      calculateStiffness(dataToProcess),
-      calculatePressure(dataToProcess, bookData?.totalDepth ?? 0),
-      calculateBPI(dataToProcess),
-      calculateSentiment(dataToProcess, 20),
-    ]);
-    
     // Merge the results.
-    dataToProcess = dataToProcess.map((candle, index) => ({
+    dataToProcess = dataWithStiffness.map((candle, index) => ({
       ...candle,
       depthTotal: candle.volume,
-      k1_stiffness_range: stiffnessData[index]?.k1_stiffness_range,
-      pressure_depth: pressureData[index]?.pressure_depth,
       depth_imbalance_ratio: imbalanceRatio,
-      burst_potential_index_N: bpiData[index]?.burst_potential_index_N,
-      sentimentScore: sentimentData[index]?.sentimentScore,
     }));
       
 
