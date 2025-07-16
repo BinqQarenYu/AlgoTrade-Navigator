@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit, getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -122,7 +122,8 @@ export default function TradingLab2Page() {
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab2-date-range', undefined);
   
   const [isClient, setIsClient] = useState(false)
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
+  const [chartDataWithAnalysis, setChartDataWithAnalysis] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [orderBookData, setOrderBookData] = useState<OrderBookData | null>(null);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
@@ -178,24 +179,28 @@ export default function TradingLab2Page() {
     setIsClient(true)
   }, []);
 
-  const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
-    let dataWithPhysics = currentChartData;
-    
-    // Calculate physics indicators if data is available
-    if (orderBookData) {
-        dataWithPhysics = calculatePressure(dataWithPhysics, orderBookData.totalDepth);
-    }
-    
-    setChartData(dataWithPhysics); // Update chart with all calculations
-
-    if (currentChartData.length < 20) {
-      setLiquidityEvents([]);
-      setLiquidityTargets([]);
-      return;
-    }
-
-    const getDynamicParams = () => {
-        switch(interval) {
+  // Effect to run all analysis when raw data or config changes
+  useEffect(() => {
+    const runAnalysis = async () => {
+      if (rawChartData.length === 0) {
+        setChartDataWithAnalysis([]);
+        setLiquidityEvents([]);
+        setLiquidityTargets([]);
+        return;
+      }
+  
+      // --- Start with a clean copy ---
+      let dataToProcess = JSON.parse(JSON.stringify(rawChartData));
+  
+      // --- Physics Analysis ---
+      if (orderBookData) {
+        dataToProcess = await calculatePressure(dataToProcess, orderBookData.totalDepth);
+      }
+  
+      // --- Liquidity Analysis ---
+      if (dataToProcess.length >= 20) {
+        const getDynamicParams = () => {
+          switch (interval) {
             case '1m': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
             case '5m': return { lookaround: 15, confirmationCandles: 3, maxLookahead: 60 };
             case '15m': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
@@ -203,27 +208,27 @@ export default function TradingLab2Page() {
             case '4h': return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
             case '1d': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
             default: return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
+          }
+        };
+        try {
+          const dynamicParams = getDynamicParams();
+          const [resultEvents, targetEvents] = await Promise.all([
+            findLiquidityGrabs(dataToProcess, dynamicParams),
+            findLiquidityTargets(dataToProcess, dynamicParams.lookaround),
+          ]);
+          setLiquidityEvents(resultEvents);
+          setLiquidityTargets(targetEvents);
+        } catch (error: any) {
+          console.error("Error analyzing liquidity:", error);
         }
-    }
-    try {
-        const dynamicParams = getDynamicParams();
-        const [resultEvents, targetEvents] = await Promise.all([
-            findLiquidityGrabs(currentChartData, dynamicParams),
-            findLiquidityTargets(currentChartData, dynamicParams.lookaround),
-        ]);
-        setLiquidityEvents(resultEvents);
-        setLiquidityTargets(targetEvents);
-    } catch (error: any) {
-        console.error("Error analyzing liquidity automatically:", error);
-    }
-  }, [interval, orderBookData]);
+      }
   
-  // Effect to re-run analysis when primary data sources change
-  useEffect(() => {
-    if (chartData.length > 0) {
-      refreshChartAnalysis(chartData);
-    }
-  }, [orderBookData]); // Note: We only re-trigger on orderBookData change. K-line changes are handled in their fetcher.
+      // --- Final state update ---
+      setChartDataWithAnalysis(dataToProcess);
+    };
+  
+    runAnalysis();
+  }, [rawChartData, orderBookData, interval]);
 
 
   useEffect(() => {
@@ -231,20 +236,18 @@ export default function TradingLab2Page() {
 
     const fetchData = async () => {
         if (!isConnected) {
-            setChartData([]);
+            setRawChartData([]);
             return;
         }
         setIsFetchingData(true);
-        setChartData([]);
+        setRawChartData([]);
         setQuantumFieldData([]); // Clear old projection
         setPredictionSummary(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         
         try {
             const klines = await getLatestKlinesByLimit(symbol, interval, 500); 
-            // We set the raw klines first, then analysis will enrich it
-            setChartData(klines);
-            refreshChartAnalysis(klines); // Manually trigger analysis on new data
+            setRawChartData(klines);
             toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
@@ -253,7 +256,7 @@ export default function TradingLab2Page() {
                 description: error.message || "Could not retrieve historical data from Binance.",
                 variant: "destructive"
             });
-            setChartData([]);
+            setRawChartData([]);
         } finally {
             setIsFetchingData(false);
         }
@@ -267,11 +270,11 @@ export default function TradingLab2Page() {
   }, []);
 
   const handleRunForecast = () => {
-      if (chartData.length < 50) {
+      if (rawChartData.length < 50) {
           toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
           return;
       }
-      const { field, summary } = generateMockQuantumField(chartData, interval);
+      const { field, summary } = generateMockQuantumField(rawChartData, interval);
       setQuantumFieldData(field);
       setPredictionSummary(summary);
       toast({ title: "Forecast Generated", description: "Quantum field simulation complete." });
@@ -314,12 +317,10 @@ export default function TradingLab2Page() {
           <div className="relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
               <TradingChart
-                  data={chartData}
+                  data={chartDataWithAnalysis}
                   symbol={symbol}
                   interval={interval}
                   onIntervalChange={setInterval}
-                  wallLevels={orderBookData?.walls || []}
-                  spoofedWalls={orderBookData?.spoofs || []}
                   liquidityEvents={showAnalysis ? liquidityEvents : []}
                   liquidityTargets={showAnalysis ? liquidityTargets : []}
                   lineWidth={lineWidth}
