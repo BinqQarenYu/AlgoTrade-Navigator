@@ -564,7 +564,7 @@ export default function SettingsPage() {
                           id="ai-limit"
                           type="number"
                           value={aiQuotaLimitInput}
-                          onChange={(e) => setAiQuotaLimitInput(parseInt(e.target.value, 10) || 0)}
+                          onChange={(e) => setAiQuotaLimitInput(parseInt(e.target.value, 10) || 50)}
                           max={50}
                           min={1}
                       />
