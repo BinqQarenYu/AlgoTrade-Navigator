@@ -87,6 +87,8 @@ type BotInstance = {
     asset: string;
     capital: number;
     leverage: number;
+    takeProfit: number;
+    stopLoss: number;
     strategy: string;
     strategyParams: any;
 };
@@ -96,6 +98,8 @@ const createNewBotInstance = (id: string): BotInstance => ({
     asset: '',
     capital: 100,
     leverage: 10,
+    takeProfit: 1.5,
+    stopLoss: 1,
     strategy: '',
     strategyParams: {},
 });
@@ -174,7 +178,7 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
 
 export default function LiveTradingPage() {
     const { toast } = useToast();
-    const { isConnected, isTradingActive } = useApi();
+    const { isConnected, isTradingActive, startAllBots, stopAllBots } = useApi();
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
@@ -277,6 +281,15 @@ export default function LiveTradingPage() {
         setOpenParams(prev => ({ ...prev, [id]: !prev[id] }));
     }
 
+    const handleStartAll = () => {
+        const botsToRun = botInstances.filter(b => b.asset && b.strategy);
+        if (botsToRun.length === 0) {
+            toast({ title: "No Bots Configured", description: "Please configure at least one bot before starting.", variant: "destructive" });
+            return;
+        }
+        startAllBots(botsToRun);
+    }
+
     return (
         <div className="space-y-6">
             <div className="text-left">
@@ -314,8 +327,13 @@ export default function LiveTradingPage() {
                          <Button onClick={addBotInstance} size="sm" variant="outline" disabled={isTradingActive}>
                             <PlusCircle/> Add Bot
                         </Button>
-                        <Button className="bg-primary hover:bg-primary/90" disabled={isTradingActive || !isConnected}>
-                            <Play/> Start All Bots
+                        <Button 
+                            className={cn(isTradingActive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90")}
+                            disabled={!isConnected}
+                            onClick={isTradingActive ? stopAllBots : handleStartAll}
+                        >
+                            {isTradingActive ? <StopCircle/> : <Play/>}
+                            {isTradingActive ? "Stop All Bots" : "Start All Bots"}
                         </Button>
                     </div>
                 </CardHeader>
@@ -328,6 +346,8 @@ export default function LiveTradingPage() {
                                     <TableHead>Asset</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
+                                    <TableHead>Take Profit (%)</TableHead>
+                                    <TableHead>Stop Loss (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
@@ -367,6 +387,24 @@ export default function LiveTradingPage() {
                                                     disabled={isTradingActive}
                                                 />
                                             </TableCell>
+                                             <TableCell>
+                                                <Input
+                                                    type="number"
+                                                    value={bot.takeProfit}
+                                                    onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
+                                                    className="w-24"
+                                                    disabled={isTradingActive}
+                                                />
+                                            </TableCell>
+                                             <TableCell>
+                                                <Input
+                                                    type="number"
+                                                    value={bot.stopLoss}
+                                                    onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
+                                                    className="w-24"
+                                                    disabled={isTradingActive}
+                                                />
+                                            </TableCell>
                                             <TableCell>
                                                 <Select
                                                     value={bot.strategy}
@@ -392,7 +430,7 @@ export default function LiveTradingPage() {
                                         </TableRow>
                                         {openParams[bot.id] && bot.strategy && (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="p-0">
+                                                <TableCell colSpan={8} className="p-0">
                                                     <div className="p-4 bg-muted/30">
                                                         <StrategyParamsCard
                                                             bot={bot}
