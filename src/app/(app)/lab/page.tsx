@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -205,7 +204,7 @@ export default function LabPage() {
   const [isPhysicsPanelsOpen, setIsPhysicsPanelsOpen] = usePersistentState<boolean>('lab-physics-panels-open', true);
   const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
   const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('lab-projection-card-open', true);
-  const [isLiquidityDetailsOpen, setIsLiquidityDetailsOpen] = usePersistentState<boolean>('lab-liquidity-details-open', false);
+  const [isLiquidityDetailsOpen, setIsLiquidityDetailsOpen] = usePersistentState<boolean>('lab-liquidity-details-open', true);
   
   const selectedConsensusStrategiesRef = useRef(selectedConsensusStrategies);
   useEffect(() => {
@@ -1474,3 +1473,4 @@ export default function LabPage() {
     </div>
   )
 }
+
