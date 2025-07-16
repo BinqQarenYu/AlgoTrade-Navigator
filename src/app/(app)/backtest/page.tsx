@@ -7,7 +7,7 @@ import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
-import { getHistoricalKlines } from "@/lib/binance-service"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -28,12 +28,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { CalendarIcon, Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History } from "lucide-react"
-import { Calendar } from "@/components/ui/calendar"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { format, addDays } from "date-fns"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
@@ -83,11 +80,6 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
-
-interface DateRange {
-  from?: Date;
-  to?: Date;
-}
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -171,11 +163,6 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
       const item = window.localStorage.getItem(key);
       if (item && item !== "undefined") {
         const parsed = JSON.parse(item);
-        // Special handling for date ranges, as they need to be rehydrated as Date objects
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
         if (isMounted) {
           setState(parsed);
         }
@@ -210,7 +197,6 @@ export default function BacktestPage() {
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams } = useBot();
 
-  const [date, setDate] = usePersistentState<DateRange | undefined>('backtest-date-range', undefined);
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("backtest-quote-asset", "USDT");
@@ -303,13 +289,7 @@ export default function BacktestPage() {
 
   useEffect(() => {
     setIsClient(true)
-    if (!date) {
-        setDate({
-            from: addDays(new Date(), -7),
-            to: new Date(),
-        })
-    }
-  }, [date, setDate])
+  }, [])
 
   useEffect(() => {
     const quotes = getAvailableQuotesForBase(baseAsset);
@@ -324,7 +304,7 @@ export default function BacktestPage() {
     if (!isClient || isTradingActive || !symbol || !quoteAsset) return;
 
     const fetchData = async () => {
-        if (!isConnected || !date?.from || !date?.to) {
+        if (!isConnected) {
             setFullChartData([]);
             return;
         }
@@ -337,11 +317,10 @@ export default function BacktestPage() {
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
-            const klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
+            const klines = await getLatestKlinesByLimit(symbol, interval, 1000);
             setFullChartData(klines);
             toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
-        } catch (error: any)
-{
+        } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
             toast({
                 title: "Failed to Load Data",
@@ -355,7 +334,7 @@ export default function BacktestPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, date, interval, isConnected, isClient, toast, isTradingActive]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isTradingActive]);
 
   // Effect to calculate and display indicators
   useEffect(() => {
@@ -808,34 +787,6 @@ export default function BacktestPage() {
       }
     };
   }, [isPlaying, isReplaying, replaySpeed]);
-
-
-  const handleLoadScript = (script: string) => {
-    const lowerScript = script.toLowerCase();
-    let detectedStrategy: string | null = null;
-
-    if (lowerScript.includes('ta.sma') && (lowerScript.includes('ta.crossover') || lowerScript.includes('ta.crossunder'))) {
-        detectedStrategy = 'sma-crossover';
-    } else if (lowerScript.includes('ta.ema') && (lowerScript.includes('ta.crossover') || lowerScript.includes('ta.crossunder'))) {
-        detectedStrategy = 'ema-crossover';
-    } else if (lowerScript.includes('ta.rsi')) {
-        detectedStrategy = 'rsi-divergence';
-    }
-
-    if (detectedStrategy) {
-        setSelectedStrategy(detectedStrategy);
-        toast({
-            title: "Strategy Loaded",
-            description: "The strategy from the script has been selected. Click 'Run Backtest' to start.",
-        });
-    } else {
-        toast({
-            title: "Cannot Load Script",
-            description: "This script is not supported for automatic backtesting. Please select a strategy from the dropdown.",
-            variant: "destructive",
-        });
-    }
-  };
   
   const anyLoading = isBacktesting || isFetchingData || isOptimizing;
 
@@ -1245,7 +1196,7 @@ export default function BacktestPage() {
             </CardHeader>
             <CollapsibleContent>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="base-asset">Base</Label>
                       <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading || isReplaying}>
@@ -1272,7 +1223,7 @@ export default function BacktestPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 col-span-2 md:col-span-4">
+                    <div className="space-y-2 col-span-2">
                         <Label htmlFor="strategy">Strategy</Label>
                         <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading || isReplaying}>
                             <SelectTrigger id="strategy">
@@ -1293,7 +1244,7 @@ export default function BacktestPage() {
                             </div>
                         )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 col-span-2">
                       <Label htmlFor="interval">Interval</Label>
                       <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading || isReplaying}>
                         <SelectTrigger id="interval">
@@ -1422,81 +1373,6 @@ export default function BacktestPage() {
                       )}
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Date range</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
-                          )}
-                          disabled={!isConnected || anyLoading || isReplaying}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {isClient && date?.from ? (
-                            date.to ? (
-                              <>
-                                {format(date.from, "LLL dd, y")} -{" "}
-                                {format(date.to, "LLL dd, y")}
-                              </>
-                            ) : (
-                              format(date.from, "LLL dd, y")
-                            )
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto flex p-0" align="start">
-                        <div className="flex flex-col space-y-1 border-r p-3">
-                            <div className="px-1 pb-1">
-                                <h4 className="font-medium text-sm text-muted-foreground">Presets</h4>
-                            </div>
-                            <div className="flex flex-col items-start space-y-1">
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start font-normal h-8 px-2"
-                                    onClick={() => setDate({ from: new Date(), to: new Date() })}
-                                >
-                                    Today
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start font-normal h-8 px-2"
-                                    onClick={() => setDate({ from: addDays(new Date(), -7), to: new Date() })}
-                                >
-                                    Last 7 Days
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start font-normal h-8 px-2"
-                                    onClick={() => setDate({ from: addDays(new Date(), -30), to: new Date() })}
-                                >
-                                    Last 30 Days
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    className="w-full justify-start font-normal h-8 px-2"
-                                    onClick={() => setDate({ from: date?.from, to: new Date() })}
-                                >
-                                    Until Today
-                                </Button>
-                            </div>
-                        </div>
-                        <Calendar
-                          initialFocus
-                          mode="range"
-                          defaultMonth={date?.from}
-                          selected={date}
-                          onSelect={setDate}
-                          numberOfMonths={2}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                </div>
               </CardContent>
               <CardFooter className="flex-col gap-2">
                 <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
@@ -1524,7 +1400,7 @@ export default function BacktestPage() {
             />
         )}
         
-        <PineScriptEditor onLoadScript={handleLoadScript} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
+        <PineScriptEditor onLoadScript={() => {}} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
     </div>
     </div>
