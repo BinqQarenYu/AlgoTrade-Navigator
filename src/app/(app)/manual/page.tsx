@@ -106,6 +106,14 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
 
+const defaultDisciplineParams: DisciplineParams = {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+};
+
 export default function ManualTradingPage() {
   const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
   const { toast } = useToast();
@@ -319,7 +327,7 @@ export default function ManualTradingPage() {
   
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
       handleParamChange(selectedStrategy, 'discipline', {
-        ...strategyParams[selectedStrategy]?.discipline,
+        ...(strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams),
         [paramName]: value,
       });
   };
@@ -558,15 +566,13 @@ export default function ManualTradingPage() {
                   </CollapsibleContent>
                 </Collapsible>
                 
-                {strategyParams[selectedStrategy] && (
-                    <DisciplineSettings 
-                        params={strategyParams[selectedStrategy].discipline || defaultAwesomeOscillatorParams.discipline}
-                        onParamChange={handleDisciplineParamChange}
-                        isCollapsed={isDisciplineOpen}
-                        onCollapseChange={setDisciplineOpen}
-                        isDisabled={isThisPageTrading}
-                    />
-                )}
+                <DisciplineSettings 
+                    params={strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams}
+                    onParamChange={handleDisciplineParamChange}
+                    isCollapsed={isDisciplineOpen}
+                    onCollapseChange={setDisciplineOpen}
+                    isDisabled={isThisPageTrading}
+                />
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
@@ -774,7 +780,7 @@ export default function ManualTradingPage() {
                                   {coinDetails.totalSupply && (
                                      <div className="flex justify-between items-center text-sm">
                                         <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Total</span>
-                                        <span className="font-semibold">${formatLargeNumber(coinDetails.totalSupply, 2)}</span>
+                                        <span className="font-semibold">{formatLargeNumber(coinDetails.totalSupply, 2)}</span>
                                     </div>
                                   )}
                               </div>

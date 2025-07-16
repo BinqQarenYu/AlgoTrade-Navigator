@@ -270,7 +270,7 @@ export default function BacktestPage() {
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
       handleParamChange(selectedStrategy, 'discipline', {
-        ...strategyParams[selectedStrategy].discipline,
+        ...(strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams),
         [paramName]: value,
       });
   };
@@ -1344,16 +1344,14 @@ export default function BacktestPage() {
                   </CollapsibleContent>
                 </Collapsible>
                 
-                {strategyParams[selectedStrategy]?.discipline && (
-                    <DisciplineSettings 
-                        params={strategyParams[selectedStrategy].discipline}
-                        onParamChange={handleDisciplineParamChange}
-                        isCollapsed={isDisciplineOpen}
-                        onCollapseChange={setDisciplineOpen}
-                        isDisabled={anyLoading || isReplaying}
-                    />
-                )}
-
+                 <DisciplineSettings 
+                    params={strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams}
+                    onParamChange={handleDisciplineParamChange}
+                    isCollapsed={isDisciplineOpen}
+                    onCollapseChange={setDisciplineOpen}
+                    isDisabled={anyLoading || isReplaying}
+                />
+                
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="initial-capital">Initial Capital ($)</Label>
