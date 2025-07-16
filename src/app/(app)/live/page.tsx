@@ -221,20 +221,13 @@ export default function LiveTradingPage() {
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
-                let parsedValue: any;
-                if (typeof value === 'boolean' || typeof value === 'object') {
-                    parsedValue = value;
-                } else {
-                    const numValue = String(value);
-                    parsedValue = (numValue === '' || isNaN(Number(numValue)))
-                        ? 0
-                        : numValue.includes('.') ? parseFloat(numValue) : parseInt(numValue, 10);
-                }
-
-                const updatedParams = {
-                    ...bot.strategyParams,
-                    [param]: parsedValue,
-                };
+                 const updatedParams = { ...bot.strategyParams };
+                 if (typeof value === 'object') {
+                    updatedParams[param] = value;
+                 } else {
+                    const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                    updatedParams[param] = isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue;
+                 }
                 return { ...bot, strategyParams: updatedParams };
             }
             return bot;
@@ -359,7 +352,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -368,7 +361,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 0)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -377,7 +370,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -386,7 +379,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
