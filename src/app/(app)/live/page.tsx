@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { DisciplineParams, LiveBotConfig } from "@/lib/types"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 // Default parameter maps for resetting
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -221,15 +222,15 @@ export default function LiveTradingPage() {
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
-                 const updatedParams = { ...bot.strategyParams };
-                 if (typeof value === 'object') {
-                    updatedParams[param] = value;
-                 } else {
-                    const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-                    updatedParams[param] = isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue;
-                 }
-                return { ...bot, strategyParams: updatedParams };
-            }
+                const updatedParams = { ...bot.strategyParams };
+                if (typeof value === 'object') {
+                   updatedParams[param] = value;
+                } else {
+                   const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                   updatedParams[param] = isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue;
+                }
+               return { ...bot, strategyParams: updatedParams };
+           }
             return bot;
         }));
     };
@@ -398,15 +399,28 @@ export default function LiveTradingPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end gap-1">
-                                                        <Button 
-                                                            variant={isRunning ? "destructive" : "default"}
-                                                            size="sm"
-                                                            onClick={() => handleToggleBot(bot.id)}
-                                                            disabled={!isConnected}
-                                                        >
-                                                            {isRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
-                                                            {isRunning ? 'Stop' : 'Start'}
-                                                        </Button>
+                                                        <TooltipProvider>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div tabIndex={0}> 
+                                                                        <Button
+                                                                            variant={isRunning ? "destructive" : "default"}
+                                                                            size="sm"
+                                                                            onClick={() => handleToggleBot(bot.id)}
+                                                                            disabled={!isConnected || (activeProfile?.permissions !== 'FuturesTrading' && !isRunning)}
+                                                                        >
+                                                                            {isRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                                                                            {isRunning ? 'Stop' : 'Start'}
+                                                                        </Button>
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                {activeProfile?.permissions === 'ReadOnly' && !isRunning && (
+                                                                    <TooltipContent>
+                                                                        <p>A key with Futures Trading permission is required.</p>
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
+                                                        </TooltipProvider>
                                                         <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isRunning || !bot.strategy}>
                                                             <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
                                                         </Button>
