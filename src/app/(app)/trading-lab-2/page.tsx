@@ -110,6 +110,8 @@ export default function TradingLab2Page() {
   const [orderBookData, setOrderBookData] = useState<OrderBookData | null>(null);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
   const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
   const [predictionSummary, setPredictionSummary] = useState<QuantumPredictionSummary | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -250,8 +252,15 @@ export default function TradingLab2Page() {
     fetchData();
   }, [symbol, quoteAsset, interval, isConnected, isClient, toast]);
   
-  const handleOrderBookUpdate = useCallback((bookData: OrderBookData) => {
-    setOrderBookData(bookData);
+  const handleOrderBookUpdate = useCallback((data: OrderBookData) => {
+    setOrderBookData(data);
+  }, []);
+
+  const handleWallsUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+    setWalls(walls);
+    if (spoofs?.length > 0) {
+      setSpoofedWalls(prev => [...prev, ...spoofs]);
+    }
   }, []);
 
   const handleRunForecast = () => {
@@ -350,8 +359,10 @@ export default function TradingLab2Page() {
                   symbol={symbol}
                   interval={interval}
                   onIntervalChange={setInterval}
-                  liquidityEvents={showAnalysis ? liquidityEvents : []}
-                  liquidityTargets={showAnalysis ? liquidityTargets : []}
+                  wallLevels={showAnalysis && showWalls ? walls : []}
+                  spoofedWalls={showAnalysis ? spoofedWalls : []}
+                  liquidityEvents={showAnalysis && showLiquidity ? liquidityEvents : []}
+                  liquidityTargets={showAnalysis && showTargets ? liquidityTargets : []}
                   lineWidth={lineWidth}
                   showAnalysis={showAnalysis}
                   chartType={chartType}
@@ -367,6 +378,7 @@ export default function TradingLab2Page() {
           <OrderBook 
             symbol={symbol}
             onUpdate={handleOrderBookUpdate}
+            onWallsUpdate={handleWallsUpdate}
           />
         </div>
 

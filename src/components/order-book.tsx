@@ -24,6 +24,7 @@ interface OrderBookProps {
 }
 
 const MAX_ROWS = 25; // Display top 25 levels
+const WALL_THRESHOLD_PERCENT = 0.05; // A wall must be at least 5% of the visible order book depth
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
@@ -84,7 +85,7 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
         setIsStreaming(!isStreaming);
     };
 
-    const updateDOM = useCallback(() => {
+    const updateDOMAndAnalyze = useCallback(() => {
         if (!tableRef.current) return;
 
         const bidsMap = bidsRef.current;
@@ -99,7 +100,7 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
         const totalAskSize = sortedAsks.reduce((sum, [, size]) => sum + size, 0);
         const maxTotal = Math.max(totalBidSize, totalAskSize);
 
-        // Update the onUpdate callback if it exists
+        // Emit full order book data update
         if (onUpdate) {
             onUpdate({
                 bids: sortedBids.map(([price, quantity]) => ({price: parseFloat(price), quantity})),
@@ -107,8 +108,28 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
                 totalDepth: totalBidSize + totalAskSize,
             });
         }
+        
+        // --- Wall Detection Logic ---
+        if (onWallsUpdate) {
+            const walls: Wall[] = [];
+            const totalVisibleDepth = totalBidSize + totalAskSize;
+            
+            sortedBids.forEach(([priceStr, size]) => {
+                if (size > totalVisibleDepth * WALL_THRESHOLD_PERCENT) {
+                    walls.push({ price: parseFloat(priceStr), type: 'bid' });
+                }
+            });
+
+            sortedAsks.forEach(([priceStr, size]) => {
+                if (size > totalVisibleDepth * WALL_THRESHOLD_PERCENT) {
+                    walls.push({ price: parseFloat(priceStr), type: 'ask' });
+                }
+            });
+            onWallsUpdate({ walls, spoofs: [] }); // Spoof logic would be more complex
+        }
 
 
+        // --- DOM Update ---
         for (let i = 0; i < MAX_ROWS; i++) {
             // Update Bids
             const bidRow = tableRef.current.querySelector(`#bid-row-${i}`);
@@ -154,7 +175,7 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
                 }
             }
         }
-    }, [onUpdate]);
+    }, [onUpdate, onWallsUpdate]);
 
     useEffect(() => {
         if (!isStreaming || !isConnected || !symbol) {
@@ -218,7 +239,7 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
 
         connect();
         
-        const renderInterval = setInterval(updateDOM, 500); 
+        const renderInterval = setInterval(updateDOMAndAnalyze, 1000); 
 
         return () => {
             clearInterval(renderInterval);
@@ -227,7 +248,7 @@ export function OrderBook({ symbol, onUpdate, onWallsUpdate }: OrderBookProps) {
                 wsRef.current = null;
             }
         };
-    }, [isStreaming, isConnected, symbol, updateDOM]);
+    }, [isStreaming, isConnected, symbol, updateDOMAndAnalyze]);
 
 
     const renderTableBody = (type: 'bid' | 'ask') => {
