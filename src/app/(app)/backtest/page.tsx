@@ -124,6 +124,14 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
 }
 
+const defaultDisciplineParams: DisciplineParams = {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 2,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+};
+
 // Helper to generate parameter combinations for auto-tuning
 const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     const keys = Object.keys(config);
@@ -512,7 +520,8 @@ export default function BacktestPage() {
     const baseParams = strategyParams[selectedStrategy] || {};
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
-    const riskGuardian = new RiskGuardian(paramsForStrategy.discipline, initialCapital);
+    const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
+    const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
 
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
     
@@ -1046,7 +1055,7 @@ export default function BacktestPage() {
     }
     
     // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'htf' && key !== 'discipline'));
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'discipline'));
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
