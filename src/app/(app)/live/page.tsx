@@ -407,7 +407,7 @@ export default function LiveTradingPage() {
                                                                             variant={isRunning ? "destructive" : "default"}
                                                                             size="sm"
                                                                             onClick={() => handleToggleBot(bot.id)}
-                                                                            disabled={!isConnected || (activeProfile?.permissions !== 'FuturesTrading' && !isRunning)}
+                                                                            disabled={!isConnected}
                                                                         >
                                                                             {isRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
                                                                             {isRunning ? 'Stop' : 'Start'}

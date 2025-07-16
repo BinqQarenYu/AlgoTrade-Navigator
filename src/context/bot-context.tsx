@@ -216,18 +216,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
-    const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
-    const gridIsRunning = gridState.isRunning;
+    const manualTradePending = manualTraderState.isExecuting || (manualTraderState.signal !== null && !manualTraderState.signalInvalidated);
     
-    // An active "trading" session involves real or simulated orders
-    setIsTradingActive(liveBotRunning || manualTradePending || gridIsRunning);
+    // A session is "trading" if a live bot is running or a manual trade is being executed.
+    // Simulations do not count as a "trading" session that would block other actions.
+    setIsTradingActive(liveBotRunning || manualTradePending);
 
-    // An active "analysis" session is for monitoring without trading
+    // An "analysis" session is for monitoring without trading.
     const multiSignalIsRunning = multiSignalState.isRunning;
     const manualIsAnalyzing = manualTraderState.isAnalyzing;
     setIsAnalysisActive(multiSignalIsRunning || manualIsAnalyzing);
 
-  }, [liveBotState.bots, manualTraderState, gridState.isRunning, multiSignalState.isRunning]);
+  }, [liveBotState.bots, manualTraderState, multiSignalState.isRunning]);
 
 
   // --- Helper Functions ---
