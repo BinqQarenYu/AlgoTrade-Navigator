@@ -175,13 +175,13 @@ export default function TradingLab2Page() {
     }
 
     let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
-    const totalBookDepth = bookData ? bookData.bids.reduce((s, b) => s + b.quantity, 0) + bookData.asks.reduce((s, a) => s + a.quantity, 0) : 0;
+    
     const imbalanceRatio = bookData ? await calculateDepthImbalance(bookData) : 0;
 
     // Run all physics calculations
     const [stiffnessData, pressureData, bpiData, sentimentData] = await Promise.all([
       calculateStiffness(dataToProcess),
-      calculatePressure(dataToProcess, totalBookDepth),
+      calculatePressure(dataToProcess, bookData?.totalDepth ?? 0),
       calculateBPI(dataToProcess),
       calculateSentiment(dataToProcess, 20),
     ]);
