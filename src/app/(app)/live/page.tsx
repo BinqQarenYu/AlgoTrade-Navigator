@@ -91,14 +91,14 @@ type BotInstance = {
 
 const createNewBotInstance = (id: string): BotInstance => ({
     id,
-    asset: 'BTCUSDT',
+    asset: '',
     capital: 100,
     leverage: 10,
-    strategy: 'peak-formation-fib',
-    strategyParams: defaultPffParams,
+    strategy: '',
+    strategyParams: {},
 });
 
-const StrategyParamsCard = ({ bot, onParamChange, onReset }: { bot: BotInstance, onParamChange: (param: string, value: any) => void, onReset: () => void }) => {
+const StrategyParamsCard = ({ bot, onParamChange, onReset, isTradingActive }: { bot: BotInstance, onParamChange: (param: string, value: any) => void, onReset: () => void, isTradingActive: boolean }) => {
     const strategyInfo = getStrategyById(bot.strategy);
     if (!strategyInfo) return null;
 
@@ -125,12 +125,13 @@ const StrategyParamsCard = ({ bot, onParamChange, onReset }: { bot: BotInstance,
                                 value={value as number}
                                 onChange={e => onParamChange(key, e.target.value)}
                                 className="h-8"
+                                disabled={isTradingActive}
                             />
                         </div>
                     ))}
                 </div>
                 {DEFAULT_PARAMS_MAP[bot.strategy] && (
-                    <Button onClick={onReset} variant="secondary" size="sm" className="w-full">
+                    <Button onClick={onReset} variant="secondary" size="sm" className="w-full" disabled={isTradingActive}>
                         <RotateCcw/> Reset to Default
                     </Button>
                 )}
@@ -144,6 +145,31 @@ export default function LiveTradingPage() {
     const { isConnected, isTradingActive } = useApi();
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
+
+    const addBotInstance = () => {
+        const newId = `bot_${Date.now()}`;
+        setBotInstances(prev => [...prev, createNewBotInstance(newId)]);
+    };
+
+    useEffect(() => {
+        if (botInstances.length === 0) {
+            addBotInstance(); // Ensure there's always at least one row
+            return;
+        }
+
+        const lastBot = botInstances[botInstances.length - 1];
+
+        const isLastBotFilled = 
+            lastBot.asset &&
+            lastBot.capital > 0 &&
+            lastBot.leverage >= 1 &&
+            lastBot.strategy;
+
+        if (isLastBotFilled) {
+            addBotInstance();
+        }
+    }, [botInstances]);
+
 
     const handleBotConfigChange = <K extends keyof BotInstance>(id: string, field: K, value: BotInstance[K]) => {
         setBotInstances(prev => prev.map(bot => {
@@ -186,12 +212,11 @@ export default function LiveTradingPage() {
         }
     }
 
-    const addBotInstance = () => {
-        const newId = `bot_${Date.now()}`;
-        setBotInstances(prev => [...prev, createNewBotInstance(newId)]);
-    };
-
     const removeBotInstance = (id: string) => {
+        if (botInstances.length <= 1) {
+            toast({ title: "Cannot Remove", description: "At least one bot configuration must remain.", variant: "destructive" });
+            return;
+        }
         setBotInstances(prev => prev.filter(bot => bot.id !== id));
     };
 
@@ -265,7 +290,7 @@ export default function LiveTradingPage() {
                                                     onValueChange={(val) => handleBotConfigChange(bot.id, 'asset', val)}
                                                     disabled={isTradingActive}
                                                 >
-                                                    <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                                                    <SelectTrigger className="w-40"><SelectValue placeholder="Select Asset" /></SelectTrigger>
                                                     <SelectContent>
                                                         {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
                                                     </SelectContent>
@@ -295,7 +320,7 @@ export default function LiveTradingPage() {
                                                     onValueChange={(val) => handleBotConfigChange(bot.id, 'strategy', val)}
                                                     disabled={isTradingActive}
                                                 >
-                                                    <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+                                                    <SelectTrigger className="w-52"><SelectValue placeholder="Select Strategy" /></SelectTrigger>
                                                     <SelectContent>
                                                         {strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
                                                     </SelectContent>
@@ -303,7 +328,7 @@ export default function LiveTradingPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-1">
-                                                    <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isTradingActive}>
+                                                    <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isTradingActive || !bot.strategy}>
                                                         <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
                                                     </Button>
                                                     <Button variant="ghost" size="icon" onClick={() => removeBotInstance(bot.id)} disabled={isTradingActive}>
@@ -312,14 +337,15 @@ export default function LiveTradingPage() {
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                        {openParams[bot.id] && (
+                                        {openParams[bot.id] && bot.strategy && (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="p-0">
-                                                    <div className="p-4">
+                                                    <div className="p-4 bg-muted/30">
                                                         <StrategyParamsCard
                                                             bot={bot}
                                                             onParamChange={(param, value) => handleStrategyParamChange(bot.id, param, value)}
                                                             onReset={() => handleResetParams(bot.id)}
+                                                            isTradingActive={isTradingActive}
                                                         />
                                                     </div>
                                                 </TableCell>
@@ -335,4 +361,3 @@ export default function LiveTradingPage() {
         </div>
     );
 }
-
