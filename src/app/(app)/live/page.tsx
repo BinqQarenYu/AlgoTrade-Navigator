@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2 } from "lucide-react"
 import { topAssets, pairsByBase, topBases, assetInfo } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -23,8 +23,9 @@ import { cn } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import type { DisciplineParams } from "@/lib/types"
+import type { DisciplineParams, LiveBotConfig } from "@/lib/types"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { Badge } from "@/components/ui/badge"
 
 // Default parameter maps for resetting
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -83,15 +84,8 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
 
-type BotInstance = {
+type BotInstance = LiveBotConfig & {
     id: string;
-    asset: string;
-    capital: number;
-    leverage: number;
-    takeProfit: number;
-    stopLoss: number;
-    strategy: string;
-    strategyParams: any;
 };
 
 const createNewBotInstance = (id: string): BotInstance => ({
@@ -169,7 +163,7 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
 
                 {DEFAULT_PARAMS_MAP[bot.strategy] && (
                     <Button onClick={onReset} variant="secondary" size="sm" className="w-full mt-4" disabled={isTradingActive}>
-                        <RotateCcw/> Reset to Default
+                        <RotateCcw className="mr-2 h-4 w-4"/> Reset to Default
                     </Button>
                 )}
             </CardContent>
@@ -177,9 +171,21 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
     )
 }
 
+const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | 'position_open' | 'error' | 'cooldown' }) => {
+    switch (status) {
+        case 'running': return <Badge variant="default" className="bg-green-600 hover:bg-green-600"><CheckCircle className="mr-1 h-3 w-3" /> Running</Badge>;
+        case 'analyzing': return <Badge variant="secondary"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Analyzing</Badge>;
+        case 'position_open': return <Badge variant="default" className="bg-blue-600 hover:bg-blue-600"><Bot className="mr-1 h-3 w-3" /> In Position</Badge>;
+        case 'error': return <Badge variant="destructive">Error</Badge>;
+        case 'cooldown': return <Badge variant="destructive">Cooldown</Badge>;
+        default: return <Badge variant="secondary">Idle</Badge>;
+    }
+}
+
 export default function LiveTradingPage() {
     const { toast } = useToast();
-    const { isConnected, isTradingActive, startAllBots, stopAllBots, strategyParams: globalStrategyParams, setStrategyParams } = useApi();
+    const { isConnected, startBotInstance, stopBotInstance, liveBotState, setStrategyParams, activeProfile } = useBot();
+    const { bots: runningBots } = liveBotState;
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
@@ -191,19 +197,6 @@ export default function LiveTradingPage() {
     useEffect(() => {
         if (botInstances.length === 0) {
             addBotInstance(); // Ensure there's always at least one row
-            return;
-        }
-
-        const lastBot = botInstances[botInstances.length - 1];
-
-        const isLastBotFilled = 
-            lastBot.asset &&
-            lastBot.capital > 0 &&
-            lastBot.leverage >= 1 &&
-            lastBot.strategy;
-
-        if (isLastBotFilled) {
-            addBotInstance();
         }
     }, [botInstances]);
 
@@ -212,7 +205,7 @@ export default function LiveTradingPage() {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
                 let updatedValue = value;
-                if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital') {
+                if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : value;
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
@@ -226,7 +219,7 @@ export default function LiveTradingPage() {
     };
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
-        let parsedValue = value;
+         let parsedValue = value;
         if (typeof value !== 'object' && typeof value !== 'boolean') {
             parsedValue = (value === '' || isNaN(value as number))
                 ? 0
@@ -250,14 +243,15 @@ export default function LiveTradingPage() {
     const handleDisciplineParamChange = (botId: string, paramName: keyof DisciplineParams, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
+                 const newDiscipline = {
+                    ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
+                    [paramName]: value
+                };
                 return {
                     ...bot,
                     strategyParams: {
                         ...bot.strategyParams,
-                        discipline: {
-                            ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
-                            [paramName]: value
-                        }
+                        discipline: newDiscipline,
                     }
                 }
             }
@@ -277,7 +271,7 @@ export default function LiveTradingPage() {
     }
 
     const removeBotInstance = (id: string) => {
-        if (botInstances.length <= 1) {
+        if (botInstances.length <= 1 && botInstances[0].id === id) {
             toast({ title: "Cannot Remove", description: "At least one bot configuration must remain.", variant: "destructive" });
             return;
         }
@@ -288,13 +282,21 @@ export default function LiveTradingPage() {
         setOpenParams(prev => ({ ...prev, [id]: !prev[id] }));
     }
 
-    const handleStartAll = () => {
-        const botsToRun = botInstances.filter(b => b.asset && b.strategy);
-        if (botsToRun.length === 0) {
-            toast({ title: "No Bots Configured", description: "Please configure at least one bot before starting.", variant: "destructive" });
+    const handleToggleBot = (botId: string) => {
+        const botConfig = botInstances.find(b => b.id === botId);
+        if (!botConfig || !botConfig.asset || !botConfig.strategy) {
+            toast({ title: "Incomplete Config", description: "Please select an asset and strategy for the bot.", variant: "destructive" });
             return;
         }
-        startAllBots(botsToRun);
+        if (runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open') {
+            stopBotInstance(botId);
+        } else {
+            if (activeProfile?.permissions !== 'FuturesTrading') {
+                toast({ title: "Permission Denied", description: "A key with Futures Trading permission is required to start a live bot.", variant: "destructive"});
+                return;
+            }
+            startBotInstance(botConfig);
+        }
     }
 
     return (
@@ -314,16 +316,6 @@ export default function LiveTradingPage() {
                 </Alert>
             )}
 
-            {isTradingActive && (
-                <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
-                    <Bot className="h-4 w-4" />
-                    <AlertTitle>Trading Session is Active</AlertTitle>
-                    <AlertDescription>
-                        Configuration is locked while a trading session is running.
-                    </AlertDescription>
-                </Alert>
-            )}
-
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -331,16 +323,8 @@ export default function LiveTradingPage() {
                         <CardDescription>Add, remove, and configure your trading bots.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                         <Button onClick={addBotInstance} size="sm" variant="outline" disabled={isTradingActive}>
-                            <PlusCircle/> Add Bot
-                        </Button>
-                        <Button 
-                            className={cn(isTradingActive ? "bg-destructive hover:bg-destructive/90" : "bg-primary hover:bg-primary/90")}
-                            disabled={!isConnected}
-                            onClick={isTradingActive ? stopAllBots : handleStartAll}
-                        >
-                            {isTradingActive ? <StopCircle/> : <Play/>}
-                            {isTradingActive ? "Stop All Bots" : "Start All Bots"}
+                         <Button onClick={addBotInstance} size="sm" variant="outline">
+                            <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
                         </Button>
                     </div>
                 </CardHeader>
@@ -350,108 +334,124 @@ export default function LiveTradingPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="w-[50px]">#</TableHead>
+                                    <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
-                                    <TableHead>Take Profit (%)</TableHead>
-                                    <TableHead>Stop Loss (%)</TableHead>
+                                    <TableHead>TP (%)</TableHead>
+                                    <TableHead>SL (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {botInstances.map((bot, index) => (
-                                    <React.Fragment key={bot.id}>
-                                        <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
-                                            <TableCell>{index + 1}</TableCell>
-                                            <TableCell>
-                                                <Select
-                                                    value={bot.asset}
-                                                    onValueChange={(val) => handleBotConfigChange(bot.id, 'asset', val)}
-                                                    disabled={isTradingActive}
-                                                >
-                                                    <SelectTrigger className="w-40"><SelectValue placeholder="Select Asset" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={bot.capital || 0}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
-                                                    className="w-28"
-                                                    disabled={isTradingActive}
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={bot.leverage || 1}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 1)}
-                                                    className="w-24"
-                                                    disabled={isTradingActive}
-                                                />
-                                            </TableCell>
-                                             <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={bot.takeProfit || 0}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
-                                                    className="w-24"
-                                                    disabled={isTradingActive}
-                                                />
-                                            </TableCell>
-                                             <TableCell>
-                                                <Input
-                                                    type="number"
-                                                    value={bot.stopLoss || 0}
-                                                    onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
-                                                    className="w-24"
-                                                    disabled={isTradingActive}
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Select
-                                                    value={bot.strategy}
-                                                    onValueChange={(val) => handleBotConfigChange(bot.id, 'strategy', val)}
-                                                    disabled={isTradingActive}
-                                                >
-                                                    <SelectTrigger className="w-52"><SelectValue placeholder="Select Strategy" /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
-                                                    </SelectContent>
-                                                </Select>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-1">
-                                                    <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isTradingActive || !bot.strategy}>
-                                                        <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => removeBotInstance(bot.id)} disabled={isTradingActive}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                        {openParams[bot.id] && bot.strategy && (
-                                            <TableRow>
-                                                <TableCell colSpan={8} className="p-0">
-                                                    <div className="p-4 bg-muted/30">
-                                                        <StrategyParamsCard
-                                                            bot={bot}
-                                                            onParamChange={(param, value) => handleStrategyParamChange(bot.id, param, value)}
-                                                            onDisciplineChange={(param, value) => handleDisciplineParamChange(bot.id, param, value)}
-                                                            onReset={() => handleResetParams(bot.id)}
-                                                            isTradingActive={isTradingActive}
-                                                        />
+                                {botInstances.map((bot, index) => {
+                                    const isRunning = !!runningBots[bot.id];
+                                    const botStatus = runningBots[bot.id]?.status;
+                                    const isAnyBotRunning = Object.values(runningBots).some(s => s.status !== 'idle' && s.status !== 'error');
+
+                                    return (
+                                        <React.Fragment key={bot.id}>
+                                            <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
+                                                <TableCell>{index + 1}</TableCell>
+                                                <TableCell><StatusBadge status={botStatus}/></TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        value={bot.asset}
+                                                        onValueChange={(val) => handleBotConfigChange(bot.id, 'asset', val)}
+                                                        disabled={isRunning}
+                                                    >
+                                                        <SelectTrigger className="w-40"><SelectValue placeholder="Select Asset" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Input
+                                                        type="number"
+                                                        value={bot.capital}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
+                                                        className="w-28"
+                                                        disabled={isRunning}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Input
+                                                        type="number"
+                                                        value={bot.leverage}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 0)}
+                                                        className="w-24"
+                                                        disabled={isRunning}
+                                                    />
+                                                </TableCell>
+                                                 <TableCell>
+                                                    <Input
+                                                        type="number"
+                                                        value={bot.takeProfit}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
+                                                        className="w-24"
+                                                        disabled={isRunning}
+                                                    />
+                                                </TableCell>
+                                                 <TableCell>
+                                                    <Input
+                                                        type="number"
+                                                        value={bot.stopLoss}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
+                                                        className="w-24"
+                                                        disabled={isRunning}
+                                                    />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        value={bot.strategy}
+                                                        onValueChange={(val) => handleBotConfigChange(bot.id, 'strategy', val)}
+                                                        disabled={isRunning}
+                                                    >
+                                                        <SelectTrigger className="w-52"><SelectValue placeholder="Select Strategy" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button 
+                                                            variant={isRunning ? "destructive" : "default"}
+                                                            size="sm"
+                                                            onClick={() => handleToggleBot(bot.id)}
+                                                            disabled={!isConnected || (isAnyBotRunning && !isRunning)}
+                                                        >
+                                                            {isRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                                                            {isRunning ? 'Stop' : 'Start'}
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isRunning || !bot.strategy}>
+                                                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => removeBotInstance(bot.id)} disabled={isRunning}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        )}
-                                    </React.Fragment>
-                                ))}
+                                            {openParams[bot.id] && bot.strategy && (
+                                                <TableRow>
+                                                    <TableCell colSpan={9} className="p-0">
+                                                        <div className="p-4 bg-muted/30">
+                                                            <StrategyParamsCard
+                                                                bot={bot}
+                                                                onParamChange={(param, value) => handleStrategyParamChange(bot.id, param, value)}
+                                                                onDisciplineChange={(param, value) => handleDisciplineParamChange(bot.id, param, value)}
+                                                                onReset={() => handleResetParams(bot.id)}
+                                                                isTradingActive={isRunning}
+                                                            />
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    )})}
                             </TableBody>
                         </Table>
                     </div>
