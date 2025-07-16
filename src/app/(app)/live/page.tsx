@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw } from "lucide-react"
-import { topAssets } from "@/lib/assets"
+import { topAssets, pairsByBase, topBases, assetInfo } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
@@ -335,7 +335,7 @@ export default function LiveTradingPage() {
                             <TableBody>
                                 {botInstances.map((bot, index) => (
                                     <React.Fragment key={bot.id}>
-                                        <TableRow>
+                                        <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
                                             <TableCell>{index + 1}</TableCell>
                                             <TableCell>
                                                 <Select
