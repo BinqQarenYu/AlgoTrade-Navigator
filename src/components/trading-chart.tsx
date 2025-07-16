@@ -26,7 +26,7 @@ const intervals = [
 ];
 
 export function TradingChart({ 
-  data, 
+  data = [], 
   projectedData,
   symbol, 
   interval, 
