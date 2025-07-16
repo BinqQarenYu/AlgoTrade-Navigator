@@ -219,42 +219,33 @@ export default function LiveTradingPage() {
     };
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
-        let parsedValue = value;
-        if (typeof value !== 'object' && typeof value !== 'boolean') {
-            parsedValue = (value === '' || isNaN(value as number))
-                ? 0
-                : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-        }
-
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
+                let parsedValue: any;
+                if (typeof value === 'boolean' || typeof value === 'object') {
+                    parsedValue = value;
+                } else {
+                    const numValue = String(value);
+                    parsedValue = (numValue === '' || isNaN(Number(numValue)))
+                        ? 0
+                        : numValue.includes('.') ? parseFloat(numValue) : parseInt(numValue, 10);
+                }
+
                 const updatedParams = {
                     ...bot.strategyParams,
-                    [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
+                    [param]: parsedValue,
                 };
                 return { ...bot, strategyParams: updatedParams };
             }
             return bot;
-        }))
-    }
+        }));
+    };
     
     const handleDisciplineParamChange = (botId: string, paramName: keyof DisciplineParams, value: any) => {
-        setBotInstances(prev => prev.map(bot => {
-            if (bot.id === botId) {
-                 const newDiscipline = {
-                    ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
-                    [paramName]: value
-                };
-                return {
-                    ...bot,
-                    strategyParams: {
-                        ...bot.strategyParams,
-                        discipline: newDiscipline,
-                    }
-                }
-            }
-            return bot;
-        }));
+        handleStrategyParamChange(botId, 'discipline', {
+            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
+            [paramName]: value
+        });
     };
 
     const handleResetParams = (botId: string) => {
@@ -368,7 +359,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -377,7 +368,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -386,7 +377,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -395,7 +386,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
