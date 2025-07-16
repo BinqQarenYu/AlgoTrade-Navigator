@@ -176,31 +176,29 @@ export default function TradingLab2Page() {
 
     let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
     
-    // Run all physics calculations in parallel where possible
+    // Ensure all analysis functions handle potential null/empty data gracefully
     const [imbalanceRatio, stiffnessData, pressureData] = await Promise.all([
         bookData ? calculateDepthImbalance(bookData) : Promise.resolve(0),
         calculateStiffness(dataToProcess),
-        bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve(dataToProcess),
+        bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve([])
     ]);
+
+    const pressureDataMap = new Map(pressureData.map((d, i) => [d.time, d.pressure_depth]));
     
     dataToProcess = stiffnessData.map((candle, index) => ({
         ...candle,
-        depthTotal: candle.volume,
-        depth_imbalance_ratio: imbalanceRatio,
-        pressure_depth: pressureData[index]?.pressure_depth,
+        depthTotal: candle.volume, // Using candle volume as a proxy for historical depth
+        depth_imbalance_ratio: imbalanceRatio, // Apply the same live imbalance to all historical data
+        pressure_depth: pressureDataMap.get(candle.time) || 0,
     }));
 
-    // This depends on the results from the previous step
     const bpiData = await calculateBPI(dataToProcess);
       
-    // Merge results
-    dataToProcess = bpiData.map((candle, index) => ({
+    dataToProcess = bpiData.map((candle) => ({
         ...candle,
         burst_potential_index_N: candle.burst_potential_index_N,
     }));
       
-
-    // Liquidity Analysis
     const getDynamicParams = () => ({ lookaround: 10 });
     try {
       const [grabEvents, targetEvents] = await Promise.all([
@@ -367,7 +365,7 @@ export default function TradingLab2Page() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleConfirmForecast}>Confirm & Forecast</AlertDialogAction>
+                  <AlertDialogAction onClick={handleConfirmForecast}>Confirm &amp; Forecast</AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
@@ -609,5 +607,3 @@ export default function TradingLab2Page() {
     </div>
   )
 }
-
-    
