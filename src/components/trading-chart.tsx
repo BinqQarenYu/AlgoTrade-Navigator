@@ -734,15 +734,18 @@ export function TradingChart({
         if (showAnalysis && showWalls && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
                 const title = wall.type === 'bid' ? ` BID WALL` : ` ASK WALL`;
+                const lineColor = wall.type === 'bid' ? '#3b82f6' : '#8b5cf6';
+                const textColor = wall.type === 'bid' ? '#60a5fa' : '#c084fc';
+
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
-                    color: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
+                    color: lineColor,
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
                     title: title,
                     axisLabelColor: '#FFFFFF',
-                    axisLabelTextColor: wall.type === 'bid' ? '#3b82f6' : '#8b5cf6',
+                    axisLabelTextColor: textColor,
                 });
                 newLines.push(line);
             });
