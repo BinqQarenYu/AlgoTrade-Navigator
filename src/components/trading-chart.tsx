@@ -314,6 +314,7 @@ export function TradingChart({
         }),
         priceLines: [],
         liquidityLevelLine: null,
+        liquidityZoneLabelLine: null,
         wallPriceLines: [],
         liquidityPriceLines: [],
         targetPriceLines: [],
@@ -697,27 +698,6 @@ export function TradingChart({
         });
     }, [lineWidth]);
 
-    // Effect to focus on a specific trade
-    useEffect(() => {
-      if (!chartRef.current?.chart || !highlightedTrade || !combinedData || combinedData.length < 2) return;
-
-      const { chart } = chartRef.current;
-      const timeScale = chart.timeScale();
-      
-      const entryTime = 'buy' in highlightedTrade ? highlightedTrade.buy.time : highlightedTrade.entryTime;
-      const exitTime = 'sell' in highlightedTrade ? highlightedTrade.sell.time : highlightedTrade.exitTime;
-      
-      const intervalMs = exitTime === entryTime 
-        ? (combinedData[1].time - combinedData[0].time)
-        : (exitTime - entryTime);
-
-      const paddingMs = intervalMs * 20;
-
-      const fromVisible = toTimestamp(entryTime - paddingMs);
-      const toVisible = toTimestamp(exitTime + paddingMs);
-
-    }, [highlightedTrade, combinedData]);
-
     // Effect to draw wall lines from Order Book
     useEffect(() => {
         if (!chartRef.current?.chart) return;
@@ -742,7 +722,7 @@ export function TradingChart({
                     axisLabelVisible: true,
                     title: title,
                     axisLabelColor: lineColor,
-                    axisLabelTextColor: '#FFFFFF',
+                    axisLabelTextColor: textColor,
                 });
                 newLines.push(line);
             });
@@ -838,17 +818,27 @@ export function TradingChart({
 
     }, [liquidityTargets, lineWidth, showAnalysis, showTargets]);
 
-    // Effect to draw the target zone box
+    // Effect to draw the target zone box and its label
     useEffect(() => {
       if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
           if (chartRef.current?.targetZoneSeries) {
               chartRef.current.targetZoneSeries.setData([]);
+              if (chartRef.current.liquidityZoneLabelLine) {
+                chartRef.current.candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
+                chartRef.current.liquidityZoneLabelLine = null;
+              }
           }
           return;
       }
   
-      const { targetZoneSeries } = chartRef.current;
+      const { targetZoneSeries, candlestickSeries } = chartRef.current;
       if (!targetZoneSeries) return;
+      
+      // Clear previous label line
+      if (chartRef.current.liquidityZoneLabelLine) {
+        candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
+        chartRef.current.liquidityZoneLabelLine = null;
+      }
   
       const sortedEvents = [...liquidityEvents].sort((a,b) => a.time - b.time);
       const lastGrabEvent = sortedEvents.length > 0 ? sortedEvents[sortedEvents.length - 1] : null;
@@ -882,6 +872,18 @@ export function TradingChart({
           }
 
           targetZoneSeries.setData(boxData);
+          
+          // Add the label
+          const midPoint = (topPrice + bottomPrice) / 2;
+          chartRef.current.liquidityZoneLabelLine = candlestickSeries.createPriceLine({
+            price: midPoint,
+            color: 'transparent',
+            axisLabelVisible: true,
+            title: '  Liquidity Zone',
+            axisLabelColor: '#3b82f6',
+            axisLabelTextColor: 'white',
+          });
+
       } else {
           targetZoneSeries.setData([]);
       }
@@ -1402,3 +1404,4 @@ export function TradingChart({
     </Card>
   );
 }
+
