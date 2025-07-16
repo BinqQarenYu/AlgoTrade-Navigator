@@ -56,7 +56,7 @@ const generateQuantumFieldFromSummary = (lastCandle: HistoricalData, interval: s
 
     const field: QuantumFieldData[] = [];
     const intervalMs = intervalToMs(interval);
-    const { target: targetPrice, sigma } = summary;
+    const { targetPrice, sigma } = summary;
 
     for (let t = 1; t <= 7; t++) { // Simulate 7 steps into the future
         const time = lastCandle.time + t * intervalMs;
@@ -307,7 +307,7 @@ export default function TradingLab2Page() {
               <Sigma size={32}/> Trading Lab II
           </h1>
           <p className="text-muted-foreground mt-2">
-              A dedicated workspace for market physics analysis.
+              A dedicated workspace for market physics analysis and quantum-inspired forecasting.
           </p>
       </div>
 
@@ -461,7 +461,7 @@ export default function TradingLab2Page() {
                   <CardHeader className="flex flex-row items-center justify-between">
                       <div>
                           <CardTitle>Quantum Market Forecaster</CardTitle>
-                          <CardDescription>Forward-looking probability map of future price action.</CardDescription>
+                          <CardDescription>A probabilistic map of future price action based on an AI analysis of recent market dynamics.</CardDescription>
                       </div>
                       <CollapsibleTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -495,7 +495,7 @@ export default function TradingLab2Page() {
                                         <span className="font-semibold font-mono text-xs">${formatPrice(predictionSummary.range.min)} - ${formatPrice(predictionSummary.range.max)}</span>
                                     </div>
                                      <div className="flex justify-between items-center">
-                                        <span className="font-medium">Accuracy (σ)</span>
+                                        <span className="font-medium">Volatility (σ)</span>
                                         <span className="font-semibold font-mono">${predictionSummary.sigma.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between items-center">
