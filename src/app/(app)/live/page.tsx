@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import type { DisciplineParams } from "@/lib/types"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 
 // Default parameter maps for resetting
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -98,16 +100,21 @@ const createNewBotInstance = (id: string): BotInstance => ({
     strategyParams: {},
 });
 
-const StrategyParamsCard = ({ bot, onParamChange, onReset, isTradingActive }: { bot: BotInstance, onParamChange: (param: string, value: any) => void, onReset: () => void, isTradingActive: boolean }) => {
+const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, isTradingActive }: { 
+    bot: BotInstance, 
+    onParamChange: (param: string, value: any) => void, 
+    onDisciplineChange: (param: keyof DisciplineParams, value: any) => void,
+    onReset: () => void, 
+    isTradingActive: boolean 
+}) => {
+    const [isDisciplineOpen, setIsDisciplineOpen] = useState(false);
     const strategyInfo = getStrategyById(bot.strategy);
     if (!strategyInfo) return null;
 
     const params = bot.strategyParams || {};
     const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'discipline' && key !== 'reverse'));
 
-    if (Object.keys(filteredParams).length === 0) {
-        return <p className="text-sm text-muted-foreground p-4">This strategy has no tunable parameters.</p>;
-    }
+    const hasTunableParams = Object.keys(filteredParams).length > 0;
 
     return (
         <Card className="bg-muted/50">
@@ -115,23 +122,48 @@ const StrategyParamsCard = ({ bot, onParamChange, onReset, isTradingActive }: { 
                 <CardTitle className="text-sm">Parameters for {strategyInfo.name}</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    {Object.entries(filteredParams).map(([key, value]) => (
-                        <div key={key} className="space-y-1">
-                            <Label htmlFor={`${bot.id}-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-                            <Input
-                                id={`${bot.id}-${key}`}
-                                type="number"
-                                value={value as number}
-                                onChange={e => onParamChange(key, e.target.value)}
-                                className="h-8"
-                                disabled={isTradingActive}
-                            />
-                        </div>
-                    ))}
+                {hasTunableParams ? (
+                     <div className="grid grid-cols-2 gap-4">
+                        {Object.entries(filteredParams).map(([key, value]) => (
+                            <div key={key} className="space-y-1">
+                                <Label htmlFor={`${bot.id}-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
+                                <Input
+                                    id={`${bot.id}-${key}`}
+                                    type="number"
+                                    value={value as number}
+                                    onChange={e => onParamChange(key, e.target.value)}
+                                    className="h-8"
+                                    disabled={isTradingActive}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground p-4 text-center">This strategy has no tunable parameters.</p>
+                )}
+               
+                <div className="flex items-center space-x-2 pt-2">
+                    <Switch
+                        id={`reverse-logic-${bot.id}`}
+                        checked={params.reverse || false}
+                        onCheckedChange={(checked) => onParamChange('reverse', checked)}
+                        disabled={isTradingActive}
+                    />
+                    <div className="flex flex-col">
+                        <Label htmlFor={`reverse-logic-${bot.id}`} className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    </div>
                 </div>
+
+                <DisciplineSettings
+                    params={params.discipline || defaultAwesomeOscillatorParams.discipline}
+                    onParamChange={onDisciplineChange}
+                    isCollapsed={isDisciplineOpen}
+                    onCollapseChange={setIsDisciplineOpen}
+                    isDisabled={isTradingActive}
+                />
+
                 {DEFAULT_PARAMS_MAP[bot.strategy] && (
-                    <Button onClick={onReset} variant="secondary" size="sm" className="w-full" disabled={isTradingActive}>
+                    <Button onClick={onReset} variant="secondary" size="sm" className="w-full mt-4" disabled={isTradingActive}>
                         <RotateCcw/> Reset to Default
                     </Button>
                 )}
@@ -188,18 +220,39 @@ export default function LiveTradingPage() {
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
-                const parsedValue = String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                const parsedValue = typeof value === 'boolean' 
+                    ? value
+                    : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+
                 return {
                     ...bot,
                     strategyParams: {
                         ...bot.strategyParams,
-                        [param]: isNaN(parsedValue) ? 0 : parsedValue,
+                        [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
                     }
                 }
             }
             return bot;
         }))
     }
+    
+    const handleDisciplineParamChange = (botId: string, paramName: keyof DisciplineParams, value: any) => {
+        setBotInstances(prev => prev.map(bot => {
+            if (bot.id === botId) {
+                return {
+                    ...bot,
+                    strategyParams: {
+                        ...bot.strategyParams,
+                        discipline: {
+                            ...bot.strategyParams.discipline,
+                            [paramName]: value
+                        }
+                    }
+                }
+            }
+            return bot;
+        }));
+    };
 
     const handleResetParams = (botId: string) => {
         const bot = botInstances.find(b => b.id === botId);
@@ -344,6 +397,7 @@ export default function LiveTradingPage() {
                                                         <StrategyParamsCard
                                                             bot={bot}
                                                             onParamChange={(param, value) => handleStrategyParamChange(bot.id, param, value)}
+                                                            onDisciplineChange={(param, value) => handleDisciplineParamChange(bot.id, param, value)}
                                                             onReset={() => handleResetParams(bot.id)}
                                                             isTradingActive={isTradingActive}
                                                         />
