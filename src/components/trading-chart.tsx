@@ -841,6 +841,41 @@ export function TradingChart({
 
     }, [liquidityTargets, lineWidth, showAnalysis, showTargets]);
 
+    // Effect to auto-zoom on liquidity targets
+    useEffect(() => {
+      if (!chartRef.current?.chart || !showAnalysis || !showTargets || liquidityTargets.length < 2) {
+        if (chartRef.current?.candlestickSeries) {
+          // Reset autoscale if targets are not present or not shown
+          chartRef.current.candlestickSeries.applyOptions({ autoscaleInfo: undefined });
+        }
+        return;
+      }
+
+      const { candlestickSeries } = chartRef.current;
+
+      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+
+      if (buySideTarget && sellSideTarget) {
+        const topPrice = buySideTarget.priceLevel;
+        const bottomPrice = sellSideTarget.priceLevel;
+        const range = topPrice - bottomPrice;
+        const padding = range * 0.1; // 10% padding
+
+        candlestickSeries.applyOptions({
+          autoscaleInfo: () => ({
+            priceRange: {
+              minValue: bottomPrice - padding,
+              maxValue: topPrice + padding,
+            },
+          }),
+        });
+      } else {
+        // If one of the targets is missing, revert to default autoscaling
+        candlestickSeries.applyOptions({ autoscaleInfo: undefined });
+      }
+    }, [liquidityTargets, showAnalysis, showTargets]);
+
     // Effect to draw the target zone box
     useEffect(() => {
       if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
