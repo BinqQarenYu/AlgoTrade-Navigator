@@ -263,7 +263,17 @@ export default function BacktestPage() {
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
     let parsedValue = value;
-    if (typeof value !== 'object' && typeof value !== 'boolean') {
+    if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+      setStrategyParams(prev => ({
+          ...prev,
+          [strategyId]: {
+              ...prev[strategyId],
+              [paramName]: value,
+          }
+      }));
+      return;
+    }
+    if (typeof value !== 'boolean') {
         parsedValue = (value === '' || isNaN(value as number))
             ? 0
             : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
@@ -273,7 +283,7 @@ export default function BacktestPage() {
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
         }
     }));
   };
