@@ -42,7 +42,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
-import { calculatePressure } from '@/lib/analysis/physics-analysis'
+import { calculatePressure, calculateStiffness, calculateDepthImbalance } from '@/lib/analysis/physics-analysis'
 
 interface DateRange {
   from?: Date;
@@ -179,56 +179,56 @@ export default function TradingLab2Page() {
     setIsClient(true)
   }, []);
 
-  // Effect to run all analysis when raw data or config changes
-  useEffect(() => {
-    const runAnalysis = async () => {
-      if (rawChartData.length === 0) {
+  const runFullAnalysis = useCallback(async (
+    klineData: HistoricalData[], 
+    bookData: OrderBookData | null
+  ) => {
+      if (klineData.length === 0) {
         setChartDataWithAnalysis([]);
         setLiquidityEvents([]);
         setLiquidityTargets([]);
         return;
       }
-  
-      // --- Start with a clean copy ---
-      let dataToProcess = JSON.parse(JSON.stringify(rawChartData));
-  
-      // --- Physics Analysis ---
-      if (orderBookData) {
-        dataToProcess = await calculatePressure(dataToProcess, orderBookData.totalDepth);
+      
+      let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
+      
+      // Physics Analysis
+      if (bookData) {
+        const [pressureData, stiffnessData, imbalanceRatio] = await Promise.all([
+            calculatePressure(dataToProcess, bookData.totalDepth),
+            calculateStiffness(dataToProcess),
+            calculateDepthImbalance(bookData)
+        ]);
+        
+        // Merge the results. Since pressure & stiffness add a property to each candle,
+        // we can just use the result of the last one.
+        dataToProcess = stiffnessData.map((candle, index) => ({
+            ...candle,
+            pressure_depth: pressureData[index]?.pressure_depth,
+            depth_imbalance_ratio: imbalanceRatio // Apply same ratio to all candles for now
+        }));
       }
-  
-      // --- Liquidity Analysis ---
-      if (dataToProcess.length >= 20) {
-        const getDynamicParams = () => {
-          switch (interval) {
-            case '1m': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
-            case '5m': return { lookaround: 15, confirmationCandles: 3, maxLookahead: 60 };
-            case '15m': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
-            case '1h': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
-            case '4h': return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
-            case '1d': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
-            default: return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
-          }
-        };
-        try {
-          const dynamicParams = getDynamicParams();
-          const [resultEvents, targetEvents] = await Promise.all([
-            findLiquidityGrabs(dataToProcess, dynamicParams),
-            findLiquidityTargets(dataToProcess, dynamicParams.lookaround),
+
+      // Liquidity Analysis
+      const getDynamicParams = () => ({ lookaround: 10 }); // Simplified for this example
+      try {
+          const [grabEvents, targetEvents] = await Promise.all([
+            findLiquidityGrabs(dataToProcess, { lookaround: 5, confirmationCandles: 3, maxLookahead: 50 }),
+            findLiquidityTargets(dataToProcess, getDynamicParams().lookaround),
           ]);
-          setLiquidityEvents(resultEvents);
+          setLiquidityEvents(grabEvents);
           setLiquidityTargets(targetEvents);
-        } catch (error: any) {
+      } catch (error) {
           console.error("Error analyzing liquidity:", error);
-        }
       }
-  
-      // --- Final state update ---
+
       setChartDataWithAnalysis(dataToProcess);
-    };
-  
-    runAnalysis();
-  }, [rawChartData, orderBookData, interval]);
+  }, []);
+
+
+  useEffect(() => {
+    runFullAnalysis(rawChartData, orderBookData);
+  }, [rawChartData, orderBookData, runFullAnalysis]);
 
 
   useEffect(() => {
