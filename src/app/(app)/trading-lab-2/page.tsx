@@ -27,7 +27,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, ChevronDown, GripHorizontal, Play, StopCircle, Settings, Sigma, CalendarIcon, TrendingUp, ArrowUp, ArrowDown } from "lucide-react"
 import { cn, intervalToMs, formatPrice } from "@/lib/utils"
-import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, PhysicsChartConfig, QuantumFieldData, QuantumPredictionSummary } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, PhysicsChartConfig, QuantumFieldData, QuantumPredictionSummary, OrderBookData } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { OrderBook } from "@/components/order-book"
@@ -42,6 +42,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
+import { calculatePressure } from '@/lib/analysis/physics-analysis'
 
 interface DateRange {
   from?: Date;
@@ -123,8 +124,7 @@ export default function TradingLab2Page() {
   const [isClient, setIsClient] = useState(false)
   const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
-  const [walls, setWalls] = useState<Wall[]>([]);
-  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
+  const [orderBookData, setOrderBookData] = useState<OrderBookData | null>(null);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
@@ -179,6 +179,15 @@ export default function TradingLab2Page() {
   }, []);
 
   const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
+    let dataWithPhysics = currentChartData;
+    
+    // Calculate physics indicators if data is available
+    if (orderBookData) {
+        dataWithPhysics = calculatePressure(dataWithPhysics, orderBookData.totalDepth);
+    }
+    
+    setChartData(dataWithPhysics); // Update chart with all calculations
+
     if (currentChartData.length < 20) {
       setLiquidityEvents([]);
       setLiquidityTargets([]);
@@ -207,13 +216,15 @@ export default function TradingLab2Page() {
     } catch (error: any) {
         console.error("Error analyzing liquidity automatically:", error);
     }
-  }, [interval]);
+  }, [interval, orderBookData]);
   
+  // Effect to re-run analysis when primary data sources change
   useEffect(() => {
     if (chartData.length > 0) {
       refreshChartAnalysis(chartData);
     }
-  }, [chartData, refreshChartAnalysis]);
+  }, [orderBookData]); // Note: We only re-trigger on orderBookData change. K-line changes are handled in their fetcher.
+
 
   useEffect(() => {
     if (!isClient || !symbol || !quoteAsset) return;
@@ -231,7 +242,9 @@ export default function TradingLab2Page() {
         
         try {
             const klines = await getLatestKlinesByLimit(symbol, interval, 500); 
+            // We set the raw klines first, then analysis will enrich it
             setChartData(klines);
+            refreshChartAnalysis(klines); // Manually trigger analysis on new data
             toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
@@ -249,11 +262,8 @@ export default function TradingLab2Page() {
     fetchData();
   }, [symbol, quoteAsset, interval, isConnected, isClient, toast]);
   
-  const handleOrderBookUpdate = useCallback((events: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
-    setWalls(events.walls);
-    if (events.spoofs.length > 0) {
-      setSpoofedWalls(prev => [...prev, ...events.spoofs]);
-    }
+  const handleOrderBookUpdate = useCallback((bookData: OrderBookData) => {
+    setOrderBookData(bookData);
   }, []);
 
   const handleRunForecast = () => {
@@ -308,8 +318,8 @@ export default function TradingLab2Page() {
                   symbol={symbol}
                   interval={interval}
                   onIntervalChange={setInterval}
-                  wallLevels={showAnalysis ? walls : []}
-                  spoofedWalls={showAnalysis ? spoofedWalls : []}
+                  wallLevels={orderBookData?.walls || []}
+                  spoofedWalls={orderBookData?.spoofs || []}
                   liquidityEvents={showAnalysis ? liquidityEvents : []}
                   liquidityTargets={showAnalysis ? liquidityTargets : []}
                   lineWidth={lineWidth}
@@ -326,7 +336,7 @@ export default function TradingLab2Page() {
           </div>
           <OrderBook 
             symbol={symbol}
-            onWallsUpdate={handleOrderBookUpdate}
+            onUpdate={handleOrderBookUpdate}
           />
         </div>
 

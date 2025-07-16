@@ -11,25 +11,17 @@ import { ScrollArea } from './ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { Button } from './ui/button';
 import { ChevronDown, Play, StopCircle, Loader2 } from 'lucide-react';
-import type { Wall, SpoofedWall } from '@/lib/types';
+import type { OrderBookData } from '@/lib/types';
 import { getDepthSnapshot } from '@/lib/binance-service';
 
 // Types for the order book
 type OrderBookLevel = [string, string]; // [price, quantity]
 
-interface FormattedOrderBookLevel {
-    price: string;
-    size: string;
-    total: string;
-    isWall: boolean;
-}
-
 interface OrderBookProps {
     symbol: string;
-    onWallsUpdate?: (events: { walls: Wall[]; spoofs: SpoofedWall[] }) => void;
+    onUpdate?: (data: OrderBookData) => void;
 }
 
-const WALL_THRESHOLD_PERCENT = 0.05; // 5% of visible depth
 const MAX_ROWS = 25; // Display top 25 levels
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -73,9 +65,9 @@ const getGroupingAndPrecision = (price: number): { grouping: number; precision: 
     return { grouping: 0.00000001, precision: 10 };
 };
 
-export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
+export function OrderBook({ symbol, onUpdate }: OrderBookProps) {
     const { isConnected } = useApi();
-    const [isStreaming, setIsStreaming] = useState(false);
+    const [isStreaming, setIsStreaming] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>(`lab-orderbook-card-open-${symbol}`, true);
     
@@ -106,6 +98,16 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         const totalAskSize = sortedAsks.reduce((sum, [, size]) => sum + size, 0);
         const maxTotal = Math.max(totalBidSize, totalAskSize);
 
+        // Update the onUpdate callback if it exists
+        if (onUpdate) {
+            onUpdate({
+                bids: sortedBids.map(([price, quantity]) => ({price: parseFloat(price), quantity})),
+                asks: sortedAsks.map(([price, quantity]) => ({price: parseFloat(price), quantity})),
+                totalDepth: totalBidSize + totalAskSize,
+            });
+        }
+
+
         for (let i = 0; i < MAX_ROWS; i++) {
             // Update Bids
             const bidRow = tableRef.current.querySelector(`#bid-row-${i}`);
@@ -113,7 +115,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 if (sortedBids[i]) {
                     const [price, size] = sortedBids[i];
                     bidTotal += size;
-                    const isWall = totalBidSize > 0 && (size / totalBidSize) > WALL_THRESHOLD_PERCENT;
                     const bgWidth = maxTotal > 0 ? (bidTotal / maxTotal) * 100 : 0;
                     
                     const priceCell = bidRow.children[0] as HTMLElement;
@@ -122,7 +123,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     (bidRow.children[2] as HTMLElement).innerText = bidTotal.toFixed(4);
                     
                     priceCell.style.background = `linear-gradient(to left, rgba(34, 197, 94, 0.2) ${bgWidth}%, transparent ${bgWidth}%)`;
-                    bidRow.className = cn("relative font-mono text-xs", isWall && "bg-yellow-500/20 font-bold");
+                    bidRow.className = "relative font-mono text-xs";
                 } else {
                      (bidRow.children[0] as HTMLElement).innerText = '-';
                      (bidRow.children[1] as HTMLElement).innerText = '-';
@@ -136,7 +137,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 if (sortedAsks[i]) {
                     const [price, size] = sortedAsks[i];
                     askTotal += size;
-                    const isWall = totalAskSize > 0 && (size / totalAskSize) > WALL_THRESHOLD_PERCENT;
                     const bgWidth = maxTotal > 0 ? (askTotal / maxTotal) * 100 : 0;
                     
                     const priceCell = askRow.children[0] as HTMLElement;
@@ -145,7 +145,7 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                     (askRow.children[2] as HTMLElement).innerText = askTotal.toFixed(4);
 
                     priceCell.style.background = `linear-gradient(to right, rgba(239, 68, 68, 0.2) ${bgWidth}%, transparent ${bgWidth}%)`;
-                    askRow.className = cn("relative font-mono text-xs", isWall && "bg-yellow-500/20 font-bold");
+                    askRow.className = "relative font-mono text-xs";
                 } else {
                      (askRow.children[0] as HTMLElement).innerText = '-';
                      (askRow.children[1] as HTMLElement).innerText = '-';
@@ -153,10 +153,10 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
                 }
             }
         }
-    }, []);
+    }, [onUpdate]);
 
     useEffect(() => {
-        if (!isStreaming || !isConnected) {
+        if (!isStreaming || !isConnected || !symbol) {
             if (wsRef.current) {
                 wsRef.current.close();
                 wsRef.current = null;

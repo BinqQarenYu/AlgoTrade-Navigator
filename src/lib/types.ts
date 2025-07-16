@@ -499,6 +499,12 @@ export type GridState = {
     } | null;
 };
 
+export type OrderBookData = {
+    bids: { price: number; quantity: number }[];
+    asks: { price: number; quantity: number }[];
+    totalDepth: number;
+};
+
 export type Wall = {
   price: number;
   type: 'bid' | 'ask';
