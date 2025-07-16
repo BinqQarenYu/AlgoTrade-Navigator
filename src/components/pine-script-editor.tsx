@@ -1,10 +1,11 @@
+
 "use client"
 
 import React, { useState, useEffect, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Upload, ChevronDown, Wand2, Loader2 } from "lucide-react"
+import { Upload, ChevronDown, Wand2, Loader2, ShieldQuestion } from "lucide-react"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible'
 import { cn } from '@/lib/utils'
 import { useApi } from '@/context/api-context'
@@ -40,7 +41,8 @@ if (short_condition)
 `);
   const [analysisResult, setAnalysisResult] = useState<AnalyzePineScriptOutput | null>(null);
   const [isAnalyzing, startTransition] = useTransition();
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmingAnalyze, setIsConfirmingAnalyze] = useState(false);
+  const [isConfirmingApply, setIsConfirmingApply] = useState(false);
   const { canUseAi, consumeAiCredit } = useApi();
   const { toast } = useToast();
 
@@ -50,12 +52,12 @@ if (short_condition)
 
   const handleAnalyzeClick = () => {
       if(canUseAi()) {
-        setIsConfirming(true);
+        setIsConfirmingAnalyze(true);
       }
   }
 
   const handleConfirmAnalyze = () => {
-    setIsConfirming(false);
+    setIsConfirmingAnalyze(false);
     setAnalysisResult(null);
     consumeAiCredit();
     startTransition(async () => {
@@ -74,13 +76,14 @@ if (short_condition)
         setScript(analysisResult.revisedScript);
         toast({ title: "Revision Applied", description: "The corrected script has been loaded into the editor." });
     }
+    setIsConfirmingApply(false);
   }
 
   const anyLoading = isLoading || isAnalyzing;
 
   return (
     <Card>
-      <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+      <AlertDialog open={isConfirmingAnalyze} onOpenChange={setIsConfirmingAnalyze}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
@@ -91,6 +94,24 @@ if (short_condition)
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={handleConfirmAnalyze}>Confirm & Analyze</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+       <AlertDialog open={isConfirmingApply} onOpenChange={setIsConfirmingApply}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                    <ShieldQuestion />
+                    Apply AI Revision?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will replace the current content of the editor with the AI's revised script. You cannot undo this action. Are you sure you want to proceed?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleApplyRevision}>Apply Revision</AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -132,7 +153,7 @@ if (short_condition)
                             <pre className="text-xs whitespace-pre-wrap font-sans bg-transparent p-0">{analysisResult.analysis}</pre>
                         </AlertDescription>
                     </Alert>
-                     <Button onClick={handleApplyRevision} size="sm" variant="outline" className="w-full">
+                     <Button onClick={() => setIsConfirmingApply(true)} size="sm" variant="outline" className="w-full">
                         Apply Revised Script to Editor
                     </Button>
                 </div>
