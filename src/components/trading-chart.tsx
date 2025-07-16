@@ -790,10 +790,10 @@ export function TradingChart({
       }
     }, [spoofZone, showAnalysis]);
 
-    // Effect to draw historical liquidity target lines
+    // Effect to draw historical liquidity target lines and auto-zoom
     useEffect(() => {
         if (!chartRef.current?.chart) return;
-        const { candlestickSeries } = chartRef.current;
+        const { candlestickSeries, chart } = chartRef.current;
 
         if (chartRef.current.targetPriceLines) {
             chartRef.current.targetPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
@@ -801,18 +801,48 @@ export function TradingChart({
         
         const newLines: any[] = [];
         if (showAnalysis && showTargets && liquidityTargets && liquidityTargets.length > 0) {
-            liquidityTargets.forEach(target => {
-                const isBuySide = target.type === 'buy-side';
-                const line = candlestickSeries.createPriceLine({
-                    price: target.priceLevel,
-                    color: isBuySide ? '#f43f5e' : '#10b981',
+            const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+            const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+
+            if (sellSideTarget) {
+                 const line = candlestickSeries.createPriceLine({
+                    price: sellSideTarget.priceLevel,
+                    color: '#10b981',
                     lineWidth: lineWidth,
                     lineStyle: LineStyle.LargeDashed,
                     axisLabelVisible: true,
-                    title: isBuySide ? ` BST (${formatPrice(target.priceLevel)})` : ` SST (${formatPrice(target.priceLevel)})`,
+                    title: ` SST (${formatPrice(sellSideTarget.priceLevel)})`,
                 });
                 newLines.push(line);
-            });
+            }
+            if (buySideTarget) {
+                const line = candlestickSeries.createPriceLine({
+                    price: buySideTarget.priceLevel,
+                    color: '#f43f5e',
+                    lineWidth: lineWidth,
+                    lineStyle: LineStyle.LargeDashed,
+                    axisLabelVisible: true,
+                    title: ` BST (${formatPrice(buySideTarget.priceLevel)})`,
+                });
+                newLines.push(line);
+            }
+
+            if (sellSideTarget && buySideTarget) {
+                const priceRange = buySideTarget.priceLevel - sellSideTarget.priceLevel;
+                const padding = priceRange * 0.1;
+                const topPrice = buySideTarget.priceLevel + padding;
+                const bottomPrice = sellSideTarget.priceLevel - padding;
+                
+                chart.priceScale('left').applyOptions({
+                    autoScale: false,
+                    scaleMargins: { top: 0, bottom: 0 },
+                });
+                chart.priceScale('left').setVisibleRange({
+                    from: bottomPrice,
+                    to: topPrice,
+                });
+            }
+
         }
         chartRef.current.targetPriceLines = newLines;
 
@@ -1286,7 +1316,7 @@ export function TradingChart({
                 
                 const peakProbability = Math.max(...timeStep.priceLevels.map(p => p.probability));
                 const opacity = (Math.min(1, (peakProbability + 1e-6) * 5) * 0.2).toFixed(3);
-                const color = `rgba(34, 153, 228, ${opacity})`;
+                const color = `rgba(96, 165, 250, ${opacity})`;
 
                 return {
                     time: toTimestamp(timeStep.time),
@@ -1307,7 +1337,6 @@ export function TradingChart({
                     bottom: d.mean! - d.sigma!
                 }));
             
-            // Set the data for each series
             quantumFieldSeries.setData(fieldData);
             quantumMeanSeries.setData(meanLineData);
             
@@ -1404,4 +1433,3 @@ export function TradingChart({
     </Card>
   );
 }
-
