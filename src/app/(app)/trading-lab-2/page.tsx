@@ -175,20 +175,21 @@ export default function TradingLab2Page() {
     }
 
     let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
+    const totalBookDepth = bookData ? bookData.bids.reduce((s, b) => s + b.quantity, 0) + bookData.asks.reduce((s, a) => s + a.quantity, 0) : 0;
+    const imbalanceRatio = bookData ? await calculateDepthImbalance(bookData) : 0;
 
     // Run all physics calculations
-    const [stiffnessData, pressureData, bpiData, sentimentData, imbalanceRatio] = await Promise.all([
+    const [stiffnessData, pressureData, bpiData, sentimentData] = await Promise.all([
       calculateStiffness(dataToProcess),
-      bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve(dataToProcess),
-      calculateBPI(dataToProcess), // BPI depends on stiffness
+      calculatePressure(dataToProcess, totalBookDepth),
+      calculateBPI(dataToProcess),
       calculateSentiment(dataToProcess, 20),
-      bookData ? calculateDepthImbalance(bookData) : Promise.resolve(0)
     ]);
     
     // Merge the results.
     dataToProcess = dataToProcess.map((candle, index) => ({
       ...candle,
-      depthTotal: candle.volume, // Use candle volume as a proxy for historical depth
+      depthTotal: candle.volume,
       k1_stiffness_range: stiffnessData[index]?.k1_stiffness_range,
       pressure_depth: pressureData[index]?.pressure_depth,
       depth_imbalance_ratio: imbalanceRatio,
@@ -269,7 +270,10 @@ export default function TradingLab2Page() {
         toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
         return;
     }
-    if (liquidityTargets.length < 2) {
+    const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+    const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+
+    if (!buySideTarget || !sellSideTarget) {
         toast({ title: "Liquidity Zone Required", description: "A clear Buy-Side and Sell-Side liquidity target must be identified on the chart before forecasting.", variant: "destructive" });
         return;
     }
