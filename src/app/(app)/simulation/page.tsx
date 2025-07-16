@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -502,9 +503,9 @@ export default function SimulationPage() {
      {isTradingActive && !isRunning && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
-            <AlertTitle>Another Trading Session is Active</AlertTitle>
+            <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Paper Trading is disabled to prioritize another active session.
+                Paper Trading is disabled to prioritize an active trading session.
             </AlertDescription>
         </Alert>
       )}

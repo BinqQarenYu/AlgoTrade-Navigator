@@ -136,7 +136,7 @@ export default function OptimizePage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Strategy optimization is disabled to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
+                Strategy optimization is disabled to prioritize an active trading session.
             </AlertDescription>
         </Alert>
       )}

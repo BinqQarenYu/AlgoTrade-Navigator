@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
@@ -86,6 +87,7 @@ interface BotContextType {
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
+  isAnalysisActive: boolean; // For non-trading, analysis-only processes
   startLiveBot: (config: LiveBotConfig) => void;
   stopLiveBot: () => void;
   runManualAnalysis: (config: ManualTraderConfig) => void;
@@ -220,15 +222,22 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // --- Global State ---
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
+  const [isAnalysisActive, setIsAnalysisActive] = useState(false);
 
   useEffect(() => {
     const liveTradingBotRunning = liveBotState.isRunning;
-    const manualTradePending = manualTraderState.isAnalyzing || manualTraderState.signal !== null || manualTraderState.isExecuting;
+    const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
     const gridIsRunning = gridState.isRunning;
-    const multiSignalIsRunning = multiSignalState.isRunning;
+    
+    // An active "trading" session involves real or simulated orders
+    setIsTradingActive(liveTradingBotRunning || manualTradePending || gridIsRunning);
 
-    setIsTradingActive(liveTradingBotRunning || manualTradePending || gridIsRunning || multiSignalIsRunning);
-  }, [liveBotState.isRunning, manualTraderState.isAnalyzing, manualTraderState.signal, manualTraderState.isExecuting, gridState.isRunning, multiSignalState.isRunning]);
+    // An active "analysis" session is for monitoring without trading
+    const multiSignalIsRunning = multiSignalState.isRunning;
+    const manualIsAnalyzing = manualTraderState.isAnalyzing;
+    setIsAnalysisActive(multiSignalIsRunning || manualIsAnalyzing);
+
+  }, [liveBotState.isRunning, manualTraderState, gridState.isRunning, multiSignalState.isRunning]);
 
 
   // --- Helper Functions ---
@@ -1448,6 +1457,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       strategyParams,
       setStrategyParams,
       isTradingActive,
+      isAnalysisActive,
       startLiveBot,
       stopLiveBot,
       runManualAnalysis,

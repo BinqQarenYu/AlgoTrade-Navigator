@@ -323,7 +323,7 @@ export default function BacktestPage() {
   
   // Effect to fetch raw data from the API
   useEffect(() => {
-    if (!isClient || isTradingActive || !symbol || !quoteAsset) return;
+    if (!isClient || !symbol || !quoteAsset) return;
 
     const fetchData = async () => {
         if (!isConnected) {
@@ -361,7 +361,7 @@ export default function BacktestPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isTradingActive, date]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, date]);
 
   // Effect to calculate and display indicators
   useEffect(() => {
@@ -1147,7 +1147,7 @@ export default function BacktestPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Backtesting is disabled to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
+                Backtesting is disabled to prioritize an active trading session.
             </AlertDescription>
         </Alert>
     )}
