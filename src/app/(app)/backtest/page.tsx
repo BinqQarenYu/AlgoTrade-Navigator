@@ -7,7 +7,7 @@ import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
-import { getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit, getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -46,6 +46,9 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { RiskGuardian } from "@/lib/risk-guardian"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format, addDays } from "date-fns"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -80,6 +83,12 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
+
+interface DateRange {
+  from?: Date;
+  to?: Date;
+}
+
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -163,6 +172,10 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
       const item = window.localStorage.getItem(key);
       if (item && item !== "undefined") {
         const parsed = JSON.parse(item);
+        if (key.endsWith('-date-range') && parsed) {
+          if (parsed.from) parsed.from = new Date(parsed.from);
+          if (parsed.to) parsed.to = new Date(parsed.to);
+        }
         if (isMounted) {
           setState(parsed);
         }
@@ -202,6 +215,7 @@ export default function BacktestPage() {
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("backtest-quote-asset", "USDT");
   const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
   const [chartHeight, setChartHeight] = usePersistentState<number>('backtest-chart-height', 600);
+  const [date, setDate] = usePersistentState<DateRange | undefined>('backtest-date-range', undefined);
 
   const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
 
@@ -317,9 +331,14 @@ export default function BacktestPage() {
         setSelectedTrade(null);
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         try {
-            const klines = await getLatestKlinesByLimit(symbol, interval, 1000);
+            let klines: HistoricalData[] = [];
+            if (date?.from && date?.to) {
+                klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
+            } else {
+                klines = await getLatestKlinesByLimit(symbol, interval, 1000);
+            }
             setFullChartData(klines);
-            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
+            toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
         } catch (error: any) {
             console.error("Failed to fetch historical data:", error);
             toast({
@@ -334,7 +353,7 @@ export default function BacktestPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isTradingActive]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isTradingActive, date]);
 
   // Effect to calculate and display indicators
   useEffect(() => {
@@ -1223,43 +1242,84 @@ export default function BacktestPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2 col-span-2">
-                        <Label htmlFor="strategy">Strategy</Label>
-                        <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading || isReplaying}>
-                            <SelectTrigger id="strategy">
-                            <SelectValue placeholder="Select strategy" />
-                            </SelectTrigger>
-                            <SelectContent>
-                            <SelectItem value="none">None (Candles Only)</SelectItem>
-                            {strategyMetadatas.map(strategy => (
-                                <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                            ))}
-                            </SelectContent>
-                        </Select>
-                        {selectedStrategy !== 'none' && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <div className="space-y-2 col-span-2">
-                      <Label htmlFor="interval">Interval</Label>
-                      <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading || isReplaying}>
-                        <SelectTrigger id="interval">
-                          <SelectValue placeholder="Select interval" />
+                </div>
+
+                 <div className="space-y-2">
+                    <Label>Date range</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                          )}
+                          disabled={anyLoading || isReplaying}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {isClient && date?.from ? (
+                            date.to ? (
+                              <>
+                                {format(date.from, "LLL dd, y")} -{" "}
+                                {format(date.to, "LLL dd, y")}
+                              </>
+                            ) : (
+                              format(date.from, "LLL dd, y")
+                            )
+                          ) : (
+                            <span>Pick a date range</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto flex p-0" align="start">
+                         <Calendar
+                          initialFocus
+                          mode="range"
+                          defaultMonth={date?.from}
+                          selected={date}
+                          onSelect={setDate}
+                          numberOfMonths={1}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="strategy">Strategy</Label>
+                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading || isReplaying}>
+                        <SelectTrigger id="strategy">
+                        <SelectValue placeholder="Select strategy" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="1m">1 Minute</SelectItem>
-                          <SelectItem value="5m">5 Minutes</SelectItem>
-                          <SelectItem value="15m">15 Minutes</SelectItem>
-                          <SelectItem value="1h">1 Hour</SelectItem>
-                          <SelectItem value="4h">4 Hours</SelectItem>
-                          <SelectItem value="1d">1 Day</SelectItem>
+                        <SelectItem value="none">None (Candles Only)</SelectItem>
+                        {strategyMetadatas.map(strategy => (
+                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
+                        ))}
                         </SelectContent>
-                      </Select>
-                    </div>
+                    </Select>
+                    {selectedStrategy !== 'none' && (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                            {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="interval">Interval</Label>
+                  <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading || isReplaying}>
+                    <SelectTrigger id="interval">
+                      <SelectValue placeholder="Select interval" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1m">1 Minute</SelectItem>
+                      <SelectItem value="5m">5 Minutes</SelectItem>
+                      <SelectItem value="15m">15 Minutes</SelectItem>
+                      <SelectItem value="1h">1 Hour</SelectItem>
+                      <SelectItem value="4h">4 Hours</SelectItem>
+                      <SelectItem value="1d">1 Day</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
