@@ -29,23 +29,20 @@ export async function runAiFlow<I, O>(
             lastError = e;
             const errorMessage = e.message || '';
 
-            // Check for non-retriable quota errors first
+            // Check for non-retriable quota errors first. If it's a quota error, stop immediately.
             if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
                 console.error("AI quota exceeded. Not retrying.", e);
                 throw new Error("You have exceeded your daily AI quota. Please check your plan and billing details.");
             }
 
-            // Check for common transient errors that are safe to retry
-            if (errorMessage.includes('503') || errorMessage.toLowerCase().includes('overloaded') || errorMessage.toLowerCase().includes('server error')) {
-                console.log(`Attempt ${i + 1} of ${maxRetries} failed with a transient error. Retrying in ${Math.pow(2, i)}s...`);
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000)); // Exponential backoff
-            } else {
-                // It's a different, potentially non-retriable error
-                throw e;
+            // For any other error, log it and retry with exponential backoff.
+            console.log(`Attempt ${i + 1} of ${maxRetries} failed. Retrying in ${Math.pow(2, i)}s...`, e);
+            if (i < maxRetries - 1) {
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
             }
         }
     }
-    // If all retries failed
+    // If all retries failed, throw the final user-friendly error.
     console.error("All AI flow retries failed.", lastError);
     throw new Error("The AI service is currently overloaded or unavailable. Please try again in a few minutes.");
 }
