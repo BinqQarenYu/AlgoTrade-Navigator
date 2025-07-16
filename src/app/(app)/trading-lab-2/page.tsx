@@ -235,7 +235,12 @@ export default function TradingLab2Page() {
         toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         
         try {
-            const klines = await getLatestKlinesByLimit(symbol, interval, 500); 
+            let klines: HistoricalData[] = [];
+            if (date?.from && date?.to) {
+                klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
+            } else {
+                klines = await getLatestKlinesByLimit(symbol, interval, 500); 
+            }
             setRawChartData(klines);
             toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
         } catch (error: any) {
@@ -252,7 +257,7 @@ export default function TradingLab2Page() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, date, toast]);
   
   const handleOrderBookUpdate = useCallback((data: OrderBookData) => {
     setOrderBookData(data);
