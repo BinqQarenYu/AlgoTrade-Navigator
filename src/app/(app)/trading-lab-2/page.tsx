@@ -188,6 +188,7 @@ export default function TradingLab2Page() {
     // Merge the results.
     dataToProcess = dataToProcess.map((candle, index) => ({
       ...candle,
+      depthTotal: candle.volume, // Use candle volume as a proxy for historical depth
       k1_stiffness_range: stiffnessData[index]?.k1_stiffness_range,
       pressure_depth: pressureData[index]?.pressure_depth,
       depth_imbalance_ratio: imbalanceRatio,
@@ -258,7 +259,7 @@ export default function TradingLab2Page() {
 
   const handleWallsUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
     setWalls(walls);
-    if (spoofs?.length > 0) {
+    if (spoofs.length > 0) {
       setSpoofedWalls(prev => [...prev, ...spoofs]);
     }
   }, []);
