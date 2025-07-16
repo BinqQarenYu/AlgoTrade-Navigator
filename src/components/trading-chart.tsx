@@ -478,7 +478,7 @@ export function TradingChart({
           })
           .filter((m): m is any => m !== null) : [];
           
-        const liquidityMarkers = showAnalysis && showLiquidity ? liquidityEvents.map(event => {
+        const liquidityMarkers = (showAnalysis && showLiquidity) ? liquidityEvents.map(event => {
             return {
                 time: toTimestamp(event.time),
                 position: event.direction === 'bullish' ? 'belowBar' : 'aboveBar',
