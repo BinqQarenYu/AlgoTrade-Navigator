@@ -262,9 +262,19 @@ export default function BacktestPage() {
   const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
+    // FIX: Ensure value is a valid number, defaulting to 0 if empty or invalid.
+    const parsedValue = typeof value === 'boolean' 
+        ? value 
+        : (value === '' || isNaN(value as number))
+            ? 0
+            : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+
     setStrategyParams(prev => ({
         ...prev,
-        [strategyId]: { ...prev[strategyId], [paramName]: value }
+        [strategyId]: {
+            ...prev[strategyId],
+            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
+        }
     }));
   };
 
