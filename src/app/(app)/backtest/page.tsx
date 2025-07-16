@@ -262,18 +262,18 @@ export default function BacktestPage() {
   const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
-    // FIX: Ensure value is a valid number, defaulting to 0 if empty or invalid.
-    const parsedValue = typeof value === 'boolean' 
-        ? value 
-        : (value === '' || isNaN(value as number))
+    let parsedValue = value;
+    if (typeof value !== 'object' && typeof value !== 'boolean') {
+        parsedValue = (value === '' || isNaN(value as number))
             ? 0
             : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-
+    }
+    
     setStrategyParams(prev => ({
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
         }
     }));
   };
@@ -844,29 +844,29 @@ export default function BacktestPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="peakLookaround">Peak Lookaround</Label>
-              <Input id="peakLookaround" type="number" value={params.peakLookaround || 5} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
+              <Input id="peakLookaround" type="number" value={params.peakLookaround || 0} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="swingLookaround">Swing Lookaround</Label>
-              <Input id="swingLookaround" type="number" value={params.swingLookaround || 3} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
+              <Input id="swingLookaround" type="number" value={params.swingLookaround || 0} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emaShortPeriod">EMA Short</Label>
-              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 13} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emaLongPeriod">EMA Long</Label>
-              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 50} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
             {isOld ? (
                  <div className="space-y-2">
                     <Label htmlFor="maxLookahead">Max Lookahead (Repainting)</Label>
-                    <Input id="maxLookahead" type="number" value={params.maxLookahead || 100} onChange={(e) => handleParamChange(selectedStrategy, 'maxLookahead', e.target.value)} disabled={anyLoading || isReplaying} />
+                    <Input id="maxLookahead" type="number" value={params.maxLookahead || 0} onChange={(e) => handleParamChange(selectedStrategy, 'maxLookahead', e.target.value)} disabled={anyLoading || isReplaying} />
                 </div>
             ) : (
                 <div className="space-y-2">
                     <Label htmlFor="signalStaleness">Signal Staleness</Label>
-                    <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
+                    <Input id="signalStaleness" type="number" value={params.signalStaleness || 0} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
                 </div>
             )}
           </div>
@@ -968,19 +968,19 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="emaLength">EMA Length</Label>
-                        <Input id="emaLength" type="number" value={params.emaLength || 21} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="emaLength" type="number" value={params.emaLength || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="atrLength">ATR Length</Label>
-                        <Input id="atrLength" type="number" value={params.atrLength || 14} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="atrLength" type="number" value={params.atrLength || 0} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="slAtrMultiplier">SL ATR Multiplier</Label>
-                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 1.5} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 0} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="rrRatio">Risk/Reward Ratio</Label>
-                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 2.0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
                  <div className="flex items-center space-x-2 pt-2">
@@ -1007,31 +1007,31 @@ export default function BacktestPage() {
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="supertrendPeriod">Supertrend Period</Label>
-                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 10} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="supertrendMultiplier">Supertrend Multiplier</Label>
-                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 3} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 0} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="mfiPeriod">MFI Period</Label>
-                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 14} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="smiPeriod">SMI Period</Label>
-                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 5} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="smiEmaPeriod">SMI EMA Period</Label>
-                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 3} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="overbought">Overbought Level</Label>
-                        <Input id="overbought" type="number" value={params.overbought || 40} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="overbought" type="number" value={params.overbought || 0} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                      <div className="space-y-2">
                         <Label htmlFor="oversold">Oversold Level</Label>
-                        <Input id="oversold" type="number" value={params.oversold || -40} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading || isReplaying} />
+                        <Input id="oversold" type="number" value={params.oversold || 0} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
                  <div className="flex items-center space-x-2 pt-2">
@@ -1095,7 +1095,7 @@ export default function BacktestPage() {
           <Input 
             id={key}
             type="number"
-            value={value as number}
+            value={value as number || 0}
             onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
             step={String(value).includes('.') ? '0.001' : '1'}
             disabled={anyLoading || isReplaying}

@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -134,7 +135,7 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
                                 <Input
                                     id={`${bot.id}-${key}`}
                                     type="number"
-                                    value={value as number}
+                                    value={value as number || 0}
                                     onChange={e => onParamChange(key, e.target.value)}
                                     className="h-8"
                                     disabled={isTradingActive}
@@ -212,11 +213,9 @@ export default function LiveTradingPage() {
             if (bot.id === id) {
                 let updatedValue = value;
                 if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital') {
-                    // Ensure these fields don't become NaN if the input is cleared
                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : value;
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
-                // If the strategy changes, reset its parameters to the new strategy's defaults
                 if (field === 'strategy') {
                     updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || {};
                 }
@@ -227,19 +226,20 @@ export default function LiveTradingPage() {
     };
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
+        let parsedValue = value;
+        if (typeof value !== 'object' && typeof value !== 'boolean') {
+            parsedValue = (value === '' || isNaN(value as number))
+                ? 0
+                : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+        }
+
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
-                const parsedValue = typeof value === 'boolean' 
-                    ? value
-                    : (value === '' || isNaN(value as number)) 
-                        ? 0 
-                        : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-
                 return {
                     ...bot,
                     strategyParams: {
                         ...bot.strategyParams,
-                        [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
+                        [param]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
                     }
                 }
             }
@@ -255,7 +255,7 @@ export default function LiveTradingPage() {
                     strategyParams: {
                         ...bot.strategyParams,
                         discipline: {
-                            ...bot.strategyParams.discipline,
+                            ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
                             [paramName]: value
                         }
                     }
@@ -379,7 +379,7 @@ export default function LiveTradingPage() {
                                             <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={bot.capital}
+                                                    value={bot.capital || 0}
                                                     onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
                                                     className="w-28"
                                                     disabled={isTradingActive}
@@ -388,7 +388,7 @@ export default function LiveTradingPage() {
                                             <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={bot.leverage}
+                                                    value={bot.leverage || 1}
                                                     onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 1)}
                                                     className="w-24"
                                                     disabled={isTradingActive}
@@ -397,7 +397,7 @@ export default function LiveTradingPage() {
                                              <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={bot.takeProfit}
+                                                    value={bot.takeProfit || 0}
                                                     onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
                                                     className="w-24"
                                                     disabled={isTradingActive}
@@ -406,7 +406,7 @@ export default function LiveTradingPage() {
                                              <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={bot.stopLoss}
+                                                    value={bot.stopLoss || 0}
                                                     onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
                                                     className="w-24"
                                                     disabled={isTradingActive}

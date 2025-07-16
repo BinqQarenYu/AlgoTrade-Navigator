@@ -319,18 +319,18 @@ export default function ManualTradingPage() {
   const hasActiveSignal = signal !== null;
   
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
-    // FIX: Ensure value is a valid number, defaulting to 0 if empty or invalid.
-    const parsedValue = typeof value === 'boolean' 
-        ? value 
-        : (value === '' || isNaN(value as number))
+    let parsedValue = value;
+    if (typeof value !== 'object' && typeof value !== 'boolean') {
+        parsedValue = (value === '' || isNaN(value as number))
             ? 0
             : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-
+    }
+    
     setStrategyParams(prev => ({
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
         }
     }));
   };
@@ -406,7 +406,7 @@ export default function ManualTradingPage() {
         <Input 
           id={key}
           type="number"
-          value={value as number}
+          value={value as number || 0}
           onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
           step={String(value).includes('.') ? '0.001' : '1'}
           disabled={isThisPageTrading}
@@ -453,7 +453,7 @@ export default function ManualTradingPage() {
             </AlertDescription>
         </Alert>
     )}
-     {isTradingActive && !isThisPageTrading && (
+     {(isTradingActive && !isThisPageTrading) && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
@@ -790,7 +790,7 @@ export default function ManualTradingPage() {
                                   {coinDetails.totalSupply && (
                                      <div className="flex justify-between items-center text-sm">
                                         <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Total</span>
-                                        <span className="font-semibold">{formatLargeNumber(coinDetails.totalSupply, 2)}</span>
+                                        <span className="font-semibold">${formatLargeNumber(coinDetails.totalSupply, 2)}</span>
                                     </div>
                                   )}
                               </div>
