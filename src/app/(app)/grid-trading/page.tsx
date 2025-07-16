@@ -314,11 +314,11 @@ export default function GridTradingPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <Label htmlFor="lower-price">Lower Price</Label>
-                                        <Input id="lower-price" type="number" value={lowerPrice} onChange={e => setLowerPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                        <Input id="lower-price" type="number" value={lowerPrice || ''} onChange={e => setLowerPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                     <div>
                                         <Label htmlFor="upper-price">Upper Price</Label>
-                                        <Input id="upper-price" type="number" value={upperPrice} onChange={e => setUpperPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                        <Input id="upper-price" type="number" value={upperPrice || ''} onChange={e => setUpperPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -353,15 +353,15 @@ export default function GridTradingPage() {
                                  <div className="grid grid-cols-3 gap-4">
                                     <div>
                                         <Label htmlFor="grid-count">Grids</Label>
-                                        <Input id="grid-count" type="number" value={gridCount} onChange={e => setGridCount(parseInt(e.target.value, 10) || 0)} min={2} max={150} disabled={isRunning} />
+                                        <Input id="grid-count" type="number" value={gridCount || ''} onChange={e => setGridCount(parseInt(e.target.value, 10) || 0)} min={2} max={150} disabled={isRunning} />
                                     </div>
                                     <div>
                                         <Label htmlFor="investment">Investment (USDT)</Label>
-                                        <Input id="investment" type="number" value={investment} onChange={e => setInvestment(parseFloat(e.target.value) || 0)} disabled={isRunning} />
+                                        <Input id="investment" type="number" value={investment || ''} onChange={e => setInvestment(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                     </div>
                                     <div>
                                         <Label htmlFor="leverage">Leverage (x)</Label>
-                                        <Input id="leverage" type="number" value={leverage} onChange={e => setLeverage(parseInt(e.target.value, 10) || 1)} min={1} max={100} disabled={isRunning} />
+                                        <Input id="leverage" type="number" value={leverage || ''} onChange={e => setLeverage(parseInt(e.target.value, 10) || 1)} min={1} max={100} disabled={isRunning} />
                                     </div>
                                 </div>
                                  <div className="space-y-3 pt-2">
@@ -370,21 +370,21 @@ export default function GridTradingPage() {
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-up" checked={trailingUp} onCheckedChange={setTrailingUp} disabled={isRunning} />
                                             <Label htmlFor="trailing-up" className="font-normal flex-1">Trailing Up</Label>
-                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value))} className="h-8 w-32" disabled={isRunning}/>
+                                            <Input placeholder="Trigger Price" type="number" value={trailingUpTriggerPrice || ''} onChange={e => setTrailingUpTriggerPrice(parseFloat(e.target.value) || 0)} className="h-8 w-32" disabled={isRunning}/>
                                         </div>
                                         <div className="flex items-center space-x-2">
                                             <Switch id="trailing-down" checked={trailingDown} onCheckedChange={setTrailingDown} disabled={isRunning} />
                                             <Label htmlFor="trailing-down" className="font-normal flex-1">Trailing Down</Label>
-                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value))} className="h-8 w-32" disabled={isRunning}/>
+                                             <Input placeholder="Trigger Price" type="number" value={trailingDownTriggerPrice || ''} onChange={e => setTrailingDownTriggerPrice(parseFloat(e.target.value) || 0)} className="h-8 w-32" disabled={isRunning}/>
                                         </div>
                                         <div className="grid grid-cols-2 gap-4 pt-2">
                                             <div>
                                                 <Label htmlFor="stop-loss-price">Stop Loss Price</Label>
-                                                <Input id="stop-loss-price" type="number" placeholder="Optional" value={stopLossPrice || ''} onChange={e => setStopLossPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                                <Input id="stop-loss-price" type="number" placeholder="Optional" value={stopLossPrice || ''} onChange={e => setStopLossPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                             </div>
                                             <div>
                                                 <Label htmlFor="take-profit-price">Take Profit Price</Label>
-                                                <Input id="take-profit-price" type="number" placeholder="Optional" value={takeProfitPrice || ''} onChange={e => setTakeProfitPrice(parseFloat(e.target.value))} disabled={isRunning} />
+                                                <Input id="take-profit-price" type="number" placeholder="Optional" value={takeProfitPrice || ''} onChange={e => setTakeProfitPrice(parseFloat(e.target.value) || 0)} disabled={isRunning} />
                                             </div>
                                         </div>
                                     </div>
@@ -395,7 +395,7 @@ export default function GridTradingPage() {
                                         <div className="flex items-center gap-4">
                                             <div className="flex-1 space-y-1">
                                                 <Label htmlFor="backtest-days">Days to Backtest</Label>
-                                                <Input id="backtest-days" type="number" value={backtestDays} onChange={e => setBacktestDays(parseInt(e.target.value, 10) || 7)} min={1} max={500} disabled={isRunning || isBacktesting} />
+                                                <Input id="backtest-days" type="number" value={backtestDays || ''} onChange={e => setBacktestDays(parseInt(e.target.value, 10) || 7)} min={1} max={500} disabled={isRunning || isBacktesting} />
                                             </div>
                                             <Button onClick={handleRunBacktest} disabled={isRunning || isBacktesting || isFetchingData || !isConnected}>
                                                 {isBacktesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BarChart2 />}
