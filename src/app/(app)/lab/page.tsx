@@ -1215,38 +1215,35 @@ export default function LabPage() {
                       </div>
                       <Separator/>
                         <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                            <div className="flex items-center space-x-2">
-                                <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} />
-                                <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label>
-                            </div>
-                            {showAnalysis && (
-                                <Collapsible open={isLiquidityDetailsOpen} onOpenChange={setIsLiquidityDetailsOpen}>
-                                    <CollapsibleTrigger asChild>
-                                        <div className="flex items-center justify-between cursor-pointer pl-8 text-sm text-muted-foreground">
-                                            <span>Details</span>
-                                            <ChevronDown className={cn("h-4 w-4 transition-transform", isLiquidityDetailsOpen && "rotate-180")} />
-                                        </div>
-                                    </CollapsibleTrigger>
-                                    <CollapsibleContent className="pl-8 space-y-3 pt-2 mt-2 border-t">
-                                        <div className="flex items-center space-x-2 pt-2">
-                                            <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
-                                            <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
-                                        </div>
+                           <Collapsible open={isLiquidityDetailsOpen} onOpenChange={setIsLiquidityDetailsOpen}>
+                                <CollapsibleTrigger asChild>
+                                    <div className="flex w-full items-center justify-between cursor-pointer">
                                         <div className="flex items-center space-x-2">
-                                            <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                                            <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
+                                            <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} />
+                                            <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label>
                                         </div>
-                                        <div className="flex items-center space-x-2">
-                                            <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
-                                            <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
-                                            <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Manipulation Overlay</Label>
-                                        </div>
-                                    </CollapsibleContent>
-                                </Collapsible>
-                            )}
+                                        <ChevronDown className={cn("h-4 w-4 transition-transform", isLiquidityDetailsOpen && "rotate-180")} />
+                                    </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pl-8 space-y-3 pt-3 mt-3 border-t">
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} disabled={!showAnalysis}/>
+                                        <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} disabled={!showAnalysis}/>
+                                        <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} disabled={!showAnalysis}/>
+                                        <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} disabled={!showAnalysis}/>
+                                        <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Manipulation Overlay</Label>
+                                    </div>
+                                </CollapsibleContent>
+                            </Collapsible>
                         </div>
                        <Separator/>
                         <Collapsible open={isPhysicsPanelsOpen} onOpenChange={setIsPhysicsPanelsOpen} className="p-3 border rounded-md bg-muted/50 space-y-4">
@@ -1358,7 +1355,7 @@ export default function LabPage() {
             <OrderBook 
               symbol={symbol}
               isStreamActive={isStreamActive}
-              onWallsUpdate={handleOrderBookUpdate}
+              onUpdate={handleOrderBookUpdate}
             />
           </div>
         </div>
@@ -1473,4 +1470,3 @@ export default function LabPage() {
     </div>
   )
 }
-

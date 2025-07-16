@@ -96,6 +96,9 @@ export default function TradingLab2Page() {
   const [showQuantumField, setShowQuantumField] = usePersistentState<boolean>('lab2-show-quantum', true);
   const [chartType, setChartType] = usePersistentState<'candlestick' | 'line'>('lab2-chart-type', 'candlestick');
   const [scaleMode, setScaleMode] = usePersistentState<'linear' | 'logarithmic'>('lab2-scale-mode', 'linear');
+  const [showWalls, setShowWalls] = usePersistentState<boolean>('lab2-show-walls', true);
+  const [showLiquidity, setShowLiquidity] = usePersistentState<boolean>('lab2-show-liquidity', true);
+  const [showTargets, setShowTargets] = usePersistentState<boolean>('lab2-show-targets', true);
   
   const [date, setDate] = usePersistentState<DateRange | undefined>('lab2-date-range', undefined);
   
@@ -130,6 +133,8 @@ export default function TradingLab2Page() {
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab2-analysis-tools-open', true);
   const [isPhysicsPanelsOpen, setIsPhysicsPanelsOpen] = usePersistentState<boolean>('lab2-physics-panels-open', true);
   const [isQuantumCardOpen, setIsQuantumCardOpen] = usePersistentState<boolean>('lab2-quantum-card-open', true);
+  const [isLiquidityDetailsOpen, setIsLiquidityDetailsOpen] = usePersistentState<boolean>('lab2-liquidity-details-open', true);
+
   
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -433,8 +438,35 @@ export default function TradingLab2Page() {
                     </div>
                     <Separator/>
                     <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                        <div className="flex items-center space-x-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label></div>
-                        <div className="flex items-center space-x-2"><Switch id="show-quantum-field" checked={showQuantumField} onCheckedChange={setShowQuantumField} /><Label htmlFor="show-quantum-field" className="flex-1 cursor-pointer font-semibold">Show Quantum Field</Label></div>
+                       <Collapsible open={isLiquidityDetailsOpen} onOpenChange={setIsLiquidityDetailsOpen}>
+                            <CollapsibleTrigger asChild>
+                                <div className="flex w-full items-center justify-between cursor-pointer">
+                                    <div className="flex items-center space-x-2">
+                                        <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} />
+                                        <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label>
+                                    </div>
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isLiquidityDetailsOpen && "rotate-180")} />
+                                </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pl-8 space-y-3 pt-3 mt-3 border-t">
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} disabled={!showAnalysis}/>
+                                    <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} disabled={!showAnalysis}/>
+                                    <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} disabled={!showAnalysis}/>
+                                    <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
+                                </div>
+                            </CollapsibleContent>
+                        </Collapsible>
+                        <div className="flex items-center space-x-2 pt-2 border-t">
+                            <Switch id="show-quantum-field" checked={showQuantumField} onCheckedChange={setShowQuantumField} />
+                            <Label htmlFor="show-quantum-field" className="flex-1 cursor-pointer font-semibold">Show Quantum Field</Label>
+                        </div>
                     </div>
                     <Collapsible open={isPhysicsPanelsOpen} onOpenChange={setIsPhysicsPanelsOpen} className="p-3 border rounded-md bg-muted/50 space-y-4">
                       <CollapsibleTrigger asChild><div className="flex w-full items-center justify-between cursor-pointer"><Label className="flex-1 font-semibold">Physics Panels</Label><ChevronDown className={cn("h-4 w-4 transition-transform", isPhysicsPanelsOpen && "rotate-180")} /></div></CollapsibleTrigger>
