@@ -327,8 +327,8 @@ export function TradingChart({
         dumpLineSeries: chart.addLineSeries({ color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dashed, ...commonLineOptions }),
         dumpVolumeTextPriceLine: null,
         // Physics Panels
-        depthTotalSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#a78bfa' }),
-        depthImbalanceSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#f472b6' }),
+        depthTotalSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#a78bfa', lineWidth: 2 }),
+        depthImbalanceSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#38bdf8', lineWidth: 2 }),
         stiffnessSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#f59e0b' }),
         pressureSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#ef4444' }),
         bpiSeries: chart.addLineSeries({ ...commonIndicatorPanelOptions, color: '#22c55e' }),
@@ -710,7 +710,7 @@ export function TradingChart({
                 const isBid = wall.type === 'bid';
                 const title = isBid ? ` BID WALL` : ` ASK WALL`;
                 const lineColor = isBid ? '#60a5fa' : '#c084fc';
-                const textColor = '#60a5fa';
+                const textColor = '#38bdf8'; // sky-400
 
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
@@ -790,7 +790,8 @@ export function TradingChart({
 
     // Effect to draw historical liquidity target lines and auto-zoom
     useEffect(() => {
-        if (!chartRef.current?.chart) return;
+        if (!chartRef.current?.chart || !showAnalysis || !showTargets || !liquidityTargets || liquidityTargets.length === 0) return;
+
         const { candlestickSeries, chart } = chartRef.current;
 
         // Clear previous target lines
@@ -800,119 +801,109 @@ export function TradingChart({
         chartRef.current.targetPriceLines = [];
         
         const newLines: any[] = [];
-        if (showAnalysis && showTargets && liquidityTargets && liquidityTargets.length > 0) {
-            const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
-            const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+        const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+        const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
 
-            if (sellSideTarget) {
-                 const line = candlestickSeries.createPriceLine({
-                    price: sellSideTarget.priceLevel,
-                    color: '#10b981',
-                    lineWidth: lineWidth,
-                    lineStyle: LineStyle.LargeDashed,
-                    axisLabelVisible: true,
-                    title: ` SST (${formatPrice(sellSideTarget.priceLevel)})`,
-                });
-                newLines.push(line);
-            }
-            if (buySideTarget) {
-                const line = candlestickSeries.createPriceLine({
-                    price: buySideTarget.priceLevel,
-                    color: '#f43f5e',
-                    lineWidth: lineWidth,
-                    lineStyle: LineStyle.LargeDashed,
-                    axisLabelVisible: true,
-                    title: ` BST (${formatPrice(buySideTarget.priceLevel)})`,
-                });
-                newLines.push(line);
-            }
-            
-            if (sellSideTarget && buySideTarget) {
-                const topPrice = buySideTarget.priceLevel * 1.01; // 1% padding
-                const bottomPrice = sellSideTarget.priceLevel * 0.99; // 1% padding
-                 // FIX: Correct way to set visible range on price scale
-                chart.priceScale('left').applyOptions({
-                    autoScale: false,
-                    scaleMargins: { top: 0, bottom: 0 },
-                });
-            }
-
+        if (sellSideTarget) {
+              const line = candlestickSeries.createPriceLine({
+                price: sellSideTarget.priceLevel,
+                color: '#10b981',
+                lineWidth: lineWidth,
+                lineStyle: LineStyle.LargeDashed,
+                axisLabelVisible: true,
+                title: ` SST (${formatPrice(sellSideTarget.priceLevel)})`,
+            });
+            newLines.push(line);
         }
+        if (buySideTarget) {
+            const line = candlestickSeries.createPriceLine({
+                price: buySideTarget.priceLevel,
+                color: '#f43f5e',
+                lineWidth: lineWidth,
+                lineStyle: LineStyle.LargeDashed,
+                axisLabelVisible: true,
+                title: ` BST (${formatPrice(buySideTarget.priceLevel)})`,
+            });
+            newLines.push(line);
+        }
+        
         chartRef.current.targetPriceLines = newLines;
 
+        if (sellSideTarget && buySideTarget) {
+            const topPrice = buySideTarget.priceLevel * 1.01; // 1% padding
+            const bottomPrice = sellSideTarget.priceLevel * 0.99; // 1% padding
+            chart.priceScale('left').applyOptions({
+                autoScale: false,
+                scaleMargins: { top: 0, bottom: 0 },
+            });
+        }
     }, [liquidityTargets, lineWidth, showAnalysis, showTargets]);
 
     // Effect to draw the target zone box and its label
     useEffect(() => {
-      if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
-          if (chartRef.current?.targetZoneSeries) {
-              chartRef.current.targetZoneSeries.setData([]);
-              if (chartRef.current.liquidityZoneLabelLine) {
-                chartRef.current.candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
-                chartRef.current.liquidityZoneLabelLine = null;
-              }
-          }
-          return;
-      }
-  
-      const { targetZoneSeries, candlestickSeries } = chartRef.current;
-      if (!targetZoneSeries) return;
-      
-      // Clear previous label line
-      if (chartRef.current.liquidityZoneLabelLine) {
-        candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
-        chartRef.current.liquidityZoneLabelLine = null;
-      }
-  
-      const sortedEvents = [...liquidityEvents].sort((a,b) => a.time - b.time);
-      const lastGrabEvent = sortedEvents.length > 0 ? sortedEvents[sortedEvents.length - 1] : null;
-      
-      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
-      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
-      
-      if (showAnalysis && lastGrabEvent && buySideTarget && sellSideTarget) {
-          const startTime = toTimestamp(lastGrabEvent.time);
-          const lastCandle = combinedData[combinedData.length - 1];
-          const intervalMs = combinedData[1].time - combinedData[0].time;
-          const futureBars = 20;
+        if (!chartRef.current?.chart || !combinedData || combinedData.length < 2) {
+            if (chartRef.current?.targetZoneSeries) {
+                chartRef.current.targetZoneSeries.setData([]);
+                if (chartRef.current.liquidityZoneLabelLine) {
+                    chartRef.current.candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
+                    chartRef.current.liquidityZoneLabelLine = null;
+                }
+            }
+            return;
+        }
 
-          const topPrice = buySideTarget.priceLevel;
-          const bottomPrice = sellSideTarget.priceLevel;
+        const { targetZoneSeries, candlestickSeries } = chartRef.current;
+        if (!targetZoneSeries) return;
+        
+        // Clear previous label line
+        if (chartRef.current.liquidityZoneLabelLine) {
+            candlestickSeries.removePriceLine(chartRef.current.liquidityZoneLabelLine);
+            chartRef.current.liquidityZoneLabelLine = null;
+        }
 
-          const boxData = [];
-          
-          let lastTime = 0;
-          for(const candle of combinedData) {
-              const candleTime = toTimestamp(candle.time);
-              if (candleTime >= startTime) {
-                  boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
-              }
-              lastTime = candleTime;
-          }
-          
-          for(let i = 1; i <= futureBars; i++) {
-              const futureTime = lastTime + i * (intervalMs / 1000);
-               boxData.push({ time: futureTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
-          }
+        const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
+        const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
+        
+        if (showAnalysis && buySideTarget && sellSideTarget) {
+            const topPrice = buySideTarget.priceLevel;
+            const bottomPrice = sellSideTarget.priceLevel;
+            const intervalMs = combinedData[1].time - combinedData[0].time;
+            const futureBars = 20;
 
-          targetZoneSeries.setData(boxData);
-          
-          // Add the label
-          const midPoint = (topPrice + bottomPrice) / 2;
-          chartRef.current.liquidityZoneLabelLine = candlestickSeries.createPriceLine({
-            price: midPoint,
-            color: 'transparent',
-            axisLabelVisible: true,
-            title: '  Liquidity Zone',
-            axisLabelColor: '#3b82f6',
-            axisLabelTextColor: 'white',
-          });
+            const boxData = [];
+            let lastTime = 0;
+            
+            for(const candle of combinedData) {
+                const candleTime = toTimestamp(candle.time);
+                boxData.push({ time: candleTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+                lastTime = candleTime;
+            }
+            
+            if (lastTime > 0) {
+                for(let i = 1; i <= futureBars; i++) {
+                    const futureTime = lastTime + i * (intervalMs / 1000);
+                    boxData.push({ time: futureTime, open: topPrice, high: topPrice, low: bottomPrice, close: bottomPrice });
+                }
+            }
 
-      } else {
-          targetZoneSeries.setData([]);
-      }
+            targetZoneSeries.setData(boxData);
+            
+            // Add the label
+            const midPoint = (topPrice + bottomPrice) / 2;
+            chartRef.current.liquidityZoneLabelLine = candlestickSeries.createPriceLine({
+                price: midPoint,
+                color: 'transparent',
+                axisLabelVisible: true,
+                title: ' Liquidity Zone',
+                axisLabelColor: '#3b82f6',
+                axisLabelTextColor: 'white',
+            });
 
-  }, [combinedData, liquidityEvents, liquidityTargets, showAnalysis]);
+        } else {
+            targetZoneSeries.setData([]);
+        }
+
+    }, [combinedData, liquidityTargets, showAnalysis]);
 
 
     // Effect to draw consensus price dot and arrow
