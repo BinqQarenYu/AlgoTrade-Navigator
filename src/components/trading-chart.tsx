@@ -588,7 +588,9 @@ export function TradingChart({
             candlestickSeries.setMarkers(allMarkers);
         }
 
-        chart.timeScale().fitContent();
+        if (uniqueData.length > 0) {
+            chart.timeScale().fitContent();
+        }
 
     } else {
         candlestickSeries.setData([]);
@@ -744,8 +746,8 @@ export function TradingChart({
                     lineStyle: LineStyle.Dotted,
                     axisLabelVisible: true,
                     title: title,
-                    axisLabelColor: '#FFFFFF',
-                    axisLabelTextColor: textColor,
+                    axisLabelColor: textColor,
+                    axisLabelTextColor: '#FFFFFF',
                 });
                 newLines.push(line);
             });
@@ -840,41 +842,6 @@ export function TradingChart({
         chartRef.current.targetPriceLines = newLines;
 
     }, [liquidityTargets, lineWidth, showAnalysis, showTargets]);
-
-    // Effect to auto-zoom on liquidity targets
-    useEffect(() => {
-      if (!chartRef.current?.chart || !showAnalysis || !showTargets || liquidityTargets.length < 2) {
-        if (chartRef.current?.candlestickSeries) {
-          // Reset autoscale if targets are not present or not shown
-          chartRef.current.candlestickSeries.applyOptions({ autoscaleInfo: undefined });
-        }
-        return;
-      }
-
-      const { candlestickSeries } = chartRef.current;
-
-      const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side');
-      const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side');
-
-      if (buySideTarget && sellSideTarget) {
-        const topPrice = buySideTarget.priceLevel;
-        const bottomPrice = sellSideTarget.priceLevel;
-        const range = topPrice - bottomPrice;
-        const padding = range * 0.1; // 10% padding
-
-        candlestickSeries.applyOptions({
-          autoscaleInfo: () => ({
-            priceRange: {
-              minValue: bottomPrice - padding,
-              maxValue: topPrice + padding,
-            },
-          }),
-        });
-      } else {
-        // If one of the targets is missing, revert to default autoscaling
-        candlestickSeries.applyOptions({ autoscaleInfo: undefined });
-      }
-    }, [liquidityTargets, showAnalysis, showTargets]);
 
     // Effect to draw the target zone box
     useEffect(() => {
@@ -1198,24 +1165,7 @@ export function TradingChart({
           newLines.push(line);
         });
 
-        const priceRange = maxPrice - minPrice;
-        const padding = priceRange * 0.1; // 10% padding
-        
-        candlestickSeries.applyOptions({
-            autoscaleInfo: () => ({
-                priceRange: {
-                    minValue: minPrice - padding,
-                    maxValue: maxPrice + padding,
-                },
-            }),
-        });
-
-      } else {
-        // If grid is cleared, let the chart autoscale normally
-        candlestickSeries.applyOptions({
-            autoscaleInfo: undefined,
-        });
-      }
+      } 
 
       chartRef.current.gridPriceLines = newLines;
     }, [gridLevels]);
@@ -1459,3 +1409,4 @@ export function TradingChart({
     </Card>
   );
 }
+
