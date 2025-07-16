@@ -50,6 +50,10 @@ export function TradingChart({
   showManipulationOverlay = true,
   physicsConfig,
   quantumFieldData = [],
+  // Add new props to respect the toggles
+  showWalls = true,
+  showLiquidity = true,
+  showTargets = true,
 }: { 
   data: HistoricalData[];
   projectedData?: HistoricalData[];
@@ -75,6 +79,10 @@ export function TradingChart({
   showManipulationOverlay?: boolean;
   physicsConfig?: PhysicsChartConfig;
   quantumFieldData?: QuantumFieldData[];
+  // Add new props to respect the toggles
+  showWalls?: boolean;
+  showLiquidity?: boolean;
+  showTargets?: boolean;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -470,7 +478,7 @@ export function TradingChart({
           })
           .filter((m): m is any => m !== null) : [];
           
-        const liquidityMarkers = showAnalysis ? liquidityEvents.map(event => {
+        const liquidityMarkers = showAnalysis && showLiquidity ? liquidityEvents.map(event => {
             return {
                 time: toTimestamp(event.time),
                 position: event.direction === 'bullish' ? 'belowBar' : 'aboveBar',
@@ -600,7 +608,7 @@ export function TradingChart({
         candlestickSeries.setMarkers([]);
     }
 
-  }, [combinedData, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, unmatchedGridTrades]);
+  }, [combinedData, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, showManipulationOverlay, unmatchedGridTrades, showLiquidity]);
 
    // Effect to draw signal lines
     useEffect(() => {
@@ -723,7 +731,7 @@ export function TradingChart({
         }
         
         const newLines: any[] = [];
-        if (showAnalysis && wallLevels && wallLevels.length > 0) {
+        if (showAnalysis && showWalls && wallLevels && wallLevels.length > 0) {
             wallLevels.forEach(wall => {
                 const title = wall.type === 'bid' ? ` BID WALL` : ` ASK WALL`;
                 const line = candlestickSeries.createPriceLine({
@@ -741,7 +749,7 @@ export function TradingChart({
         }
         chartRef.current.wallPriceLines = newLines;
 
-    }, [wallLevels, lineWidth, showAnalysis]);
+    }, [wallLevels, lineWidth, showAnalysis, showWalls]);
 
     // Effect for SPOOFED walls
     useEffect(() => {
@@ -812,7 +820,7 @@ export function TradingChart({
         }
         
         const newLines: any[] = [];
-        if (showAnalysis && liquidityTargets && liquidityTargets.length > 0) {
+        if (showAnalysis && showTargets && liquidityTargets && liquidityTargets.length > 0) {
             liquidityTargets.forEach(target => {
                 const isBuySide = target.type === 'buy-side';
                 const line = candlestickSeries.createPriceLine({
@@ -828,7 +836,7 @@ export function TradingChart({
         }
         chartRef.current.targetPriceLines = newLines;
 
-    }, [liquidityTargets, lineWidth, showAnalysis]);
+    }, [liquidityTargets, lineWidth, showAnalysis, showTargets]);
 
     // Effect to draw the target zone box
     useEffect(() => {
