@@ -61,6 +61,7 @@ import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channel
 import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
 import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
 import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
+import { defaultOldHyperPFFParams } from "@/lib/strategies/hyper-peak-formation-old"
 import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
 import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
 import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
@@ -98,6 +99,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'elder-ray-index': defaultElderRayIndexParams,
     'ema-crossover': defaultEmaCrossoverParams,
     'hyper-peak-formation': defaultHyperPFFParams,
+    'hyper-peak-formation-old': defaultOldHyperPFFParams,
     'ichimoku-cloud': defaultIchimokuCloudParams,
     'keltner-channels': defaultKeltnerChannelsParams,
     'macd-crossover': defaultMacdCrossoverParams,
@@ -460,7 +462,7 @@ export default function BacktestPage() {
 
   const handleRunBacktestClick = () => {
     if (isReplaying) {
-      stopAndRunBacktest();
+      handleStopReplayAndRunBacktest();
       return;
     }
     if (useAIValidation) {
@@ -685,7 +687,8 @@ export default function BacktestPage() {
         return;
     }
     if (isReplaying) {
-      await stopAndRunBacktest();
+      stopReplay();
+      await runBacktest();
     }
     setIsOptimizing(true);
     toast({ title: "Starting Auto-Tune...", description: "This may take a moment. The UI may be unresponsive." });
@@ -767,7 +770,7 @@ export default function BacktestPage() {
     }
   };
 
-  const stopAndRunBacktest = () => {
+  const handleStopReplayAndRunBacktest = () => {
     stopReplay();
     runBacktest();
   };
@@ -845,7 +848,8 @@ export default function BacktestPage() {
     const params = strategyParams[selectedStrategy] || {};
 
     // Special UI for hyper-peak-formation
-    if (selectedStrategy === 'hyper-peak-formation') {
+    if (selectedStrategy === 'hyper-peak-formation' || selectedStrategy === 'hyper-peak-formation-old') {
+      const isOld = selectedStrategy === 'hyper-peak-formation-old';
       return (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -865,10 +869,17 @@ export default function BacktestPage() {
               <Label htmlFor="emaLongPeriod">EMA Long</Label>
               <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 50} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
             </div>
-             <div className="space-y-2">
-              <Label htmlFor="signalStaleness">Signal Staleness</Label>
-              <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
-            </div>
+            {isOld ? (
+                 <div className="space-y-2">
+                    <Label htmlFor="maxLookahead">Max Lookahead (Repainting)</Label>
+                    <Input id="maxLookahead" type="number" value={params.maxLookahead || 100} onChange={(e) => handleParamChange(selectedStrategy, 'maxLookahead', e.target.value)} disabled={anyLoading || isReplaying} />
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <Label htmlFor="signalStaleness">Signal Staleness</Label>
+                    <Input id="signalStaleness" type="number" value={params.signalStaleness || 25} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
+                </div>
+            )}
           </div>
           <div className="flex items-center space-x-2 pt-4">
             <Switch
@@ -1201,7 +1212,7 @@ export default function BacktestPage() {
                             <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
                             <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
                             <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                            <Button variant="destructive" size="icon" onClick={stopAndRunBacktest}><History/></Button>
+                            <Button variant="destructive" size="icon" onClick={handleStopReplayAndRunBacktest}><History/></Button>
                         </div>
                          <div className="flex items-center justify-center gap-2">
                            <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>

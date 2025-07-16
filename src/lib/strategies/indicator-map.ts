@@ -17,6 +17,7 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'parabolic-sar-flip': ['Parabolic SAR'],
   'peak-formation-fib': ['EMA', 'Fibonacci Retracement'],
   'hyper-peak-formation': ['EMA', 'Fibonacci Retracement'],
+  'hyper-peak-formation-old': ['EMA', 'Fibonacci Retracement'],
   'liquidity-order-flow': ['EMA', 'FVG'],
   'liquidity-grab': ['Swing Points'],
   'ema-cci-macd': ['EMA', 'CCI', 'MACD'],

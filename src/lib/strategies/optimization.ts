@@ -67,6 +67,15 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
         signalStaleness: { min: 10, max: 50, step: 5 },
     },
+     'hyper-peak-formation-old': { // For the old repainting version
+        peakLookaround: { min: 3, max: 10, step: 1 },
+        swingLookaround: { min: 2, max: 5, step: 1 },
+        emaShortPeriod: { min: 10, max: 20, step: 3 },
+        emaLongPeriod: { min: 40, max: 60, step: 5 },
+        fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
+        fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
+        maxLookahead: { min: 50, max: 150, step: 25 },
+    },
     'liquidity-order-flow': {
         swingLookaround: { min: 3, max: 10, step: 1 },
         emaTrendPeriod: { min: 100, max: 200, step: 50 },

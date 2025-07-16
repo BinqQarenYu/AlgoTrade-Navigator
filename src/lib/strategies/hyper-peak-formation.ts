@@ -60,7 +60,7 @@ function isConfirmedSwingLow(data: HistoricalData[], index: number, lookaround: 
 
 const hyperPeakFormationStrategy: Strategy = {
     id: 'hyper-peak-formation',
-    name: 'Hyper Peak Formation',
+    name: 'Hyper Peak Formation (NEW)',
     description: 'A non-repainting strategy that identifies market peaks, waits for a break of structure, and enters on a Fibonacci retracement.',
     async calculate(data: HistoricalData[], params: HyperPFFParams = defaultHyperPFFParams): Promise<HistoricalData[]> {
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
