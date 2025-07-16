@@ -177,27 +177,26 @@ export default function TradingLab2Page() {
     let dataToProcess = JSON.parse(JSON.stringify(klineData)) as HistoricalData[];
     
     // Run all physics calculations in parallel where possible
-    const [imbalanceRatio, stiffnessData] = await Promise.all([
+    const [imbalanceRatio, stiffnessData, pressureData] = await Promise.all([
         bookData ? calculateDepthImbalance(bookData) : Promise.resolve(0),
-        calculateStiffness(dataToProcess)
+        calculateStiffness(dataToProcess),
+        bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve(dataToProcess),
     ]);
     
-    dataToProcess = stiffnessData.map(candle => ({
+    dataToProcess = stiffnessData.map((candle, index) => ({
         ...candle,
-        depthTotal: candle.volume, // Use candle volume as historical depth proxy
+        depthTotal: candle.volume,
         depth_imbalance_ratio: imbalanceRatio,
+        pressure_depth: pressureData[index]?.pressure_depth,
     }));
 
-    // These depend on the results from the previous step
-    const [pressureData, bpiData] = await Promise.all([
-        bookData ? calculatePressure(dataToProcess, bookData.totalDepth) : Promise.resolve(dataToProcess),
-        calculateBPI(dataToProcess)
-    ]);
+    // This depends on the results from the previous step
+    const bpiData = await calculateBPI(dataToProcess);
       
     // Merge results
-    dataToProcess = pressureData.map((candle, index) => ({
+    dataToProcess = bpiData.map((candle, index) => ({
         ...candle,
-        burst_potential_index_N: bpiData[index]?.burst_potential_index_N,
+        burst_potential_index_N: candle.burst_potential_index_N,
     }));
       
 
@@ -610,3 +609,5 @@ export default function TradingLab2Page() {
     </div>
   )
 }
+
+    
