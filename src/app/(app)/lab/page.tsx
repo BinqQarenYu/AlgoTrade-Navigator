@@ -598,16 +598,6 @@ export default function LabPage() {
     );
   };
 
-  const handleShowAnalysisChange = (checked: boolean) => {
-    setShowAnalysis(checked);
-    if (checked) {
-      refreshChartAnalysis(chartData);
-      runConsensus(chartData);
-    } else {
-      setConsensusResult(null);
-    }
-  };
-  
   const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
     setWalls(walls);
     if (spoofs.length > 0) {
@@ -1224,35 +1214,34 @@ export default function LabPage() {
                           </div>
                       </div>
                       <Separator/>
-                      <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                          <div className="flex items-center space-x-2">
-                              <Switch id="show-analysis" checked={showAnalysis} onCheckedChange={handleShowAnalysisChange} />
-                              <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Overlays</Label>
+                      <Collapsible open={showAnalysis} onOpenChange={setShowAnalysis} className="p-3 border rounded-md bg-muted/50 space-y-4">
+                        <CollapsibleTrigger asChild>
+                           <div className="flex items-center space-x-2 cursor-pointer">
+                              <Switch id="show-analysis" checked={showAnalysis} />
+                              <Label htmlFor="show-analysis" className="flex-1 cursor-pointer font-semibold">Show Liquidity Overlays</Label>
+                              <ChevronDown className={cn("h-4 w-4 transition-transform text-muted-foreground", showAnalysis && "rotate-180")} />
                           </div>
-                          {showAnalysis && (
-                            <>
-                              <div className="border-b -mx-3"></div>
-                              <div className="pl-2 space-y-3 pt-2">
-                                  <div className="flex items-center space-x-2">
-                                      <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
-                                      <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                      <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
-                                      <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                      <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
-                                      <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                      <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
-                                      <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Manipulation Overlay</Label>
-                                  </div>
-                              </div>
-                            </>
-                          )}
-                      </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pl-2 space-y-3 pt-2">
+                          <div className="border-b -mx-3"></div>
+                           <div className="flex items-center space-x-2 pt-2">
+                              <Switch id="show-walls" checked={showWalls} onCheckedChange={setShowWalls} />
+                              <Label htmlFor="show-walls" className="flex-1 cursor-pointer text-muted-foreground">Order Book Walls</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <Switch id="show-liquidity" checked={showLiquidity} onCheckedChange={setShowLiquidity} />
+                              <Label htmlFor="show-liquidity" className="flex-1 cursor-pointer text-muted-foreground">Historical Grabs</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <Switch id="show-targets" checked={showTargets} onCheckedChange={setShowTargets} />
+                              <Label htmlFor="show-targets" className="flex-1 cursor-pointer text-muted-foreground">Future Targets</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                              <Switch id="show-manipulation-overlay" checked={showManipulationOverlay} onCheckedChange={setShowManipulationOverlay} />
+                              <Label htmlFor="show-manipulation-overlay" className="flex-1 cursor-pointer text-muted-foreground">Manipulation Overlay</Label>
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                        <Separator/>
                         <Collapsible open={isPhysicsPanelsOpen} onOpenChange={setIsPhysicsPanelsOpen} className="p-3 border rounded-md bg-muted/50 space-y-4">
                           <CollapsibleTrigger asChild>
