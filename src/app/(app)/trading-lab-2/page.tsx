@@ -43,71 +43,49 @@ import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from "recharts"
 import { calculatePressure, calculateStiffness, calculateDepthImbalance, calculateBPI, calculateSentiment } from '@/lib/analysis/physics-analysis'
+import { forecastMarket } from "@/ai/flows/forecast-market-flow"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 
 interface DateRange {
   from?: Date;
   to?: Date;
 }
 
-const generateMockQuantumField = (historicalData: HistoricalData[], interval: string): { field: QuantumFieldData[], summary: QuantumPredictionSummary } => {
-    if (historicalData.length === 0) return { field: [], summary: { trend: '---', target: 0, confidence: 0, sigma: 0, range: {min: 0, max: 0} } };
-
-    const lastCandle = historicalData[historicalData.length - 1];
-    const intervalMs = intervalToMs(interval);
-    const recentData = historicalData.slice(-50); // Analyze last 50 candles for volatility
-    const avgVolatility = recentData.reduce((acc, c) => acc + (c.high - c.low), 0) / recentData.length;
+const generateQuantumFieldFromSummary = (lastCandle: HistoricalData, interval: string, summary: QuantumPredictionSummary): QuantumFieldData[] => {
+    if (!lastCandle || !summary) return [];
 
     const field: QuantumFieldData[] = [];
+    const intervalMs = intervalToMs(interval);
+    const { target: targetPrice, sigma } = summary;
 
-    for (let t = 1; t <= 7; t++) {
+    for (let t = 1; t <= 7; t++) { // Simulate 7 steps into the future
         const time = lastCandle.time + t * intervalMs;
         const priceLevels: QuantumFieldData['priceLevels'] = [];
-        const centerPrice = lastCandle.close + (Math.random() - 0.45) * avgVolatility * t * 0.5; // Slight bullish drift
+        
+        // The mean of the distribution will interpolate from the last close to the AI's target price
+        const currentMean = lastCandle.close + (targetPrice - lastCandle.close) * (t / 7);
 
         for (let p = -7; p <= 7; p++) {
-            const price = centerPrice + p * (avgVolatility / 4);
+            // The price level is centered around the interpolated mean
+            // The spread is determined by the AI's predicted sigma (volatility)
+            const price = currentMean + p * (sigma / 4); 
             const probability = Math.exp(-Math.pow(p, 2) / (2 * Math.pow(t, 0.8))) / (Math.sqrt(2 * Math.PI) * Math.pow(t, 0.8));
             priceLevels.push({ price, probability });
         }
         
-        // Calculate mean for this time step (for the channel visualization)
         const mean = priceLevels.reduce((acc, level) => acc + level.price * level.probability, 0);
         const variance = priceLevels.reduce((acc, level) => acc + Math.pow(level.price - mean, 2) * level.probability, 0);
-        const sigma = Math.sqrt(variance);
+        const stepSigma = Math.sqrt(variance);
 
-        field.push({ time, priceLevels, mean, sigma });
+        field.push({ time, priceLevels, mean, sigma: stepSigma });
     }
-
-    // Calculate final summary from the t=7 distribution
-    const lastTimeStep = field[field.length - 1];
-    const mean = lastTimeStep.mean!;
-    const sigma = lastTimeStep.sigma!;
-    const peak = lastTimeStep.priceLevels.reduce((max, p) => p.probability > max.probability ? p : max, lastTimeStep.priceLevels[0]);
-    
-    let trend: 'BULLISH' | 'BEARISH' | 'RANGING' = 'RANGING';
-    if (mean > lastCandle.close * 1.002) trend = 'BULLISH';
-    else if (mean < lastCandle.close * 0.998) trend = 'BEARISH';
-    
-    const confidence = peak.probability * 100 * 2.5; // Scale for display
-
-    const summary: QuantumPredictionSummary = {
-        trend,
-        target: mean,
-        confidence: Math.min(100, confidence),
-        sigma: sigma,
-        range: {
-            min: mean - sigma,
-            max: mean + sigma,
-        }
-    };
-    
-    return { field, summary };
-};
+    return field;
+}
 
 
 export default function TradingLab2Page() {
   const { toast } = useToast()
-  const { isConnected } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit } = useApi();
   
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('lab2', 'BTC', 'USDT');
   const [interval, setInterval] = usePersistentState<string>("lab2-interval","1h");
@@ -125,11 +103,13 @@ export default function TradingLab2Page() {
   const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
   const [chartDataWithAnalysis, setChartDataWithAnalysis] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
+  const [isForecasting, setIsForecasting] = useState(false);
   const [orderBookData, setOrderBookData] = useState<OrderBookData | null>(null);
   const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   const [quantumFieldData, setQuantumFieldData] = useState<QuantumFieldData[]>([]);
   const [predictionSummary, setPredictionSummary] = useState<QuantumPredictionSummary | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   const [physicsConfig, setPhysicsChartConfig] = usePersistentState<PhysicsChartConfig>('lab2-physics-chart-config', {
     showDepth: true,
@@ -270,16 +250,45 @@ export default function TradingLab2Page() {
   }, []);
 
   const handleRunForecast = () => {
-      if (rawChartData.length < 50) {
-          toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
-          return;
-      }
-      const { field, summary } = generateMockQuantumField(rawChartData, interval);
-      setQuantumFieldData(field);
-      setPredictionSummary(summary);
-      toast({ title: "Forecast Generated", description: "Quantum field simulation complete." });
+    if (rawChartData.length < 50) {
+        toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
+        return;
+    }
+    if (canUseAi()) {
+        setIsConfirming(true);
+    }
   };
   
+  const handleConfirmForecast = async () => {
+    setIsConfirming(false);
+    setIsForecasting(true);
+    setQuantumFieldData([]);
+    setPredictionSummary(null);
+
+    try {
+        consumeAiCredit();
+        toast({ title: "AI Forecast In Progress...", description: "This may take a moment." });
+        const aiSummary = await forecastMarket({
+            symbol,
+            interval,
+            historicalData: JSON.stringify(rawChartData.slice(-200).map(d => ({ o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume })))
+        });
+
+        const lastCandle = rawChartData[rawChartData.length - 1];
+        const field = generateQuantumFieldFromSummary(lastCandle, interval, aiSummary);
+
+        setPredictionSummary(aiSummary);
+        setQuantumFieldData(field);
+        toast({ title: "AI Forecast Complete", description: "The quantum field has been updated with the AI prediction." });
+
+    } catch (e: any) {
+        console.error("AI forecast failed:", e);
+        toast({ title: "Forecast Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
+    } finally {
+        setIsForecasting(false);
+    }
+  };
+
   const densityData = useMemo(() => {
       if (quantumFieldData.length === 0) return [];
       const lastTimeStep = quantumFieldData[quantumFieldData.length - 1];
@@ -289,7 +298,7 @@ export default function TradingLab2Page() {
       })).sort((a,b) => a.price - b.price);
   }, [quantumFieldData]);
 
-  const anyLoading = isFetchingData;
+  const anyLoading = isFetchingData || isForecasting;
 
   return (
     <div className="space-y-6">
@@ -312,6 +321,21 @@ export default function TradingLab2Page() {
           </Alert>
       )}
       
+       <AlertDialog open={isConfirming} onOpenChange={setIsConfirming}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      This action will use one AI credit to generate a quantum forecast. Are you sure?
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleConfirmForecast}>Confirm & Forecast</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
         <div className="xl:col-span-3 space-y-6">
           <div className="relative pb-4">
@@ -464,7 +488,7 @@ export default function TradingLab2Page() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="font-medium">Price Target (μ)</span>
-                                        <span className="font-semibold font-mono">${formatPrice(predictionSummary.target)}</span>
+                                        <span className="font-semibold font-mono">${formatPrice(predictionSummary.targetPrice)}</span>
                                     </div>
                                      <div className="flex justify-between items-center">
                                         <span className="font-medium">1-Sigma Range (68%)</span>
@@ -507,8 +531,8 @@ export default function TradingLab2Page() {
                       </CardContent>
                       <CardFooter>
                           <Button className="w-full" disabled={anyLoading || !isConnected} onClick={handleRunForecast}>
-                            <Play className="mr-2 h-4 w-4" />
-                            Run Forecast
+                            {isForecasting ? <Loader2 className="animate-spin mr-2"/> : <Play className="mr-2 h-4 w-4" />}
+                            {isForecasting ? 'Forecasting...' : 'Run AI Forecast'}
                           </Button>
                       </CardFooter>
                   </CollapsibleContent>

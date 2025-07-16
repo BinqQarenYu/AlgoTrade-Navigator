@@ -154,14 +154,15 @@ export type QuantumFieldData = {
 }
 
 export type QuantumPredictionSummary = {
-  trend: 'BULLISH' | 'BEARISH' | 'RANGING' | '---';
-  target: number; // The Mean (μ)
+  trend: 'BULLISH' | 'BEARISH' | 'RANGING';
+  targetPrice: number; // The Mean (μ)
   confidence: number;
   sigma: number; // The Standard Deviation (σ)
   range: {
     min: number; // μ - σ
     max: number; // μ + σ
   }
+  reasoning: string;
 };
 
 export type Portfolio = {

@@ -10,6 +10,7 @@ import '@/ai/flows/generate-market-report.ts';
 import '@/ai/flows/detect-manipulation-flow.ts';
 import '@/ai/flows/screen-assets-flow.ts';
 import '@/ai/flows/rank-signals-flow.ts';
+import '@/ai/flows/forecast-market-flow.ts';
 
 
     
