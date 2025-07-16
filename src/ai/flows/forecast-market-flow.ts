@@ -21,6 +21,8 @@ const ForecastMarketInputSchema = z.object({
     .describe(
       'A JSON string representing an array of recent k-line/candlestick data (OHLCV).'
     ),
+  buySideTarget: z.number().optional().describe('The price of the key buy-side liquidity target (resistance).'),
+  sellSideTarget: z.number().optional().describe('The price of the key sell-side liquidity target (support).'),
 });
 export type ForecastMarketInput = z.infer<typeof ForecastMarketInputSchema>;
 
@@ -43,7 +45,7 @@ const forecastMarketPrompt = ai.definePrompt({
     output: { schema: ForecastMarketOutputSchema },
     prompt: `You are a Quantitative Analyst specializing in quantum-inspired market modeling. Your task is to analyze historical price data for {{{symbol}}} on the {{{interval}}} timeframe and generate a probabilistic forecast for the next 7 periods.
 
-Your analysis must produce a probability distribution of future prices, summarized by the following parameters:
+**Your analysis must produce a probability distribution of future prices, summarized by the following parameters:**
 - **trend**: The overall directional bias (BULLISH, BEARISH, RANGING).
 - **targetPrice**: The mean (μ) of your predicted price distribution. This is the most likely price point.
 - **sigma (σ)**: The standard deviation of your predicted price distribution. This represents the expected volatility and uncertainty. A higher sigma means a wider, less certain range of outcomes.
@@ -51,12 +53,17 @@ Your analysis must produce a probability distribution of future prices, summariz
 - **confidence**: Your confidence in the forecast's accuracy.
 - **reasoning**: A brief explanation of your analysis.
 
+**Market Context: The Liquidity Zone**
+The current playing field for the market is defined by the following liquidity targets. The price is expected to move within this zone to trigger pending orders. Your primary task is to predict where within this zone the price will resolve.
+- **Buy-Side Liquidity (Resistance):** {{{buySideTarget}}}
+- **Sell-Side Liquidity (Support):** {{{sellSideTarget}}}
+
 **Historical Data:**
 \`\`\`json
 {{{historicalData}}}
 \`\`\`
 
-Analyze the provided data, considering recent trends, volatility (expansion/contraction), and any significant price patterns. Based on this, determine the most likely ` + "`targetPrice`" + ` and the expected ` + "`sigma`" + ` (volatility/uncertainty) for the forecast. Set the ` + "`trend`" + ` based on whether the target price is significantly above, below, or near the current price. Calculate the 1-sigma ` + "`range`" + ` and provide your ` + "`confidence`" + ` and ` + "`reasoning`" + `.
+Analyze the provided data, considering recent trends, volatility (expansion/contraction), and any significant price patterns. Based on this, determine the most likely ` + "`targetPrice`" + ` **within the provided Liquidity Zone**. Then calculate the expected ` + "`sigma`" + ` (volatility/uncertainty) for the forecast. Set the ` + "`trend`" + ` based on whether the target price is closer to the buy-side or sell-side target. Calculate the 1-sigma ` + "`range`" + ` and provide your ` + "`confidence`" + ` and ` + "`reasoning`" + `.
 `,
 });
 

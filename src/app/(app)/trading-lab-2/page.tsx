@@ -268,6 +268,10 @@ export default function TradingLab2Page() {
         toast({ title: "Not Enough Data", description: "At least 50 historical candles are needed to run a forecast.", variant: "destructive" });
         return;
     }
+    if (liquidityTargets.length < 2) {
+        toast({ title: "Liquidity Zone Required", description: "A clear Buy-Side and Sell-Side liquidity target must be identified on the chart before forecasting.", variant: "destructive" });
+        return;
+    }
     if (canUseAi()) {
         setIsConfirming(true);
     }
@@ -282,10 +286,16 @@ export default function TradingLab2Page() {
     try {
         consumeAiCredit();
         toast({ title: "AI Forecast In Progress...", description: "This may take a moment." });
+
+        const buySideTarget = liquidityTargets.find(t => t.type === 'buy-side')?.priceLevel;
+        const sellSideTarget = liquidityTargets.find(t => t.type === 'sell-side')?.priceLevel;
+
         const aiSummary = await forecastMarket({
             symbol,
             interval,
-            historicalData: JSON.stringify(rawChartData.slice(-200).map(d => ({ o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume })))
+            historicalData: JSON.stringify(rawChartData.slice(-200).map(d => ({ o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
+            buySideTarget: buySideTarget,
+            sellSideTarget: sellSideTarget,
         });
 
         const lastCandle = rawChartData[rawChartData.length - 1];
@@ -544,7 +554,7 @@ export default function TradingLab2Page() {
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="font-medium">Confidence</span>
-                                        <span className="font-semibold">{predictionSummary.confidence.toFixed(1)}%</span>
+                                        <span className="font-semibold">{(predictionSummary.confidence * 100).toFixed(1)}%</span>
                                     </div>
                                 </div>
                               ) : (

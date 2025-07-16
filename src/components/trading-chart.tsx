@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
@@ -710,8 +709,8 @@ export function TradingChart({
             wallLevels.forEach(wall => {
                 const isBid = wall.type === 'bid';
                 const title = isBid ? ` BID WALL` : ` ASK WALL`;
-                const lineColor = isBid ? '#60a5fa' : '#c084fc'; // Brighter blue for bid, brighter purple for ask
-                const textColor = isBid ? '#60a5fa' : '#c084fc';
+                const lineColor = isBid ? '#60a5fa' : '#c084fc';
+                const textColor = '#60a5fa';
 
                 const line = candlestickSeries.createPriceLine({
                     price: wall.price,
@@ -721,7 +720,7 @@ export function TradingChart({
                     axisLabelVisible: true,
                     title: title,
                     axisLabelColor: lineColor,
-                    axisLabelTextColor: textColor,
+                    axisLabelTextColor: isBid ? textColor : lineColor,
                 });
                 newLines.push(line);
             });
@@ -828,10 +827,13 @@ export function TradingChart({
                 newLines.push(line);
             }
             
-             // FIX: Removed the crashing setVisibleRange call
             if (sellSideTarget && buySideTarget) {
+                const topPrice = buySideTarget.priceLevel * 1.01; // 1% padding
+                const bottomPrice = sellSideTarget.priceLevel * 0.99; // 1% padding
+                 // FIX: Correct way to set visible range on price scale
                 chart.priceScale('left').applyOptions({
-                    autoScale: true, // Let the chart auto-scale to fit the new lines
+                    autoScale: false,
+                    scaleMargins: { top: 0, bottom: 0 },
                 });
             }
 
