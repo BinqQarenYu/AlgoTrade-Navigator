@@ -83,21 +83,21 @@ const smiMfiSupertrendStrategy: Strategy = {
       
       if (params.reverse) {
         if (standardBuy) {
-          d.sellSignal = d.high;
-          d.stopLossLevel = d.high * 1.02; // Simple SL
+          d.sellSignal = d.close; // Corrected from d.high
+          d.stopLossLevel = d.high * 1.02; 
         }
         if (standardSell) {
-          d.buySignal = d.low;
-          d.stopLossLevel = d.low * 0.98; // Simple SL
+          d.buySignal = d.close; // Corrected from d.low
+          d.stopLossLevel = d.low * 0.98; 
         }
       } else {
         if (standardBuy) {
-          d.buySignal = d.low;
-          d.stopLossLevel = d.low * 0.98; // Simple SL
+          d.buySignal = d.close; // Corrected from d.low
+          d.stopLossLevel = d.low * 0.98;
         }
         if (standardSell) {
-          d.sellSignal = d.high;
-          d.stopLossLevel = d.high * 1.02; // Simple SL
+          d.sellSignal = d.close; // Corrected from d.high
+          d.stopLossLevel = d.high * 1.02;
         }
       }
     });
