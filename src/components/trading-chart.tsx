@@ -49,6 +49,9 @@ export function TradingChart({
   showManipulationOverlay = true,
   physicsConfig,
   quantumFieldData = [],
+  showWalls = true,
+  showLiquidity = true,
+  showTargets = true,
 }: { 
   data: HistoricalData[];
   projectedData?: HistoricalData[];
@@ -74,9 +77,9 @@ export function TradingChart({
   showManipulationOverlay?: boolean;
   physicsConfig?: PhysicsChartConfig;
   quantumFieldData?: QuantumFieldData[];
-  showWalls?: boolean; // Added prop
-  showLiquidity?: boolean; // Added prop
-  showTargets?: boolean; // Added prop
+  showWalls?: boolean;
+  showLiquidity?: boolean;
+  showTargets?: boolean;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
