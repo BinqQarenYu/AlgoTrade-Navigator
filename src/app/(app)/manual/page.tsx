@@ -14,11 +14,11 @@ import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, UserCheck } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, UserCheck, TrendingUp, TrendingDown } from "lucide-react"
 import { topAssets, pairsByBase, topBases, assetInfo } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { cn } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -207,8 +207,8 @@ const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | '
         position_open: {
             color: 'bg-green-600 hover:bg-green-600',
             icon: CheckCircle,
-            text: 'In Position',
-            tooltip: 'The bot has an open trade and is monitoring for an exit signal (TP/SL).'
+            text: 'Signal Found',
+            tooltip: 'A valid trade signal has been found. Ready for manual execution.'
         },
         error: {
             color: '', // Uses destructive variant
@@ -343,17 +343,13 @@ export default function ManualTradingPage() {
             return;
         }
 
-        if (activeProfile?.permissions !== 'FuturesTrading') {
-            toast({ title: "Permission Denied", description: "The active API key must have 'FuturesTrading' permissions enabled to start a live bot.", variant: "destructive"});
-            return;
-        }
-
         const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open';
         
         if (isRunning) {
             stopBotInstance(botId);
         } else {
-            startBotInstance(botConfig);
+            // For manual trading, we don't need FuturesTrading permission to just monitor
+            startBotInstance({ ...botConfig, isManual: true });
         }
     }
 
@@ -362,7 +358,7 @@ export default function ManualTradingPage() {
             <div className="text-left">
                 <h1 className="text-3xl font-bold tracking-tight text-primary">Manual Trading Dashboard</h1>
                 <p className="text-muted-foreground mt-2">
-                    Configure and monitor multiple strategies, but execute trades manually.
+                    Configure and monitor multiple strategies, but execute trades manually based on the bot's signals.
                 </p>
             </div>
 
@@ -402,6 +398,7 @@ export default function ManualTradingPage() {
                                     <TableHead className="w-[50px]">#</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
+                                    <TableHead>Entry/Exit</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
                                     <TableHead>Interval</TableHead>
@@ -413,8 +410,10 @@ export default function ManualTradingPage() {
                             </TableHeader>
                             <TableBody>
                                 {botInstances.map((bot, index) => {
-                                    const isRunning = !!runningBots[bot.id] && runningBots[bot.id]?.status !== 'idle' && runningBots[bot.id]?.status !== 'error';
-                                    const botStatus = runningBots[bot.id]?.status;
+                                    const botLiveState = runningBots[bot.id];
+                                    const isRunning = !!botLiveState && botLiveState?.status !== 'idle' && botLiveState?.status !== 'error';
+                                    const botStatus = botLiveState?.status;
+                                    const lastSignal = botLiveState?.activePosition;
 
                                     return (
                                         <React.Fragment key={bot.id}>
@@ -432,6 +431,17 @@ export default function ManualTradingPage() {
                                                             {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
                                                         </SelectContent>
                                                     </Select>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {lastSignal ? (
+                                                        <div className="flex flex-col text-xs font-mono">
+                                                            <span className={cn("flex items-center", lastSignal.action === 'UP' ? 'text-green-500' : 'text-red-500')}>
+                                                                {lastSignal.action === 'UP' ? <TrendingUp className="mr-1 h-3 w-3"/> : <TrendingDown className="mr-1 h-3 w-3"/>}
+                                                                {formatPrice(lastSignal.entryPrice)}
+                                                            </span>
+                                                            <span className="text-muted-foreground">{formatPrice(lastSignal.takeProfit)} / {formatPrice(lastSignal.stopLoss)}</span>
+                                                        </div>
+                                                    ) : <span className="text-xs text-muted-foreground">--</span>}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Input
@@ -533,7 +543,7 @@ export default function ManualTradingPage() {
                                             </TableRow>
                                             {openParams[bot.id] && bot.strategy && (
                                                 <TableRow>
-                                                    <TableCell colSpan={10} className="p-0">
+                                                    <TableCell colSpan={11} className="p-0">
                                                         <div className="p-4 bg-muted/30">
                                                             <StrategyParamsCard
                                                                 bot={bot}
