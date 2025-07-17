@@ -1,78 +1,101 @@
-import type { Strategy } from '@/lib/types';
-import smaCrossoverStrategy from './sma-crossover';
-import emaCrossoverStrategy from './ema-crossover';
-import rsiDivergenceStrategy from './rsi-divergence';
-import peakFormationFibStrategy from './peak-formation-fib';
-import volumeDeltaStrategy from './volume-profile-delta';
-import macdCrossoverStrategy from './macd-crossover';
-import bollingerBandsStrategy from './bollinger-bands';
-import supertrendStrategy from './supertrend';
-import donchianChannelStrategy from './donchian-channels';
-import ichimokuCloudStrategy from './ichimoku-cloud';
-// Import new strategies
-import awesomeOscillatorStrategy from './awesome-oscillator';
-import cciReversionStrategy from './cci-reversion';
-import chaikinMoneyFlowStrategy from './chaikin-money-flow';
-import coppockCurveStrategy from './coppock-curve';
-import elderRayStrategy from './elder-ray-index';
-import heikinAshiTrendStrategy from './heikin-ashi-trend';
-import keltnerChannelsStrategy from './keltner-channels';
-import momentumCrossStrategy from './momentum-cross';
-import obvDivergenceStrategy from './obv-divergence';
-import parabolicSarFlipStrategy from './parabolic-sar-flip';
-import pivotPointReversalStrategy from './pivot-point-reversal';
-import stochasticCrossoverStrategy from './stochastic-crossover';
-import vwapCrossStrategy from './vwap-cross';
-import williamsRStrategy from './williams-percent-r';
-import hyperPeakFormationStrategy from './hyper-peak-formation';
-import liquidityOrderFlowStrategy from './liquidity-order-flow';
-import liquidityGrabStrategy from './liquidity-grab';
-import emaCciMacdStrategy from './ema-cci-macd';
-import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback';
-import { strategyIndicatorMap } from './indicator-map';
+"use client"
 
+import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma } from "lucide-react"
 
-export const strategies: Strategy[] = [
-  peakFormationFibStrategy,
-  hyperPeakFormationStrategy,
-  liquidityOrderFlowStrategy,
-  liquidityGrabStrategy,
-  volumeDeltaStrategy,
-  smaCrossoverStrategy,
-  emaCrossoverStrategy,
-  rsiDivergenceStrategy,
-  macdCrossoverStrategy,
-  bollingerBandsStrategy,
-  supertrendStrategy,
-  donchianChannelStrategy,
-  ichimokuCloudStrategy,
-  // Add new strategies to the list
-  awesomeOscillatorStrategy,
-  cciReversionStrategy,
-  chaikinMoneyFlowStrategy,
-  coppockCurveStrategy,
-  elderRayStrategy,
-  heikinAshiTrendStrategy,
-  keltnerChannelsStrategy,
-  momentumCrossStrategy,
-  obvDivergenceStrategy,
-  parabolicSarFlipStrategy,
-  pivotPointReversalStrategy,
-  stochasticCrossoverStrategy,
-  vwapCrossStrategy,
-  williamsRStrategy,
-  emaCciMacdStrategy,
-  smoothedHeikinAshiPullbackStrategy,
-].sort((a,b) => a.name.localeCompare(b.name));
+import { cn } from "@/lib/utils"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarFooter,
+  SidebarProvider,
+  SidebarInset,
+  SidebarTrigger,
+} from "@/components/ui/sidebar"
+import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
+import { Button } from "./ui/button"
 
-export const strategyMetadatas = strategies.map(({ id, name }) => ({
-  id,
-  name,
-}));
+const menuItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/backtest", label: "Backtest", icon: BarChart2 },
+  { href: "/simulation", label: "Paper Trading", icon: TestTube },
+  { href: "/grid-trading", label: "Live Grid", icon: Grid3x3 },
+  { href: "/live", label: "Live Trading", icon: Bot },
+  { href: "/manual", label: "Multi-Signal Dashboard", icon: LayoutGrid },
+  { href: "/lab", label: "Trading Lab", icon: FlaskConical },
+  { href: "/trading-lab-2", label: "Trading Lab II", icon: Sigma },
+  { href: "/optimize", label: "Optimize", icon: BrainCircuit },
+  { href: "/data", label: "Data", icon: Database },
+  { href: "/settings", label: "Settings", icon: Settings },
+]
 
-export const getStrategyById = (id: string): Strategy | undefined => {
-  return strategies.find(s => s.id === id);
+export function AppLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+  const activeItem = menuItems.find((item) => pathname.startsWith(item.href))
+
+  return (
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarContent>
+          <SidebarHeader className="p-4">
+            <div className="flex items-center gap-2">
+               <div className="p-2 bg-primary/20 rounded-lg">
+                <Bot className="text-primary" />
+              </div>
+              <h1 className="text-xl font-semibold text-primary">AlgoTrade Nav</h1>
+            </div>
+          </SidebarHeader>
+          <SidebarMenu>
+            {menuItems.map((item) => (
+              <SidebarMenuItem key={item.href}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname.startsWith(item.href)}
+                  tooltip={{
+                    children: item.label,
+                  }}
+                >
+                  <Link href={item.href}>
+                    <item.icon />
+                    <span>{item.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter className="p-4">
+           <div className="flex items-center gap-3">
+              <Avatar>
+                <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" data-ai-hint="profile avatar" />
+                <AvatarFallback>BT</AvatarFallback>
+              </Avatar>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium">Bingkl Tech</span>
+                <span className="text-xs text-muted-foreground">letstopfraudscam@gmail.com</span>
+              </div>
+            </div>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <header className="sticky top-0 z-10 flex items-center h-14 px-4 border-b bg-background/80 backdrop-blur-sm">
+          <SidebarTrigger className="md:hidden" />
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold">
+              {activeItem?.label || 'Dashboard'}
+            </h2>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-4 md:p-6">
+          {children}
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }
-
-// Export the indicator map
-export { strategyIndicatorMap };
