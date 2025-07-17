@@ -135,14 +135,18 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
                         {Object.entries(filteredParams).map(([key, value]) => (
                             <div key={key} className="space-y-1">
                                 <Label htmlFor={`${bot.id}-${key}`} className="text-xs capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-                                <Input
-                                    id={`${bot.id}-${key}`}
-                                    type="number"
-                                    value={value as number || 0}
-                                    onChange={e => onParamChange(key, e.target.value)}
-                                    className="h-8"
-                                    disabled={isTradingActive}
-                                />
+                                {isTradingActive ? (
+                                    <p className="font-mono text-sm h-8 flex items-center">{String(value)}</p>
+                                ) : (
+                                    <Input
+                                        id={`${bot.id}-${key}`}
+                                        type="number"
+                                        value={value as number || 0}
+                                        onChange={e => onParamChange(key, e.target.value)}
+                                        className="h-8"
+                                        disabled={isTradingActive}
+                                    />
+                                )}
                             </div>
                         ))}
                     </div>
@@ -184,8 +188,8 @@ const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | '
     
     const statusInfo = {
         running: {
-            color: 'bg-green-600 hover:bg-green-600',
-            icon: CheckCircle,
+            color: 'bg-blue-600 hover:bg-blue-600',
+            icon: Bot,
             text: 'Running',
             tooltip: 'The bot is actively monitoring the market for a new trade signal.'
         },
@@ -193,11 +197,11 @@ const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | '
             color: 'bg-yellow-500',
             icon: Loader2,
             text: 'Analyzing',
-            tooltip: 'The bot is processing market data with its strategy to find a trade signal.'
+            tooltip: 'The bot is performing its initial analysis to find a trade signal.'
         },
         position_open: {
-            color: 'bg-blue-600 hover:bg-blue-600',
-            icon: Bot,
+            color: 'bg-green-600 hover:bg-green-600',
+            icon: CheckCircle,
             text: 'In Position',
             tooltip: 'The bot has an open trade and is monitoring for an exit signal (TP/SL).'
         },
@@ -267,11 +271,7 @@ export default function LiveTradingPage() {
     const handleBotConfigChange = <K extends keyof BotInstance>(id: string, field: K, value: BotInstance[K]) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
-                let updatedValue = value;
-                if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
-                     updatedValue = value as any; // Pass the string value directly
-                }
-                const updatedBot = { ...bot, [field]: updatedValue };
+                const updatedBot = { ...bot, [field]: value };
                 if (field === 'strategy') {
                     updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || {};
                 }
@@ -280,16 +280,6 @@ export default function LiveTradingPage() {
             return bot;
         }));
     };
-
-    const handleInputBlur = <K extends keyof BotInstance>(id: string, field: K, value: string) => {
-        const parsedValue = parseFloat(value) || 0;
-         setBotInstances(prev => prev.map(bot => {
-            if (bot.id === id) {
-                return { ...bot, [field]: parsedValue };
-            }
-            return bot;
-        }));
-    }
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
@@ -437,40 +427,36 @@ export default function LiveTradingPage() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <Input
-                                                        type="number"
+                                                        type="text"
                                                         value={bot.capital}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value as any)}
-                                                        onBlur={(e) => handleInputBlur(bot.id, 'capital', e.target.value)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
                                                 </TableCell>
                                                 <TableCell>
                                                     <Input
-                                                        type="number"
+                                                        type="text"
                                                         value={bot.leverage}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value as any)}
-                                                        onBlur={(e) => handleInputBlur(bot.id, 'leverage', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
                                                 </TableCell>
                                                  <TableCell>
                                                     <Input
-                                                        type="number"
+                                                        type="text"
                                                         value={bot.takeProfit}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value as any)}
-                                                        onBlur={(e) => handleInputBlur(bot.id, 'takeProfit', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
                                                 </TableCell>
                                                  <TableCell>
                                                     <Input
-                                                        type="number"
+                                                        type="text"
                                                         value={bot.stopLoss}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value as any)}
-                                                        onBlur={(e) => handleInputBlur(bot.id, 'stopLoss', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -511,7 +497,7 @@ export default function LiveTradingPage() {
                                                                 )}
                                                             </Tooltip>
                                                         </TooltipProvider>
-                                                        <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={isRunning || !bot.strategy}>
+                                                        <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={!bot.strategy}>
                                                             <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
                                                         </Button>
                                                         <Button variant="ghost" size="icon" onClick={() => removeBotInstance(bot.id)} disabled={isRunning}>
@@ -545,4 +531,3 @@ export default function LiveTradingPage() {
         </div>
     );
 }
-
