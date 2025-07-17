@@ -181,14 +181,63 @@ const StrategyParamsCard = ({ bot, onParamChange, onDisciplineChange, onReset, i
 }
 
 const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | 'position_open' | 'error' | 'cooldown' }) => {
-    switch (status) {
-        case 'running': return <Badge variant="default" className="bg-green-600 hover:bg-green-600"><CheckCircle className="mr-1 h-3 w-3" /> Running</Badge>;
-        case 'analyzing': return <Badge variant="secondary"><Loader2 className="mr-1 h-3 w-3 animate-spin" /> Analyzing</Badge>;
-        case 'position_open': return <Badge variant="default" className="bg-blue-600 hover:bg-blue-600"><Bot className="mr-1 h-3 w-3" /> In Position</Badge>;
-        case 'error': return <Badge variant="destructive">Error</Badge>;
-        case 'cooldown': return <Badge variant="destructive">Cooldown</Badge>;
-        default: return <Badge variant="secondary">Idle</Badge>;
-    }
+    
+    const statusInfo = {
+        running: {
+            color: 'bg-green-600 hover:bg-green-600',
+            icon: CheckCircle,
+            text: 'Running',
+            tooltip: 'The bot is actively monitoring the market for a new trade signal.'
+        },
+        analyzing: {
+            color: 'bg-yellow-500',
+            icon: Loader2,
+            text: 'Analyzing',
+            tooltip: 'The bot is processing market data with its strategy to find a trade signal.'
+        },
+        position_open: {
+            color: 'bg-blue-600 hover:bg-blue-600',
+            icon: Bot,
+            text: 'In Position',
+            tooltip: 'The bot has an open trade and is monitoring for an exit signal (TP/SL).'
+        },
+        error: {
+            color: '', // Uses destructive variant
+            icon: Bot, // No icon for error, text is enough
+            text: 'Error',
+            tooltip: 'The bot encountered an error. Check logs on the Dashboard for details.'
+        },
+        cooldown: {
+            color: '', // Uses destructive variant
+            icon: Bot,
+            text: 'Cooldown',
+            tooltip: 'The bot is in a temporary timeout due to risk management rules (e.g., too many losses).'
+        },
+        idle: {
+            color: '', // Uses secondary variant
+            icon: Bot,
+            text: 'Idle',
+            tooltip: 'The bot is stopped and not monitoring the market.'
+        }
+    };
+    
+    const currentStatus = statusInfo[status || 'idle'];
+    const Icon = currentStatus.icon;
+
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color, status === 'analyzing' && 'animate-spin')}>
+                        <Icon className="mr-1 h-3 w-3" /> {currentStatus.text}
+                    </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{currentStatus.tooltip}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
 }
 
 export default function LiveTradingPage() {
@@ -198,7 +247,6 @@ export default function LiveTradingPage() {
         startBotInstance, 
         stopBotInstance, 
         liveBotState, 
-        isTradingActive 
     } = useBot();
     const { bots: runningBots } = liveBotState;
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
@@ -221,7 +269,7 @@ export default function LiveTradingPage() {
             if (bot.id === id) {
                 let updatedValue = value;
                 if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
-                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : parseFloat(value as string) as any;
+                     updatedValue = value as any; // Pass the string value directly
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
                 if (field === 'strategy') {
@@ -232,6 +280,16 @@ export default function LiveTradingPage() {
             return bot;
         }));
     };
+
+    const handleInputBlur = <K extends keyof BotInstance>(id: string, field: K, value: string) => {
+        const parsedValue = parseFloat(value) || 0;
+         setBotInstances(prev => prev.map(bot => {
+            if (bot.id === id) {
+                return { ...bot, [field]: parsedValue };
+            }
+            return bot;
+        }));
+    }
     
     const handleStrategyParamChange = (botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
@@ -382,6 +440,7 @@ export default function LiveTradingPage() {
                                                         type="number"
                                                         value={bot.capital}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value as any)}
+                                                        onBlur={(e) => handleInputBlur(bot.id, 'capital', e.target.value)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -391,6 +450,7 @@ export default function LiveTradingPage() {
                                                         type="number"
                                                         value={bot.leverage}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value as any)}
+                                                        onBlur={(e) => handleInputBlur(bot.id, 'leverage', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -400,6 +460,7 @@ export default function LiveTradingPage() {
                                                         type="number"
                                                         value={bot.takeProfit}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value as any)}
+                                                        onBlur={(e) => handleInputBlur(bot.id, 'takeProfit', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -409,6 +470,7 @@ export default function LiveTradingPage() {
                                                         type="number"
                                                         value={bot.stopLoss}
                                                         onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value as any)}
+                                                        onBlur={(e) => handleInputBlur(bot.id, 'stopLoss', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -483,3 +545,4 @@ export default function LiveTradingPage() {
         </div>
     );
 }
+
