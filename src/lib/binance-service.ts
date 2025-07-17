@@ -128,7 +128,7 @@ export const getHistoricalKlines = async (
     try {
         await binance.loadMarkets(true); // Force cache bypass
         // Use CCXT's unified method to fetch OHLCV data
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit, { 'newUpdates': false });
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit);
 
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -172,7 +172,7 @@ export const getLatestKlinesByLimit = async (
         await binance.loadMarkets(true); // Force cache bypass
         // Use CCXT's unified method to fetch OHLCV data.
         // Providing 'undefined' for 'since' fetches the most recent candles.
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit, { 'newUpdates': false });
+        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit);
 
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -218,7 +218,7 @@ export const get24hTickerStats = async (symbols: string[]): Promise<Record<strin
                 const tickersObject: Record<string, Ticker> = {};
                 await Promise.all(symbols.map(async (symbol) => {
                     try {
-                        const ticker = await binance.fetchTicker(symbol, { 'newUpdates': false });
+                        const ticker = await binance.fetchTicker(symbol);
                         tickersObject[ticker.symbol] = ticker;
                     } catch (e) {
                         console.warn(`Could not fetch individual ticker for ${symbol}`, e);
