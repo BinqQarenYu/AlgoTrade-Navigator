@@ -29,7 +29,7 @@ const menuItems = [
   { href: "/simulation", label: "Paper Trading", icon: TestTube },
   { href: "/grid-trading", label: "Live Grid", icon: Grid3x3 },
   { href: "/live", label: "Live Trading", icon: Bot },
-  { href: "/multi-signal", label: "Multi-Signal Dashboard", icon: LayoutGrid },
+  { href: "/manual", label: "Multi-Signal Dashboard", icon: LayoutGrid },
   { href: "/lab", label: "Trading Lab", icon: FlaskConical },
   { href: "/trading-lab-2", label: "Trading Lab II", icon: Sigma },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
