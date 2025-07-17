@@ -268,7 +268,7 @@ export default function LiveTradingPage() {
     }, [botInstances]);
 
 
-    const handleBotConfigChange = <K extends keyof BotInstance>(id: string, field: K, value: BotInstance[K]) => {
+    const handleBotConfigChange = <K extends keyof LiveBotConfig>(id: string, field: K, value: LiveBotConfig[K]) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
                 const updatedBot = { ...bot, [field]: value };
