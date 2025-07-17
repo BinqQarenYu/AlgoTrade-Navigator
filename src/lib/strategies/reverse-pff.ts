@@ -27,7 +27,7 @@ export const defaultReversePffParams: ReversePffParams = {
     reverse: false,
     discipline: {
         enableDiscipline: true,
-        maxConsecutiveLosses: 2,
+        maxConsecutiveLosses: 4,
         cooldownPeriodMinutes: 15,
         dailyDrawdownLimit: 10,
         onFailure: 'Cooldown',
@@ -186,7 +186,7 @@ const reversePffStrategy: Strategy = {
                                     else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
-                                }
+                                 }
                                  if (data[l].low <= fib618) {
                                     if(params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
                                     else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;

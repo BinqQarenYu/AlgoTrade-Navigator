@@ -27,7 +27,7 @@ export const defaultOldHyperPFFParams: OldHyperPFFParams = {
     reverse: false,
     discipline: {
         enableDiscipline: true,
-        maxConsecutiveLosses: 3,
+        maxConsecutiveLosses: 4,
         cooldownPeriodMinutes: 30,
         dailyDrawdownLimit: 15,
         onFailure: 'Cooldown',

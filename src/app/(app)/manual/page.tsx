@@ -108,7 +108,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
 
 const defaultDisciplineParams: DisciplineParams = {
     enableDiscipline: true,
-    maxConsecutiveLosses: 2,
+    maxConsecutiveLosses: 4,
     cooldownPeriodMinutes: 15,
     dailyDrawdownLimit: 10,
     onFailure: 'Cooldown',
@@ -790,7 +790,7 @@ export default function ManualTradingPage() {
                                   {coinDetails.totalSupply && (
                                      <div className="flex justify-between items-center text-sm">
                                         <span className="flex items-center gap-1 text-muted-foreground"><Repeat className="h-4 w-4" /> Total</span>
-                                        <span className="font-semibold">${formatLargeNumber(coinDetails.totalSupply, 2)}</span>
+                                        <span className="font-semibold">{formatLargeNumber(coinDetails.totalSupply, 2)}</span>
                                     </div>
                                   )}
                               </div>
@@ -845,12 +845,7 @@ export default function ManualTradingPage() {
           </Collapsible>
         </Card>
 
-        <OrderBook symbol={symbol} onWallsUpdate={handleOrderBookUpdate} />
-
-        <Card className={cn(
-            signalInvalidated ? "animate-pulse-border-destructive border-2 border-destructive/70" :
-            hasActiveSignal && "animate-pulse-border border-2 border-primary/70"
-        )}>
+        <Card>
           <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>

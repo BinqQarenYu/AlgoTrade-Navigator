@@ -127,7 +127,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
 
 const defaultDisciplineParams: DisciplineParams = {
     enableDiscipline: true,
-    maxConsecutiveLosses: 2,
+    maxConsecutiveLosses: 4,
     cooldownPeriodMinutes: 15,
     dailyDrawdownLimit: 10,
     onFailure: 'Cooldown',
@@ -1522,4 +1522,3 @@ export default function BacktestPage() {
     </div>
   )
 }
-

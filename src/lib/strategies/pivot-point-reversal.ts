@@ -13,7 +13,7 @@ export const defaultPivotPointReversalParams: PivotPointReversalParams = {
   reverse: false,
   discipline: {
     enableDiscipline: true,
-    maxConsecutiveLosses: 2,
+    maxConsecutiveLosses: 4,
     cooldownPeriodMinutes: 15,
     dailyDrawdownLimit: 10,
     onFailure: 'Cooldown',
