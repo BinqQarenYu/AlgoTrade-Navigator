@@ -215,8 +215,7 @@ export default function LiveTradingPage() {
             if (bot.id === id) {
                 let updatedValue = value;
                 if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
-                    const parsedValue = parseFloat(value as string);
-                    updatedValue = (value === '' || isNaN(parsedValue)) ? 0 : parsedValue as BotInstance[K];
+                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : value as BotInstance[K];
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
                 if (field === 'strategy') {
@@ -304,7 +303,15 @@ export default function LiveTradingPage() {
                 </p>
             </div>
 
-            {!isConnected && (
+            {isConnected ? (
+                <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertTitle>API CONNECTED</AlertTitle>
+                    <AlertDescription>
+                        You are connected to the Binance API. Live trading features are enabled.
+                    </AlertDescription>
+                </Alert>
+            ) : (
                 <Alert variant="destructive">
                     <AlertDescription>
                         Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable live trading features.
