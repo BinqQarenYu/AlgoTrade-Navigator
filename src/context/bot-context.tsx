@@ -703,32 +703,48 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
             newChartData = [newCandle];
         }
 
-        if (current.signal && current.signal.peakPrice) {
+        if (current.signal) {
           let invalidated = false;
           let invalidationReason = '';
-          if (current.signal.action === 'DOWN' && newCandle.high > current.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${current.signal.peakPrice.toFixed(4)}.`;
-          } else if (current.signal.action === 'UP' && newCandle.low < current.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${current.signal.peakPrice.toFixed(4)}.`;
+          
+          if (current.signal.peakPrice) {
+            if (current.signal.action === 'DOWN' && newCandle.high > current.signal.peakPrice) {
+              invalidated = true;
+              invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${current.signal.peakPrice.toFixed(4)}.`;
+            } else if (current.signal.action === 'UP' && newCandle.low < current.signal.peakPrice) {
+              invalidated = true;
+              invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${current.signal.peakPrice.toFixed(4)}.`;
+            }
+          }
+          
+          let tpHit = false;
+          let slHit = false;
+          if (current.signal.action === 'UP') {
+              if (newCandle.high >= current.signal.takeProfit) tpHit = true;
+              if (newCandle.low <= current.signal.stopLoss) slHit = true;
+          } else { // SHORT
+              if (newCandle.low <= current.signal.takeProfit) tpHit = true;
+              if (newCandle.high >= current.signal.stopLoss) slHit = true;
           }
 
+          if (tpHit) {
+            toast({ title: "TP Hit!", description: "Take Profit level reached for your manual signal." });
+            manualWsRef.current?.close(1000, "TP Hit");
+            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] TAKE PROFIT hit.`, ...currentLogs].slice(0, 100) };
+          }
+          if (slHit) {
+            toast({ title: "SL Hit!", description: "Stop Loss level reached for your manual signal.", variant: "destructive" });
+            manualWsRef.current?.close(1000, "SL Hit");
+            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] STOP LOSS hit.`, ...currentLogs].slice(0, 100) };
+          }
           if (invalidated) {
-             setTimeout(() => {
-                toast({
-                  title: "Trade Signal Invalidated",
-                  description: "Market structure has changed. The trade idea is now void.",
-                  variant: "destructive"
-                });
-             }, 0);
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
-            const newLogs = [newLog, ...currentLogs].slice(0, 100);
-
-            manualWsRef.current?.close();
-            return { ...current, signalInvalidated: true, chartData: newChartData, logs: newLogs };
+             toast({
+               title: "Trade Signal Invalidated",
+               description: "Market structure has changed. The trade idea is now void.",
+               variant: "destructive"
+             });
+            manualWsRef.current?.close(1000, "Signal invalidated");
+            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] SIGNAL INVALIDATED: ${invalidationReason}`, ...currentLogs].slice(0, 100) };
           }
         }
         
@@ -773,7 +789,7 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
     addManualLog("Starting continuous analysis...");
   
     const performAnalysis = async () => {
-      if (manualAnalysisCancelRef.current) {
+      if (manualAnalysisCancelRef.current || manualTraderState.signal) { // Stop if cancelled or if a signal is already active
         if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
         return;
       }
@@ -790,33 +806,29 @@ Take Profit: ${signal.takeProfit.toFixed(4)}
       if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
         const result = await analyzeAsset(config, chartDataForAnalysis);
       
-        const currentSignalTime = manualTraderState.signal?.timestamp;
-        const newSignalTime = result.signal?.timestamp;
-        const hasNewSignal = result.signal && currentSignalTime !== newSignalTime;
+        if (manualAnalysisCancelRef.current) return;
 
         setManualTraderState(current => {
-          if (manualAnalysisCancelRef.current || !current.isAnalyzing) return current;
+          if (current.signal) return current; // Don't override an existing signal
 
-          if (hasNewSignal) {
+          if (result.signal) {
             addManualLog(`NEW SIGNAL FOUND: ${result.signal!.action} at $${result.signal!.entryPrice.toFixed(4)}.`);
             connectManualWebSocket(config.symbol, config.interval);
-          } else if (!result.signal && current.signal) {
-            addManualLog("Previous signal is now considered stale.");
-            if (manualWsRef.current) manualWsRef.current.close();
-          } else if (!result.signal) {
+          } else {
              addManualLog(`No new signal found. Reason: ${result.log}`);
           }
           
           return {
               ...current,
               chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal,
+              signal: result.signal, // Set the new signal
               signalInvalidated: false,
           };
         });
 
-        if (hasNewSignal) {
+        if (result.signal) {
            toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
+           if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current); // Stop searching once signal is found
         }
       }
     };
@@ -1554,4 +1566,3 @@ export const useBot = () => {
   }
   return context;
 };
-

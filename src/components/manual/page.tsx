@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -26,8 +27,8 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal } from "lucide-react"
-import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig } from "@/lib/types"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal, Play, StopCircle } from "lucide-react"
+import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams, Wall, SpoofedWall } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
@@ -44,6 +45,8 @@ import { Progress } from "@/components/ui/progress"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { OrderBook } from "@/components/order-book"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -70,6 +73,8 @@ import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
 import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
+import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -97,7 +102,17 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'volume-delta': defaultVolumeDeltaParams,
     'vwap-cross': defaultVwapCrossParams,
     'williams-r': defaultWilliamsRParams,
+    'liquidity-grab': defaultLiquidityGrabParams,
+    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
 }
+
+const defaultDisciplineParams: DisciplineParams = {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 4,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+};
 
 export default function ManualTradingPage() {
   const { isConnected, coingeckoApiKey, coinmarketcapApiKey, activeProfile, canUseAi, consumeAiCredit } = useApi();
@@ -115,7 +130,7 @@ export default function ManualTradingPage() {
     cleanManualChart,
   } = useBot();
 
-  const { isAnalyzing, logs, signal, chartData, isExecuting } = manualTraderState;
+  const { isAnalyzing, logs, signal, chartData, isExecuting, signalInvalidated } = manualTraderState;
   
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('manual', 'BTC', 'USDT');
   
@@ -134,10 +149,15 @@ export default function ManualTradingPage() {
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [fearAndGreed, setFearAndGreed] = useState<FearAndGreedIndex | null>(null);
   const [isFetchingFng, setIsFetchingFng] = useState(false);
+  
+  // Order book state
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [spoofedWalls, setSpoofedWalls] = useState<SpoofedWall[]>([]);
 
   // Collapsible states
   const [isGeneratorOpen, setGeneratorOpen] = usePersistentState<boolean>('manual-generator-open', true);
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('manual-params-open', false);
+  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('manual-discipline-open', false);
   const [isIntelOpen, setIntelOpen] = usePersistentState<boolean>('manual-intel-open', true);
   const [isSignalOpen, setSignalOpen] = usePersistentState<boolean>('manual-signal-open', true);
   const [isLogsOpen, setLogsOpen] = usePersistentState<boolean>('manual-logs-open', true);
@@ -298,17 +318,30 @@ export default function ManualTradingPage() {
 
   const hasActiveSignal = signal !== null;
   
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+  const handleParamChange = (strategyId: string, paramName: string, value: any) => {
+    let parsedValue = value;
+    if (typeof value !== 'object' && typeof value !== 'boolean') {
+        parsedValue = (value === '' || isNaN(value as number))
+            ? 0
+            : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+    }
+    
     setStrategyParams(prev => ({
         ...prev,
         [strategyId]: {
             ...prev[strategyId],
-            [paramName]: isNaN(parsedValue) ? 0 : parsedValue,
+            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
         }
     }));
   };
   
+  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
+      handleParamChange(selectedStrategy, 'discipline', {
+        ...(strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams),
+        [paramName]: value,
+      });
+  };
+
   const handleResetParams = () => {
     const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
     if (defaultParams) {
@@ -323,6 +356,13 @@ export default function ManualTradingPage() {
       executeManualTrade(signal, initialCapital, leverage, isSimulation);
     }
   };
+
+  const handleOrderBookUpdate = useCallback(({ walls, spoofs }: { walls: Wall[]; spoofs: SpoofedWall[] }) => {
+    setWalls(walls);
+    if (spoofs.length > 0) {
+      setSpoofedWalls(prev => [...prev, ...spoofs]);
+    }
+  }, []);
 
   // Derived state for signal card
   const positionValue = initialCapital * leverage;
@@ -360,13 +400,13 @@ export default function ManualTradingPage() {
     const params = strategyParams[selectedStrategy];
     if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
 
-    const controls = Object.entries(params).map(([key, value]) => (
+    const controls = Object.entries(params).filter(([key]) => key !== 'reverse' && key !== 'discipline').map(([key, value]) => (
       <div key={key} className="space-y-2">
         <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
         <Input 
           id={key}
           type="number"
-          value={value as number}
+          value={value as number || 0}
           onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
           step={String(value).includes('.') ? '0.001' : '1'}
           disabled={isThisPageTrading}
@@ -378,15 +418,25 @@ export default function ManualTradingPage() {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">{controls}</div>
-        <div className="pt-2 flex flex-col sm:flex-row gap-2">
-            {canReset && (
-                <Button onClick={handleResetParams} disabled={isThisPageTrading} variant="secondary" className="w-full">
-                    <RotateCcw className="mr-2 h-4 w-4" />
-                    Reset to Default
-                </Button>
-            )}
+        {controls.length > 0 && <div className="grid grid-cols-2 gap-4">{controls}</div>}
+         <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic"
+              checked={params.reverse || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+              disabled={isThisPageTrading}
+            />
+            <div className="flex flex-col">
+              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            </div>
         </div>
+        {canReset && (
+            <Button onClick={handleResetParams} disabled={isThisPageTrading} variant="secondary" className="w-full">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reset to Default
+            </Button>
+        )}
       </div>
     );
   };
@@ -403,7 +453,7 @@ export default function ManualTradingPage() {
             </AlertDescription>
         </Alert>
     )}
-     {isTradingActive && !isThisPageTrading && (
+     {(isTradingActive && !isThisPageTrading) && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
@@ -417,7 +467,7 @@ export default function ManualTradingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Confirm AI Action</AlertDialogTitle>
                 <AlertDialogDescription>
-                    This action will use one AI credit to validate the signal. Are you sure you want to proceed?
+                    This action will use one AI credit to validate the signal. If continuous monitoring is active, this may use credits repeatedly. Are you sure you want to proceed?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -434,7 +484,9 @@ export default function ManualTradingPage() {
                 symbol={symbol} 
                 interval={interval} 
                 tradeSignal={signal} 
-                onIntervalChange={handleIntervalChange} />
+                onIntervalChange={handleIntervalChange}
+                wallLevels={walls}
+                spoofedWalls={spoofedWalls} />
         </div>
         <div
             onMouseDown={startChartResize}
@@ -498,7 +550,7 @@ export default function ManualTradingPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="strategy">Strategy</Label>
+                      <Label htmlFor="strategy">Signal Generation Strategy</Label>
                       <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isThisPageTrading}>
                         <SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -523,6 +575,14 @@ export default function ManualTradingPage() {
                     {renderParameterControls()}
                   </CollapsibleContent>
                 </Collapsible>
+                
+                <DisciplineSettings 
+                    params={strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams}
+                    onParamChange={handleDisciplineParamChange}
+                    isCollapsed={isDisciplineOpen}
+                    onCollapseChange={setDisciplineOpen}
+                    isDisabled={isThisPageTrading}
+                />
 
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
@@ -598,26 +658,20 @@ export default function ManualTradingPage() {
                     className="w-full"
                     onClick={
                         isAnalyzing ? handleCancelAnalysis :
-                        hasActiveSignal ? handleResetSignal : 
                         handleRunAnalysisClick
                     }
-                    disabled={!isConnected || (isTradingActive && !isThisPageTrading) || (!isAnalyzing && !hasActiveSignal && selectedStrategy === 'none')}
-                    variant={isAnalyzing || hasActiveSignal ? "destructive" : "default"}
+                    disabled={!isConnected || (isTradingActive && !isThisPageTrading) || (!isAnalyzing && selectedStrategy === 'none')}
+                    variant={isAnalyzing ? "destructive" : "default"}
                 >
                     {isAnalyzing ? (
                         <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Cancel Analysis
-                        </>
-                    ) : hasActiveSignal ? (
-                        <>
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            Reset Signal
+                            <StopCircle className="mr-2 h-4 w-4" />
+                            Stop Monitoring
                         </>
                     ) : (
                         <>
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            Analyze for Signal
+                            <Play className="mr-2 h-4 w-4" />
+                            Start Monitoring for Signal
                         </>
                     )}
                 </Button>
@@ -791,7 +845,7 @@ export default function ManualTradingPage() {
               <div>
                 <CardTitle>Trade Signal</CardTitle>
                 <CardDescription>
-                    {signal ? `Signal for ${symbol} generated at ${signal.timestamp.toLocaleTimeString()}` : "Signals will appear here after analysis."}
+                    {signal ? `Signal for ${symbol} generated at ${new Date(signal.timestamp).toLocaleTimeString()}` : "Signals will appear here after analysis."}
                 </CardDescription>
               </div>
               <CollapsibleTrigger asChild>
@@ -803,13 +857,21 @@ export default function ManualTradingPage() {
             </CardHeader>
             <CollapsibleContent>
               <CardContent className="min-h-[240px]">
-                  {isAnalyzing ? (
+                  {isAnalyzing && !hasActiveSignal ? (
                       <div className="flex items-center justify-center h-full text-muted-foreground">
                           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           <span>Searching for a trade setup...</span>
                       </div>
                   ) : signal ? (
                       <div className="space-y-4">
+                          {signalInvalidated && (
+                              <Alert variant="destructive">
+                                  <AlertTitle>Signal Invalidated</AlertTitle>
+                                  <AlertDescription>
+                                      Market structure has changed. This signal is no longer valid. Please reset the signal.
+                                  </AlertDescription>
+                              </Alert>
+                          )}
                           <div className="flex justify-between items-center">
                               <span className="text-sm text-muted-foreground">Recommended Action</span>
                               <Badge variant={signal.action === 'UP' ? 'default' : 'destructive'} className="text-base px-4 py-1">
@@ -861,15 +923,15 @@ export default function ManualTradingPage() {
                       </div>
                   ) : (
                       <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                          <p>Click "Analyze for Signal" to get a recommendation.</p>
+                          <p>Start monitoring to get a recommendation.</p>
                       </div>
                   )}
               </CardContent>
-               {signal && !isAnalyzing && (
+               {signal && (
                     <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
                         <Button
                             onClick={() => handleExecuteTrade(false)}
-                            disabled={isExecuting || activeProfile?.permissions !== 'FuturesTrading'}
+                            disabled={isExecuting || signalInvalidated || activeProfile?.permissions !== 'FuturesTrading'}
                             className={cn(signal.action === 'UP' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
                             title={activeProfile?.permissions !== 'FuturesTrading' ? 'A key with Futures Trading permissions is required.' : `Execute ${signal.action} on Binance`}
                         >
@@ -878,7 +940,7 @@ export default function ManualTradingPage() {
                         </Button>
                         <Button
                             onClick={() => handleExecuteTrade(true)}
-                            disabled={isExecuting}
+                            disabled={isExecuting || signalInvalidated}
                             variant="secondary"
                         >
                             <Eye />
