@@ -24,6 +24,28 @@ const intervals = [
   { value: '1d', 'label': '1D' },
 ];
 
+const seriesConfig: Record<string, { color: string, lineWidth?: number, lineStyle?: LineStyle }> = {
+    sma_short: { color: '#f59e0b' },
+    sma_long: { color: '#8b5cf6' },
+    ema_short: { color: '#f59e0b' },
+    ema_medium: { color: '#fb923c' },
+    ema_long: { color: '#8b5cf6' },
+    bb_upper: { color: '#4ade80', lineStyle: LineStyle.Dotted },
+    bb_middle: { color: 'rgba(148, 163, 184, 0.4)', lineStyle: LineStyle.Dotted },
+    bb_lower: { color: '#f87171', lineStyle: LineStyle.Dotted },
+    donchian_upper: { color: '#4ade80', lineStyle: LineStyle.Dotted },
+    donchian_middle: { color: 'rgba(148, 163, 184, 0.4)', lineStyle: LineStyle.Dotted },
+    donchian_lower: { color: '#f87171', lineStyle: LineStyle.Dotted },
+    tenkan_sen: { color: '#38bdf8' },
+    kijun_sen: { color: '#f472b6' },
+    senkou_a: { color: 'rgba(38, 166, 154, 0.2)' },
+    senkou_b: { color: 'rgba(239, 83, 80, 0.2)' },
+    supertrend: { color: '#a78bfa', lineStyle: LineStyle.Dotted },
+    poc: { color: '#eab308', lineWidth: 1, lineStyle: LineStyle.Dotted },
+    vwap: { color: '#60a5fa' },
+    psar: { color: '#a78bfa', lineStyle: LineStyle.Dotted },
+};
+
 export function TradingChart({ 
   data = [], 
   projectedData,
@@ -130,26 +152,6 @@ export function TradingChart({
         barDownColor: '#ef5350',
         volumeUpColor: 'rgba(38, 166, 154, 0.4)',
         volumeDownColor: 'rgba(239, 83, 80, 0.4)',
-        buySignalColor: '#22c55e',
-        sellSignalColor: '#ef4444',
-        smaShortColor: '#f59e0b',
-        smaLongColor: '#8b5cf6',
-        emaMediumColor: '#fb923c',
-        donchianUpperColor: '#4ade80',
-        donchianLowerColor: '#f87171',
-        donchianMiddleColor: 'rgba(148, 163, 184, 0.4)',
-        tenkanColor: '#38bdf8',
-        kijunColor: '#f472b6',
-        senkouAColor: 'rgba(38, 166, 154, 0.2)',
-        senkouBColor: 'rgba(239, 83, 80, 0.2)',
-        accumulationColor: 'rgba(250, 204, 21, 0.8)',
-        pumpColor: 'rgba(34, 197, 94, 0.8)',
-        distributionColor: 'rgba(239, 68, 68, 0.8)',
-        accumulationVolumeColor: 'rgba(250, 204, 21, 0.4)',
-        pumpVolumeColor: 'rgba(34, 197, 94, 0.4)',
-        distributionVolumeColor: 'rgba(239, 83, 80, 0.4)',
-        quantumMeanColor: '#60a5fa',
-        quantumSigmaColor: 'rgba(96, 165, 250, 0.2)',
     };
     
     const chart = createChart(chartContainer, {
@@ -174,38 +176,26 @@ export function TradingChart({
       borderVisible: false, priceScaleId: 'left',
     });
     
-    chartRef.current = {
-        chart, candlestickSeries, volumeSeries, chartColors,
-        // ... (all other series initializations remain the same)
-        spoofingZoneSeries: chart.addCandlestickSeries({ priceScaleId: 'left', upColor: 'rgba(239, 68, 68, 0.05)', downColor: 'rgba(239, 68, 68, 0.05)', wickVisible: false, borderVisible: false, autoscaleInfoProvider: () => null, }),
-        manipulationZoneSeries: chart.addCandlestickSeries({ priceScaleId: 'left', upColor: 'transparent', downColor: 'transparent', wickVisible: false, borderVisible: false, lastValueVisible: false, priceLineVisible: false, autoscaleInfoProvider: () => null, }),
-        targetZoneSeries: chart.addCandlestickSeries({ priceScaleId: 'left', upColor: 'rgba(59, 130, 246, 0.2)', downColor: 'rgba(59, 130, 246, 0.2)', wickVisible: false, borderVisible: false, autoscaleInfoProvider: () => null, }),
-        quantumFieldSeries: chart.addCandlestickSeries({ priceScaleId: 'left', wickVisible: false, borderVisible: false, lastValueVisible: false, priceLineVisible: false, autoscaleInfoProvider: () => null, }),
-        mainLineSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: '#3b82f6' }),
-        quantumMeanSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.quantumMeanColor, lineStyle: LineStyle.Dotted }),
-        quantumSigmaAreaSeries: chart.addAreaSeries({ lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', topColor: 'rgba(0,0,0,0)', bottomColor: 'rgba(0,0,0,0)', lineColor: 'transparent' }),
-        smaShortSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.smaShortColor }),
-        smaLongSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.smaLongColor }),
-        emaMediumSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.emaMediumColor }),
-        pocSeries: chart.addLineSeries({ color: '#eab308', lineWidth: 1, lineStyle: LineStyle.Dotted, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left' }),
-        donchianUpperSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.donchianUpperColor, lineStyle: LineStyle.Dotted }),
-        donchianMiddleSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.donchianMiddleColor, lineStyle: LineStyle.Dotted }),
-        donchianLowerSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.donchianLowerColor, lineStyle: LineStyle.Dotted }),
-        tenkanSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.tenkanColor }),
-        kijunSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.kijunColor }),
-        senkouASeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.senkouAColor }),
-        senkouBSeries: chart.addLineSeries({ lineWidth: 2, lastValueVisible: false, priceLineVisible: false, priceScaleId: 'left', color: chartColors.senkouBColor }),
-        priceLines: [],
-    };
+    const lineSeriesContainer: Record<string, any> = {};
+    Object.keys(seriesConfig).forEach(key => {
+        lineSeriesContainer[key] = chart.addLineSeries({
+            lineWidth: seriesConfig[key].lineWidth || 2,
+            lineStyle: seriesConfig[key].lineStyle || LineStyle.Solid,
+            color: seriesConfig[key].color,
+            priceScaleId: 'left',
+            lastValueVisible: false,
+            priceLineVisible: false,
+        });
+    });
+
+    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [] };
     
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainer);
     
     return () => {
       resizeObserver.unobserve(chartContainer);
-      if (spoofZoneTimeoutRef.current) {
-        clearTimeout(spoofZoneTimeoutRef.current);
-      }
+      if (spoofZoneTimeoutRef.current) clearTimeout(spoofZoneTimeoutRef.current);
       chart.remove();
       chartRef.current = null;
     };
@@ -215,66 +205,51 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current?.chart || !combinedData) return;
 
-    const { candlestickSeries, volumeSeries } = chartRef.current;
+    const { candlestickSeries, volumeSeries, chartColors, lineSeriesContainer } = chartRef.current;
     
-    // Sort and ensure uniqueness
     const sortedData = [...combinedData].sort((a, b) => a.time - b.time);
-    const uniqueData = sortedData.filter((candle, index, self) =>
-        index === 0 || candle.time > self[index - 1].time
-    );
+    const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
     if (uniqueData.length === 0) return;
 
-    // Check if it's a real-time update vs a full data replacement
-    const lastRendered = lastRenderedDataRef.current;
-    const isUpdate = uniqueData.length > 0 && lastRendered.length > 0 && uniqueData[uniqueData.length - 2]?.time === lastRendered[lastRendered.length - 2]?.time;
+    const isUpdate = uniqueData.length > 0 && lastRenderedDataRef.current.length > 0 && uniqueData[uniqueData.length - 2]?.time === lastRenderedDataRef.current[lastRenderedDataRef.current.length - 2]?.time;
     
-    if (isUpdate) {
-      // It's a live tick, just update the last candle
-      const lastCandle = uniqueData[uniqueData.length - 1];
-      candlestickSeries.update({ time: toTimestamp(lastCandle.time), ...lastCandle });
-      volumeSeries.update({ time: toTimestamp(lastCandle.time), value: lastCandle.volume, color: lastCandle.close >= lastCandle.open ? chartRef.current.chartColors.volumeUpColor : chartRef.current.chartColors.volumeDownColor });
-    } else {
-      // It's a full data reset
-      const candlestickChartData = uniqueData.map(d => ({ time: toTimestamp(d.time), ...d }));
-      const volumeChartData = uniqueData.map(d => ({ time: toTimestamp(d.time), value: d.volume, color: d.close >= d.open ? chartRef.current.chartColors.volumeUpColor : chartRef.current.chartColors.volumeDownColor }));
-      
-      candlestickSeries.setData(candlestickChartData);
-      volumeSeries.setData(volumeChartData);
+    const candlestickChartData = uniqueData.map(d => ({ time: toTimestamp(d.time), open: d.ha_open ?? d.open, high: d.ha_high ?? d.high, low: d.ha_low ?? d.low, close: d.ha_close ?? d.close, }));
+    const volumeChartData = uniqueData.map(d => {
+        let isUp = d.close >= d.open;
+        if (d.ha_close !== undefined && d.ha_open !== undefined) {
+            isUp = d.ha_close >= d.ha_open;
+        }
+        return { time: toTimestamp(d.time), value: d.volume, color: isUp ? chartColors.volumeUpColor : chartColors.volumeDownColor };
+    });
+    
+    candlestickSeries.setData(candlestickChartData);
+    volumeSeries.setData(volumeChartData);
+
+    // Dynamically update line series based on available data keys
+    Object.keys(lineSeriesContainer).forEach(key => {
+        if (showAnalysis && uniqueData.some(d => d[key as keyof HistoricalData] != null)) {
+            const lineData = uniqueData
+                .filter(d => d[key as keyof HistoricalData] != null)
+                .map(d => ({ time: toTimestamp(d.time), value: d[key as keyof HistoricalData] as number }));
+            lineSeriesContainer[key].setData(lineData);
+        } else {
+            lineSeriesContainer[key].setData([]);
+        }
+    });
+    
+    const signalMarkers = showAnalysis ? uniqueData.map(d => {
+        if (d.buySignal) return { time: toTimestamp(d.time), position: 'belowBar', color: chartColors.barUpColor, shape: 'arrowUp', text: 'Buy' };
+        if (d.sellSignal) return { time: toTimestamp(d.time), position: 'aboveBar', color: chartColors.barDownColor, shape: 'arrowDown', text: 'Sell' };
+        return null;
+    }).filter(Boolean) : [];
+    
+    candlestickSeries.setMarkers(signalMarkers);
+
+    if (!isUpdate) {
       chartRef.current.chart.timeScale().fitContent();
     }
     
     lastRenderedDataRef.current = uniqueData;
-
-    // This part can stay as it is, as markers and indicator lines often need a full recalculation anyway
-    const isTradeHighlighted = (d: HistoricalData): boolean => {
-      if (!highlightedTrade) return false;
-      if ('exitTime' in highlightedTrade && 'entryTime' in highlightedTrade) {
-          return d.time >= highlightedTrade.entryTime && d.time <= highlightedTrade.exitTime;
-      }
-      return false;
-    };
-
-    const signalMarkers = showAnalysis ? uniqueData.map(d => {
-        let marker = null;
-        if (d.buySignal) marker = { time: toTimestamp(d.time), position: 'belowBar', color: '#22c55e', shape: 'arrowUp', text: 'Buy' };
-        if (d.sellSignal) marker = { time: toTimestamp(d.time), position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'Sell' };
-        return marker;
-    }).filter((m): m is any => m !== null) : [];
-    
-    candlestickSeries.setMarkers(signalMarkers);
-
-    const addLineSeries = (series: any, dataKey: keyof HistoricalData) => {
-      if (showAnalysis && uniqueData.some(d => d[dataKey] != null)) {
-        const lineData = uniqueData.filter(d => d[dataKey] != null).map(d => ({ time: toTimestamp(d.time), value: d[dataKey] as number }));
-        series.setData(lineData);
-      } else {
-        series.setData([]);
-      }
-    };
-    
-    addLineSeries(chartRef.current.smaShortSeries, 'sma_short');
-    addLineSeries(chartRef.current.smaLongSeries, 'sma_long');
-    addLineSeries(chartRef.current.emaMediumSeries, 'ema_medium');
 
   }, [combinedData, highlightedTrade, showAnalysis]);
 
@@ -287,18 +262,16 @@ export function TradingChart({
     chartRef.current.priceLines = [];
     
     if (tradeSignal) {
-        const createLine = (price: number, color: string, title: string) => candlestickSeries.createPriceLine({ price, color, lineWidth, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title });
+        const createLine = (price: number, color: string, title: string) => candlestickSeries.createPriceLine({ price, color, lineWidth: 2, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title });
         const newLines = [
             createLine(tradeSignal.entryPrice, '#3b82f6', 'Entry'),
             createLine(tradeSignal.takeProfit, '#22c55e', 'TP'),
             createLine(tradeSignal.stopLoss, '#ef4444', 'SL'),
         ];
-        if (tradeSignal.peakPrice) {
-            newLines.push(createLine(tradeSignal.peakPrice, '#a8a29e', 'Liq Level'));
-        }
+        if (tradeSignal.peakPrice) newLines.push(createLine(tradeSignal.peakPrice, '#a8a29e', 'Liq Level'));
         chartRef.current.priceLines = newLines;
     }
-  }, [tradeSignal, lineWidth]);
+  }, [tradeSignal]);
     
   // Effect to draw wall lines from Order Book
   useEffect(() => {
@@ -314,7 +287,7 @@ export function TradingChart({
             newLines.push(candlestickSeries.createPriceLine({
                 price: wall.price,
                 color: isBid ? '#60a5fa' : '#c084fc',
-                lineWidth: lineWidth,
+                lineWidth: 2,
                 lineStyle: LineStyle.Dotted,
                 axisLabelVisible: true,
                 title: isBid ? ' BID WALL' : ' ASK WALL',
@@ -322,9 +295,7 @@ export function TradingChart({
         });
     }
     chartRef.current.wallPriceLines = newLines;
-  }, [wallLevels, lineWidth, showAnalysis, showWalls]);
-
-  // ... (other effects for targets, grids, etc., remain largely the same)
+  }, [wallLevels, showAnalysis, showWalls]);
 
   const formattedSymbol = useMemo(() => {
     if (!symbol) return 'No Asset Selected';
