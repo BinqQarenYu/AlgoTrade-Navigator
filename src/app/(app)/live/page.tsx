@@ -405,6 +405,7 @@ export default function LiveTradingPage() {
                                     <TableHead>Asset</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
+                                    <TableHead>Interval</TableHead>
                                     <TableHead>TP (%)</TableHead>
                                     <TableHead>SL (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
@@ -437,7 +438,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value as any)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -446,16 +447,33 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value as any)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Select
+                                                        value={bot.interval}
+                                                        onValueChange={(val) => handleBotConfigChange(bot.id, 'interval', val)}
+                                                        disabled={isRunning}
+                                                    >
+                                                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="1m">1m</SelectItem>
+                                                            <SelectItem value="5m">5m</SelectItem>
+                                                            <SelectItem value="15m">15m</SelectItem>
+                                                            <SelectItem value="1h">1h</SelectItem>
+                                                            <SelectItem value="4h">4h</SelectItem>
+                                                            <SelectItem value="1d">1d</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
                                                 </TableCell>
                                                  <TableCell>
                                                     <Input
                                                         type="text"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value as any)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -464,7 +482,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value as any)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
