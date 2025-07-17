@@ -215,7 +215,8 @@ export default function LiveTradingPage() {
             if (bot.id === id) {
                 let updatedValue = value;
                 if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
-                    updatedValue = (value === '' || isNaN(value as number)) ? 0 : value;
+                    const parsedValue = parseFloat(value as string);
+                    updatedValue = (value === '' || isNaN(parsedValue)) ? 0 : parsedValue as BotInstance[K];
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
                 if (field === 'strategy') {
@@ -281,13 +282,15 @@ export default function LiveTradingPage() {
             toast({ title: "Incomplete Config", description: "Please select an asset and strategy for the bot.", variant: "destructive" });
             return;
         }
+
+        if (activeProfile?.permissions !== 'FuturesTrading') {
+            toast({ title: "Permission Denied", description: "The active API key must have 'FuturesTrading' permissions enabled to start a live bot.", variant: "destructive"});
+            return;
+        }
+
         if (runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open') {
             stopBotInstance(botId);
         } else {
-            if (activeProfile?.permissions !== 'FuturesTrading') {
-                toast({ title: "Permission Denied", description: "The active API key must have 'FuturesTrading' permissions enabled to start a live bot.", variant: "destructive"});
-                return;
-            }
             startBotInstance(botConfig);
         }
     }
@@ -363,7 +366,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value as any)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -372,7 +375,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -381,7 +384,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -390,7 +393,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -424,7 +427,7 @@ export default function LiveTradingPage() {
                                                                         </Button>
                                                                     </div>
                                                                 </TooltipTrigger>
-                                                                {activeProfile?.permissions === 'ReadOnly' && !isRunning && (
+                                                                {activeProfile?.permissions !== 'FuturesTrading' && !isRunning && (
                                                                     <TooltipContent>
                                                                         <p>A key with Futures Trading permission is required.</p>
                                                                     </TooltipContent>
