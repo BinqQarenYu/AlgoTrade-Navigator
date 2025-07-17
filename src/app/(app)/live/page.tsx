@@ -256,15 +256,16 @@ export default function LiveTradingPage() {
     const { 
         startBotInstance, 
         stopBotInstance, 
-        liveBotState, 
+        liveBotState,
+        botInstances,
+        setBotInstances,
+        addBotInstance: addBotContextInstance,
     } = useBot();
     const { bots: runningBots } = liveBotState;
-    const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
     const addBotInstance = () => {
-        const newId = `bot_${Date.now()}`;
-        setBotInstances(prev => [...prev, createNewBotInstance(newId)]);
+        addBotContextInstance({}); // Add an empty bot config
     };
 
     useEffect(() => {
@@ -404,7 +405,6 @@ export default function LiveTradingPage() {
                                     <TableHead>Asset</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
-                                    <TableHead>Interval</TableHead>
                                     <TableHead>TP (%)</TableHead>
                                     <TableHead>SL (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
@@ -450,23 +450,6 @@ export default function LiveTradingPage() {
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Select
-                                                        value={bot.interval}
-                                                        onValueChange={(val) => handleBotConfigChange(bot.id, 'interval', val)}
-                                                        disabled={isRunning}
-                                                    >
-                                                        <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="1m">1m</SelectItem>
-                                                            <SelectItem value="5m">5m</SelectItem>
-                                                            <SelectItem value="15m">15m</SelectItem>
-                                                            <SelectItem value="1h">1h</SelectItem>
-                                                            <SelectItem value="4h">4h</SelectItem>
-                                                            <SelectItem value="1d">1d</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
                                                 </TableCell>
                                                  <TableCell>
                                                     <Input

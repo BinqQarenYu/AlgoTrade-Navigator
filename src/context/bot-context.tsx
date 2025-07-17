@@ -15,6 +15,7 @@ import { useApi } from './api-context';
 import { intervalToMs } from "@/lib/utils";
 import { RiskGuardian } from '@/lib/risk-guardian';
 import { sendTelegramMessage } from '@/lib/telegram-service';
+import { usePersistentState } from '@/hooks/use-persistent-state';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -48,6 +49,9 @@ import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-con
 import { defaultMtfEngulfingParams } from '@/lib/strategies/mtf-engulfing';
 import { defaultSmiMfiSupertrendParams } from '@/lib/strategies/smi-mfi-supertrend';
 
+type BotInstance = LiveBotConfig & {
+    id: string;
+};
 
 // --- State Types ---
 interface LiveBotState {
@@ -106,6 +110,10 @@ interface BotContextType {
   // Test trade functions
   executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
   closeTestPosition: (symbol: string, capital: number, leverage: number) => void;
+  // New bot instance management
+  botInstances: BotInstance[];
+  setBotInstances: React.Dispatch<React.SetStateAction<BotInstance[]>>;
+  addBotInstance: (config: Partial<LiveBotConfig>) => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -213,6 +221,23 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
   const [isAnalysisActive, setIsAnalysisActive] = useState(false);
+  const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
+  
+  const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
+    const newId = `bot_${Date.now()}`;
+    const newBot: BotInstance = {
+      id: newId,
+      asset: config.asset || '',
+      interval: config.interval || '1h',
+      capital: config.capital || 100,
+      leverage: config.leverage || 10,
+      takeProfit: config.takeProfit || 1.5,
+      stopLoss: config.stopLoss || 1,
+      strategy: config.strategy || '',
+      strategyParams: config.strategyParams || {},
+    };
+    setBotInstances(prev => [...prev, newBot]);
+  }, [setBotInstances]);
 
   useEffect(() => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
@@ -1483,6 +1508,9 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       dismissRecommendation,
       executeTestTrade,
       closeTestPosition,
+      botInstances,
+      setBotInstances,
+      addBotInstance,
     }}>
       {children}
     </BotContext.Provider>

@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -215,8 +216,9 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 
 export default function BacktestPage() {
   const { toast } = useToast()
+  const router = useRouter();
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
-  const { isTradingActive, strategyParams, setStrategyParams } = useBot();
+  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
 
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
@@ -843,6 +845,32 @@ export default function BacktestPage() {
     setFullChartData([]);
   };
 
+  const handleExportToLive = () => {
+    if (!symbol || !selectedStrategy) {
+      toast({
+        title: "Incomplete Configuration",
+        description: "Please select an asset and a strategy before exporting.",
+        variant: "destructive"
+      });
+      return;
+    }
+    addBotInstance({
+      asset: symbol,
+      interval,
+      capital: initialCapital,
+      leverage,
+      takeProfit,
+      stopLoss,
+      strategy: selectedStrategy,
+      strategyParams: strategyParams[selectedStrategy] || {},
+    });
+    toast({
+      title: "Exported to Live",
+      description: `Bot for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been added to the Live Trading page.`
+    });
+    router.push('/live');
+  };
+
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy] || {};
 
@@ -1200,32 +1228,21 @@ export default function BacktestPage() {
                 <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
             </div>
         </div>
-        <div className="mt-4">
-            {isReplaying ? (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Replay Controls ({replayIndex + 1} / {fullChartData.length})</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center justify-center gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
-                            <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                            <Button variant="destructive" size="icon" onClick={handleStopReplayAndRunBacktest}><History/></Button>
-                        </div>
-                         <div className="flex items-center justify-center gap-2">
-                           <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
-                           <Button size="sm" variant={replaySpeed === 500 ? 'default' : 'outline'} onClick={() => setReplaySpeed(500)}>Medium</Button>
-                           <Button size="sm" variant={replaySpeed === 200 ? 'default' : 'outline'} onClick={() => setReplaySpeed(200)}>Fast</Button>
-                        </div>
-                    </CardContent>
-                </Card>
-            ) : (
-                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
-                    <Play className="mr-2 h-4 w-4"/> Start Replay
-                </Button>
-            )}
-        </div>
+        {summaryStats && <BacktestResults 
+          results={backtestResults} 
+          summary={summaryStats} 
+          onSelectTrade={setSelectedTrade}
+          selectedTradeId={selectedTrade?.id}
+        />}
+
+        {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
+            <BacktestResults 
+                results={contrarianResults || []} 
+                summary={contrarianSummary} 
+                onSelectTrade={() => {}} // Contrarian trades not selectable on chart
+                title="Contrarian Report"
+            />
+        )}
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
@@ -1462,34 +1479,47 @@ export default function BacktestPage() {
                 </div>
               </CardContent>
               <CardFooter className="flex-col gap-2">
-                <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
-                  {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
+                <div className="flex w-full gap-2">
+                  <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
+                    {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
+                  </Button>
+                  <Button className="w-full" variant="secondary" onClick={handleExportToLive} disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
+                      <Send className="mr-2 h-4 w-4"/>
+                      Export to Live
+                  </Button>
+                </div>
+                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
+                    <Play className="mr-2 h-4 w-4"/> Start Replay
                 </Button>
+                 {isReplaying && (
+                    <Card>
+                        <CardHeader className="p-4">
+                            <CardTitle className="text-base">Replay Controls ({replayIndex + 1} / {fullChartData.length})</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 space-y-4">
+                            <div className="flex items-center justify-center gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
+                                <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                                <Button variant="destructive" size="icon" onClick={handleStopReplayAndRunBacktest}><History/></Button>
+                            </div>
+                            <div className="flex items-center justify-center gap-2">
+                              <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
+                              <Button size="sm" variant={replaySpeed === 500 ? 'default' : 'outline'} onClick={() => setReplaySpeed(500)}>Medium</Button>
+                              <Button size="sm" variant={replaySpeed === 200 ? 'default' : 'outline'} onClick={() => setReplaySpeed(200)}>Fast</Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
               </CardFooter>
             </CollapsibleContent>
           </Collapsible>
         </Card>
-        
-        {summaryStats && <BacktestResults 
-          results={backtestResults} 
-          summary={summaryStats} 
-          onSelectTrade={setSelectedTrade}
-          selectedTradeId={selectedTrade?.id}
-        />}
-
-        {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
-            <BacktestResults 
-                results={contrarianResults || []} 
-                summary={contrarianSummary} 
-                onSelectTrade={() => {}} // Contrarian trades not selectable on chart
-                title="Contrarian Report"
-            />
-        )}
-        
         <PineScriptEditor onLoadScript={() => {}} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
     </div>
     </div>
   )
 }
+
