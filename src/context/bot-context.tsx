@@ -161,6 +161,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [liveBotState, setLiveBotState] = useState<LiveBotState>({ bots: {} });
   const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
   const riskGuardianRefs = useRef<Record<string, RiskGuardian | null>>({});
+  const dataBufferRef = useRef<Record<string, HistoricalData[]>>({});
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // --- Discipline state ---
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -243,16 +245,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
     const manualTradePending = manualTraderState.isExecuting;
     
-    // A session is "trading" if a live bot is running or a manual trade is being executed.
-    // Simulations do not count as a "trading" session that would block other actions.
     setIsTradingActive(liveBotRunning || manualTradePending);
 
-    // An "analysis" session is for monitoring without trading.
     const multiSignalIsRunning = multiSignalState.isRunning;
     const manualIsAnalyzing = manualTraderState.isAnalyzing;
     setIsAnalysisActive(multiSignalIsRunning || manualIsAnalyzing);
 
-  }, [liveBotState.bots, manualTraderState, multiSignalState.isRunning]);
+  }, [liveBotState.bots, manualTraderState.isExecuting, multiSignalState.isRunning, manualTraderState.isAnalyzing]);
 
 
   // --- Helper Functions ---
@@ -369,6 +368,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       delete liveWsRefs.current[botId];
     }
     delete riskGuardianRefs.current[botId];
+    delete dataBufferRef.current[botId];
 
     setLiveBotState(prev => {
         const newBots = { ...prev.bots };
@@ -473,6 +473,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const botId = config.id;
     addLiveLog(botId, `Starting bot for ${config.asset}...`);
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
+    dataBufferRef.current[botId] = [];
     
     setLiveBotState(prev => ({
         ...prev,
@@ -488,9 +489,38 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         },
     }));
 
+    // Start the UI update interval if it's not already running
+    if (!updateIntervalRef.current) {
+        updateIntervalRef.current = setInterval(() => {
+            setLiveBotState(prev => {
+                const updatedBots = { ...prev.bots };
+                let hasChanges = false;
+
+                Object.keys(dataBufferRef.current).forEach(id => {
+                    const buffer = dataBufferRef.current[id];
+                    if (buffer && buffer.length > 0) {
+                        hasChanges = true;
+                        let newChartData = [...(updatedBots[id]?.chartData || [])];
+                        buffer.forEach(newCandle => {
+                             if (newChartData.length > 0 && newChartData[newChartData.length - 1].time === newCandle.time) {
+                                newChartData[newChartData.length - 1] = newCandle;
+                            } else {
+                                newChartData.push(newCandle);
+                            }
+                        });
+                        updatedBots[id] = { ...updatedBots[id], chartData: newChartData.slice(-1000) };
+                        dataBufferRef.current[id] = [];
+                    }
+                });
+
+                return hasChanges ? { bots: updatedBots } : prev;
+            });
+        }, 1000); // Update UI every second
+    }
+
     try {
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
-      setLiveBotState(prev => ({ ...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], chartData: klines}}}));
+      dataBufferRef.current[botId] = klines; // Pre-fill buffer instead of direct state update
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
       
       runLiveBotCycle(botId, true);
@@ -507,23 +537,22 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
           };
           
-          setLiveBotState(prev => {
-            if (!prev.bots[botId]) return prev;
-            let newChartData = [...prev.bots[botId].chartData];
-            if (newChartData.length > 0 && newChartData[newChartData.length - 1].time === newCandle.time) {
-                newChartData[newChartData.length - 1] = newCandle;
-            } else {
-                newChartData.push(newCandle);
-                runLiveBotCycle(botId, true);
-            }
-            return { ...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], chartData: newChartData.slice(-1000)}}};
-          });
+          if (!dataBufferRef.current[botId]) dataBufferRef.current[botId] = [];
+          dataBufferRef.current[botId].push(newCandle);
+
+          if (data.k.x) { // If candle is closed
+            runLiveBotCycle(botId, true);
+          }
         }
       };
       
       ws.onopen = () => addLiveLog(botId, "Live data stream connected.");
       ws.onerror = () => addLiveLog(botId, "Live data stream error.");
-      ws.onclose = () => addLiveLog(botId, "Live data stream closed.");
+      ws.onclose = () => {
+        addLiveLog(botId, "Live data stream closed.");
+        // If this bot is stopped, no need to do anything else.
+        // If it closed unexpectedly, you might want retry logic here.
+      };
 
       toast({ title: "Live Bot Started", description: `Monitoring ${config.asset} on the ${config.interval} interval.`});
 
@@ -1170,7 +1199,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
@@ -1471,6 +1500,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       if (simulationWsRef.current) simulationWsRef.current.close();
       if (gridWsRef.current) gridWsRef.current.close();
       if (candleTimerRef.current) clearInterval(candleTimerRef.current);
+       if (updateIntervalRef.current) clearInterval(updateIntervalRef.current);
     }
   }, []);
 
@@ -1524,3 +1554,4 @@ export const useBot = () => {
   }
   return context;
 };
+
