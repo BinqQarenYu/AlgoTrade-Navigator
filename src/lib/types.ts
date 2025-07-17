@@ -247,42 +247,6 @@ export type LiveBotConfig = {
     strategyParams: any;
 };
 
-export type ManualTraderConfig = {
-    symbol: string;
-    interval: string;
-    strategy: string;
-    strategyParams: any;
-    initialCapital: number;
-    leverage: number;
-    takeProfit: number;
-    stopLoss: number;
-    useAIPrediction: boolean;
-    fee: number;
-}
-
-export type MultiSignalConfig = {
-    assets: string[];
-    interval: string;
-    strategy: string;
-    strategyParams: any;
-    takeProfit: number;
-    stopLoss: number;
-    useAIPrediction: boolean;
-};
-
-export interface SignalResult {
-    signal: TradeSignal | null;
-    status: 'idle' | 'monitoring' | 'analyzing' | 'error' | 'no_signal';
-    log: string;
-}
-
-export interface MultiSignalState {
-  isRunning: boolean;
-  config: MultiSignalConfig | null;
-  results: Record<string, SignalResult>; // Keyed by asset symbol
-  logs: string[];
-}
-
 export type LiveBotStateForAsset = {
   status: 'idle' | 'running' | 'analyzing' | 'position_open' | 'error' | 'cooldown';
   config: LiveBotConfig & { id: string };

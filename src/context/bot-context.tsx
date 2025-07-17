@@ -4,11 +4,9 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary, GridState, GridConfig, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade, LiveBotStateForAsset } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, SimulationState, SimulationConfig, GridState, GridConfig, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade, LiveBotStateForAsset } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { predictPrice } from "@/ai/flows/predict-price-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
-import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
 import { addDays } from 'date-fns';
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
@@ -58,27 +56,16 @@ interface LiveBotState {
   bots: Record<string, LiveBotStateForAsset>; // Keyed by bot instance ID
 }
 
-interface ManualTraderState {
-  isAnalyzing: boolean;
-  isExecuting: boolean;
-  logs: string[];
-  signal: TradeSignal | null;
-  chartData: HistoricalData[];
-  signalInvalidated: boolean;
-}
-
 interface GridBacktestState {
     isBacktesting: boolean;
     backtestSummary: GridBacktestSummary | null;
     backtestTrades: MatchedGridTrade[];
-    unmatchedTrades: GridTrade[];
+    unmatchedTrades: any[];
 }
 
 // --- Context Type ---
 interface BotContextType {
   liveBotState: LiveBotState;
-  manualTraderState: ManualTraderState;
-  multiSignalState: MultiSignalState;
   simulationState: SimulationState;
   gridState: GridState;
   gridBacktestState: GridBacktestState;
@@ -88,14 +75,6 @@ interface BotContextType {
   isAnalysisActive: boolean; // For non-trading, analysis-only processes
   startBotInstance: (config: LiveBotConfig & { id: string }) => void;
   stopBotInstance: (botId: string) => void;
-  runManualAnalysis: (config: ManualTraderConfig) => void;
-  cancelManualAnalysis: () => void;
-  resetManualSignal: () => void;
-  cleanManualChart: () => void;
-  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
-  setManualChartData: (symbol: string, interval: string) => void;
-  startMultiSignalMonitor: (config: MultiSignalConfig) => void;
-  stopMultiSignalMonitor: () => void;
   closePosition: (position: Position) => void;
   startSimulation: (config: SimulationConfig) => void;
   stopSimulation: () => void;
@@ -177,24 +156,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     console.log(`Activating recommended strategy: ${strategyId}`);
     dismissRecommendation();
   };
-
-
-  // --- Manual Trader State ---
-  const [manualTraderState, setManualTraderState] = useState<ManualTraderState>({
-    isAnalyzing: false, isExecuting: false, logs: [], signal: null, chartData: [], signalInvalidated: false,
-  });
-  const manualWsRef = useRef<WebSocket | null>(null);
-  const manualAnalysisCancelRef = useRef(false);
-  const manualReevalIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const manualConfigRef = useRef<ManualTraderConfig | null>(null);
-
-  // --- Multi-Signal State ---
-  const [multiSignalState, setMultiSignalState] = useState<MultiSignalState>({
-    isRunning: false, config: null, results: {}, logs: []
-  });
-  const multiSignalIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const multiSignalRunningRef = useRef(false);
-  const multiSignalConfigRef = useRef<MultiSignalConfig | null>(null);
   
   // --- Simulation State ---
    const [simulationState, setSimulationState] = useState<SimulationState>({
@@ -243,15 +204,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
-    const manualTradePending = manualTraderState.isExecuting;
     
-    setIsTradingActive(liveBotRunning || manualTradePending);
-
-    const multiSignalIsRunning = multiSignalState.isRunning;
-    const manualIsAnalyzing = manualTraderState.isAnalyzing;
-    setIsAnalysisActive(multiSignalIsRunning || manualIsAnalyzing);
-
-  }, [liveBotState.bots, manualTraderState.isExecuting, multiSignalState.isRunning, manualTraderState.isAnalyzing]);
+    setIsTradingActive(liveBotRunning);
+  }, [liveBotState.bots]);
 
 
   // --- Helper Functions ---
@@ -274,25 +229,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addLiveLog = useCallback((botId: string, message: string) => addLog(setLiveBotState, message, botId), [addLog]);
-  const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
-  const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
   const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
   const addGridLog = useCallback((message: string) => addLog(setGridState, message), [addLog]);
   
-  const cleanManualChart = useCallback(() => {
-    setManualTraderState(prev => {
-        if (!prev.chartData) return prev;
-        const cleaned = prev.chartData.map(({ time, open, high, low, close, volume }) => ({ time, open, high, low, close, volume }));
-        return { ...prev, chartData: cleaned, signal: null, signalInvalidated: false };
-    });
-    addManualLog("Cleared indicators and signals from chart.");
-  }, [addManualLog]);
-
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
     config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean; reverse: boolean; },
     existingData?: HistoricalData[]
-  ): Promise<SignalResult & { dataWithIndicators?: HistoricalData[] }> => {
+  ) => {
     try {
         const dataToAnalyze = existingData && existingData.length > 50 
             ? existingData
@@ -424,7 +368,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
             if (closePosition) {
                 addLiveLog(botId, `Closing position: ${closeReason}`);
-                const side: OrderSide = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
+                const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
                 const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
                 const orderResult = await placeOrder(config.asset, side, quantity, apiKey, secretKey, true);
                 toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
@@ -446,7 +390,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           
           if (signal) {
               addLiveLog(botId, `New trade signal found: ${signal.action} at ${signal.entryPrice}`);
-              const side: OrderSide = signal.action === 'UP' ? 'BUY' : 'SELL';
+              const side = signal.action === 'UP' ? 'BUY' : 'SELL';
               const quantity = (config.capital * config.leverage) / signal.entryPrice;
               
               await placeOrder(config.asset, side, quantity, apiKey, secretKey);
@@ -563,374 +507,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addLiveLog, toast, stopBotInstance, runLiveBotCycle]);
   
-  // --- Manual Trader Logic ---
-  const resetManualSignal = useCallback(() => {
-    if (manualWsRef.current) {
-        manualWsRef.current.close(1000, "Signal reset by user");
-        manualWsRef.current = null;
-    }
-    setManualTraderState(prev => ({
-        ...prev,
-        isAnalyzing: false, // Ensure analysis stops
-        signal: null,
-        signalInvalidated: false,
-        logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...(prev.logs || [])].slice(0, 100)
-    }));
-    toast({ title: "Signal Reset", description: "You can now run a new analysis." });
-  }, [toast]);
-
-  const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => {
-    if (!activeProfile || !apiKey || !secretKey) {
-      toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
-      return;
-    }
-    if (!signal) {
-        toast({ title: "Execution Failed", description: "No valid signal to execute.", variant: "destructive" });
-        return;
-    }
-
-    setManualTraderState(prev => ({ ...prev, isExecuting: true }));
-    
-    // Send telegram notification if configured
-    if (telegramBotToken && telegramChatId && !isSimulation) {
-        const message = `
-🚨 *Manual Trade Execution* 🚨
-Action: *${signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
-Asset: *${signal.asset}*
-Entry: ~${signal.entryPrice.toFixed(4)}
-Stop Loss: ${signal.stopLoss.toFixed(4)}
-Take Profit: ${signal.takeProfit.toFixed(4)}
-        `;
-        try {
-            await sendTelegramMessage({
-                botToken: telegramBotToken,
-                chatId: telegramChatId,
-                message: message
-            });
-            toast({ title: "Telegram Notification Sent" });
-        } catch (e: any) {
-            toast({ title: "Telegram Failed", description: e.message, variant: "destructive" });
-        }
-    }
-
-    if (isSimulation) {
-        addManualLog(`SIMULATION: Starting simulated trade for ${signal.asset}...`);
-        toast({
-            title: "Simulation Started",
-            description: "The signal will remain on the chart. Dismiss it manually when you're done."
-        });
-        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
-        return; 
-    }
-
-    if (activeProfile.permissions === 'ReadOnly') {
-        addManualLog(`Read-only key detected. Simulating trade locally for ${signal.asset}...`);
-        toast({
-            title: "Read-Only API Key",
-            description: "Simulating trade execution locally. No real order will be placed."
-        });
-    } else {
-        addManualLog(`Futures key detected. Executing ${signal.action === 'UP' ? 'BUY' : 'SELL'} order for ${signal.asset}...`);
-    }
-
-    try {
-        const positionValue = capital * leverage;
-        const quantity = positionValue / signal.entryPrice;
-        const side = signal.action === 'UP' ? 'BUY' : 'SELL';
-
-        const orderResult = await placeOrder(signal.asset, side, quantity, apiKey, secretKey);
-        
-        toast({
-            title: "Order Placed",
-            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${signal.asset} submitted. Order ID: ${orderResult.orderId}`
-        });
-
-        resetManualSignal();
-
-    } catch (e: any) {
-        toast({ title: "Execution Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
-        addManualLog(`Execution failed: ${e.message}`);
-    } finally {
-        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
-    }
-  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile, telegramBotToken, telegramChatId]);
-
-  const setManualChartData = useCallback(async (symbol: string, interval: string) => {
-    setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
-    addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
-    try {
-        const klines = await getLatestKlinesByLimit(symbol, interval, 500);
-        setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
-    } catch (error: any) {
-        toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
-        addManualLog(`Error loading data: ${error.message}`);
-    }
-  }, [addManualLog, toast]);
-
-  const connectManualWebSocket = useCallback((symbol: string, interval: string) => {
-    if (manualWsRef.current) manualWsRef.current.close();
-    
-    addManualLog("Connecting to WebSocket for live invalidation monitoring...");
-    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
-    manualWsRef.current = ws;
-
-    ws.onopen = () => addManualLog("Monitoring connection established.");
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.e !== 'kline') return;
-
-      const kline = message.k;
-      const newCandle: HistoricalData = {
-        time: kline.t, open: parseFloat(kline.o), high: parseFloat(kline.h),
-        low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
-      };
-
-      setManualTraderState(current => {
-        const currentLogs = current.logs || [];
-        let newChartData = current.chartData;
-
-        if (newChartData.length > 0) {
-            const lastCandle = newChartData[newChartData.length - 1];
-            if (lastCandle.time === newCandle.time) {
-              newChartData[newChartData.length - 1] = newCandle;
-            } else {
-              newChartData.push(newCandle);
-            }
-            const sortedData = newChartData.sort((a, b) => a.time - b.time);
-            newChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
-        } else {
-            newChartData = [newCandle];
-        }
-
-        if (current.signal) {
-          let invalidated = false;
-          let invalidationReason = '';
-          
-          if (current.signal.peakPrice) {
-            if (current.signal.action === 'DOWN' && newCandle.high > current.signal.peakPrice) {
-              invalidated = true;
-              invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${current.signal.peakPrice.toFixed(4)}.`;
-            } else if (current.signal.action === 'UP' && newCandle.low < current.signal.peakPrice) {
-              invalidated = true;
-              invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${current.signal.peakPrice.toFixed(4)}.`;
-            }
-          }
-          
-          let tpHit = false;
-          let slHit = false;
-          if (current.signal.action === 'UP') {
-              if (newCandle.high >= current.signal.takeProfit) tpHit = true;
-              if (newCandle.low <= current.signal.stopLoss) slHit = true;
-          } else { // SHORT
-              if (newCandle.low <= current.signal.takeProfit) tpHit = true;
-              if (newCandle.high >= current.signal.stopLoss) slHit = true;
-          }
-
-          if (tpHit) {
-            toast({ title: "TP Hit!", description: "Take Profit level reached for your manual signal." });
-            manualWsRef.current?.close(1000, "TP Hit");
-            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] TAKE PROFIT hit.`, ...currentLogs].slice(0, 100) };
-          }
-          if (slHit) {
-            toast({ title: "SL Hit!", description: "Stop Loss level reached for your manual signal.", variant: "destructive" });
-            manualWsRef.current?.close(1000, "SL Hit");
-            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] STOP LOSS hit.`, ...currentLogs].slice(0, 100) };
-          }
-          if (invalidated) {
-             toast({
-               title: "Trade Signal Invalidated",
-               description: "Market structure has changed. The trade idea is now void.",
-               variant: "destructive"
-             });
-            manualWsRef.current?.close(1000, "Signal invalidated");
-            return { ...current, signalInvalidated: true, logs: [`[${new Date().toLocaleTimeString()}] SIGNAL INVALIDATED: ${invalidationReason}`, ...currentLogs].slice(0, 100) };
-          }
-        }
-        
-        return { ...current, chartData: newChartData, logs: currentLogs };
-      });
-    };
-    
-    ws.onclose = (event) => {
-        const reason = event.reason || 'No reason given';
-        const code = event.wasClean ? `(Code: ${event.code})` : `(Code: ${event.code}, unclean closure)`;
-        addManualLog(`Monitoring WebSocket closed. ${reason} ${code}`);
-        manualWsRef.current = null;
-    }
-
-    ws.onerror = () => {
-        addManualLog("WebSocket error occurred. See browser console for details.");
-    };
-  }, [addManualLog, toast]);
-
-  const cancelManualAnalysis = useCallback(() => {
-    manualAnalysisCancelRef.current = true;
-    if (manualReevalIntervalRef.current) {
-        clearInterval(manualReevalIntervalRef.current);
-        manualReevalIntervalRef.current = null;
-    }
-    if (manualWsRef.current) {
-        manualWsRef.current.close(1000, "User cancelled analysis");
-        manualWsRef.current = null;
-    }
-    addManualLog("Monitoring stopped by user.");
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: false, signalInvalidated: false }));
-  }, [addManualLog]);
-
-  const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
-    if (manualReevalIntervalRef.current) {
-      clearInterval(manualReevalIntervalRef.current);
-    }
-    manualAnalysisCancelRef.current = false;
-    manualConfigRef.current = config;
-  
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null, signalInvalidated: false }));
-    addManualLog("Starting continuous analysis...");
-  
-    const performAnalysis = async () => {
-      if (manualAnalysisCancelRef.current || manualTraderState.signal) { // Stop if cancelled or if a signal is already active
-        if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-        return;
-      }
-      
-      addManualLog("Analyzing for signal...");
-      let chartDataForAnalysis: HistoricalData[];
-      try {
-        chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-      } catch (e: any) {
-        addManualLog(`Data fetch failed: ${e.message}. Will retry on next interval.`);
-        return;
-      }
-  
-      if (chartDataForAnalysis && chartDataForAnalysis.length > 0) {
-        const result = await analyzeAsset(config, chartDataForAnalysis);
-      
-        if (manualAnalysisCancelRef.current) return;
-
-        setManualTraderState(current => {
-          if (current.signal) return current; // Don't override an existing signal
-
-          if (result.signal) {
-            addManualLog(`NEW SIGNAL FOUND: ${result.signal!.action} at $${result.signal!.entryPrice.toFixed(4)}.`);
-            connectManualWebSocket(config.symbol, config.interval);
-          } else {
-             addManualLog(`No new signal found. Reason: ${result.log}`);
-          }
-          
-          return {
-              ...current,
-              chartData: result.dataWithIndicators || chartDataForAnalysis,
-              signal: result.signal, // Set the new signal
-              signalInvalidated: false,
-          };
-        });
-
-        if (result.signal) {
-           toast({ title: "Trade Signal Found!", description: "A new trade setup has been identified." });
-           if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current); // Stop searching once signal is found
-        }
-      }
-    };
-    
-    await performAnalysis(); 
-    
-    const reevalTime = intervalToMs(config.interval);
-    addManualLog(`Will re-evaluate every ${config.interval}.`);
-    if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-    manualReevalIntervalRef.current = setInterval(performAnalysis, reevalTime);
-  
-  }, [addManualLog, toast, analyzeAsset, connectManualWebSocket, manualTraderState.signal]);
-
-  // --- Multi-Signal Monitor Logic ---
-  const runMultiSignalCheck = useCallback(async () => {
-    if (!multiSignalRunningRef.current || !multiSignalConfigRef.current) return;
-    const config = multiSignalConfigRef.current;
-    
-    addMultiLog("Running sequential analysis for all assets...");
-
-    for (const asset of config.assets) {
-        if (!multiSignalRunningRef.current) {
-            addMultiLog("Monitor stopped during cycle. Aborting.");
-            break;
-        }
-
-        setMultiSignalState(prev => ({
-            ...prev,
-            results: { ...prev.results, [asset]: { ...prev.results[asset], status: 'analyzing' } }
-        }));
-
-        try {
-            const result = await analyzeAsset({ ...config, symbol: asset, reverse: false }, []);
-            
-            if (!multiSignalRunningRef.current) break;
-
-            if (result.signal && telegramBotToken && telegramChatId) {
-                const message = `
-📢 *Multi-Signal Alert* 📢
-Asset: *${result.signal.asset}*
-Action: *${result.signal.action === 'UP' ? 'BUY/LONG' : 'SELL/SHORT'}*
-Strategy: ${result.signal.strategy}
-Entry: ~${result.signal.entryPrice.toFixed(4)}
-`;
-                sendTelegramMessage({ botToken: telegramBotToken, chatId: telegramChatId, message });
-            }
-
-            setMultiSignalState(prev => ({
-                ...prev,
-                results: { ...prev.results, [asset]: result }
-            }));
-
-        } catch (e: any) {
-            console.error(`Unhandled error analyzing ${asset}:`, e);
-            if (!multiSignalRunningRef.current) break;
-            setMultiSignalState(prev => ({
-                ...prev,
-                results: { ...prev.results, [asset]: { status: 'error', log: 'An unexpected error occurred.', signal: null } }
-            }));
-        }
-    }
-
-    if (multiSignalRunningRef.current) {
-        addMultiLog("Analysis cycle complete.");
-    }
-  }, [analyzeAsset, addMultiLog, telegramBotToken, telegramChatId]);
-
-
-  const startMultiSignalMonitor = useCallback((config: MultiSignalConfig) => {
-    if (multiSignalIntervalRef.current) {
-        clearInterval(multiSignalIntervalRef.current);
-    }
-    
-    multiSignalRunningRef.current = true;
-    multiSignalConfigRef.current = config;
-    addMultiLog("Starting multi-signal monitor...");
-    
-    const initialResults: Record<string, SignalResult> = {};
-    config.assets.forEach(asset => {
-        initialResults[asset] = { status: 'monitoring', log: 'Waiting for first cycle.', signal: null };
-    });
-
-    setMultiSignalState({ isRunning: true, config, results: initialResults, logs: [] });
-    
-    runMultiSignalCheck();
-    multiSignalIntervalRef.current = setInterval(runMultiSignalCheck, 60000);
-
-    toast({ title: "Multi-Signal Monitor Started", description: `Monitoring ${config.assets.length} assets.` });
-  }, [addMultiLog, toast, runMultiSignalCheck]);
-
-  const stopMultiSignalMonitor = useCallback(() => {
-    multiSignalRunningRef.current = false;
-    multiSignalConfigRef.current = null;
-    if (multiSignalIntervalRef.current) {
-        clearInterval(multiSignalIntervalRef.current);
-        multiSignalIntervalRef.current = null;
-    }
-    setMultiSignalState({ isRunning: false, config: null, results: {}, logs: [] });
-    addMultiLog("Multi-signal monitor stopped by user.");
-    toast({ title: "Multi-Signal Monitor Stopped" });
-  }, [addMultiLog, toast]);
-  
   const closePosition = useCallback(async (position: Position) => {
     if (!activeProfile || !apiKey || !secretKey) {
       toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
@@ -941,7 +517,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       return;
     }
 
-    const side: OrderSide = position.side === 'LONG' ? 'SELL' : 'BUY';
+    const side = position.side === 'LONG' ? 'SELL' : 'BUY';
     const symbol = position.symbol;
     const quantity = position.size;
 
@@ -976,11 +552,11 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       }
 
       const updatedPositions = [...openPositions];
-      const newTrades: SimulatedTrade[] = [];
+      const newTrades: any[] = [];
 
       for (const pos of openPositions) {
         let exitPrice: number | null = null;
-        let closeReason: SimulatedTrade['closeReason'] = 'signal';
+        let closeReason: any = 'signal';
 
         if (pos.side === 'long') {
           if (newCandle.low <= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
@@ -997,7 +573,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
           const fee = (entryValue + exitValue) * (config.fee / 100);
           const netPnl = pnl - fee;
 
-          const trade: SimulatedTrade = {
+          const trade = {
             id: pos.id, type: pos.side, entryTime: pos.entryTime, entryPrice: pos.entryPrice,
             exitTime: newCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / portfolio.balance) * 100,
             closeReason, stopLoss: pos.stopLoss, takeProfit: pos.takeProfit, fee,
@@ -1018,7 +594,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
             setSimulationState(prev => {
               if (prev.openPositions.length > 0) return prev;
               const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
-              const newPosition: SimulatedPosition = {
+              const newPosition = {
                 id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal!.action === 'UP' ? 'long' : 'short',
                 entryPrice: result.signal!.entryPrice, entryTime: result.signal!.timestamp, size: newPosSize,
                 stopLoss: result.signal!.stopLoss, takeProfit: result.signal!.takeProfit,
@@ -1039,7 +615,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
       const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
 
-      const summary: BacktestSummary = {
+      const summary = {
         totalTrades: allTrades.length,
         winRate: allTrades.length > 0 ? (wins.length / allTrades.length) * 100 : 0,
         totalPnl: totalPnl,
@@ -1189,7 +765,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
             config.upperPrice = Math.max(...grid.levels);
         }
 
-        const newTrades: GridTrade[] = [];
+        const newTrades: any[] = [];
         let stillOpenOrders = [...openOrders];
 
         stillOpenOrders = stillOpenOrders.filter(order => {
@@ -1197,7 +773,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
             const priceCrossed = isBuy ? price <= order.price : price >= order.price;
 
             if (priceCrossed) {
-                const trade: GridTrade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
+                const trade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
                 newTrades.push(trade);
                 
                 if (config.direction === 'long' && isBuy) {
@@ -1211,7 +787,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
@@ -1262,7 +838,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
     const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
     const quantityPerGrid = investmentPerGrid / (gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length);
 
-    const newGrid: Grid = {
+    const newGrid = {
         levels: gridLevels,
         profitPerGrid,
         quantityPerGrid,
@@ -1375,7 +951,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
 
         let gridPnl = 0;
         const matchedTrades: MatchedGridTrade[] = [];
-        const openBuys: GridTrade[] = [];
+        const openBuys: any[] = [];
 
         for (const candle of klines) {
             let stillOpenOrders: { price: number, side: 'buy' | 'sell' }[] = [];
@@ -1395,7 +971,7 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
             ordersThisCandle.sort((a,b) => a.side === 'sell' ? -1 : 1);
 
             for (const order of ordersThisCandle) {
-                const trade: GridTrade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
+                const trade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
                 
                 if (trade.side === 'buy') {
                     openBuys.push(trade);
@@ -1506,9 +1082,6 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
   useEffect(() => {
     return () => {
       Object.values(liveWsRefs.current).forEach(ws => ws?.close());
-      if (manualWsRef.current) manualWsRef.current.close();
-      if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
-      if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
       if (simulationWsRef.current) simulationWsRef.current.close();
       if (gridWsRef.current) gridWsRef.current.close();
       if (candleTimerRef.current) clearInterval(candleTimerRef.current);
@@ -1519,8 +1092,6 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
   return (
     <BotContext.Provider value={{ 
       liveBotState, 
-      manualTraderState,
-      multiSignalState,
       simulationState,
       gridState,
       gridBacktestState,
@@ -1530,14 +1101,6 @@ Entry: ~${result.signal.entryPrice.toFixed(4)}
       isAnalysisActive,
       startBotInstance,
       stopBotInstance,
-      runManualAnalysis,
-      cancelManualAnalysis,
-      resetManualSignal,
-      cleanManualChart,
-      executeManualTrade,
-      setManualChartData,
-      startMultiSignalMonitor,
-      stopMultiSignalMonitor,
       closePosition,
       startSimulation,
       stopSimulation,
