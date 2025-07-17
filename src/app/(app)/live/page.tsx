@@ -193,7 +193,13 @@ const StatusBadge = ({ status }: { status?: 'idle' | 'running' | 'analyzing' | '
 
 export default function LiveTradingPage() {
     const { toast } = useToast();
-    const { isConnected, startBotInstance, stopBotInstance, liveBotState, setStrategyParams, activeProfile } = useBot();
+    const { isConnected, activeProfile } = useApi();
+    const { 
+        startBotInstance, 
+        stopBotInstance, 
+        liveBotState, 
+        isTradingActive 
+    } = useBot();
     const { bots: runningBots } = liveBotState;
     const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', [createNewBotInstance('bot_1')]);
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
@@ -215,7 +221,7 @@ export default function LiveTradingPage() {
             if (bot.id === id) {
                 let updatedValue = value;
                 if (field === 'takeProfit' || field === 'stopLoss' || field === 'capital' || field === 'leverage') {
-                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : value as BotInstance[K];
+                     updatedValue = (value === '' || isNaN(value as number)) ? 0 : parseFloat(value as string) as any;
                 }
                 const updatedBot = { ...bot, [field]: updatedValue };
                 if (field === 'strategy') {
@@ -287,7 +293,9 @@ export default function LiveTradingPage() {
             return;
         }
 
-        if (runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open') {
+        const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open';
+        
+        if (isRunning) {
             stopBotInstance(botId);
         } else {
             startBotInstance(botConfig);
@@ -306,7 +314,7 @@ export default function LiveTradingPage() {
             {isConnected ? (
                 <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
                     <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>API CONNECTED</AlertTitle>
+                    <AlertTitle>CONNECTED</AlertTitle>
                     <AlertDescription>
                         You are connected to the Binance API. Live trading features are enabled.
                     </AlertDescription>
