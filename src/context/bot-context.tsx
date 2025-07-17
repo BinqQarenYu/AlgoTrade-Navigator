@@ -216,7 +216,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
-    const manualTradePending = manualTraderState.isExecuting || (manualTraderState.signal !== null && !manualTraderState.signalInvalidated);
+    const manualTradePending = manualTraderState.isExecuting;
     
     // A session is "trading" if a live bot is running or a manual trade is being executed.
     // Simulations do not count as a "trading" session that would block other actions.
@@ -464,14 +464,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }));
 
     try {
-      const klines = await getLatestKlinesByLimit(config.asset, '1h', 1000);
+      const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
       setLiveBotState(prev => ({ ...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], chartData: klines}}}));
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
       
       runLiveBotCycle(botId, true);
       
       if (liveWsRefs.current[botId]) liveWsRefs.current[botId]?.close();
-      const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.asset.toLowerCase()}@kline_1h`);
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.asset.toLowerCase()}@kline_${config.interval}`);
       liveWsRefs.current[botId] = ws;
       
       ws.onmessage = (event) => {
@@ -500,7 +500,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       ws.onerror = () => addLiveLog(botId, "Live data stream error.");
       ws.onclose = () => addLiveLog(botId, "Live data stream closed.");
 
-      toast({ title: "Live Bot Started", description: `Monitoring ${config.asset} on the 1h interval.`});
+      toast({ title: "Live Bot Started", description: `Monitoring ${config.asset} on the ${config.interval} interval.`});
 
     } catch (error: any) {
         addLiveLog(botId, `Error starting bot: ${error.message}`);

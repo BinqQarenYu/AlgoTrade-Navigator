@@ -238,6 +238,7 @@ export type RankedTradeSignal = TradeSignal & {
     
 export type LiveBotConfig = {
     asset: string;
+    interval: string;
     capital: number;
     leverage: number;
     takeProfit: number;
