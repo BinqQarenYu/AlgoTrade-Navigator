@@ -437,7 +437,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', e.target.value as any)}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -446,7 +446,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -472,7 +472,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -481,7 +481,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="text"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', e.target.value as any)}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
