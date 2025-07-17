@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal, Play, StopCircle } from "lucide-react"
+import { Terminal, Loader2, ClipboardCheck, Wand2, Activity, RotateCcw, Bot, ChevronDown, Newspaper, Crown, Flame, Smile, Thermometer, TrendingUp, TrendingDown, DollarSign, Repeat, ArrowUpToLine, ArrowDownToLine, BrainCircuit, Send, XCircle, Eye, GripHorizontal, Play, StopCircle, LayoutGrid } from "lucide-react"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex, ManualTraderConfig, DisciplineParams, Wall, SpoofedWall } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
@@ -45,6 +45,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { OrderBook } from "@/components/order-book"
+import { TradingChart } from "@/components/trading-chart"
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -117,10 +118,9 @@ export default function ManualTradingPage() {
   const { toast } = useToast();
   const { 
     manualTraderState,
-    runManualAnalysis,
-    cancelManualAnalysis,
-    resetManualSignal,
-    setManualChartData,
+    startMultiSignalMonitor,
+    stopMultiSignalMonitor,
+    multiSignalState,
     isTradingActive,
     strategyParams,
     setStrategyParams,
@@ -128,7 +128,7 @@ export default function ManualTradingPage() {
     cleanManualChart,
   } = useBot();
 
-  const { isAnalyzing, logs, signal, chartData, isExecuting, signalInvalidated } = manualTraderState;
+  const { isAnalyzing, logs, signal, chartData, signalInvalidated } = manualTraderState;
   
   const { baseAsset, quoteAsset, symbol, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('manual', 'BTC', 'USDT');
   
@@ -138,7 +138,6 @@ export default function ManualTradingPage() {
   const [leverage, setLeverage] = usePersistentState<number>('manual-leverage', 10);
   const [takeProfit, setTakeProfit] = usePersistentState<number>('manual-tp', 2);
   const [stopLoss, setStopLoss] = usePersistentState<number>('manual-sl', 1);
-  const [fee, setFee] = usePersistentState<number>('manual-fee', 0.04);
   const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('manual-ai-prediction', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('manual-chart-height', 600);
 
@@ -274,7 +273,7 @@ export default function ManualTradingPage() {
         takeProfit,
         stopLoss,
         useAIPrediction,
-        fee
+        fee: 0.04, // Not used in this flow directly
     };
 
     if (useAIPrediction) {
@@ -283,37 +282,46 @@ export default function ManualTradingPage() {
         setIsConfirming(true);
       }
     } else {
-      runManualAnalysis(config);
+      startMultiSignalMonitor({
+          assets: [symbol],
+          interval: interval,
+          strategy: selectedStrategy,
+          strategyParams: strategyParams[selectedStrategy],
+          takeProfit: takeProfit,
+          stopLoss: stopLoss,
+          useAIPrediction: useAIPrediction
+      });
     }
-  }, [symbol, interval, selectedStrategy, strategyParams, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee, canUseAi, runManualAnalysis]);
+  }, [symbol, interval, selectedStrategy, strategyParams, initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, canUseAi, startMultiSignalMonitor]);
 
   const handleConfirmAnalysis = () => {
     if(analysisConfigRef.current) {
         consumeAiCredit();
-        runManualAnalysis(analysisConfigRef.current);
+        startMultiSignalMonitor({
+          assets: [symbol],
+          interval: interval,
+          strategy: selectedStrategy,
+          strategyParams: strategyParams[selectedStrategy],
+          takeProfit: takeProfit,
+          stopLoss: stopLoss,
+          useAIPrediction: useAIPrediction
+        });
     }
     setIsConfirming(false);
   }
 
   const handleCancelAnalysis = useCallback(() => {
-    cancelManualAnalysis();
-  }, [cancelManualAnalysis]);
+    stopMultiSignalMonitor();
+  }, [stopMultiSignalMonitor]);
 
   const handleResetSignal = useCallback(() => {
-    resetManualSignal();
-  }, [resetManualSignal]);
+    // This function might need adjustment based on new multi-signal state
+  }, []);
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
   };
-
-  useEffect(() => {
-    if (isConnected && !manualTraderState.isAnalyzing && manualTraderState.signal === null && symbol && quoteAsset) {
-      setManualChartData(symbol, interval);
-    }
-  }, [isConnected, symbol, quoteAsset, interval, setManualChartData, manualTraderState.isAnalyzing, manualTraderState.signal]);
-
-
+  
   const hasActiveSignal = signal !== null;
   
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
@@ -373,8 +381,8 @@ export default function ManualTradingPage() {
 
   if (signal) {
     tradeQuantity = positionValue / signal.entryPrice;
-    entryFee = signal.entryPrice * tradeQuantity * (fee / 100);
-    exitFee = signal.takeProfit * tradeQuantity * (fee / 100);
+    entryFee = signal.entryPrice * tradeQuantity * (0.04 / 100);
+    exitFee = signal.takeProfit * tradeQuantity * (0.04 / 100);
     totalFee = entryFee + exitFee;
     if (signal.action === 'UP') {
         grossPnl = (signal.takeProfit - signal.entryPrice) * tradeQuantity;
@@ -384,7 +392,7 @@ export default function ManualTradingPage() {
     netPnl = grossPnl - totalFee;
   }
   
-  const isThisPageTrading = isAnalyzing || hasActiveSignal;
+  const isThisPageTrading = multiSignalState.isRunning;
 
   const getFngColor = (value: number) => {
     if (value <= 25) return "bg-red-600"; // Extreme Fear
@@ -442,6 +450,14 @@ export default function ManualTradingPage() {
 
   return (
     <div className="flex flex-col h-full">
+      <div className="text-left mb-6">
+          <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+              <LayoutGrid size={32}/> Multi-Signal Dashboard
+          </h1>
+          <p className="text-muted-foreground mt-2">
+              Concurrently monitor multiple assets for trade signals.
+          </p>
+      </div>
     {!isConnected && (
         <Alert variant="destructive" className="mb-4">
             <Terminal className="h-4 w-4" />
@@ -456,7 +472,7 @@ export default function ManualTradingPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Another Trading Session is Active</AlertTitle>
             <AlertDescription>
-                Manual trading is disabled to prioritize another active trading session. Check the <Link href="/live" className="font-bold underline">Live Bot</Link> or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> page.
+                The multi-signal dashboard is disabled to prioritize another active trading session.
             </AlertDescription>
         </Alert>
       )}
@@ -498,8 +514,8 @@ export default function ManualTradingPage() {
           <Collapsible open={isGeneratorOpen} onOpenChange={setGeneratorOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle className="flex items-center gap-2"><ClipboardCheck/> Manual Signal Generator</CardTitle>
-                <CardDescription>Configure and generate a trade signal for manual execution.</CardDescription>
+                <CardTitle className="flex items-center gap-2"><ClipboardCheck/> Signal Generator</CardTitle>
+                <CardDescription>Configure and monitor for trade signals.</CardDescription>
               </div>
               <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -582,41 +598,7 @@ export default function ManualTradingPage() {
                     isDisabled={isThisPageTrading}
                 />
 
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="initial-capital">Capital ($)</Label>
-                        <Input 
-                            id="initial-capital" 
-                            type="number" 
-                            value={initialCapital}
-                            onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                            placeholder="100"
-                            disabled={isThisPageTrading}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="leverage">Leverage (x)</Label>
-                      <Input
-                        id="leverage"
-                        type="number"
-                        min="1"
-                        value={leverage}
-                        onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
-                        placeholder="10"
-                        disabled={isThisPageTrading}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="fee">Fee (%)</Label>
-                        <Input 
-                            id="fee" 
-                            type="number" 
-                            value={fee}
-                            onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
-                            placeholder="0.04"
-                            disabled={isThisPageTrading}
-                        />
-                    </div>
+                <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="take-profit">Take Profit (%)</Label>
                         <Input 
@@ -655,13 +637,13 @@ export default function ManualTradingPage() {
                 <Button
                     className="w-full"
                     onClick={
-                        isAnalyzing ? handleCancelAnalysis :
+                        multiSignalState.isRunning ? handleCancelAnalysis :
                         handleRunAnalysisClick
                     }
                     disabled={!isConnected || (isTradingActive && !isThisPageTrading) || (!isAnalyzing && selectedStrategy === 'none')}
-                    variant={isAnalyzing ? "destructive" : "default"}
+                    variant={multiSignalState.isRunning ? "destructive" : "default"}
                 >
-                    {isAnalyzing ? (
+                    {multiSignalState.isRunning ? (
                         <>
                             <StopCircle className="mr-2 h-4 w-4" />
                             Stop Monitoring
@@ -834,158 +816,6 @@ export default function ManualTradingPage() {
                       )}
                   </CardContent>
               </CollapsibleContent>
-          </Collapsible>
-        </Card>
-
-        <Card>
-          <Collapsible open={isSignalOpen} onOpenChange={setSignalOpen}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Trade Signal</CardTitle>
-                <CardDescription>
-                    {signal ? `Signal for ${symbol} generated at ${new Date(signal.timestamp).toLocaleTimeString()}` : "Signals will appear here after analysis."}
-                </CardDescription>
-              </div>
-              <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", isSignalOpen && "rotate-180")} />
-                      <span className="sr-only">Toggle</span>
-                  </Button>
-              </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent className="min-h-[240px]">
-                  {isAnalyzing && !hasActiveSignal ? (
-                      <div className="flex items-center justify-center h-full text-muted-foreground">
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          <span>Searching for a trade setup...</span>
-                      </div>
-                  ) : signal ? (
-                      <div className="space-y-4">
-                          {signalInvalidated && (
-                              <Alert variant="destructive">
-                                  <AlertTitle>Signal Invalidated</AlertTitle>
-                                  <AlertDescription>
-                                      Market structure has changed. This signal is no longer valid. Please reset the signal.
-                                  </AlertDescription>
-                              </Alert>
-                          )}
-                          <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">Recommended Action</span>
-                              <Badge variant={signal.action === 'UP' ? 'default' : 'destructive'} className="text-base px-4 py-1">
-                                  {signal.action === 'UP' ? 'BUY / LONG' : 'SELL / SHORT'}
-                              </Badge>
-                          </div>
-                          <Separator/>
-                          <div className="grid gap-2 text-sm">
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Entry Price (approx.)</span>
-                                  <span className="font-mono">${formatPrice(signal.entryPrice)}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Stop Loss</span>
-                                  <span className="font-mono text-red-500">${formatPrice(signal.stopLoss)}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Take Profit</span>
-                                  <span className="font-mono text-green-500">${formatPrice(signal.takeProfit)}</span>
-                              </div>
-                          </div>
-                          <Separator/>
-                          <div className="grid gap-2 text-sm">
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Est. Position Value</span>
-                                  <span className="font-mono">${positionValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Est. Total Fee</span>
-                                  <span className="font-mono">${totalFee.toFixed(4)}</span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                  <span className="text-muted-foreground">Net PNL at TP</span>
-                                  <span className="font-mono font-semibold text-green-500">${netPnl.toFixed(4)}</span>
-                              </div>
-                          </div>
-                          
-                          <Separator />
-                          <div className="space-y-2">
-                              <h4 className="text-sm font-medium">{useAIPrediction ? "AI Analysis" : "Signal Rationale"}</h4>
-                              {useAIPrediction && (
-                                  <div className="flex justify-between items-center text-sm">
-                                      <span className="text-muted-foreground">Confidence</span>
-                                      <span className="font-mono font-semibold">{(signal.confidence * 100).toFixed(1)}%</span>
-                                  </div>
-                              )}
-                              <p className="text-xs text-muted-foreground pt-1">{signal.reasoning}</p>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                          <p>Start monitoring to get a recommendation.</p>
-                      </div>
-                  )}
-              </CardContent>
-               {signal && (
-                    <CardFooter className="flex-col items-stretch gap-2 pt-6 border-t">
-                        <Button
-                            onClick={() => handleExecuteTrade(false)}
-                            disabled={isExecuting || signalInvalidated || activeProfile?.permissions !== 'FuturesTrading'}
-                            className={cn(signal.action === 'UP' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700')}
-                            title={activeProfile?.permissions !== 'FuturesTrading' ? 'A key with Futures Trading permissions is required.' : `Execute ${signal.action} on Binance`}
-                        >
-                            {isExecuting ? <Loader2 className="animate-spin"/> : <Send/>}
-                            Execute Trade (Binance)
-                        </Button>
-                        <Button
-                            onClick={() => handleExecuteTrade(true)}
-                            disabled={isExecuting || signalInvalidated}
-                            variant="secondary"
-                        >
-                            <Eye />
-                            Simulate on Chart
-                        </Button>
-                        <Separator />
-                        <Button
-                            onClick={handleResetSignal}
-                            variant="ghost"
-                            size="sm"
-                            disabled={isExecuting}
-                        >
-                            <XCircle/>
-                            Dismiss Signal
-                        </Button>
-                    </CardFooter>
-                )}
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-        
-        <Card>
-          <Collapsible open={isLogsOpen} onOpenChange={setLogsOpen}>
-            <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2"><Activity/> Analysis Logs</CardTitle>
-                <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isLogsOpen && "rotate-180")} />
-                        <span className="sr-only">Toggle</span>
-                    </Button>
-                </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent>
-                  <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
-                      {logs.length > 0 ? (
-                          <pre className="text-xs whitespace-pre-wrap font-mono">
-                              {logs.join('\n')}
-                          </pre>
-                      ) : (
-                          <div className="flex items-center justify-center h-full text-muted-foreground">
-                              <p>Logs from the analysis will appear here.</p>
-                          </div>
-                      )}
-                  </div>
-              </CardContent>
-            </CollapsibleContent>
           </Collapsible>
         </Card>
 
