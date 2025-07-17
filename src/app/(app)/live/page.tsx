@@ -55,6 +55,10 @@ import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
 import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
+import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
+import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
+import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
+import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -83,6 +87,10 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'williams-r': defaultWilliamsRParams,
     'liquidity-grab': defaultLiquidityGrabParams,
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
+    'ema-cci-macd': defaultEmaCciMacdParams,
+    'code-based-consensus': defaultCodeBasedConsensusParams,
+    'mtf-engulfing': defaultMtfEngulfingParams,
+    'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
 }
 
 type BotInstance = LiveBotConfig & {
@@ -223,11 +231,13 @@ export default function LiveTradingPage() {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
                 const updatedParams = { ...bot.strategyParams };
-                if (typeof value === 'object') {
+                 if (typeof value === 'object') {
+                   updatedParams[param] = value;
+                } else if (typeof value === 'boolean') {
                    updatedParams[param] = value;
                 } else {
                    const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-                   updatedParams[param] = isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue;
+                   updatedParams[param] = isNaN(parsedValue as number) ? 0 : parsedValue;
                 }
                return { ...bot, strategyParams: updatedParams };
            }
@@ -275,7 +285,7 @@ export default function LiveTradingPage() {
             stopBotInstance(botId);
         } else {
             if (activeProfile?.permissions !== 'FuturesTrading') {
-                toast({ title: "Permission Denied", description: "A key with Futures Trading permission is required to start a live bot.", variant: "destructive"});
+                toast({ title: "Permission Denied", description: "The active API key must have 'FuturesTrading' permissions enabled to start a live bot.", variant: "destructive"});
                 return;
             }
             startBotInstance(botConfig);
@@ -353,7 +363,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.capital}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'capital', parseFloat(e.target.value))}
                                                         className="w-28"
                                                         disabled={isRunning}
                                                     />
@@ -362,7 +372,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.leverage}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -371,7 +381,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.takeProfit}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
@@ -380,7 +390,7 @@ export default function LiveTradingPage() {
                                                     <Input
                                                         type="number"
                                                         value={bot.stopLoss}
-                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
+                                                        onChange={(e) => handleBotConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value))}
                                                         className="w-24"
                                                         disabled={isRunning}
                                                     />
