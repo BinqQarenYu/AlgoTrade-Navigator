@@ -245,6 +245,7 @@ export type LiveBotConfig = {
     stopLoss: number;
     strategy: string;
     strategyParams: any;
+    isManual?: boolean;
 };
 
 export type LiveBotStateForAsset = {

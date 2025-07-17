@@ -525,11 +525,9 @@ export default function ManualTradingPage() {
                                                                         </Button>
                                                                     </div>
                                                                 </TooltipTrigger>
-                                                                {activeProfile?.permissions !== 'FuturesTrading' && !isRunning && (
-                                                                    <TooltipContent>
-                                                                        <p>A key with Futures Trading permission is required to execute trades.</p>
-                                                                    </TooltipContent>
-                                                                )}
+                                                                <TooltipContent>
+                                                                    <p>Start or stop monitoring for signals.</p>
+                                                                </TooltipContent>
                                                             </Tooltip>
                                                         </TooltipProvider>
                                                         <Button variant="ghost" size="icon" onClick={() => toggleParams(bot.id)} disabled={!bot.strategy}>

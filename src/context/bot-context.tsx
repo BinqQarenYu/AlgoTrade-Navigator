@@ -73,7 +73,7 @@ interface BotContextType {
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
   isAnalysisActive: boolean; // For non-trading, analysis-only processes
-  startBotInstance: (config: LiveBotConfig & { id: string }) => void;
+  startBotInstance: (config: LiveBotConfig & { id: string, isManual?: boolean }) => void;
   stopBotInstance: (botId: string) => void;
   closePosition: (position: Position) => void;
   startSimulation: (config: SimulationConfig) => void;
@@ -367,17 +367,19 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             }
 
             if (closePosition) {
-                addLiveLog(botId, `Closing position: ${closeReason}`);
-                const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
-                const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
-                const orderResult = await placeOrder(config.asset, side, quantity, apiKey, secretKey, true);
-                toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
-                
-                const pnl = side === 'SELL' 
-                    ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity 
-                    : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
-                riskGuardian?.registerTrade(pnl);
-
+                addLiveLog(botId, `Exit signal: ${closeReason}`);
+                if (config.isManual) {
+                    toast({ title: `Manual Exit Signal: ${config.asset}`, description: `Reason: ${closeReason}. Time to close your position.` });
+                } else {
+                    const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
+                    const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
+                    const orderResult = await placeOrder(config.asset, side, quantity, apiKey, secretKey, true);
+                    toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
+                    const pnl = side === 'SELL' 
+                        ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity 
+                        : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
+                    riskGuardian?.registerTrade(pnl);
+                }
                 setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
             }
             return; // Don't look for new trades if we are in a position
@@ -390,11 +392,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           
           if (signal) {
               addLiveLog(botId, `New trade signal found: ${signal.action} at ${signal.entryPrice}`);
-              const side = signal.action === 'UP' ? 'BUY' : 'SELL';
-              const quantity = (config.capital * config.leverage) / signal.entryPrice;
-              
-              await placeOrder(config.asset, side, quantity, apiKey, secretKey);
-              toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+              if (config.isManual) {
+                 toast({ title: `Manual Entry Signal: ${config.asset}`, description: `Action: ${signal.action}, Entry: ${signal.entryPrice.toFixed(4)}` });
+              } else {
+                  const side = signal.action === 'UP' ? 'BUY' : 'SELL';
+                  const quantity = (config.capital * config.leverage) / signal.entryPrice;
+                  await placeOrder(config.asset, side, quantity, apiKey, secretKey);
+                  toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+              }
               setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: signal, status: 'position_open'}}}));
           } else {
               addLiveLog(botId, `No trade signal found. Reason: ${log}`);
@@ -413,7 +418,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [liveBotState.bots, addLiveLog, analyzeAsset, apiKey, secretKey, toast, stopBotInstance]);
 
 
-  const startBotInstance = useCallback(async (config: LiveBotConfig & { id: string }) => {
+  const startBotInstance = useCallback(async (config: LiveBotConfig & { id: string, isManual?: boolean }) => {
     const botId = config.id;
     addLiveLog(botId, `Starting bot for ${config.asset}...`);
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
@@ -498,7 +503,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         // If it closed unexpectedly, you might want retry logic here.
       };
 
-      toast({ title: "Live Bot Started", description: `Monitoring ${config.asset} on the ${config.interval} interval.`});
+      toast({ title: "Bot Started", description: `Monitoring ${config.asset} on the ${config.interval} interval.`});
 
     } catch (error: any) {
         addLiveLog(botId, `Error starting bot: ${error.message}`);
@@ -782,12 +787,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         stillOpenOrders.push({ price: newSellPrice, side: 'sell' });
                     }
                 } else if (config.direction === 'short' && !isBuy) {
-                    const newBuyPrice = order.price - grid.profitPerGrid;
+                    const newBuyPrice = order.price - profitPerGrid;
                     if (newBuyPrice >= config.lowerPrice) {
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
                 } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - grid.profitPerGrid;
+                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
                     if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
                         stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
                     }
