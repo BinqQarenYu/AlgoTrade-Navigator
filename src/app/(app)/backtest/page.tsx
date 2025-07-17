@@ -519,6 +519,7 @@ export default function BacktestPage() {
 
     if (!contrarian) {
         setIsBacktesting(true);
+        // This is the key change: Reset all results before starting a new test.
         setBacktestResults([]);
         setSummaryStats(null);
         setContrarianResults(null);
@@ -1480,7 +1481,7 @@ export default function BacktestPage() {
               </CardContent>
               <CardFooter className="flex-col gap-2">
                 <div className="flex w-full gap-2">
-                  <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none' || isReplaying}>
+                  <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
                     {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
                   </Button>
@@ -1489,8 +1490,9 @@ export default function BacktestPage() {
                       Export to Live
                   </Button>
                 </div>
-                <Button className="w-full" variant="outline" onClick={startReplay} disabled={anyLoading || isReplaying || fullChartData.length < 50}>
-                    <Play className="mr-2 h-4 w-4"/> Start Replay
+                <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
+                    {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                    {isReplaying ? "View Full Report" : "Start Replay"}
                 </Button>
                  {isReplaying && (
                     <Card>
@@ -1502,7 +1504,6 @@ export default function BacktestPage() {
                                 <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
                                 <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
                                 <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                                <Button variant="destructive" size="icon" onClick={handleStopReplayAndRunBacktest}><History/></Button>
                             </div>
                             <div className="flex items-center justify-center gap-2">
                               <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
