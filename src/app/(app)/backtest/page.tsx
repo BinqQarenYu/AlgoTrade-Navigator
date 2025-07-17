@@ -50,6 +50,12 @@ import { RiskGuardian } from "@/lib/risk-guardian"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -846,8 +852,8 @@ export default function BacktestPage() {
     setFullChartData([]);
   };
 
-  const handleExportToLive = () => {
-    if (!symbol || !selectedStrategy) {
+  const handleExport = (isManual: boolean) => {
+    if (!symbol || !selectedStrategy || selectedStrategy === 'none') {
       toast({
         title: "Incomplete Configuration",
         description: "Please select an asset and a strategy before exporting.",
@@ -864,12 +870,17 @@ export default function BacktestPage() {
       stopLoss,
       strategy: selectedStrategy,
       strategyParams: strategyParams[selectedStrategy] || {},
+      isManual,
     });
+    
+    const pageName = isManual ? "Manual Trading" : "Live Trading";
+    const route = isManual ? "/manual" : "/live";
+    
     toast({
-      title: "Exported to Live",
-      description: `Bot for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been added to the Live Trading page.`
+      title: `Exported to ${pageName}`,
+      description: `Bot for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been added to the ${pageName} page.`
     });
-    router.push('/live');
+    router.push(route);
   };
 
   const renderParameterControls = () => {
@@ -1485,10 +1496,22 @@ export default function BacktestPage() {
                     {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
                   </Button>
-                  <Button className="w-full" variant="secondary" onClick={handleExportToLive} disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
-                      <Send className="mr-2 h-4 w-4"/>
-                      Export to Live
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="w-full" variant="secondary" disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
+                          <Send className="mr-2 h-4 w-4"/>
+                          Export Strategy
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleExport(false)}>
+                        Export to Live Trading
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport(true)}>
+                        Export to Manual Trading
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
                 <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
                     {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
