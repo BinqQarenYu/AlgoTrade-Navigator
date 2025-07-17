@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -506,6 +506,15 @@ export default function BacktestPage() {
     } else {
         runBacktest();
     }
+  };
+
+  const handleClearReport = () => {
+    setBacktestResults([]);
+    setSummaryStats(null);
+    setContrarianResults(null);
+    setContrarianSummary(null);
+    setSelectedTrade(null);
+    toast({ title: "Report Cleared", description: "The backtest results have been cleared from view." });
   };
 
   const runBacktest = async (contrarian = false) => {
@@ -1513,10 +1522,16 @@ export default function BacktestPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
-                    {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
-                    {isReplaying ? "View Full Report" : "Start Replay"}
-                </Button>
+                <div className="flex w-full gap-2">
+                    <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
+                        {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                        {isReplaying ? "View Full Report" : "Start Replay"}
+                    </Button>
+                    <Button className="w-full" variant="destructive" onClick={handleClearReport} disabled={anyLoading || !summaryStats}>
+                        <Trash2 className="mr-2 h-4 w-4"/>
+                        Clear Report
+                    </Button>
+                </div>
                  {isReplaying && (
                     <Card>
                         <CardHeader className="p-4">
