@@ -22,22 +22,25 @@ const loadAllStrategies = (): Strategy[] => {
   const indicatorFunctionValues = Object.values(indicatorFunctions);
 
   const customStrategyInstances: Strategy[] = customStrategies.map(strat => {
-    // Create a new async function.
-    // The first set of arguments are the names of the functions we're injecting.
-    // The last argument is the actual code body.
-    const dynamicFunction = new Function(
-        ...indicatorFunctionNames, 
-        'data', 
-        'params', 
-        `return (async () => { ${strat.code} })()`
-    );
+    // This creates an async function that has access to all the indicator functions.
+    // This is safer and more robust than the previous `new Function` constructor.
+    const calculateFunction = async (data: any, params: any) => {
+      // Create a function that has all the indicators in its scope.
+      const scopedFunction = new Function(
+        ...indicatorFunctionNames,
+        `return (async (data, params) => {
+          ${strat.code}
+        });`
+      )(...indicatorFunctionValues);
+      
+      return await scopedFunction(data, params);
+    };
 
     return {
       id: strat.id,
       name: strat.displayName,
       description: strat.config.description,
-      // Bind the indicator functions to the dynamic function's arguments.
-      calculate: (data, params) => dynamicFunction(...indicatorFunctionValues, data, params),
+      calculate: calculateFunction,
     };
   });
   
