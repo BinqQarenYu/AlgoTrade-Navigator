@@ -3,6 +3,7 @@
 
 import { ApiProvider } from "@/context/api-context";
 import { BotProvider, useBot } from "@/context/bot-context";
+import { DataManagerProvider } from "@/context/data-manager-context";
 import { StrategyRecommendation } from "@/components/trading-discipline/StrategyRecommendation";
 
 function AppStatefulWrapper({ children }: { children: React.ReactNode }) {
@@ -31,7 +32,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ApiProvider>
       <BotProvider>
-        <AppStatefulWrapper>{children}</AppStatefulWrapper>
+        <DataManagerProvider>
+          <AppStatefulWrapper>{children}</AppStatefulWrapper>
+        </DataManagerProvider>
       </BotProvider>
     </ApiProvider>
   );

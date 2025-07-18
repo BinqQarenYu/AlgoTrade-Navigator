@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
-import { getLatestKlinesByLimit, getHistoricalKlines } from "@/lib/binance-service"
+import { useDataManager } from "@/context/data-manager-context"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -225,6 +225,8 @@ export default function BacktestPage() {
   const router = useRouter();
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
+  const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
+
 
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
@@ -237,7 +239,6 @@ export default function BacktestPage() {
 
   const [fullChartData, setFullChartData] = useState<HistoricalData[]>([]);
   const [visibleChartData, setVisibleChartData] = useState<HistoricalData[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(false);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
@@ -349,47 +350,35 @@ export default function BacktestPage() {
     }
   }, [baseAsset, quoteAsset, setQuoteAsset]);
   
-  // Effect to fetch raw data from the API
+  // Effect to fetch raw data using the DataManager context
   useEffect(() => {
-    if (!isClient || !symbol || !quoteAsset) return;
-
-    const fetchData = async () => {
-        if (!isConnected) {
-            setFullChartData([]);
-            return;
-        }
-        setIsFetchingData(true);
+    if (!isClient || !symbol || !quoteAsset || !isConnected) {
         setFullChartData([]);
-        setBacktestResults([]);
-        setSummaryStats(null);
-        setContrarianResults(null);
-        setContrarianSummary(null);
-        setSelectedTrade(null);
-        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
-        try {
-            let klines: HistoricalData[] = [];
-            if (date?.from && date?.to) {
-                klines = await getHistoricalKlines(symbol, interval, date.from.getTime(), date.to.getTime());
-            } else {
-                klines = await getLatestKlinesByLimit(symbol, interval, 1000);
-            }
-            setFullChartData(klines);
-            toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
-        } catch (error: any) {
-            console.error("Failed to fetch historical data:", error);
-            toast({
-                title: "Failed to Load Data",
-                description: error.message || "Could not retrieve historical data from Binance.",
-                variant: "destructive"
-            });
-            setFullChartData([]);
-        } finally {
-            setIsFetchingData(false);
+        return;
+    };
+    
+    const fetchData = async () => {
+        const data = await getChartData(symbol, interval, date);
+        if (data) {
+            setFullChartData(data);
         }
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, date]);
+
+  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData]);
+
+  // Effect to handle data errors from the context
+  useEffect(() => {
+    if (dataError) {
+        toast({
+            title: "Failed to Load Data",
+            description: dataError,
+            variant: "destructive"
+        });
+    }
+  }, [dataError, toast]);
+
 
   // Effect to calculate and display indicators
   useEffect(() => {
