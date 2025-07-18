@@ -26,11 +26,12 @@ const obvDivergenceStrategy: Strategy = {
   description: 'Identifies potential reversals by comparing On-Balance Volume (OBV) trend with price trend.',
   async calculate(data: HistoricalData[], params: ObvDivergenceParams = defaultObvDivergenceParams): Promise<HistoricalData[]> {
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const period = params.period || 20; // Use the provided period or default to 20
 
-    if (data.length < params.period) return dataWithIndicators;
+    if (data.length < period) return dataWithIndicators;
 
     const obv = calculateOBV(data);
-    const obvSma = calculateSMA(obv.filter(v => v !== null) as number[], params.period);
+    const obvSma = calculateSMA(obv.filter(v => v !== null) as number[], period);
     const obvSmaPadded = [...Array(data.length - obvSma.length).fill(null), ...obvSma];
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
