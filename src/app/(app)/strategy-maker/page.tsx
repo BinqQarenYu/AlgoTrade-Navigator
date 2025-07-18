@@ -91,7 +91,7 @@ export default function StrategyMakerPage() {
         if (data) setChartData(data);
     };
     fetchData();
-  }, [isConnected, symbol, getChartData]);
+  }, [isConnected, symbol]);
 
   const handleConfigChange = <K extends keyof StrategyConfig>(field: K, value: StrategyConfig[K]) => {
     setConfig(prev => ({ ...prev, [field]: value }));
