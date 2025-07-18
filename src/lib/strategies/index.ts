@@ -24,16 +24,14 @@ const loadAllStrategies = (): Strategy[] => {
   const customStrategyInstances: Strategy[] = customStrategies.map(strat => {
     // A robust, async function wrapper that injects dependencies.
     const calculateFunction = async (data: any, params: any) => {
-      // Create a new async function with all indicators in its scope.
+        
+      // Correctly create a new async function with all indicators in its scope.
       // The AI generates only the BODY of the function.
-      const scopedFunction = Object.assign(
-        (async () => {}).constructor, // Creates an async function constructor
-        ...indicatorFunctionNames,
-        `
-        const data = arguments[${indicatorFunctionNames.length}];
-        const params = arguments[${indicatorFunctionNames.length + 1}];
-        ${strat.code}
-        `
+      const scopedFunction = new (Object.getPrototypeOf(async function(){}).constructor)(
+        ...indicatorFunctionNames, 
+        'data', 
+        'params', 
+        strat.code
       );
       
       return await scopedFunction(...indicatorFunctionValues, data, params);
