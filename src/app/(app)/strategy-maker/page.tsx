@@ -93,7 +93,7 @@ export default function StrategyMakerPage() {
   const [interval, setInterval] = usePersistentState<string>('strategy-maker-interval', "1h");
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
-  const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', false);
+  const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', true);
   const [isProjectionOpen, setIsProjectionOpen] = usePersistentState<boolean>('sm-projection-open', false);
   const [isApprovedOpen, setIsApprovedOpen] = usePersistentState<boolean>('sm-approved-open', true);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
@@ -495,53 +495,53 @@ export default function StrategyMakerPage() {
               </Collapsible>
             </Card>
             
-             <Collapsible open={isProjectionOpen} onOpenChange={setProjectionOpen}>
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle className="flex items-center gap-2"><Recycle/> Future Projection &amp; Forward Testing</CardTitle>
-                            <CardDescription>Generate hypothetical future candles to stress-test your strategy.</CardDescription>
-                        </div>
-                         <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionOpen && "rotate-180")} />
-                            </Button>
-                        </CollapsibleTrigger>
-                    </CardHeader>
-                    <CollapsibleContent>
-                        <CardContent className="space-y-4">
-                            <div>
-                                <Label>Projection Mode</Label>
-                                <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
-                                    <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
-                                    <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
-                                    <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
-                                    <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
-                                    <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2">Frankenstein (Up/Down/Neutral Splice)</Label></div>
-                                </RadioGroup>
-                            </div>
-                            <div>
-                                <Label>Projection Duration</Label>
-                                <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
-                                    <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
-                                    <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
-                                    <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
-                                    <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
-                                </RadioGroup>
-                            </div>
-                        </CardContent>
-                        <CardFooter className="flex-col gap-2">
-                            <Button className="w-full" onClick={handleProjectAndTest} disabled={isProjecting || chartData.length === 0}>
-                                {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                                {isProjecting ? 'Generating...' : 'Project & Forward Test'}
-                            </Button>
-                            <Button className="w-full" variant="outline" onClick={() => setProjectedData([])} disabled={projectedData.length === 0 || isProjecting}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Clear Projection
-                            </Button>
-                        </CardFooter>
-                    </CollapsibleContent>
-                </Card>
+            <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Recycle/> Future Projection &amp; Forward Testing</CardTitle>
+                    <CardDescription>Generate hypothetical future candles to stress-test your strategy.</CardDescription>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label>Projection Mode</Label>
+                      <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                        <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                        <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                        <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                        <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                        <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2">Frankenstein (Up/Down/Neutral Splice)</Label></div>
+                      </RadioGroup>
+                    </div>
+                    <div>
+                      <Label>Projection Duration</Label>
+                      <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                        <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
+                        <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
+                        <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
+                        <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
+                      </RadioGroup>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex-col gap-2">
+                    <Button className="w-full" onClick={handleProjectAndTest} disabled={isProjecting || chartData.length === 0}>
+                      {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                      {isProjecting ? 'Generating...' : 'Project & Forward Test'}
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={() => setProjectedData([])} disabled={projectedData.length === 0 || isProjecting}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Clear Projection
+                    </Button>
+                  </CardFooter>
+                </CollapsibleContent>
+              </Card>
             </Collapsible>
 
 
@@ -645,5 +645,3 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
-
-    
