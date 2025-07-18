@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2 } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -226,7 +226,7 @@ export default function BacktestPage() {
   const { toast } = useToast()
   const router = useRouter();
   const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
-  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
+  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance, setSimulationConfigForNextLoad } = useBot();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
 
@@ -857,36 +857,51 @@ export default function BacktestPage() {
     setFullChartData([]);
   };
 
-  const handleExport = (isManual: boolean) => {
+  const handleExport = (targetPage: 'live' | 'manual' | 'simulation') => {
     if (!symbol || !selectedStrategy || selectedStrategy === 'none') {
-      toast({
-        title: "Incomplete Configuration",
-        description: "Please select an asset and a strategy before exporting.",
-        variant: "destructive"
-      });
-      return;
+        toast({ title: "Incomplete Configuration", description: "Please select an asset and a strategy before exporting.", variant: "destructive" });
+        return;
     }
-    addBotInstance({
-      asset: symbol,
-      interval,
-      capital: initialCapital,
-      leverage,
-      takeProfit,
-      stopLoss,
-      strategy: selectedStrategy,
-      strategyParams: strategyParams[selectedStrategy] || {},
-      isManual,
-    });
-    
-    const pageName = isManual ? "Manual Trading" : "Live Trading";
-    const route = isManual ? "/manual" : "/live";
-    
+
+    const currentConfig = {
+        asset: symbol,
+        interval,
+        capital: initialCapital,
+        leverage,
+        takeProfit,
+        stopLoss,
+        strategy: selectedStrategy,
+        strategyParams: strategyParams[selectedStrategy] || {},
+    };
+
+    let pageName = "";
+    let route = "";
+
+    switch (targetPage) {
+        case 'live':
+            addBotInstance({ ...currentConfig, isManual: false });
+            pageName = "Live Trading";
+            route = "/live";
+            break;
+        case 'manual':
+            addBotInstance({ ...currentConfig, isManual: true });
+            pageName = "Manual Trading";
+            route = "/manual";
+            break;
+        case 'simulation':
+            setSimulationConfigForNextLoad(currentConfig);
+            pageName = "Paper Trading";
+            route = "/simulation";
+            break;
+    }
+
     toast({
-      title: `Exported to ${pageName}`,
-      description: `Bot for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been added to the ${pageName} page.`
+        title: `Exported to ${pageName}`,
+        description: `Configuration for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been sent to the ${pageName} page.`
     });
     router.push(route);
-  };
+};
+
 
   const handleClearTradeHistory = () => {
     setTradeHistory([]);
@@ -1517,11 +1532,17 @@ export default function BacktestPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleExport(false)}>
+                      <DropdownMenuItem onClick={() => handleExport('live')}>
+                        <Bot className="mr-2 h-4 w-4"/>
                         Export to Live Trading
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport(true)}>
+                      <DropdownMenuItem onClick={() => handleExport('manual')}>
+                        <Bot className="mr-2 h-4 w-4"/>
                         Export to Manual Trading
+                      </DropdownMenuItem>
+                       <DropdownMenuItem onClick={() => handleExport('simulation')}>
+                        <TestTube className="mr-2 h-4 w-4"/>
+                        Export to Paper Trading
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
