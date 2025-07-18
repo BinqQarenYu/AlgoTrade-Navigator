@@ -30,6 +30,7 @@ const menuItems = [
   { href: "/grid-trading", label: "Live Grid", icon: Grid3x3 },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: UserCheck },
+  { href: "/strategy-maker", label: "Strategy Maker", icon: ClipboardCheck },
   { href: "/lab", label: "Trading Lab", icon: FlaskConical },
   { href: "/trading-lab-2", label: "Trading Lab II", icon: Sigma },
   { href: "/optimize", label: "Optimize", icon: BrainCircuit },
