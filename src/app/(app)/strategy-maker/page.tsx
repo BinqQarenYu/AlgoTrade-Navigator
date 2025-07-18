@@ -96,7 +96,7 @@ export default function StrategyMakerPage() {
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
   // Projection config
-  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random'>('sm-projection-mode', 'neutral');
+  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random' | 'frankenstein'>('sm-projection-mode', 'neutral');
   const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('sm-projection-duration', '7d');
 
   // Fetch data for the chart
@@ -433,6 +433,7 @@ export default function StrategyMakerPage() {
                             <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
                             <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
                             <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                            <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2">Frankenstein (Up/Down/Neutral Splice)</Label></div>
                         </RadioGroup>
                     </div>
                     <div>

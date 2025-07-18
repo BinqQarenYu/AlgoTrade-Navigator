@@ -9,14 +9,14 @@ import { intervalToMs } from './utils';
  * The projection is grounded in the asset's recent historical volatility, price range, and volume characteristics.
  *
  * @param historicalData The recent historical data for analysis.
- * @param mode The projection mode ('upward', 'downward', 'neutral', 'random').
+ * @param mode The projection mode ('upward', 'downward', 'neutral', 'random', 'frankenstein').
  * @param duration The time duration for the projection (e.g., '1d', '7d').
  * @param interval The candlestick interval (e.g., '1h', '4h').
  * @returns An array of generated HistoricalData objects representing the future projection.
  */
 export function generateProjectedCandles(
   historicalData: HistoricalData[],
-  mode: 'upward' | 'downward' | 'neutral' | 'random',
+  mode: 'upward' | 'downward' | 'neutral' | 'random' | 'frankenstein',
   duration: '1d' | '3d' | '7d' | '1m',
   interval: string
 ): HistoricalData[] {
@@ -77,10 +77,23 @@ export function generateProjectedCandles(
 
     let baseChange = 0;
     
+    // Determine the current mode for Frankenstein projections
+    let currentMode = mode;
+    if (mode === 'frankenstein') {
+      const third = numCandlesToGenerate / 3;
+      if (i < third) {
+        currentMode = 'upward';
+      } else if (i < third * 2) {
+        currentMode = 'downward';
+      } else {
+        currentMode = 'neutral';
+      }
+    }
+    
     // Create a "gravitational" pull towards the target price for trend modes
     const progress = i / numCandlesToGenerate; // How far into the projection we are (0 to 1)
 
-    switch (mode) {
+    switch (currentMode) {
       case 'upward':
         baseChange = (upwardTarget - open) * (progress * 0.05) * Math.random();
         break;
