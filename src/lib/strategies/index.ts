@@ -29,12 +29,14 @@ const loadAllStrategies = (): Strategy[] => {
       // The AI generates only the BODY of the function.
       const scopedFunction = new (Object.getPrototypeOf(async function(){}).constructor)(
         ...indicatorFunctionNames, 
-        'data', 
-        'params', 
-        strat.code
+        // The last argument is the actual code body.
+        `return (async (data, params) => { ${strat.code} })(...arguments)`
       );
       
-      return await scopedFunction(...indicatorFunctionValues, data, params);
+      // Call the newly created function, passing the indicator functions as its arguments,
+      // which become available as variables inside the AI-generated code.
+      // The 'data' and 'params' are the final arguments.
+      return await scopedFunction(...indicatorFunctionValues)(data, params);
     };
 
     return {
