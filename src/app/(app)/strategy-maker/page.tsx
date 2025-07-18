@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useApi } from "@/context/api-context";
@@ -23,14 +23,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X } from "lucide-react";
-import type { DisciplineParams } from "@/lib/types";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal } from "lucide-react";
+import type { DisciplineParams, HistoricalData } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings";
 import { availableIndicators, getIndicatorParams } from "@/lib/strategies/indicator-configs";
 import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
-
+import { useSymbolManager } from "@/hooks/use-symbol-manager";
+import { useDataManager } from "@/context/data-manager-context";
+import { TradingChart } from "@/components/trading-chart";
+import { getStrategyById } from "@/lib/strategies";
 
 interface Rule {
   id: string;
@@ -60,8 +63,10 @@ const defaultDiscipline: DisciplineParams = {
 export default function StrategyMakerPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { canUseAi, consumeAiCredit } = useApi();
-  
+  const { canUseAi, consumeAiCredit, isConnected } = useApi();
+  const { getChartData, isLoading: isFetchingData } = useDataManager();
+  const { symbol, baseAsset, quoteAsset, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('strategy-maker', 'BTC', 'USDT');
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
     name: "My Custom Strategy",
@@ -72,6 +77,78 @@ export default function StrategyMakerPage() {
     discipline: defaultDiscipline,
     reverse: false,
   });
+
+  // Chart related state
+  const [chartData, setChartData] = useState<HistoricalData[]>([]);
+  const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
+  const [interval, setInterval] = usePersistentState<string>('strategy-maker-interval', "1h");
+  const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
+
+  // Fetch data for the chart
+  useEffect(() => {
+    if (!isConnected || !symbol) {
+        setChartData([]);
+        return;
+    }
+    const fetchData = async () => {
+        const data = await getChartData(symbol, interval);
+        if (data) {
+            setChartData(data);
+        }
+    };
+    fetchData();
+  }, [isConnected, symbol, interval]);
+
+  // Calculate indicators for the chart when config changes
+  useEffect(() => {
+    const calculateIndicators = async () => {
+        if (chartData.length === 0) {
+            setChartDataWithIndicators([]);
+            return;
+        }
+
+        let dataWithInd = JSON.parse(JSON.stringify(chartData)) as HistoricalData[];
+
+        // Dynamically apply selected indicators
+        for (const indicatorId in config.indicators) {
+            // Find a strategy that uses this indicator to "borrow" its calculation logic
+            // This is a proxy for having standalone indicator calculation functions
+            const strategyThatUsesIndicator = getStrategyById(indicatorId) || Object.values(getStrategyById('code-based-consensus')!).find(s => 'calculate' in s && s.id.includes(indicatorId));
+
+            if (strategyThatUsesIndicator) {
+                // We need a way to map indicatorId to strategyId if they aren't the same.
+                // For now, assuming a 1-to-1 mapping exists for simplicity or finding one.
+                const tempStrategy = getStrategyById(indicatorId); // Simplistic assumption
+                if (tempStrategy) {
+                    const params = { ...(config.indicators[indicatorId] || {}) };
+                    dataWithInd = await tempStrategy.calculate(dataWithInd, params);
+                }
+            }
+        }
+        setChartDataWithIndicators(dataWithInd);
+    };
+    calculateIndicators();
+  }, [chartData, config.indicators]);
+
+
+  const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
+    mouseDownEvent.preventDefault();
+    const startHeight = chartHeight;
+    const startPosition = mouseDownEvent.clientY;
+    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
+      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
+      if (newHeight >= 400 && newHeight <= 1200) setChartHeight(newHeight);
+    };
+    const onMouseUp = () => {
+      document.body.style.cursor = 'default';
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+    document.body.style.cursor = 'ns-resize';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp, { once: true });
+  }, [chartHeight, setChartHeight]);
+
 
   const handleConfigChange = <K extends keyof StrategyConfig>(field: K, value: StrategyConfig[K]) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -147,7 +224,7 @@ export default function StrategyMakerPage() {
           const generatedCode = await generateStrategy({ config: JSON.stringify(config, null, 2) });
           // In a real app, you'd save this to a file system and reload strategies
           console.log("Generated Strategy Code:", generatedCode);
-          toast({ title: "Strategy Generated!", description: "Your new strategy is now available on the Backtest page." });
+          toast({ title: "Strategy Generated!", description: "Your new strategy will be available on the Backtest page after the app reloads." });
           router.push('/backtest');
       } catch (error: any) {
           toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
@@ -197,7 +274,7 @@ export default function StrategyMakerPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6">
        <div className="text-left">
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
               <BrainCircuit size={32}/> Strategy Maker
@@ -207,8 +284,21 @@ export default function StrategyMakerPage() {
           </p>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+        <div className="xl:col-span-3 relative pb-4">
+            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+                <TradingChart 
+                    data={chartDataWithIndicators} 
+                    symbol={symbol} 
+                    interval={interval}
+                    onIntervalChange={setInterval}
+                />
+            </div>
+            <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
+                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+            </div>
+        </div>
+        <div className="xl:col-span-2 space-y-6">
             <Card>
                 <CardHeader>
                     <CardTitle>1. General Configuration</CardTitle>
@@ -225,7 +315,7 @@ export default function StrategyMakerPage() {
                      <div className="space-y-2">
                         <Label>Select Indicators</Label>
                         <Select onValueChange={handleAddIndicator}>
-                            <SelectTrigger><SelectValue placeholder="Add an indicator to use in your rules..."/></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Add an indicator to use..."/></SelectTrigger>
                             <SelectContent>
                                 {Object.entries(availableIndicators).map(([id, {name}]) => (
                                     <SelectItem key={id} value={id} disabled={!!config.indicators[id]}>{name}</SelectItem>
@@ -265,8 +355,7 @@ export default function StrategyMakerPage() {
                     </CardContent>
                 </Card>
             )}
-        </div>
-        <div className="space-y-6">
+            
             <div className="space-y-6">
                 {renderRuleEditor('entry')}
                 {renderRuleEditor('exit')}
@@ -280,7 +369,7 @@ export default function StrategyMakerPage() {
                     <DisciplineSettings 
                         params={config.discipline}
                         onParamChange={(key, value) => handleConfigChange('discipline', { ...config.discipline, [key]: value })}
-                        isCollapsed={true}
+                        isCollapsed={false}
                         onCollapseChange={() => {}}
                     />
                      <div className="flex items-center space-x-2 pt-4">
@@ -300,3 +389,5 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
+
+    
