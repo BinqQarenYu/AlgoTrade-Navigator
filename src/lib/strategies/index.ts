@@ -22,16 +22,13 @@ const loadAllStrategies = (): Strategy[] => {
   const indicatorFunctionValues = Object.values(indicatorFunctions);
 
   const customStrategyInstances: Strategy[] = customStrategies.map(strat => {
-    // Create an async function wrapper that will execute the AI-generated code.
+    // This is the key change. We create an async function wrapper that executes the AI code.
     const calculateFunction = async (data: any, params: any) => {
-      // Create a new async function dynamically. This is a more robust way to handle dynamic code execution.
+      // Create a new async function dynamically.
       // The AI generates ONLY the body of this function.
       const dynamicFunction = new (Object.getPrototypeOf(async function () {}).constructor)(
         ...indicatorFunctionNames,
-        `
-          // The 'data' and 'params' arguments are implicitly available through the outer scope.
-          ${strat.code}
-        `
+        strat.code
       );
       
       // Execute the function, passing in all indicator functions as arguments.

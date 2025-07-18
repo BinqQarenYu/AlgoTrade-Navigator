@@ -31,7 +31,7 @@ const generateStrategyPrompt = ai.definePrompt({
 **Key Requirements:**
 1.  **File Name:** Generate a unique, snake_case file name for the strategy based on its name in the config. Append "_strategy.ts".
 2.  **No Imports:** CRITICAL: Do NOT include any 'import' or 'require' statements. The execution environment will provide all necessary indicator functions (e.g., calculateSMA, calculateRSI) as pre-defined variables in the function's scope.
-3.  **Function Body Only:** Your generated 'code' should ONLY be the body of an async function that takes 'data' and 'params' as arguments. Do not wrap it in a function definition like \`async function(...) { ... }\`.
+3.  **Function Body Only:** Your generated 'code' should ONLY be the body of an async function. Do not wrap it in a function definition like \`async function(...) { ... }\`. The function will be called with \`(data, params)\` arguments.
 4.  **Parameters:** The 'params' object will contain the necessary parameters based on the indicators in the config.
 5.  **Logic:**
     - The function body must assume it has access to \`data: HistoricalData[]\` and \`params\` as arguments.
