@@ -365,7 +365,7 @@ export default function StrategyMakerPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="capitalize">{type === 'entry' ? '2. Entry & Exit Logic' : ''}</CardTitle>
+          <CardTitle className="capitalize">{type === 'entry' ? '2. Logic & Rules' : ''}</CardTitle>
            <CardDescription>Define the rules for when to {type === 'entry' ? 'enter a buy or sell' : 'exit a position'}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -530,7 +530,7 @@ export default function StrategyMakerPage() {
                 {renderRuleEditor('exit')}
             </div>
 
-             <Card>
+            <Card>
                 <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
@@ -573,8 +573,8 @@ export default function StrategyMakerPage() {
                             </Button>
                         </CardFooter>
                     </CollapsibleContent>
-                </Card>
-            </Collapsible>
+                </Collapsible>
+            </Card>
             
             <Card>
                 <CardHeader>
@@ -602,7 +602,7 @@ export default function StrategyMakerPage() {
             <Card>
               <Collapsible open={isApprovedOpen} onOpenChange={setIsApprovedOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Strategies Already Approved</CardTitle>
+                  <CardTitle>3. Strategies Already Approved</CardTitle>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <ChevronDown className={cn("h-4 w-4 transition-transform", isApprovedOpen && "rotate-180")} />
