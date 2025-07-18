@@ -3,28 +3,16 @@ import type { Strategy } from '@/lib/types';
 import { strategies as allStrategies, getStrategyById } from './all-strategies';
 import { strategyIndicatorMap } from './indicator-map';
 
-// This function will be replaced by a dynamic loader in a real app
-// to include user-generated strategies. For now, it's static.
-const loadGeneratedStrategies = (): Strategy[] => {
-    // In a real implementation, this would read from a directory
-    // or a database where custom strategies are stored.
-    // e.g., const customStrategies = loadStrategiesFromFS();
-    // return customStrategies;
-    return [];
-}
+// We no longer import temp-generated here to avoid build errors.
+// The backtest page will handle loading it dynamically.
 
-const generatedStrategies = loadGeneratedStrategies();
-
-export const strategies: Strategy[] = [...allStrategies, ...generatedStrategies];
+export const strategies: Strategy[] = [...allStrategies];
 
 export const strategyMetadatas = strategies.map(({ id, name }) => ({
   id,
   name,
 }));
 
-// The getStrategyById function also needs to be able to find generated strategies
-export const getStrategyByIdWithGenerated = (id: string): Strategy | undefined => {
-  return strategies.find(s => s.id === id);
-};
-
+// The main getStrategyById function now only knows about static strategies.
+// The backtest page will have special logic for the temporary one.
 export { getStrategyById, strategyIndicatorMap };

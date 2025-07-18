@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
@@ -395,9 +396,6 @@ export default function StrategyMakerPage() {
   const handleApproveAndTest = async () => {
     if (!strategyForApproval) return;
 
-    // This is a placeholder for saving the file. In a real environment,
-    // this would be an API call to a backend that writes the file.
-    // For now, we'll store it in a way that the backtest page can find it.
     localStorage.setItem('tempGeneratedStrategy', JSON.stringify(strategyForApproval));
     
     setGeneratedStrategies(prev => [...prev, strategyForApproval]);
@@ -407,7 +405,7 @@ export default function StrategyMakerPage() {
         description: `Redirecting to Backtest page with ${strategyForApproval.displayName} loaded.`
     });
 
-    router.push(`/backtest?strategy=${strategyForApproval.fileName.replace('.ts', '')}`);
+    router.push(`/backtest?strategy=temp-generated`);
   }
 
   const handleStopGeneration = () => {

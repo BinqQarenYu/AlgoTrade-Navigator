@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
 import { PineScriptEditor } from "@/components/pine-script-editor"
@@ -32,13 +32,13 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
 import { analyzePineScript } from "@/ai/flows/analyze-pine-script"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById as getStaticStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
@@ -59,6 +59,7 @@ import {
 import { TradeHistory } from "@/components/dashboard/trade-history"
 import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
+import tempGeneratedStrategy from '@/lib/strategies/temp-generated';
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -222,13 +223,66 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
   return [isHydrated ? state : defaultValue, setState];
 };
 
-
-export default function BacktestPage() {
+const BacktestPageContent = () => {
   const { toast } = useToast()
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams, addBotInstance, setSimulationConfigForNextLoad } = useBot();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
+
+  const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
+  const [generatedStrategy, setGeneratedStrategy] = useState<Strategy | null>(null);
+
+  const getStrategyById = useCallback((id: string): Strategy | undefined => {
+    if (generatedStrategy && id === generatedStrategy.id) {
+        return generatedStrategy;
+    }
+    return getStaticStrategyById(id);
+  }, [generatedStrategy]);
+
+  useEffect(() => {
+    const strategyId = searchParams.get('strategy');
+    if (strategyId === 'temp-generated') {
+      const storedStrategyData = localStorage.getItem('tempGeneratedStrategy');
+      if (storedStrategyData) {
+        try {
+          const parsed = JSON.parse(storedStrategyData);
+          
+          // Reconstruct the calculate function. This is a security risk in a real app,
+          // but acceptable for this sandboxed environment.
+          const calculateFn = new Function('data', 'params', `return (async () => { ${parsed.code} })()`);
+
+          const newStrategy: Strategy = {
+            id: parsed.fileName.replace('.ts', ''),
+            name: parsed.displayName,
+            description: parsed.config.description,
+            calculate: calculateFn as any,
+          };
+          
+          setGeneratedStrategy(newStrategy);
+          setActiveStrategies(prev => [
+            { id: newStrategy.id, name: newStrategy.name },
+            ...prev.filter(s => s.id !== newStrategy.id)
+          ]);
+          setSelectedStrategy(newStrategy.id);
+          // Set the params for the newly loaded strategy
+          setStrategyParams(prev => ({
+              ...prev,
+              [newStrategy.id]: parsed.config
+          }));
+          
+          toast({ title: 'Generated Strategy Loaded', description: `Ready to backtest "${newStrategy.name}".`});
+
+        } catch (e) {
+          console.error("Failed to load generated strategy:", e);
+          toast({ title: 'Load Failed', description: 'Could not load the generated strategy from storage.', variant: 'destructive'});
+        } finally {
+            localStorage.removeItem('tempGeneratedStrategy');
+        }
+      }
+    }
+  }, [searchParams, toast, setStrategyParams]);
 
 
   const [isClient, setIsClient] = useState(false)
@@ -412,7 +466,7 @@ export default function BacktestPage() {
     };
     
     calculateAndSetIndicators();
-  }, [fullChartData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex]);
+  }, [fullChartData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex, getStrategyById]);
 
 
   const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[]}> => {
@@ -1380,7 +1434,7 @@ export default function BacktestPage() {
                         </SelectTrigger>
                         <SelectContent>
                         <SelectItem value="none">None (Candles Only)</SelectItem>
-                        {strategyMetadatas.map(strategy => (
+                        {activeStrategies.map(strategy => (
                             <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
                         ))}
                         </SelectContent>
@@ -1426,8 +1480,6 @@ export default function BacktestPage() {
                  <DisciplineSettings 
                     params={strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams}
                     onParamChange={handleDisciplineParamChange}
-                    isCollapsed={isDisciplineOpen}
-                    onCollapseChange={setDisciplineOpen}
                     isDisabled={anyLoading || isReplaying}
                 />
                 
@@ -1590,4 +1642,13 @@ export default function BacktestPage() {
     </div>
     </div>
   )
+}
+
+
+export default function BacktestPage() {
+    return (
+        <React.Suspense fallback={<div>Loading...</div>}>
+            <BacktestPageContent />
+        </React.Suspense>
+    )
 }
