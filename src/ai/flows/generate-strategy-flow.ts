@@ -26,32 +26,34 @@ const generateStrategyPrompt = ai.definePrompt({
   name: 'generateStrategyPrompt',
   input: { schema: GenerateStrategyInputSchema },
   output: { schema: GenerateStrategyOutputSchema },
-  prompt: `You are an expert TypeScript programmer specializing in creating algorithmic trading strategies. Your task is to convert a JSON configuration object into a fully functional, standalone TypeScript strategy file that conforms to our application's existing strategy interface.
+  prompt: `You are an expert TypeScript programmer specializing in creating algorithmic trading strategies. Your task is to convert a JSON configuration object into the BODY of an 'async' TypeScript function.
 
 **Key Requirements:**
 1.  **File Name:** Generate a unique, snake_case file name for the strategy based on its name in the config. Append "_strategy.ts".
-2.  **Interface:** The generated code MUST implement the \`Strategy\` interface from '@/lib/types'.
-3.  **Imports:** You MUST import \`Strategy\`, \`HistoricalData\`, and any necessary indicator calculation functions (e.g., \`calculateSMA\`, \`calculateRSI\`) from '@/lib/indicators'.
-4.  **Parameters:** Create a TypeScript interface for the strategy's parameters based on the indicators used in the config. Also, export a \`defaultParams\` object with the values from the config.
-5.  **\`calculate\` Method:** This is the core of the strategy.
-    - It must accept \`data: HistoricalData[]\` and \`params\` as arguments.
-    - It must calculate all required indicators using the imported functions.
+2.  **No Imports:** CRITICAL: Do NOT include any 'import' or 'require' statements. The execution environment will provide all necessary indicator functions (e.g., calculateSMA, calculateRSI) as pre-defined variables in the function's scope.
+3.  **Function Body Only:** Your generated 'code' should ONLY be the body of an async function that takes 'data' and 'params' as arguments. Do not wrap it in a function definition.
+4.  **Parameters:** The 'params' object will contain the necessary parameters based on the indicators in the config.
+5.  **Logic:**
+    - The function must accept \`data: HistoricalData[]\` and \`params\` as arguments.
+    - It must calculate all required indicators using the pre-defined functions.
     - It must then iterate through the data and implement the logic defined in the \`entryConditions\` and \`exitConditions\`.
     - A condition like \`"condition": "crosses_above"\` for "IndicatorA" and "IndicatorB" means you must check \`IndicatorA[i-1] <= IndicatorB[i-1] && IndicatorA[i] > IndicatorB[i]\`.
     - When a condition is met, it must set the \`buySignal\` or \`sellSignal\` property on the corresponding candle in the returned data array.
     - The 'value' in a rule can be another indicator or a static number. Your code must handle both cases.
     - Implement the \`reverse\` parameter to invert the buy/sell signals if it's true.
 
-**Example Indicator Calculation:**
+**Example Indicator Calculation (within the function body):**
 \`\`\`typescript
 const closePrices = data.map(d => d.close);
 const sma20 = calculateSMA(closePrices, params.sma_period);
 const rsi14 = calculateRSI(closePrices, params.rsi_period);
 
-dataWithIndicators.forEach((d, i) => {
+data.forEach((d, i) => {
   d.sma_20 = sma20[i];
   d.rsi_14 = rsi14[i];
 });
+// ... more logic ...
+return data;
 \`\`\`
 
 **JSON Configuration to Convert:**
@@ -59,7 +61,7 @@ dataWithIndicators.forEach((d, i) => {
 {{{config}}}
 \`\`\`
 
-Generate the complete TypeScript code in the \`code\` field and the file name in the \`fileName\` field. Do not add any explanatory text outside of the code comments. The code should be ready to be saved directly to a .ts file.
+Generate the TypeScript code for the function body in the \`code\` field and the file name in the \`fileName\` field. Do not add any explanatory text or function wrappers. The code should be ready to be injected directly into a new async Function.
 `,
 });
 
