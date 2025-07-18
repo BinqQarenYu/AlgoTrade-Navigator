@@ -33,8 +33,7 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { getStrategyById } from "@/lib/strategies";
-import { allStrategies } from "@/lib/strategies/all-strategies";
+import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
 
 interface Rule {
   id: string;
@@ -98,12 +97,17 @@ export default function StrategyMakerPage() {
         }
     };
     fetchData();
-  }, [isConnected, symbol, interval, getChartData]);
+  }, [isConnected, symbol, interval]);
 
   // Calculate indicators for the chart when config changes
   useEffect(() => {
     const calculateIndicators = async () => {
-        if (chartData.length === 0 || Object.keys(config.indicators).length === 0) {
+        if (chartData.length === 0) {
+            setChartDataWithIndicators(chartData);
+            return;
+        }
+
+        if (Object.keys(config.indicators).length === 0) {
             setChartDataWithIndicators(chartData);
             return;
         }
@@ -118,14 +122,11 @@ export default function StrategyMakerPage() {
                 
                 // Sequentially run calculations from real strategies that provide the needed indicators
                 for (const indicatorId in config.indicators) {
-                    // Find a strategy that can calculate this indicator. This is a proxy.
-                    // This assumes a strategy exists that calculates the indicator we need.
-                    // A better system would have standalone indicator calculation functions.
+                    // This is a proxy for having standalone indicator calculation functions
                     const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
 
                     if (providingStrategy) {
                       const indicatorParams = config.indicators[indicatorId];
-                      // The result of one calculation becomes the input for the next, accumulating indicators.
                       dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams);
                     }
                 }
