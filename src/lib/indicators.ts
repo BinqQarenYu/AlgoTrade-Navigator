@@ -1,6 +1,5 @@
 
 
-
 'use client';
 
 import type { HistoricalData } from './types';
@@ -12,6 +11,11 @@ import type { HistoricalData } from './types';
  * @returns An array of SMA values, with initial values as null.
  */
 export const calculateSMA = (data: number[], period: number): (number | null)[] => {
+  // Guard against invalid period to prevent crashes
+  if (period <= 0 || !Number.isInteger(period)) {
+    console.error(`Invalid period (${period}) provided to calculateSMA.`);
+    return Array(data.length).fill(null);
+  }
   if (data.length < period) return Array(data.length).fill(null);
   
   const sma: (number | null)[] = Array(period - 1).fill(null);
