@@ -5,7 +5,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getLatestKlinesByLimit } from "@/lib/binance-service"
+import { getLatestKlinesByLimit, getHistoricalKlines } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import {
   Card,
@@ -55,7 +55,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
 
 
-import { useBot } from "@/context/bot-context"
+import { useLab } from "@/context/lab-context"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
@@ -121,7 +121,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
 export default function LabPage() {
   const { toast } = useToast()
   const { isConnected, canUseAi, consumeAiCredit } = useApi();
-  const { strategyParams, setStrategyParams } = useBot();
+  const { strategyParams, setStrategyParams } = useLab();
   const strategyParamsRef = useRef(strategyParams);
   useEffect(() => {
     strategyParamsRef.current = strategyParams;
@@ -403,7 +403,7 @@ export default function LabPage() {
             toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
         }
         try {
-            const klines = await getLatestKlinesByLimit(symbol, interval, 500); // Always get 500 for analysis
+            const klines = await getHistoricalKlines(symbol, interval, date?.from?.getTime(), date?.to?.getTime());
             if(!isStreamActive) {
                 setChartData(klines);
                 toast({ title: "Data Loaded", description: `${klines.length} candles for ${symbol} are ready.` });
@@ -424,7 +424,7 @@ export default function LabPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive, toast]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, isStreamActive, toast, date]);
   
   // Effect for live data stream
   const wsRef = useRef<WebSocket | null>(null);

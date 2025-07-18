@@ -33,10 +33,11 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { strategies } from "@/lib/strategies/all-strategies";
+import { allStrategies } from "@/lib/strategies/all-strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getStrategyById } from "@/lib/strategies";
+import { useLab } from "@/context/lab-context";
 
 interface Rule {
   id: string;
@@ -69,6 +70,7 @@ export default function StrategyMakerPage() {
   const { canUseAi, consumeAiCredit, isConnected } = useApi();
   const { getChartData, isLoading: isFetchingData } = useDataManager();
   const { symbol, baseAsset, quoteAsset, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('strategy-maker', 'BTC', 'USDT');
+  const { strategyParams, setStrategyParams } = useLab();
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
@@ -106,43 +108,38 @@ export default function StrategyMakerPage() {
   // Calculate indicators for the chart when config changes
   useEffect(() => {
     const calculateIndicators = async () => {
-        if (chartData.length === 0) {
-            setChartDataWithIndicators(chartData);
-            return;
+      if (chartData.length === 0 || Object.keys(config.indicators).length === 0) {
+        setChartDataWithIndicators(chartData);
+        return;
+      }
+
+      // Dynamically build a temporary strategy to calculate all selected indicators
+      const tempStrategy: Strategy = {
+        id: 'temp-visualizer',
+        name: 'Temp Visualizer',
+        description: '',
+        calculate: async (data, params) => {
+          let dataWithInd = JSON.parse(JSON.stringify(data));
+          
+          for (const indicatorId of Object.keys(params)) {
+             const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
+
+             if (providingStrategy) {
+                const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
+                // A bit of a hack: some strategies need the symbol, so we pass it if available
+                dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
+             }
+          }
+          return dataWithInd;
         }
-
-        if (Object.keys(config.indicators).length === 0) {
-            setChartDataWithIndicators(chartData);
-            return;
-        }
-        
-        // Dynamically build a temporary strategy to calculate all selected indicators
-        const tempStrategy: Strategy = {
-            id: 'temp-visualizer',
-            name: 'Temp Visualizer',
-            description: '',
-            calculate: async (data, params) => {
-                let dataWithInd = JSON.parse(JSON.stringify(data));
-                
-                for (const indicatorId in params) {
-                    // This relies on the convention that a strategy file exists that can calculate this indicator.
-                    // This is a simplification; a more robust system would map indicators to calculation functions directly.
-                    const providingStrategy = strategies.find(s => s.id.includes(indicatorId.split('_')[0]));
-
-                    if (providingStrategy) {
-                      const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
-                      dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams);
-                    }
-                }
-                return dataWithInd;
-            }
-        };
-
-        const calculatedData = await tempStrategy.calculate(chartData, config.indicators);
-        setChartDataWithIndicators(calculatedData);
+      };
+      
+      const calculatedData = await tempStrategy.calculate(chartData, config.indicators);
+      setChartDataWithIndicators(calculatedData);
     };
+
     calculateIndicators();
-  }, [chartData, config.indicators]);
+  }, [chartData, config.indicators, symbol]);
 
 
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
