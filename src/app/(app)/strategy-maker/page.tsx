@@ -90,6 +90,7 @@ export default function StrategyMakerPage() {
   const [interval, setInterval] = usePersistentState<string>('strategy-maker-interval', "1h");
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
+  const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', false);
 
   // Fetch data for the chart
   useEffect(() => {
@@ -319,54 +320,63 @@ export default function StrategyMakerPage() {
         </div>
         <div className="xl:col-span-2 space-y-6">
             <Card>
-                <CardHeader>
-                    <CardTitle>1. General Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="base-asset">Base</Label>
-                          <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isGenerating}>
-                            <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                              {topAssets.map(asset => (
-                                <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+              <Collapsible open={isGeneralConfigOpen} onOpenChange={setIsGeneralConfigOpen}>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>1. General Configuration</CardTitle>
+                      <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <ChevronDown className={cn("h-4 w-4 transition-transform", isGeneralConfigOpen && "rotate-180")} />
+                          </Button>
+                      </CollapsibleTrigger>
+                  </CardHeader>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="base-asset">Base</Label>
+                              <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isGenerating}>
+                                <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                  {topAssets.map(asset => (
+                                    <SelectItem key={asset.ticker} value={asset.ticker}>{asset.name}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="quote-asset">Quote</Label>
+                              <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isGenerating || availableQuotes.length === 0}>
+                                <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
+                                <SelectContent>
+                                  {availableQuotes.map(asset => (
+                                    <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="quote-asset">Quote</Label>
-                          <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isGenerating || availableQuotes.length === 0}>
-                            <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
-                            <SelectContent>
-                              {availableQuotes.map(asset => (
-                                <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            <Label htmlFor="strategy-name">Strategy Name</Label>
+                            <Input id="strategy-name" value={config.name} onChange={(e) => handleConfigChange('name', e.target.value)} />
                         </div>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="strategy-name">Strategy Name</Label>
-                        <Input id="strategy-name" value={config.name} onChange={(e) => handleConfigChange('name', e.target.value)} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="strategy-desc">Description</Label>
-                        <Input id="strategy-desc" value={config.description} onChange={(e) => handleConfigChange('description', e.target.value)} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label>Select Indicators</Label>
-                        <Select onValueChange={handleAddIndicator}>
-                            <SelectTrigger><SelectValue placeholder="Add an indicator to use..."/></SelectTrigger>
-                            <SelectContent>
-                                {Object.entries(availableIndicators).map(([id, {name}]) => (
-                                    <SelectItem key={id} value={id} disabled={!!config.indicators[id]}>{name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </CardContent>
+                         <div className="space-y-2">
+                            <Label htmlFor="strategy-desc">Description</Label>
+                            <Input id="strategy-desc" value={config.description} onChange={(e) => handleConfigChange('description', e.target.value)} />
+                        </div>
+                         <div className="space-y-2">
+                            <Label>Select Indicators</Label>
+                            <Select onValueChange={handleAddIndicator}>
+                                <SelectTrigger><SelectValue placeholder="Add an indicator to use..."/></SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(availableIndicators).map(([id, {name}]) => (
+                                        <SelectItem key={id} value={id} disabled={!!config.indicators[id]}>{name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </CardContent>
+                  </CollapsibleContent>
+              </Collapsible>
             </Card>
             
             {Object.keys(config.indicators).length > 0 && (
