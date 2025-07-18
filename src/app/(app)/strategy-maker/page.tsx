@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useApi } from "@/context/api-context";
@@ -92,7 +92,7 @@ export default function StrategyMakerPage() {
   const [interval, setInterval] = usePersistentState<string>('strategy-maker-interval', "1h");
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
-  const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', false);
+  const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', true);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
   // Projection config
@@ -530,3 +530,4 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
+
