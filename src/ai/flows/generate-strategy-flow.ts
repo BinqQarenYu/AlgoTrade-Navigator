@@ -33,7 +33,7 @@ const generateStrategyPrompt = ai.definePrompt({
 2.  **Interface:** The generated code MUST implement the \`Strategy\` interface from '@/lib/types'.
 3.  **Imports:** You MUST import \`Strategy\`, \`HistoricalData\`, and any necessary indicator calculation functions (e.g., \`calculateSMA\`, \`calculateRSI\`) from '@/lib/indicators'.
 4.  **Parameters:** Create a TypeScript interface for the strategy's parameters based on the indicators used in the config. Also, export a \`defaultParams\` object with the values from the config.
-5.  **`calculate` Method:** This is the core of the strategy.
+5.  **\`calculate\` Method:** This is the core of the strategy.
     - It must accept \`data: HistoricalData[]\` and \`params\` as arguments.
     - It must calculate all required indicators using the imported functions.
     - It must then iterate through the data and implement the logic defined in the \`entryConditions\` and \`exitConditions\`.
