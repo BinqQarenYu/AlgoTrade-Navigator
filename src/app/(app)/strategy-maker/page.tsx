@@ -71,10 +71,11 @@ const defaultDiscipline: DisciplineParams = {
 };
 
 type GeneratedStrategy = {
-    fileName: string,
-    code: string,
-    config: StrategyConfig,
-    displayName: string
+    id: string; // e.g. 'custom-bingkl-101'
+    fileName: string;
+    code: string;
+    config: StrategyConfig;
+    displayName: string;
 };
 
 export default function StrategyMakerPage() {
@@ -88,7 +89,7 @@ export default function StrategyMakerPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProjecting, setIsProjecting] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string | null>(null);
-  const [generatedStrategies, setGeneratedStrategies] = usePersistentState<any[]>('sm-generated-strategies', []);
+  const [generatedStrategies, setGeneratedStrategies] = usePersistentState<GeneratedStrategy[]>('custom-strategies', []);
   const [strategyForApproval, setStrategyForApproval] = useState<GeneratedStrategy | null>(null);
   const generationAbortController = useRef<AbortController | null>(null);
 
@@ -109,7 +110,7 @@ export default function StrategyMakerPage() {
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
   const [isProjectionOpen, setIsProjectionOpen] = usePersistentState<boolean>('sm-projection-open', true);
-  const [isApprovedOpen, setIsApprovedOpen] = usePersistentState<boolean>('sm-approved-open', false);
+  const [isApprovedOpen, setIsApprovedOpen] = usePersistentState<boolean>('sm-approved-open', true);
   const [isFinalizeOpen, setIsFinalizeOpen] = usePersistentState<boolean>('sm-finalize-open', true);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
@@ -162,14 +163,12 @@ export default function StrategyMakerPage() {
           let dataWithInd = JSON.parse(JSON.stringify(data));
           
           for (const indicatorId of Object.keys(params)) {
-             // Find any strategy that implements the required indicator calculation
              const providingStrategy = allStrategies.find(s => {
                 const indicatorName = indicatorId.split('_')[0];
                 return s.id.includes(indicatorName);
              });
 
              if (providingStrategy) {
-                // Combine the default params for the indicator with any user-overrides.
                 const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
                 try {
                     dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
@@ -306,30 +305,6 @@ export default function StrategyMakerPage() {
       }
     }));
   };
-  
-  const handleAddRule = (type: 'entry' | 'exit') => {
-    const newRule: Rule = {
-      id: `rule_${Date.now()}`,
-      indicator1: '',
-      condition: 'crosses_above',
-      value: '0'
-    };
-    const key = type === 'entry' ? 'entryConditions' : 'exitConditions';
-    setConfig(prev => ({ ...prev, [key]: [...prev[key], newRule] }));
-  };
-  
-  const handleUpdateRule = (type: 'entry' | 'exit', ruleId: string, field: keyof Omit<Rule, 'id'>, value: string) => {
-    const key = type === 'entry' ? 'entryConditions' : 'exitConditions';
-    setConfig(prev => ({
-      ...prev,
-      [key]: prev[key].map(rule => rule.id === ruleId ? { ...rule, [field]: value } : rule)
-    }));
-  };
-
-  const handleRemoveRule = (type: 'entry' | 'exit', ruleId: string) => {
-    const key = type === 'entry' ? 'entryConditions' : 'exitConditions';
-    setConfig(prev => ({ ...prev, [key]: prev[key].filter(rule => rule.id !== ruleId) }));
-  };
 
   const handleGenerateStrategy = async () => {
     if (generationAbortController.current) return;
@@ -348,7 +323,7 @@ export default function StrategyMakerPage() {
       if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
       
       const configString = JSON.stringify(config);
-      const isDuplicate = generatedStrategies.some(s => s.config === configString);
+      const isDuplicate = generatedStrategies.some(s => JSON.stringify(s.config) === configString);
       
       if (isDuplicate) {
         toast({ title: "Duplicate Strategy", description: "This exact configuration has already been approved." });
@@ -369,6 +344,7 @@ export default function StrategyMakerPage() {
       const newName = `Bingkl ${strategyNumber}`;
       
       const newStrategy: GeneratedStrategy = {
+        id: `custom-bingkl-${strategyNumber}`,
         fileName: `bingkl_${strategyNumber}_strategy.ts`,
         code: generatedCode.code,
         config: JSON.parse(configString),
@@ -397,15 +373,15 @@ export default function StrategyMakerPage() {
     if (!strategyForApproval) return;
 
     localStorage.setItem('tempGeneratedStrategy', JSON.stringify(strategyForApproval));
-    
     setGeneratedStrategies(prev => [...prev, strategyForApproval]);
     setStrategyForApproval(null);
+
     toast({
-        title: "Strategy Approved!",
-        description: `Redirecting to Backtest page with ${strategyForApproval.displayName} loaded.`
+        title: "Strategy Approved & Saved!",
+        description: `${strategyForApproval.displayName} is now available across the app. Redirecting to Backtest page.`
     });
 
-    router.push(`/backtest?strategy=temp-generated`);
+    router.push(`/backtest?strategy=${strategyForApproval.id}`);
   }
 
   const handleStopGeneration = () => {
@@ -434,46 +410,6 @@ export default function StrategyMakerPage() {
             setIsProjecting(false);
         }
     }, 50);
-  };
-  
-  const renderRuleEditor = (type: 'entry' | 'exit') => {
-    const rules = type === 'entry' ? config.entryConditions : config.exitConditions;
-    const selectedIndicators = Object.keys(config.indicators);
-
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="capitalize">Step 2: {type === 'entry' ? 'Entry' : 'Exit'} Logic & Rules</CardTitle>
-           <CardDescription>Define the rules for when to {type === 'entry' ? 'enter a buy or sell' : 'exit a position'}.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {rules.map(rule => (
-            <div key={rule.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center p-2 border rounded-md bg-muted/50">
-              <Select value={rule.indicator1} onValueChange={(val) => handleUpdateRule(type, rule.id, 'indicator1', val)}>
-                <SelectTrigger><SelectValue placeholder="Indicator" /></SelectTrigger>
-                <SelectContent>{selectedIndicators.map(id => <SelectItem key={id} value={id}>{availableIndicators[id]?.name}</SelectItem>)}</SelectContent>
-              </Select>
-              <Select value={rule.condition} onValueChange={(val) => handleUpdateRule(type, rule.id, 'condition', val)}>
-                <SelectTrigger><SelectValue placeholder="Condition" /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="crosses_above">Crosses Above</SelectItem>
-                    <SelectItem value="crosses_below">Crosses Below</SelectItem>
-                    <SelectItem value="is_above">Is Above</SelectItem>
-                    <SelectItem value="is_below">Is Below</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input 
-                placeholder="Value or Indicator..." 
-                value={rule.value} 
-                onChange={(e) => handleUpdateRule(type, rule.id, 'value', e.target.value)}
-              />
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveRule(type, rule.id)}><Trash2/></Button>
-            </div>
-          ))}
-          <Button variant="outline" size="sm" onClick={() => handleAddRule(type)}><PlusCircle className="mr-2"/> Add {type === 'entry' ? 'Entry' : 'Exit'} Rule</Button>
-        </CardContent>
-      </Card>
-    );
   };
 
   return (
@@ -505,22 +441,6 @@ export default function StrategyMakerPage() {
                                   <strong>{availableIndicators[id]?.name || id}: </strong>
                                   <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(params)}</span>
                               </div>
-                          ))}
-                      </div>
-                  </div>
-                   <div>
-                      <h4 className="font-semibold text-sm mb-2">Entry Rules:</h4>
-                       <div className="p-3 border rounded-md bg-background/50 text-sm space-y-1">
-                          {strategyForApproval.config.entryConditions.map((rule) => (
-                              <p key={rule.id} className="font-mono text-xs">{rule.indicator1} {rule.condition.replace('_', ' ')} {rule.value}</p>
-                          ))}
-                      </div>
-                  </div>
-                  <div>
-                      <h4 className="font-semibold text-sm mb-2">Exit Rules:</h4>
-                       <div className="p-3 border rounded-md bg-background/50 text-sm space-y-1">
-                          {strategyForApproval.config.exitConditions.map((rule) => (
-                              <p key={rule.id} className="font-mono text-xs">{rule.indicator1} {rule.condition.replace('_', ' ')} {rule.value}</p>
                           ))}
                       </div>
                   </div>
@@ -648,16 +568,11 @@ export default function StrategyMakerPage() {
                 </Card>
             )}
 
-            <div className="space-y-6">
-                {renderRuleEditor('entry')}
-                {renderRuleEditor('exit')}
-            </div>
-
             <Card>
               <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
-                    <CardTitle>Step 3: Frankenstein Forward-Testing</CardTitle>
+                    <CardTitle>Step 2: Frankenstein Forward-Testing</CardTitle>
                     <CardDescription>Stress-test your logic against varied future-simulated data.</CardDescription>
                   </div>
                   <CollapsibleTrigger asChild>
@@ -702,7 +617,7 @@ export default function StrategyMakerPage() {
             <Card>
               <Collapsible open={isFinalizeOpen} onOpenChange={setIsFinalizeOpen}>
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Step 4: Generate & Approve</CardTitle>
+                    <CardTitle>Step 3: Generate & Approve</CardTitle>
                      <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <ChevronDown className={cn("h-4 w-4 transition-transform", isFinalizeOpen && "rotate-180")} />
@@ -726,16 +641,6 @@ export default function StrategyMakerPage() {
                                 {generationStatus || "Starting generation..."}
                             </AlertDescription>
                         </Alert>
-                      )}
-                      {generatedStrategies.length > 0 && !isGenerating && (
-                          <div className="space-y-2">
-                              <Label>Approved this session:</Label>
-                               <div className="p-3 border rounded-md space-y-1">
-                                {generatedStrategies.map(s => (
-                                    <Badge key={s.fileName} variant="secondary">{s.displayName || s.fileName}</Badge>
-                                ))}
-                              </div>
-                          </div>
                       )}
                   </CardContent>
                   <CardFooter>
@@ -764,10 +669,10 @@ export default function StrategyMakerPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">A list of pre-built and validated strategies.</p>
+                    <p className="text-sm text-muted-foreground">A list of pre-built and user-generated strategies.</p>
                     <div className="p-3 border rounded-md max-h-48 overflow-y-auto">
                       <ul className="space-y-1">
-                        {strategyMetadatas.slice(0, 10).map(strategy => ( // Show first 10 as an example
+                        {strategyMetadatas.map(strategy => (
                           <li key={strategy.id} className="flex items-center gap-2 text-sm">
                             <CheckCircle className="h-4 w-4 text-green-500" />
                             <span>{strategy.name}</span>
