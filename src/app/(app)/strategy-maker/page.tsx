@@ -33,7 +33,7 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
+import { strategies as allStrategies, getStrategyById } from "@/lib/strategies/all-strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLab } from "@/context/lab-context";
@@ -109,7 +109,11 @@ export default function StrategyMakerPage() {
   // Calculate indicators for the chart when config changes
   useEffect(() => {
     const calculateIndicators = async () => {
-      if (chartData.length === 0 || Object.keys(config.indicators).length === 0) {
+      if (chartData.length === 0) {
+        setChartDataWithIndicators([]);
+        return;
+      }
+      if (Object.keys(config.indicators).length === 0) {
         setChartDataWithIndicators(chartData);
         return;
       }
@@ -127,7 +131,11 @@ export default function StrategyMakerPage() {
 
              if (providingStrategy) {
                 const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
-                dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
+                try {
+                    dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
+                } catch (e) {
+                    console.error(`Error calculating indicator ${indicatorId} via strategy ${providingStrategy.id}`, e);
+                }
              }
           }
           return dataWithInd;
@@ -318,18 +326,18 @@ export default function StrategyMakerPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="base-asset">Base</Label>
-                          <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || isGenerating}>
+                          <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isGenerating}>
                             <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                             <SelectContent>
                               {topAssets.map(asset => (
-                                <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
+                                <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="quote-asset">Quote</Label>
-                          <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={!isConnected || isGenerating || availableQuotes.length === 0}>
+                          <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isGenerating || availableQuotes.length === 0}>
                             <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
                             <SelectContent>
                               {availableQuotes.map(asset => (
