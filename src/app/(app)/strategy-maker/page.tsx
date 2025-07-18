@@ -332,7 +332,6 @@ export default function StrategyMakerPage() {
     generationAbortController.current = new AbortController();
     
     try {
-      // Simulate checking for duplicates
       await new Promise(resolve => setTimeout(resolve, 500));
       if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
       
@@ -342,7 +341,7 @@ export default function StrategyMakerPage() {
       if (isDuplicate) {
         toast({ title: "Duplicate Strategy", description: "This exact configuration has already been approved." });
         setGenerationStatus("Duplicate found. Halting.");
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Show status before reset
+        await new Promise(resolve => setTimeout(resolve, 1500));
         setIsGenerating(false);
         generationAbortController.current = null;
         return;
@@ -353,14 +352,31 @@ export default function StrategyMakerPage() {
       const generatedCode = await generateStrategy({ config: configString });
       
       if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
+      
+      // Override name with "Bingkl XXX"
+      const strategyNumber = 101 + generatedStrategies.length;
+      const newName = `Bingkl ${strategyNumber}`;
+      const newFileName = `bingkl_${strategyNumber}_strategy.ts`;
+
+      // Replace the name in the generated code as well. This is a simple string replacement.
+      // A more robust solution might use an AST, but this is sufficient for a controlled template.
+      const updatedCode = generatedCode.code.replace(
+          `name: '${config.name}'`,
+          `name: '${newName}'`
+      );
 
       setGenerationStatus("Strategy approved and saved!");
-      const newStrategy = { ...generatedCode, config: configString };
+      const newStrategy = {
+        fileName: newFileName,
+        code: updatedCode,
+        config: configString,
+        displayName: newName // Store the new display name
+      };
+
       setGeneratedStrategies(prev => [...prev, newStrategy]);
       
-      toast({ title: "Strategy Generated!", description: `The strategy "${newStrategy.fileName}" is ready and has been added to the approved list.` });
-      // In a real app, this would trigger a file save and app reload.
-      // We can simulate this by navigating away.
+      toast({ title: "Strategy Generated!", description: `The strategy "${newName}" is ready and has been added to the approved list.` });
+      
       setTimeout(() => router.push('/backtest'), 1000);
 
     } catch (error: any) {
@@ -391,7 +407,6 @@ export default function StrategyMakerPage() {
     setIsProjecting(true);
     toast({ title: "Generating Projection..." });
 
-    // Use a timeout to allow the UI to update before the potentially heavy calculation
     setTimeout(() => {
         try {
             const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
@@ -653,7 +668,7 @@ export default function StrategyMakerPage() {
                               <Label>Approved this session:</Label>
                                <div className="p-3 border rounded-md space-y-1">
                                 {generatedStrategies.map(s => (
-                                    <Badge key={s.fileName} variant="secondary">{s.fileName}</Badge>
+                                    <Badge key={s.fileName} variant="secondary">{s.displayName || s.fileName}</Badge>
                                 ))}
                               </div>
                           </div>
