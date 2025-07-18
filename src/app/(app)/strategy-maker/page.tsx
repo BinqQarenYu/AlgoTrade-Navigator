@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useApi } from "@/context/api-context";
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -96,14 +96,18 @@ export default function StrategyMakerPage() {
   const [isProjectionOpen, setIsProjectionOpen] = usePersistentState<boolean>('sm-projection-open', false);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
+  // New state for live updates
+  const [isStreamActive, setIsStreamActive] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+
   // Projection config
   const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random' | 'frankenstein'>('sm-projection-mode', 'neutral');
   const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('sm-projection-duration', '7d');
 
   // Fetch data for the chart
   useEffect(() => {
-    if (!isConnected || !symbol) {
-        setChartData([]);
+    if (!isConnected || !symbol || isStreamActive) {
+        if (!isStreamActive) setChartData([]);
         return;
     }
     const fetchData = async () => {
@@ -113,7 +117,7 @@ export default function StrategyMakerPage() {
         }
     };
     fetchData();
-  }, [isConnected, symbol, interval, getChartData]);
+  }, [isConnected, symbol, interval, getChartData, isStreamActive]);
   
   // Combine historical and projected data for indicator calculation
   const combinedData = useMemo(() => {
@@ -167,6 +171,65 @@ export default function StrategyMakerPage() {
 
     calculateIndicators();
   }, [combinedData, config.indicators, symbol]);
+
+  // Effect for live data stream
+  useEffect(() => {
+    if (!isStreamActive || !symbol || !interval) {
+        if (wsRef.current) {
+            wsRef.current.close();
+            wsRef.current = null;
+        }
+        return;
+    }
+
+    wsRef.current = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
+
+    wsRef.current.onopen = () => {
+      toast({ title: "Live Updates Started", description: `Updating chart for ${symbol}.` });
+    };
+
+    wsRef.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.e !== 'kline') return;
+
+      const klineData = message.k;
+      const newCandle: HistoricalData = {
+        time: klineData.t,
+        open: parseFloat(klineData.o),
+        high: parseFloat(klineData.h),
+        low: parseFloat(klineData.l),
+        close: parseFloat(klineData.c),
+        volume: parseFloat(klineData.v),
+      };
+
+      setChartData(prevData => {
+        const updatedData = [...prevData];
+        const lastCandle = updatedData[updatedData.length - 1];
+        if (lastCandle && lastCandle.time === newCandle.time) {
+          updatedData[updatedData.length - 1] = newCandle;
+        } else {
+          updatedData.push(newCandle);
+        }
+        return updatedData.slice(-1000); // Keep buffer size manageable
+      });
+    };
+
+    wsRef.current.onerror = () => {
+      toast({ 
+          title: "Stream Error",
+          description: `Could not connect to live data for ${symbol}.`,
+          variant: "destructive" 
+      });
+      setIsStreamActive(false);
+    };
+    
+    const currentWs = wsRef.current;
+    return () => {
+      if (currentWs) {
+        currentWs.close();
+      }
+    };
+  }, [isStreamActive, symbol, interval, toast]);
 
 
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
@@ -416,13 +479,22 @@ export default function StrategyMakerPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <Button
+                          onClick={() => setIsStreamActive(prev => !prev)}
+                          variant={isStreamActive ? "destructive" : "outline"}
+                          className="w-full"
+                          disabled={!isConnected}
+                        >
+                          {isStreamActive ? <StopCircle className="mr-2" /> : <Play className="mr-2" />}
+                          {isStreamActive ? "Stop Live Updates" : "Start Live Updates"}
+                        </Button>
                     </CardContent>
                   </CollapsibleContent>
               </Collapsible>
             </Card>
             
-             <Card>
-                <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
+             <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
+                <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="flex items-center gap-2"><Recycle/> Future Projection &amp; Forward Testing</CardTitle>
@@ -467,8 +539,8 @@ export default function StrategyMakerPage() {
                             </Button>
                         </CardFooter>
                     </CollapsibleContent>
-                </Collapsible>
-            </Card>
+                </Card>
+            </Collapsible>
 
 
             {Object.keys(config.indicators).length > 0 && (
@@ -543,4 +615,3 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
-
