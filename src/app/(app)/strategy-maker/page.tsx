@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -33,7 +33,7 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { strategies as allStrategies, getStrategyById } from "@/lib/strategies/all-strategies";
+import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLab } from "@/context/lab-context";
@@ -128,11 +128,16 @@ export default function StrategyMakerPage() {
           let dataWithInd = JSON.parse(JSON.stringify(data));
           
           for (const indicatorId of Object.keys(params)) {
+             // Find a strategy that can calculate this indicator. This is a bit of a hack.
+             // A better system would have standalone indicator calculation functions.
              const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
 
              if (providingStrategy) {
+                // Combine the default params for the indicator with any user-overrides.
                 const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
                 try {
+                    // This assumes the strategy can take the indicator's specific params and calculate it.
+                    // This works for simple strategies but might fail for complex ones.
                     dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
                 } catch (e) {
                     console.error(`Error calculating indicator ${indicatorId} via strategy ${providingStrategy.id}`, e);
@@ -379,6 +384,22 @@ export default function StrategyMakerPage() {
               </Collapsible>
             </Card>
             
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><Recycle/> Frankenstein Engine</CardTitle>
+                    <CardDescription>Trigger the automated data splicing and strategy generation pipeline.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-muted-foreground">This will start the background process to generate synthetic market data for the selected asset, which is the first step in discovering new strategies.</p>
+                </CardContent>
+                <CardFooter>
+                    <Button className="w-full" variant="outline" disabled={isGenerating || isFetchingData} onClick={() => toast({ title: "Pipeline Triggered", description: `Starting Frankenstein build for ${symbol}...` })}>
+                        {isFetchingData ? <Loader2 className="mr-2 animate-spin"/> : <Recycle className="mr-2"/>}
+                        Start Frankenstein Build
+                    </Button>
+                </CardFooter>
+            </Card>
+
             {Object.keys(config.indicators).length > 0 && (
                 <Card>
                     <Collapsible open={isParamsOpen} onOpenChange={setIsParamsOpen}>
