@@ -1,13 +1,10 @@
 
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { TradingChart } from "@/components/trading-chart";
-import { useDataManager } from "@/context/data-manager-context";
 import { useApi } from "@/context/api-context";
-import { useBot } from "@/context/bot-context";
 import {
   Card,
   CardContent,
@@ -26,15 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, Wand2, PlusCircle, Trash2, Save, X } from "lucide-react";
-import { cn } from "@/lib/utils";
-import type { HistoricalData, DisciplineParams } from "@/lib/types";
-import { topAssets } from "@/lib/assets";
-import { useSymbolManager } from "@/hooks/use-symbol-manager";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X } from "lucide-react";
+import type { DisciplineParams } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { availableIndicators, getIndicatorParams } from "@/lib/strategies/indicator-configs";
 import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 
@@ -43,7 +36,6 @@ interface Rule {
   id: string;
   indicator1: string;
   condition: 'crosses_above' | 'crosses_below' | 'is_above' | 'is_below';
-  indicator2: string;
   value: string; // Can be another indicator name or a static value
 }
 
@@ -68,12 +60,9 @@ const defaultDiscipline: DisciplineParams = {
 export default function StrategyMakerPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const { isConnected, canUseAi, consumeAiCredit } = useApi();
-  const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
-  const { symbol, baseAsset, quoteAsset, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('strategy-maker', 'BTC', 'USDT');
+  const { canUseAi, consumeAiCredit } = useApi();
   
   const [isGenerating, setIsGenerating] = useState(false);
-  const [chartData, setChartData] = useState<HistoricalData[]>([]);
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
     name: "My Custom Strategy",
     description: "A strategy created with the visual strategy maker.",
@@ -83,15 +72,6 @@ export default function StrategyMakerPage() {
     discipline: defaultDiscipline,
     reverse: false,
   });
-
-  useEffect(() => {
-    const fetchData = async () => {
-        if (!isConnected || !symbol) return;
-        const data = await getChartData(symbol, '1h');
-        if (data) setChartData(data);
-    };
-    fetchData();
-  }, [isConnected, symbol]);
 
   const handleConfigChange = <K extends keyof StrategyConfig>(field: K, value: StrategyConfig[K]) => {
     setConfig(prev => ({ ...prev, [field]: value }));
@@ -113,8 +93,8 @@ export default function StrategyMakerPage() {
     setConfig(prev => ({
       ...prev,
       indicators: newIndicators,
-      entryConditions: prev.entryConditions.filter(r => r.indicator1 !== indicatorId && r.indicator2 !== indicatorId),
-      exitConditions: prev.exitConditions.filter(r => r.indicator1 !== indicatorId && r.indicator2 !== indicatorId),
+      entryConditions: prev.entryConditions.filter(r => r.indicator1 !== indicatorId && r.value !== indicatorId),
+      exitConditions: prev.exitConditions.filter(r => r.indicator1 !== indicatorId && r.value !== indicatorId),
     }));
   };
 
@@ -137,14 +117,13 @@ export default function StrategyMakerPage() {
       id: `rule_${Date.now()}`,
       indicator1: '',
       condition: 'crosses_above',
-      indicator2: '',
       value: '0'
     };
     const key = type === 'entry' ? 'entryConditions' : 'exitConditions';
     setConfig(prev => ({ ...prev, [key]: [...prev[key], newRule] }));
   };
   
-  const handleUpdateRule = (type: 'entry' | 'exit', ruleId: string, field: keyof Rule, value: string) => {
+  const handleUpdateRule = (type: 'entry' | 'exit', ruleId: string, field: keyof Omit<Rule, 'id'>, value: string) => {
     const key = type === 'entry' ? 'entryConditions' : 'exitConditions';
     setConfig(prev => ({
       ...prev,
@@ -182,61 +161,58 @@ export default function StrategyMakerPage() {
     const selectedIndicators = Object.keys(config.indicators);
 
     return (
-      <div className="space-y-4">
-        <Label className="capitalize">{type} Conditions</Label>
-        {rules.map(rule => (
-          <div key={rule.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center p-2 border rounded-md bg-muted/50">
-            <Select value={rule.indicator1} onValueChange={(val) => handleUpdateRule(type, rule.id, 'indicator1', val)}>
-              <SelectTrigger><SelectValue placeholder="Indicator" /></SelectTrigger>
-              <SelectContent>{selectedIndicators.map(id => <SelectItem key={id} value={id}>{availableIndicators[id]?.name}</SelectItem>)}</SelectContent>
-            </Select>
-            <Select value={rule.condition} onValueChange={(val) => handleUpdateRule(type, rule.id, 'condition', val)}>
-              <SelectTrigger><SelectValue placeholder="Condition" /></SelectTrigger>
-              <SelectContent>
-                  <SelectItem value="crosses_above">Crosses Above</SelectItem>
-                  <SelectItem value="crosses_below">Crosses Below</SelectItem>
-                  <SelectItem value="is_above">Is Above</SelectItem>
-                  <SelectItem value="is_below">Is Below</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input 
-              placeholder="Value or Indicator..." 
-              value={rule.value} 
-              onChange={(e) => handleUpdateRule(type, rule.id, 'value', e.target.value)}
-            />
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveRule(type, rule.id)}><X/></Button>
-          </div>
-        ))}
-        <Button variant="outline" size="sm" onClick={() => handleAddRule(type)}><PlusCircle className="mr-2"/> Add Rule</Button>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="capitalize">{type} Conditions</CardTitle>
+          <CardDescription>Define the rules for when to {type === 'entry' ? 'enter a buy or sell' : 'exit a position'}.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {rules.map(rule => (
+            <div key={rule.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center p-2 border rounded-md bg-muted/50">
+              <Select value={rule.indicator1} onValueChange={(val) => handleUpdateRule(type, rule.id, 'indicator1', val)}>
+                <SelectTrigger><SelectValue placeholder="Indicator" /></SelectTrigger>
+                <SelectContent>{selectedIndicators.map(id => <SelectItem key={id} value={id}>{availableIndicators[id]?.name}</SelectItem>)}</SelectContent>
+              </Select>
+              <Select value={rule.condition} onValueChange={(val) => handleUpdateRule(type, rule.id, 'condition', val)}>
+                <SelectTrigger><SelectValue placeholder="Condition" /></SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="crosses_above">Crosses Above</SelectItem>
+                    <SelectItem value="crosses_below">Crosses Below</SelectItem>
+                    <SelectItem value="is_above">Is Above</SelectItem>
+                    <SelectItem value="is_below">Is Below</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input 
+                placeholder="Value or Indicator..." 
+                value={rule.value} 
+                onChange={(e) => handleUpdateRule(type, rule.id, 'value', e.target.value)}
+              />
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveRule(type, rule.id)}><Trash2/></Button>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" onClick={() => handleAddRule(type)}><PlusCircle className="mr-2"/> Add {type} Rule</Button>
+        </CardContent>
+      </Card>
     );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
        <div className="text-left">
           <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
               <BrainCircuit size={32}/> Strategy Maker
           </h1>
           <p className="text-muted-foreground mt-2">
-              Visually build, configure, and generate your own trading strategies.
+              Visually build, configure, and generate your own trading strategies with AI.
           </p>
       </div>
       
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-            <TradingChart data={chartData} symbol={symbol} interval="1h" />
-            <Card>
-                <CardHeader><CardTitle>Strategy Logic</CardTitle><CardDescription>Define the entry and exit rules for your strategy.</CardDescription></CardHeader>
-                <CardContent className="space-y-6">
-                    {renderRuleEditor('entry')}
-                    {renderRuleEditor('exit')}
-                </CardContent>
-            </Card>
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         <div className="space-y-6">
             <Card>
-                <CardHeader><CardTitle>Configuration</CardTitle></CardHeader>
+                <CardHeader>
+                    <CardTitle>1. General Configuration</CardTitle>
+                </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Label htmlFor="strategy-name">Strategy Name</Label>
@@ -249,7 +225,7 @@ export default function StrategyMakerPage() {
                      <div className="space-y-2">
                         <Label>Select Indicators</Label>
                         <Select onValueChange={handleAddIndicator}>
-                            <SelectTrigger><SelectValue placeholder="Add an indicator..."/></SelectTrigger>
+                            <SelectTrigger><SelectValue placeholder="Add an indicator to use in your rules..."/></SelectTrigger>
                             <SelectContent>
                                 {Object.entries(availableIndicators).map(([id, {name}]) => (
                                     <SelectItem key={id} value={id} disabled={!!config.indicators[id]}>{name}</SelectItem>
@@ -262,7 +238,9 @@ export default function StrategyMakerPage() {
             
             {Object.keys(config.indicators).length > 0 && (
                 <Card>
-                    <CardHeader><CardTitle>Indicator Parameters</CardTitle></CardHeader>
+                    <CardHeader>
+                        <CardTitle>2. Indicator Parameters</CardTitle>
+                    </CardHeader>
                     <CardContent className="space-y-4">
                         {Object.entries(config.indicators).map(([id, params]) => (
                             <div key={id} className="p-3 border rounded-md">
@@ -287,21 +265,36 @@ export default function StrategyMakerPage() {
                     </CardContent>
                 </Card>
             )}
-
-            <DisciplineSettings 
-                params={config.discipline}
-                onParamChange={(key, value) => handleConfigChange('discipline', { ...config.discipline, [key]: value })}
-                isCollapsed={true}
-                onCollapseChange={() => {}}
-            />
-             <div className="flex items-center space-x-2 pt-2">
-                <Switch id="reverse" checked={config.reverse} onCheckedChange={(val) => handleConfigChange('reverse', val)} />
-                <Label htmlFor="reverse">Reverse (Contrarian) Mode</Label>
+        </div>
+        <div className="space-y-6">
+            <div className="space-y-6">
+                {renderRuleEditor('entry')}
+                {renderRuleEditor('exit')}
             </div>
-             <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
-                {isGenerating ? <Loader2 className="mr-2 animate-spin"/> : <Save className="mr-2"/>}
-                {isGenerating ? 'Generating...' : 'Convert to Strategy & Go to Backtest'}
-            </Button>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>4. Final Settings</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <DisciplineSettings 
+                        params={config.discipline}
+                        onParamChange={(key, value) => handleConfigChange('discipline', { ...config.discipline, [key]: value })}
+                        isCollapsed={true}
+                        onCollapseChange={() => {}}
+                    />
+                     <div className="flex items-center space-x-2 pt-4">
+                        <Switch id="reverse" checked={config.reverse} onCheckedChange={(val) => handleConfigChange('reverse', val)} />
+                        <Label htmlFor="reverse">Reverse (Contrarian) Mode</Label>
+                    </div>
+                </CardContent>
+                <CardFooter>
+                    <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
+                        {isGenerating ? <Loader2 className="mr-2 animate-spin"/> : <Save className="mr-2"/>}
+                        {isGenerating ? 'Generating...' : 'Generate & Save Strategy'}
+                    </Button>
+                </CardFooter>
+            </Card>
         </div>
       </div>
     </div>
