@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2 } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, ClipboardCheck } from "lucide-react"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -24,6 +24,8 @@ import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/li
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
 
 // Default parameter maps for resetting
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -402,9 +404,21 @@ const BotInstanceRow = memo(({
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
 
+const SystemCheckItem = ({ label, passed }: { label: string; passed: boolean }) => (
+    <div className="flex items-center justify-between text-sm">
+        <p>{label}</p>
+        {passed ? (
+            <Badge variant="default" className="bg-green-600 hover:bg-green-600">PASS</Badge>
+        ) : (
+            <Badge variant="destructive">FAIL</Badge>
+        )}
+    </div>
+);
+
+
 export default function LiveTradingPage() {
     const { toast } = useToast();
-    const { isConnected, activeProfile } = useApi();
+    const { isConnected, activeProfile, telegramBotToken, telegramChatId } = useApi();
     const { 
         startBotInstance, 
         stopBotInstance, 
@@ -509,6 +523,8 @@ export default function LiveTradingPage() {
             startBotInstance(botConfig);
         }
     }
+    
+    const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
 
     return (
         <div className="space-y-6">
@@ -542,6 +558,30 @@ export default function LiveTradingPage() {
                         <CardDescription>Add, remove, and configure your trading bots.</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button size="sm" variant="outline">
+                                    <ClipboardCheck className="mr-2 h-4 w-4"/> System Check
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Live Trading Pre-Flight Checklist</DialogTitle>
+                                    <DialogDescription>
+                                        Verify these items before deploying your bots to ensure a smooth session.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <SystemCheckItem label="Binance API Connected" passed={isConnected} />
+                                    <Separator />
+                                    <SystemCheckItem label="Active Profile has Trading Permissions" passed={activeProfile?.permissions === 'FuturesTrading'} />
+                                    <Separator />
+                                    <SystemCheckItem label="Telegram Notifications Configured" passed={!!(telegramBotToken && telegramChatId)} />
+                                    <Separator />
+                                    <SystemCheckItem label="All Bot Rows Fully Configured" passed={!isAnyBotMisconfigured} />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                          <Button onClick={addBotInstance} size="sm" variant="outline">
                             <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
                         </Button>
@@ -596,3 +636,4 @@ export default function LiveTradingPage() {
         </div>
     );
 }
+
