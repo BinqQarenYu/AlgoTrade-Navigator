@@ -41,64 +41,6 @@ import { BacktestResults } from "@/components/backtest-results"
 import { formatPrice } from "@/lib/utils"
 import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
 
-import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
-import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
-import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
-import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow"
-import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve"
-import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels"
-import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
-import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
-import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
-import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
-import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
-import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
-import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross"
-import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
-import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
-import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
-import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
-import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
-import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
-import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
-import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
-import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
-import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
-import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
-import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
-import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
-import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
-
-const DEFAULT_PARAMS_MAP: Record<string, any> = {
-    'awesome-oscillator': defaultAwesomeOscillatorParams,
-    'bollinger-bands': defaultBollingerBandsParams,
-    'cci-reversion': defaultCciReversionParams,
-    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
-    'coppock-curve': defaultCoppockCurveParams,
-    'donchian-channels': defaultDonchianChannelsParams,
-    'elder-ray-index': defaultElderRayIndexParams,
-    'ema-crossover': defaultEmaCrossoverParams,
-    'hyper-peak-formation': defaultHyperPFFParams,
-    'ichimoku-cloud': defaultIchimokuCloudParams,
-    'keltner-channels': defaultKeltnerChannelsParams,
-    'macd-crossover': defaultMacdCrossoverParams,
-    'momentum-cross': defaultMomentumCrossParams,
-    'obv-divergence': defaultObvDivergenceParams,
-    'parabolic-sar-flip': defaultParabolicSarFlipParams,
-    'peak-formation-fib': defaultPffParams,
-    'pivot-point-reversal': defaultPivotPointReversalParams,
-    'reverse-pff': defaultReversePffParams,
-    'rsi-divergence': defaultRsiDivergenceParams,
-    'sma-crossover': defaultSmaCrossoverParams,
-    'stochastic-crossover': defaultStochasticCrossoverParams,
-    'supertrend': defaultSupertrendParams,
-    'volume-delta': defaultVolumeDeltaParams,
-    'vwap-cross': defaultVwapCrossParams,
-    'williams-r': defaultWilliamsRParams,
-    'liquidity-grab': defaultLiquidityGrabParams,
-    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
-}
-
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
   const [state, setState] = useState<T>(defaultValue);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -233,7 +175,7 @@ export default function SimulationPage() {
   const [takeProfit, setTakeProfit] = usePersistentState<number>('sim-tp', 1.5);
   const [stopLoss, setStopLoss] = usePersistentState<number>('sim-sl', 1);
   const [fee] = usePersistentState<number>('sim-fee', 0.04);
-  const [useAIPrediction, setUseAIPrediction] = usePersistentState<boolean>('sim-ai-prediction', false);
+  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('sim-reverse-logic', false);
   const [chartHeight, setChartHeight] = usePersistentState<number>('sim-chart-height', 600);
 
   // Local chart data management
@@ -253,7 +195,6 @@ export default function SimulationPage() {
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
-  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('sim-params-open', false);
   
   const handleSelectTrade = (trade: SimulatedTrade) => {
     setSelectedTrade(trade);
@@ -294,22 +235,6 @@ export default function SimulationPage() {
     }
     return null;
   }, [selectedTrade, selectedPosition, chartDataWithIndicators]);
-
-  const handleParamChange = (strategyId: string, paramName: string, value: string) => {
-    const parsedValue = value.includes('.') ? parseFloat(value) : parseInt(value, 10);
-    setStrategyParams(prev => ({
-        ...prev,
-        [strategyId]: { ...prev[strategyId], [paramName]: isNaN(parsedValue) ? 0 : parsedValue }
-    }));
-  };
-  
-  const handleResetParams = () => {
-    const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy];
-    if (defaultParams) {
-        setStrategyParams(prev => ({...prev, [selectedStrategy]: defaultParams}));
-        toast({ title: "Parameters Reset", description: `The parameters for ${getStrategyById(selectedStrategy)?.name} have been reset.`});
-    }
-  }
 
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
     mouseDownEvent.preventDefault();
@@ -446,38 +371,12 @@ export default function SimulationPage() {
         }
         startSimulation({
             symbol, interval, strategy: selectedStrategy,
-            strategyParams: strategyParams[selectedStrategy],
-            initialCapital, leverage, takeProfit, stopLoss, useAIPrediction, fee
+            strategyParams: { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic },
+            initialCapital, leverage, takeProfit, stopLoss, useAIPrediction: false, fee
         });
     }
   }
 
-  const renderParameterControls = () => {
-    const params = strategyParams[selectedStrategy];
-    if (!params) return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
-
-    const controls = Object.entries(params).map(([key, value]) => (
-      <div key={key} className="space-y-2">
-        <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-        <Input id={key} type="number" value={value as number} onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
-          step={String(value).includes('.') ? '0.001' : '1'} disabled={isRunning}/>
-      </div>
-    ));
-
-    return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">{controls}</div>
-        <div className="pt-2 flex flex-col sm:flex-row gap-2">
-            {DEFAULT_PARAMS_MAP[selectedStrategy] && (
-                <Button onClick={handleResetParams} disabled={isRunning} variant="secondary" className="w-full">
-                    <RotateCcw className="mr-2 h-4 w-4" /> Reset to Default
-                </Button>
-            )}
-        </div>
-      </div>
-    );
-  };
-  
   const anyLoading = isFetchingData;
 
   return (
@@ -556,43 +455,34 @@ export default function SimulationPage() {
                         <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
-                      <Label htmlFor="strategy">Strategy</Label>
-                      <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                        <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
-                      </Select>
-                        {selectedStrategy !== 'none' && (
-                            <div className="flex flex-wrap gap-1 pt-1">
-                                {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                    <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <div>
-                      <Label htmlFor="interval">Interval</Label>
-                      <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
-                        <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="1m">1 Minute</SelectItem>
-                            <SelectItem value="5m">5 Minutes</SelectItem>
-                            <SelectItem value="15m">15 Minutes</SelectItem>
-                            <SelectItem value="1h">1 Hour</SelectItem>
-                            <SelectItem value="4h">4 Hours</SelectItem>
-                            <SelectItem value="1d">1 Day</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
-
-                  <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="outline" size="sm" className="w-full"><BrainCircuit />Strategy Parameters<ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} /></Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                      {renderParameterControls()}
-                    </CollapsibleContent>
-                  </Collapsible>
+                  <div className="space-y-2">
+                    <Label htmlFor="strategy">Strategy</Label>
+                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                      <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
+                    </Select>
+                      {selectedStrategy !== 'none' && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                              {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
+                                  <Badge key={indicator} variant="secondary">{indicator}</Badge>
+                              ))}
+                          </div>
+                      )}
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor="interval">Interval</Label>
+                    <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
+                      <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="1m">1 Minute</SelectItem>
+                          <SelectItem value="5m">5 Minutes</SelectItem>
+                          <SelectItem value="15m">15 Minutes</SelectItem>
+                          <SelectItem value="1h">1 Hour</SelectItem>
+                          <SelectItem value="4h">4 Hours</SelectItem>
+                          <SelectItem value="1d">1 Day</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     <div><Label htmlFor="initial-capital">Initial Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)} disabled={isRunning}/></div>
@@ -602,7 +492,7 @@ export default function SimulationPage() {
                     <div><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)} disabled={isRunning}/></div>
                   </div>
 
-                  <div className="flex items-center space-x-2 pt-2"><Switch id="ai-prediction" checked={useAIPrediction} onCheckedChange={setUseAIPrediction} disabled={isRunning} /><Label htmlFor="ai-prediction">Enable AI Validation</Label></div>
+                  <div className="flex items-center space-x-2 pt-2"><Switch id="reverse-logic" checked={useReverseLogic} onCheckedChange={setUseReverseLogic} disabled={isRunning} /><Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label></div>
                   <div className="flex items-center space-x-2 pt-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis">Show Liquidity Analysis</Label></div>
                 </CardContent>
                 <CardFooter>
@@ -648,3 +538,5 @@ export default function SimulationPage() {
     </div>
   )
 }
+
+
