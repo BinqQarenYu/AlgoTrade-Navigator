@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Separator } from '../ui/separator';
 
 interface DisciplineSettingsProps {
   params: DisciplineParams;
@@ -30,15 +31,7 @@ export function DisciplineSettings({
 }: DisciplineSettingsProps) {
 
   return (
-    <Collapsible open={isCollapsed} onOpenChange={onCollapseChange}>
-      <CollapsibleTrigger asChild>
-        <Button variant="outline" size="sm" className="w-full">
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            <span>Discipline & Risk Settings</span>
-            <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isCollapsed && "rotate-180")} />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-6 mt-2">
+    <div className="p-3 border rounded-md bg-muted/50 space-y-4">
         <div className="flex items-center space-x-2">
             <Switch
                 id="enable-discipline"
@@ -54,7 +47,7 @@ export function DisciplineSettings({
 
         {params.enableDiscipline && (
             <>
-                <div className="border-b -mx-4"></div>
+                <Separator />
                 <div className="space-y-4 pt-2">
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -112,7 +105,6 @@ export function DisciplineSettings({
                 </div>
             </>
         )}
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
   );
 }
