@@ -253,7 +253,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     try {
         const dataToAnalyze = existingData && existingData.length > 50 
             ? existingData
-            : await getLatestKlinesByLimit(config.symbol, '1h', 500); // hardcoding interval for now
+            : await getLatestKlinesByLimit(config.symbol, config.interval, 1000);
 
         if (dataToAnalyze.length < 50) {
             return { status: 'error', log: 'Not enough data.', signal: null };
@@ -268,7 +268,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
         if (!lastCandle || (!lastCandle.buySignal && !lastCandle.sellSignal)) {
-             return { status: 'no_signal', log: 'No actionable trade setup found on the latest candle.', signal: null, dataWithIndicators };
+             return { status: 'no_signal', log: 'No actionable trade setup found on the latest candle.', signal: null };
         }
         
         let strategySignal: 'BUY' | 'SELL' | null = lastCandle.buySignal ? 'BUY' : 'SELL';
@@ -290,7 +290,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         };
 
         if (!prediction) { 
-            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null, dataWithIndicators };
+            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
         }
         
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
@@ -309,9 +309,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 timestamp: lastCandle.time, strategy: config.strategy,
                 peakPrice: lastCandle?.peakPrice
             };
-            return { status: 'monitoring', log: 'Signal found.', signal: newSignal, dataWithIndicators };
+            return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
         } else {
-            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null, dataWithIndicators };
+            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
         }
     } catch (e: any) {
         console.error(`Analysis failed for ${config.symbol}:`, e);
@@ -338,12 +338,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: `Bot ${botId} Stopped`, description: `The bot has been stopped.` });
   }, [toast]);
   
-
   const runLiveBotCycle = useCallback(async (botId: string, isNewCandle: boolean = false) => {
+    // This function now relies on data being present in dataBufferRef
     const botState = liveBotState.bots[botId];
-    if (!botState || (botState.status !== 'running' && botState.status !== 'analyzing' && botState.status !== 'position_open')) return;
-    if (!apiKey || !secretKey) return;
+    const data = dataBufferRef.current[botId];
 
+    if (!botState || !data || (botState.status !== 'running' && botState.status !== 'analyzing' && botState.status !== 'position_open')) return;
+    if (!apiKey || !secretKey) return;
+    
     const config = botState.config;
     let currentPosition = botState.activePosition;
     
@@ -353,10 +355,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!allowed) {
       addLiveLog(botId, `Discipline action: ${reason}`);
       setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
-      if(mode === 'adapt') {
-          // This part needs more implementation if we want specific strategy recommendations.
-          // For now, it just signals the need for adaptation.
-      }
+      // Handle 'adapt' mode if needed
       return; 
     }
 
@@ -365,19 +364,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         if (currentPosition) {
             if (!isNewCandle) return; 
             
-            const latestCandle = botState.chartData[botState.chartData.length - 1];
+            const latestCandle = data[data.length - 1];
             let closePosition = false;
             let closeReason = '';
             
-            if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) {
-                closePosition = true; closeReason = 'Stop Loss hit.';
-            } else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) {
-                closePosition = true; closeReason = 'Take Profit hit.';
-            } else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) {
-                closePosition = true; closeReason = 'Stop Loss hit.';
-            } else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) {
-                closePosition = true; closeReason = 'Take Profit hit.';
-            }
+            if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss hit.'; } 
+            else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit hit.'; } 
+            else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss hit.'; } 
+            else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit hit.'; }
 
             if (closePosition) {
                 addLiveLog(botId, `Exit signal: ${closeReason}`);
@@ -388,20 +382,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
                     const orderResult = await placeOrder(config.asset, side, quantity, apiKey, secretKey, true);
                     toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
-                    const pnl = side === 'SELL' 
-                        ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity 
-                        : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
+                    const pnl = side === 'SELL' ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
                     riskGuardian?.registerTrade(pnl);
                 }
                 setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
             }
-            return; // Don't look for new trades if we are in a position
+            return; // Don't look for new trades if in a position
         }
 
         // --- TRADE ENTRY LOGIC ---
         if (!currentPosition) {
           setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'analyzing'}}}));
-          const { signal, log } = await analyzeAsset({symbol: config.asset, interval: '1h', ...config}, botState.chartData);
+          const { signal, log } = await analyzeAsset({symbol: config.asset, interval: config.interval, ...config}, data);
           
           if (signal) {
               addLiveLog(botId, `New trade signal found: ${signal.action} at ${signal.entryPrice}`);
@@ -422,7 +414,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     } catch (e: any) {
         addLiveLog(botId, `CRITICAL ERROR in trade cycle: ${e.message}`);
         setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'error'}}}));
-        
         if (e.message.includes('-2015') || e.message.toLowerCase().includes('invalid api-key')) {
             toast({ title: "Live Trading API Key Failed!", description: "The bot has been stopped for safety.", variant: "destructive" });
             stopBotInstance(botId);
@@ -435,54 +426,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const botId = config.id;
     addLiveLog(botId, `Starting bot for ${config.asset}...`);
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
-    dataBufferRef.current[botId] = [];
     
     setLiveBotState(prev => ({
         ...prev,
         bots: {
             ...prev.bots,
-            [botId]: {
-                status: 'analyzing',
-                config,
-                logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`],
-                chartData: [],
-                activePosition: null,
-            },
+            [botId]: { status: 'analyzing', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null },
         },
     }));
 
-    // Start the UI update interval if it's not already running
     if (!updateIntervalRef.current) {
         updateIntervalRef.current = setInterval(() => {
             setLiveBotState(prev => {
                 const updatedBots = { ...prev.bots };
-                let hasChanges = false;
-
                 Object.keys(dataBufferRef.current).forEach(id => {
-                    const buffer = dataBufferRef.current[id];
-                    if (buffer && buffer.length > 0) {
-                        hasChanges = true;
-                        let newChartData = [...(updatedBots[id]?.chartData || [])];
-                        buffer.forEach(newCandle => {
-                             if (newChartData.length > 0 && newChartData[newChartData.length - 1].time === newCandle.time) {
-                                newChartData[newChartData.length - 1] = newCandle;
-                            } else {
-                                newChartData.push(newCandle);
-                            }
-                        });
-                        updatedBots[id] = { ...updatedBots[id], chartData: newChartData.slice(-1000) };
-                        dataBufferRef.current[id] = [];
+                    if (updatedBots[id]) {
+                        updatedBots[id] = { ...updatedBots[id], chartData: dataBufferRef.current[id] };
                     }
                 });
-
-                return hasChanges ? { bots: updatedBots } : prev;
+                return { bots: updatedBots };
             });
-        }, 1000); // Update UI every second
+        }, 1000);
     }
 
     try {
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
-      dataBufferRef.current[botId] = klines; // Pre-fill buffer instead of direct state update
+      dataBufferRef.current[botId] = klines;
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
       
       runLiveBotCycle(botId, true);
@@ -499,8 +468,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
           };
           
-          if (!dataBufferRef.current[botId]) dataBufferRef.current[botId] = [];
-          dataBufferRef.current[botId].push(newCandle);
+          const buffer = dataBufferRef.current[botId] || [];
+          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) {
+            buffer[buffer.length - 1] = newCandle;
+          } else {
+            buffer.push(newCandle);
+          }
+          dataBufferRef.current[botId] = buffer.slice(-1000); // Keep buffer size fixed
 
           if (data.k.x) { // If candle is closed
             runLiveBotCycle(botId, true);
@@ -510,12 +484,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       
       ws.onopen = () => addLiveLog(botId, "Live data stream connected.");
       ws.onerror = () => addLiveLog(botId, "Live data stream error.");
-      ws.onclose = () => {
-        addLiveLog(botId, "Live data stream closed.");
-        // If this bot is stopped, no need to do anything else.
-        // If it closed unexpectedly, you might want retry logic here.
-      };
-
+      ws.onclose = () => addLiveLog(botId, "Live data stream closed.");
+      
       toast({ title: "Bot Started", description: `Monitoring ${config.asset} on the ${config.interval} interval.`});
 
     } catch (error: any) {
