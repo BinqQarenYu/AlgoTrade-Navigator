@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -33,13 +33,14 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
+import { strategies as allStrategies, strategyMetadatas } from "@/lib/strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLab } from "@/context/lab-context";
 import { topAssets } from "@/lib/assets";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateProjectedCandles } from "@/lib/projection-service";
+import { Badge } from "@/components/ui/badge";
 
 interface Rule {
   id: string;
@@ -94,6 +95,7 @@ export default function StrategyMakerPage() {
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
   const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', false);
   const [isProjectionOpen, setIsProjectionOpen] = usePersistentState<boolean>('sm-projection-open', false);
+  const [isApprovedOpen, setIsApprovedOpen] = usePersistentState<boolean>('sm-approved-open', true);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
   // New state for live updates
@@ -493,7 +495,7 @@ export default function StrategyMakerPage() {
               </Collapsible>
             </Card>
             
-             <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
+             <Collapsible open={isProjectionOpen} onOpenChange={setProjectionOpen}>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
@@ -582,6 +584,34 @@ export default function StrategyMakerPage() {
                 </Card>
             )}
             
+            <Card>
+              <Collapsible open={isApprovedOpen} onOpenChange={setIsApprovedOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>3. Strategies Already Approved</CardTitle>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isApprovedOpen && "rotate-180")} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-muted-foreground">A list of pre-built and validated strategies.</p>
+                    <div className="p-3 border rounded-md max-h-48 overflow-y-auto">
+                      <ul className="space-y-1">
+                        {strategyMetadatas.slice(0, 10).map(strategy => ( // Show first 10 as an example
+                          <li key={strategy.id} className="flex items-center gap-2 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <span>{strategy.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+
             <div className="space-y-6">
                 {renderRuleEditor('entry')}
                 {renderRuleEditor('exit')}
@@ -615,3 +645,5 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
+
+    
