@@ -32,7 +32,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
@@ -56,6 +56,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { TradeHistory } from "@/components/dashboard/trade-history"
+import { getTradeHistory } from "@/lib/binance-service";
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -223,7 +225,7 @@ const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatc
 export default function BacktestPage() {
   const { toast } = useToast()
   const router = useRouter();
-  const { isConnected, canUseAi, consumeAiCredit } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
@@ -262,6 +264,7 @@ export default function BacktestPage() {
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('backtest-discipline-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [tradeHistory, setTradeHistory] = useState<Trade[]>([]);
   
   // New state for Replay Mode
   const [isReplaying, setIsReplaying] = useState(false);
@@ -362,11 +365,15 @@ export default function BacktestPage() {
         if (data) {
             setFullChartData(data);
         }
+        if (apiKey && secretKey) {
+            const { data: history } = await getTradeHistory(symbol, apiKey, secretKey);
+            setTradeHistory(history);
+        }
     };
 
     fetchData();
 
-  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData, apiKey, secretKey]);
 
   // Effect to handle data errors from the context
   useEffect(() => {
@@ -881,6 +888,14 @@ export default function BacktestPage() {
     router.push(route);
   };
 
+  const handleClearTradeHistory = () => {
+    setTradeHistory([]);
+    toast({
+        title: "Trade History Cleared",
+        description: "Your trade history has been cleared from view. It will reappear on the next data fetch."
+    })
+  }
+
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy] || {};
 
@@ -1190,7 +1205,7 @@ export default function BacktestPage() {
 
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="space-y-6">
     {!isConnected && (
         <Alert variant="destructive" className="mb-4">
             <Terminal className="h-4 w-4" />
@@ -1226,7 +1241,7 @@ export default function BacktestPage() {
         </AlertDialogContent>
     </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <div className="xl:col-span-3">
+      <div className="xl:col-span-3 space-y-6">
         <div className="relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
                 <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
@@ -1546,6 +1561,9 @@ export default function BacktestPage() {
         </Card>
         <PineScriptEditor onLoadScript={() => {}} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
+    </div>
+    <div className="mt-6">
+        <TradeHistory trades={tradeHistory} onClear={handleClearTradeHistory} />
     </div>
     </div>
   )

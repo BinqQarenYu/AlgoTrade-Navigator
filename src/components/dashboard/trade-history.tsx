@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { Trade } from "@/lib/types";
@@ -66,7 +66,10 @@ export function TradeHistory({ trades, onClear }: TradeHistoryProps) {
     <Card>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Trade History</CardTitle>
+          <div>
+            <CardTitle>Recent Trade History</CardTitle>
+            <CardDescription>Your most recent trades for the selected asset.</CardDescription>
+          </div>
           <div className="flex items-center gap-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -79,7 +82,7 @@ export function TradeHistory({ trades, onClear }: TradeHistoryProps) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    This action will clear the trade history from your view. This is a temporary action and the data will reappear on page reload.
+                    This action will clear the trade history from your view. This is a temporary action and the data will reappear on the next data fetch.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
