@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React from 'react';
@@ -17,16 +18,12 @@ import { Separator } from '../ui/separator';
 interface DisciplineSettingsProps {
   params: DisciplineParams;
   onParamChange: <K extends keyof DisciplineParams>(key: K, value: DisciplineParams[K]) => void;
-  isCollapsed: boolean;
-  onCollapseChange: (isOpen: boolean) => void;
   isDisabled?: boolean;
 }
 
 export function DisciplineSettings({
   params,
   onParamChange,
-  isCollapsed,
-  onCollapseChange,
   isDisabled = false
 }: DisciplineSettingsProps) {
 

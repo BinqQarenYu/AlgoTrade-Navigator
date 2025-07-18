@@ -163,7 +163,6 @@ export default function SimulationPage() {
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
-  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('sim-discipline-open', false);
   
     // Effect to apply configuration from backtest page
   useEffect(() => {
@@ -483,8 +482,6 @@ export default function SimulationPage() {
                   <DisciplineSettings
                     params={strategyParams[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline}
                     onParamChange={handleDisciplineParamChange}
-                    isCollapsed={isDisciplineOpen}
-                    onCollapseChange={setDisciplineOpen}
                     isDisabled={isRunning}
                   />
                 </CardContent>

@@ -162,8 +162,6 @@ const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onRes
                 <DisciplineSettings
                     params={params.discipline || defaultAwesomeOscillatorParams.discipline}
                     onParamChange={onDisciplineChange}
-                    isCollapsed={isDisciplineOpen}
-                    onCollapseChange={setIsDisciplineOpen}
                     isDisabled={isTradingActive}
                 />
 
