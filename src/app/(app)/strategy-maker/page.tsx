@@ -33,9 +33,10 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
+import { strategies } from "@/lib/strategies/all-strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getStrategyById } from "@/lib/strategies";
 
 interface Rule {
   id: string;
@@ -114,24 +115,22 @@ export default function StrategyMakerPage() {
             setChartDataWithIndicators(chartData);
             return;
         }
-
+        
         // Dynamically build a temporary strategy to calculate all selected indicators
         const tempStrategy: Strategy = {
             id: 'temp-visualizer',
             name: 'Temp Visualizer',
             description: '',
-            calculate: async (data) => {
+            calculate: async (data, params) => {
                 let dataWithInd = JSON.parse(JSON.stringify(data));
                 
-                for (const indicatorId in config.indicators) {
-                    const providingStrategy = allStrategies.find(s => {
-                        const strategyId = s.id.replace(/-/g, '_');
-                        const indicatorBaseName = indicatorId.split('_')[0];
-                        return strategyId.includes(indicatorBaseName);
-                    });
-                    
+                for (const indicatorId in params) {
+                    // This relies on the convention that a strategy file exists that can calculate this indicator.
+                    // This is a simplification; a more robust system would map indicators to calculation functions directly.
+                    const providingStrategy = strategies.find(s => s.id.includes(indicatorId.split('_')[0]));
+
                     if (providingStrategy) {
-                      const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...config.indicators[indicatorId] };
+                      const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
                       dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams);
                     }
                 }
@@ -319,6 +318,30 @@ export default function StrategyMakerPage() {
                     <CardTitle>1. General Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="base-asset">Base</Label>
+                          <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || isGenerating}>
+                            <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(availableIndicators).map(([id, {name}]) => (
+                                <SelectItem key={id} value={id}>{name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="quote-asset">Quote</Label>
+                          <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={!isConnected || isGenerating || availableQuotes.length === 0}>
+                            <SelectTrigger id="quote-asset"><SelectValue/></SelectTrigger>
+                            <SelectContent>
+                              {availableQuotes.map(asset => (
+                                <SelectItem key={asset} value={asset}>{asset}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                    </div>
                     <div className="space-y-2">
                         <Label htmlFor="strategy-name">Strategy Name</Label>
                         <Input id="strategy-name" value={config.name} onChange={(e) => handleConfigChange('name', e.target.value)} />
