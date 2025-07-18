@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -31,7 +30,7 @@ import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, Chevr
 import { cn } from "@/lib/utils"
 import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
-import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -275,14 +274,14 @@ export default function SimulationPage() {
       const strategy = getStrategyById(selectedStrategy);
       if (strategy) {
           const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          const calculatedData = await strategy.calculate(rawChartData, paramsForStrategy);
+          const calculatedData = await strategy.calculate(rawChartData, paramsForStrategy, symbol);
           setChartDataWithIndicators(calculatedData);
       } else {
           setChartDataWithIndicators(rawChartData);
       }
     };
     calculateAndSetIndicators();
-  }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData]);
+  }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData, symbol]);
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
     setStrategyParams(prev => ({
@@ -502,3 +501,5 @@ export default function SimulationPage() {
     </div>
   )
 }
+
+    
