@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -38,7 +38,8 @@ import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useLab } from "@/context/lab-context";
 import { topAssets } from "@/lib/assets";
-
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { generateProjectedCandles } from "@/lib/projection-service";
 
 interface Rule {
   id: string;
@@ -74,6 +75,7 @@ export default function StrategyMakerPage() {
   const { strategyParams, setStrategyParams } = useLab();
 
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isProjecting, setIsProjecting] = useState(false);
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
     name: "My Custom Strategy",
     description: "A strategy created with the visual strategy maker.",
@@ -91,6 +93,11 @@ export default function StrategyMakerPage() {
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
   const [isGeneralConfigOpen, setIsGeneralConfigOpen] = usePersistentState<boolean>('sm-general-config-open', false);
+  const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
+  
+  // Projection config
+  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random'>('sm-projection-mode', 'neutral');
+  const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('sm-projection-duration', '7d');
 
   // Fetch data for the chart
   useEffect(() => {
@@ -106,16 +113,21 @@ export default function StrategyMakerPage() {
     };
     fetchData();
   }, [isConnected, symbol, interval, getChartData]);
+  
+  // Combine historical and projected data for indicator calculation
+  const combinedData = useMemo(() => {
+    return [...chartData, ...projectedData];
+  }, [chartData, projectedData]);
 
-  // Calculate indicators for the chart when config changes
+  // Calculate indicators for the chart when config or combined data changes
   useEffect(() => {
     const calculateIndicators = async () => {
-      if (chartData.length === 0) {
+      if (combinedData.length === 0) {
         setChartDataWithIndicators([]);
         return;
       }
       if (Object.keys(config.indicators).length === 0) {
-        setChartDataWithIndicators(chartData);
+        setChartDataWithIndicators(combinedData);
         return;
       }
 
@@ -128,16 +140,16 @@ export default function StrategyMakerPage() {
           let dataWithInd = JSON.parse(JSON.stringify(data));
           
           for (const indicatorId of Object.keys(params)) {
-             // Find a strategy that can calculate this indicator. This is a bit of a hack.
-             // A better system would have standalone indicator calculation functions.
-             const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
+             // Find any strategy that implements the required indicator calculation
+             const providingStrategy = allStrategies.find(s => {
+                const indicatorName = indicatorId.split('_')[0];
+                return s.id.includes(indicatorName);
+             });
 
              if (providingStrategy) {
                 // Combine the default params for the indicator with any user-overrides.
                 const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
                 try {
-                    // This assumes the strategy can take the indicator's specific params and calculate it.
-                    // This works for simple strategies but might fail for complex ones.
                     dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
                 } catch (e) {
                     console.error(`Error calculating indicator ${indicatorId} via strategy ${providingStrategy.id}`, e);
@@ -148,12 +160,12 @@ export default function StrategyMakerPage() {
         }
       };
       
-      const calculatedData = await tempStrategy.calculate(chartData, config.indicators);
+      const calculatedData = await tempStrategy.calculate(combinedData, config.indicators);
       setChartDataWithIndicators(calculatedData);
     };
 
     calculateIndicators();
-  }, [chartData, config.indicators, symbol]);
+  }, [combinedData, config.indicators, symbol]);
 
 
   const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
@@ -257,6 +269,29 @@ export default function StrategyMakerPage() {
           setIsGenerating(false);
       }
   };
+
+  const handleProjectAndTest = () => {
+    if (chartData.length === 0) {
+      toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
+      return;
+    }
+    
+    setIsProjecting(true);
+    toast({ title: "Generating Projection..." });
+
+    // Use a timeout to allow the UI to update before the potentially heavy calculation
+    setTimeout(() => {
+        try {
+            const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
+            setProjectedData(newProjectedCandles);
+            toast({ title: "Projection Generated", description: "Forward testing your strategy on the new data." });
+        } catch(e: any) {
+            toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
+        } finally {
+            setIsProjecting(false);
+        }
+    }, 50);
+  };
   
   const renderRuleEditor = (type: 'entry' | 'exit') => {
     const rules = type === 'entry' ? config.entryConditions : config.exitConditions;
@@ -313,7 +348,8 @@ export default function StrategyMakerPage() {
         <div className="xl:col-span-3 relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
                 <TradingChart 
-                    data={chartDataWithIndicators} 
+                    data={chartDataWithIndicators.filter(d => !d.isProjected)} 
+                    projectedData={chartDataWithIndicators.filter(d => d.isProjected)}
                     symbol={symbol} 
                     interval={interval}
                     onIntervalChange={setInterval}
@@ -343,7 +379,7 @@ export default function StrategyMakerPage() {
                                 <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                                 <SelectContent>
                                   {topAssets.map(asset => (
-                                    <SelectItem key={asset.ticker} value={asset.ticker}>{asset.name}</SelectItem>
+                                    <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
@@ -384,21 +420,43 @@ export default function StrategyMakerPage() {
               </Collapsible>
             </Card>
             
-            <Card>
+             <Card>
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2"><Recycle/> Frankenstein Engine</CardTitle>
-                    <CardDescription>Trigger the automated data splicing and strategy generation pipeline.</CardDescription>
+                    <CardTitle className="flex items-center gap-2">Future Projection &amp; Forward Testing</CardTitle>
+                    <CardDescription>Generate hypothetical future candles to stress-test your strategy.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-muted-foreground">This will start the background process to generate synthetic market data for the selected asset, which is the first step in discovering new strategies.</p>
+                 <CardContent className="space-y-4">
+                    <div>
+                        <Label>Projection Mode</Label>
+                        <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                            <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                            <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                            <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                            <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                        </RadioGroup>
+                    </div>
+                    <div>
+                        <Label>Projection Duration</Label>
+                        <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                            <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1 Day</Label></div>
+                            <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3 Days</Label></div>
+                            <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7 Days</Label></div>
+                            <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1 Month</Label></div>
+                        </RadioGroup>
+                    </div>
                 </CardContent>
-                <CardFooter>
-                    <Button className="w-full" variant="outline" disabled={isGenerating || isFetchingData} onClick={() => toast({ title: "Pipeline Triggered", description: `Starting Frankenstein build for ${symbol}...` })}>
-                        {isFetchingData ? <Loader2 className="mr-2 animate-spin"/> : <Recycle className="mr-2"/>}
-                        Start Frankenstein Build
+                <CardFooter className="flex-col gap-2">
+                    <Button className="w-full" onClick={handleProjectAndTest} disabled={isProjecting || chartData.length === 0}>
+                        {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                        {isProjecting ? 'Generating...' : 'Project & Forward Test'}
+                    </Button>
+                     <Button className="w-full" variant="outline" onClick={() => setProjectedData([])} disabled={projectedData.length === 0 || isProjecting}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Clear Projection
                     </Button>
                 </CardFooter>
             </Card>
+
 
             {Object.keys(config.indicators).length > 0 && (
                 <Card>
@@ -408,7 +466,6 @@ export default function StrategyMakerPage() {
                              <CollapsibleTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-8 w-8">
                                     <ChevronDown className={cn("h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
-                                    <span className="sr-only">Toggle</span>
                                 </Button>
                             </CollapsibleTrigger>
                         </CardHeader>
