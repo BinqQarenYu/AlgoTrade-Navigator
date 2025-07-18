@@ -498,14 +498,6 @@ export default function StrategyMakerPage() {
                           </Select>
                         </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="strategy-name">Strategy Name</Label>
-                        <Input id="strategy-name" value={config.name} onChange={(e) => handleConfigChange('name', e.target.value)} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="strategy-desc">Description</Label>
-                        <Input id="strategy-desc" value={config.description} onChange={(e) => handleConfigChange('description', e.target.value)} />
-                    </div>
                      <div className="space-y-2">
                         <Label>Select Indicators</Label>
                         <Select onValueChange={handleAddIndicator}>
