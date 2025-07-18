@@ -47,13 +47,103 @@ export const availableIndicators: Record<string, { name: string, params: Record<
         multiplier: { type: 'number', defaultValue: 3 },
     }
   },
-   'cci': {
+  'cci': {
     name: 'Commodity Channel Index',
     params: {
         period: { type: 'number', defaultValue: 20 },
     }
+  },
+  'donchian_channels': {
+    name: 'Donchian Channels',
+    params: {
+        period: { type: 'number', defaultValue: 20 },
+    }
+  },
+  'stochastic': {
+    name: 'Stochastic Oscillator',
+    params: {
+        period: { type: 'number', defaultValue: 14 },
+        smoothK: { type: 'number', defaultValue: 3 },
+        smoothD: { type: 'number', defaultValue: 3 },
+    }
+  },
+  'keltner_channels': {
+    name: 'Keltner Channels',
+    params: {
+        period: { type: 'number', defaultValue: 20 },
+        multiplier: { type: 'number', defaultValue: 2 },
+    }
+  },
+  'vwap': {
+    name: 'Volume-Weighted Avg Price',
+    params: {
+        period: { type: 'number', defaultValue: 20 },
+    }
+  },
+  'parabolic_sar': {
+    name: 'Parabolic SAR',
+    params: {
+        afStart: { type: 'number', defaultValue: 0.02, step: 0.01 },
+        afIncrement: { type: 'number', defaultValue: 0.02, step: 0.01 },
+        afMax: { type: 'number', defaultValue: 0.2, step: 0.1 },
+    }
+  },
+  'momentum': {
+    name: 'Momentum',
+    params: {
+        period: { type: 'number', defaultValue: 14 },
+    }
+  },
+  'awesome_oscillator': {
+    name: 'Awesome Oscillator',
+    params: {
+        shortPeriod: { type: 'number', defaultValue: 5 },
+        longPeriod: { type: 'number', defaultValue: 34 },
+    }
+  },
+  'williams_r': {
+    name: 'Williams %R',
+    params: {
+        period: { type: 'number', defaultValue: 14 },
+    }
+  },
+  'obv': {
+    name: 'On-Balance Volume',
+    params: {} // OBV has no parameters
+  },
+  'cmf': {
+    name: 'Chaikin Money Flow',
+    params: {
+        period: { type: 'number', defaultValue: 20 },
+    }
+  },
+  'coppock_curve': {
+    name: 'Coppock Curve',
+    params: {
+        longRoC: { type: 'number', defaultValue: 14 },
+        shortRoC: { type: 'number', defaultValue: 11 },
+        wmaPeriod: { type: 'number', defaultValue: 10 },
+    }
+  },
+  'elder_ray': {
+    name: 'Elder-Ray Index',
+    params: {
+        period: { type: 'number', defaultValue: 13 },
+    }
+  },
+  'mfi': {
+    name: 'Money Flow Index',
+    params: {
+        period: { type: 'number', defaultValue: 14 },
+    }
+  },
+  'smi': {
+    name: 'SMI Oscillator',
+    params: {
+        smiPeriod: { type: 'number', defaultValue: 5 },
+        emaPeriod: { type: 'number', defaultValue: 3 },
+    }
   }
-  // Add other indicators here as they become needed/available
 };
 
 export function getIndicatorParams(indicatorId: string): Record<string, number> {
