@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle, Hourglass } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -77,6 +77,10 @@ export default function StrategyMakerPage() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProjecting, setIsProjecting] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<string | null>(null);
+  const [generatedStrategies, setGeneratedStrategies] = usePersistentState<any[]>('sm-generated-strategies', []);
+  const generationAbortController = useRef<AbortController | null>(null);
+
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
     name: "My Custom Strategy",
     description: "A strategy created with the visual strategy maker.",
@@ -95,6 +99,7 @@ export default function StrategyMakerPage() {
   const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
   const [isProjectionOpen, setIsProjectionOpen] = usePersistentState<boolean>('sm-projection-open', true);
   const [isApprovedOpen, setIsApprovedOpen] = usePersistentState<boolean>('sm-approved-open', false);
+  const [isFinalizeOpen, setIsFinalizeOpen] = usePersistentState<boolean>('sm-finalize-open', true);
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   
   // New state for live updates
@@ -316,23 +321,65 @@ export default function StrategyMakerPage() {
   };
 
   const handleGenerateStrategy = async () => {
-      if (!canUseAi()) {
-          toast({ title: "AI Quota Reached", description: "Cannot generate strategy.", variant: "destructive" });
-          return;
+    if (generationAbortController.current) return;
+    if (!canUseAi()) {
+      toast({ title: "AI Quota Reached", description: "Cannot generate strategy.", variant: "destructive" });
+      return;
+    }
+    
+    setIsGenerating(true);
+    setGenerationStatus("Checking for duplicates...");
+    generationAbortController.current = new AbortController();
+    
+    try {
+      // Simulate checking for duplicates
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
+      
+      const configString = JSON.stringify(config);
+      const isDuplicate = generatedStrategies.some(s => s.config === configString);
+      
+      if (isDuplicate) {
+        toast({ title: "Duplicate Strategy", description: "This exact configuration has already been approved." });
+        setGenerationStatus("Duplicate found. Halting.");
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Show status before reset
+        setIsGenerating(false);
+        generationAbortController.current = null;
+        return;
       }
-      setIsGenerating(true);
-      try {
-          consumeAiCredit();
-          const generatedCode = await generateStrategy({ config: JSON.stringify(config, null, 2) });
-          // In a real app, you'd save this to a file system and reload strategies
-          console.log("Generated Strategy Code:", generatedCode);
-          toast({ title: "Strategy Generated!", description: "Your new strategy will be available on the Backtest page after the app reloads." });
-          router.push('/backtest');
-      } catch (error: any) {
-          toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
-      } finally {
-          setIsGenerating(false);
+      
+      setGenerationStatus("Generating strategy code with AI...");
+      consumeAiCredit();
+      const generatedCode = await generateStrategy({ config: configString });
+      
+      if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
+
+      setGenerationStatus("Strategy approved and saved!");
+      const newStrategy = { ...generatedCode, config: configString };
+      setGeneratedStrategies(prev => [...prev, newStrategy]);
+      
+      toast({ title: "Strategy Generated!", description: `The strategy "${newStrategy.fileName}" is ready and has been added to the approved list.` });
+      // In a real app, this would trigger a file save and app reload.
+      // We can simulate this by navigating away.
+      setTimeout(() => router.push('/backtest'), 1000);
+
+    } catch (error: any) {
+      if (error.message !== "Cancelled") {
+        toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
+      } else {
+        toast({ title: "Generation Cancelled" });
       }
+    } finally {
+      setIsGenerating(false);
+      setGenerationStatus(null);
+      generationAbortController.current = null;
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (generationAbortController.current) {
+        generationAbortController.current.abort();
+    }
   };
 
   const handleProjectAndTest = () => {
@@ -365,7 +412,7 @@ export default function StrategyMakerPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="capitalize">{type === 'entry' ? '2. Logic & Rules' : ''}</CardTitle>
+          <CardTitle className="capitalize">Step 2: Logic & Rules</CardTitle>
            <CardDescription>Define the rules for when to {type === 'entry' ? 'enter a buy or sell' : 'exit a position'}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -392,7 +439,7 @@ export default function StrategyMakerPage() {
               <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleRemoveRule(type, rule.id)}><Trash2/></Button>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={() => handleAddRule(type)}><PlusCircle className="mr-2"/> Add {type} Rule</Button>
+          <Button variant="outline" size="sm" onClick={() => handleAddRule(type)}><PlusCircle className="mr-2"/> Add {type === 'entry' ? 'Entry' : 'Exit'} Rule</Button>
         </CardContent>
       </Card>
     );
@@ -427,7 +474,7 @@ export default function StrategyMakerPage() {
         <div className="xl:col-span-2 space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>1. General Configuration</CardTitle>
+                    <CardTitle>Step 1: General Configuration</CardTitle>
                     <CardDescription>Set the basic properties and select indicators to visualize and use in your logic.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -531,78 +578,105 @@ export default function StrategyMakerPage() {
             </div>
 
             <Card>
-                <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle className="flex items-center gap-2">3. Frankenstein Forward-Testing</CardTitle>
-                            <CardDescription>Stress-test your strategy against varied future-simulated data.</CardDescription>
-                        </div>
-                        <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionOpen && "rotate-180")} />
-                            </Button>
-                        </CollapsibleTrigger>
-                    </CardHeader>
-                    <CollapsibleContent>
-                        <CardContent className="space-y-4">
-                            <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4" disabled={isProjecting}>
-                                <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2 font-semibold">Frankenstein (Recommended)</Label></div>
-                                <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
-                                <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
-                                <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
-                                <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
-                            </RadioGroup>
-                            <div>
-                                <Label>Projection Duration</Label>
-                                <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-4 gap-2 mt-2" disabled={isProjecting}>
-                                    <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1D</Label></div>
-                                    <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3D</Label></div>
-                                    <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7D</Label></div>
-                                    <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1M</Label></div>
-                                </RadioGroup>
-                            </div>
-                        </CardContent>
-                        <CardFooter className="flex-col gap-2">
-                            <Button className="w-full" onClick={handleProjectAndTest} disabled={isProjecting || chartData.length === 0}>
-                                {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                                {isProjecting ? 'Generating...' : 'Project & Test'}
-                            </Button>
-                            <Button className="w-full" variant="outline" onClick={() => setProjectedData([])} disabled={projectedData.length === 0 || isProjecting}>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Clear Projection
-                            </Button>
-                        </CardFooter>
-                    </CollapsibleContent>
-                </Collapsible>
-            </Card>
-            
-            <Card>
-                <CardHeader>
-                    <CardTitle>4. Finalize & Generate</CardTitle>
-                    <CardDescription>Configure risk parameters and generate the strategy code.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <DisciplineSettings 
-                        params={config.discipline}
-                        onParamChange={(key, value) => handleConfigChange('discipline', { ...config.discipline, [key]: value })}
-                    />
-                     <div className="flex items-center space-x-2 pt-4">
-                        <Switch id="reverse" checked={config.reverse} onCheckedChange={(val) => handleConfigChange('reverse', val)} />
-                        <Label htmlFor="reverse">Reverse (Contrarian) Mode</Label>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
-                        {isGenerating ? <Loader2 className="mr-2 animate-spin"/> : <Save className="mr-2"/>}
-                        {isGenerating ? 'Generating...' : 'Generate & Save Strategy'}
+              <Collapsible open={isProjectionOpen} onOpenChange={setIsProjectionOpen}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Step 3: Frankenstein Forward-Testing</CardTitle>
+                    <CardDescription>Stress-test your logic against varied future-simulated data.</CardDescription>
+                  </div>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionOpen && "rotate-180")} />
                     </Button>
-                </CardFooter>
+                  </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                  <CardContent className="space-y-4">
+                    <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4" disabled={isProjecting}>
+                        <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2 font-semibold">Frankenstein (Recommended)</Label></div>
+                        <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                        <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                        <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                        <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                    </RadioGroup>
+                    <div>
+                        <Label>Projection Duration</Label>
+                        <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-4 gap-2 mt-2" disabled={isProjecting}>
+                            <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1D</Label></div>
+                            <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3D</Label></div>
+                            <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7D</Label></div>
+                            <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1M</Label></div>
+                        </RadioGroup>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex-col gap-2">
+                    <Button className="w-full" onClick={handleProjectAndTest} disabled={isProjecting || chartData.length === 0}>
+                        {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                        {isProjecting ? 'Generating...' : 'Project & Test'}
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={() => setProjectedData([])} disabled={projectedData.length === 0 || isProjecting}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Clear Projection
+                    </Button>
+                  </CardFooter>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+
+            <Card>
+              <Collapsible open={isFinalizeOpen} onOpenChange={setIsFinalizeOpen}>
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle>Step 4: Finalize & Generate</CardTitle>
+                     <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", isFinalizeOpen && "rotate-180")} />
+                        </Button>
+                    </CollapsibleTrigger>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                      <DisciplineSettings 
+                          params={config.discipline}
+                          onParamChange={(key, value) => handleConfigChange('discipline', { ...config.discipline, [key]: value })}
+                      />
+                       <div className="flex items-center space-x-2 pt-4">
+                          <Switch id="reverse" checked={config.reverse} onCheckedChange={(val) => handleConfigChange('reverse', val)} />
+                          <Label htmlFor="reverse">Reverse (Contrarian) Mode</Label>
+                      </div>
+                      {isGenerating && (
+                        <div className="flex items-center text-sm text-muted-foreground animate-pulse">
+                            <Hourglass className="mr-2 h-4 w-4" />
+                            <span>{generationStatus || "Starting generation..."}</span>
+                        </div>
+                      )}
+                      {generatedStrategies.length > 0 && (
+                          <div className="space-y-2">
+                              <Label>Approved this session:</Label>
+                               <div className="p-3 border rounded-md space-y-1">
+                                {generatedStrategies.map(s => (
+                                    <Badge key={s.fileName} variant="secondary">{s.fileName}</Badge>
+                                ))}
+                              </div>
+                          </div>
+                      )}
+                  </CardContent>
+                  <CardFooter>
+                      {isGenerating ? (
+                           <Button className="w-full" variant="destructive" onClick={handleStopGeneration}>
+                                <StopCircle className="mr-2"/> Stop Generation
+                           </Button>
+                      ) : (
+                          <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
+                              <Save className="mr-2"/> Generate & Save Strategy
+                          </Button>
+                      )}
+                  </CardFooter>
+              </Collapsible>
             </Card>
 
             <Card>
               <Collapsible open={isApprovedOpen} onOpenChange={setIsApprovedOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>3. Strategies Already Approved</CardTitle>
+                  <CardTitle>Strategies Already Approved</CardTitle>
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8">
                       <ChevronDown className={cn("h-4 w-4 transition-transform", isApprovedOpen && "rotate-180")} />
@@ -626,7 +700,6 @@ export default function StrategyMakerPage() {
                 </CollapsibleContent>
               </Collapsible>
             </Card>
-
         </div>
       </div>
     </div>
