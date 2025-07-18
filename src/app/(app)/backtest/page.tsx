@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { TradeHistory } from "@/components/dashboard/trade-history"
 import { getTradeHistory } from "@/lib/binance-service";
+import { Separator } from "@/components/ui/separator"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -1299,8 +1300,9 @@ export default function BacktestPage() {
                   </Button>
               </CollapsibleTrigger>
             </CardHeader>
+            <Separator className="my-0" />
             <CollapsibleContent>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 pt-6">
                 <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="base-asset">Base</Label>
