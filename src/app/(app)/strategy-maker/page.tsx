@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle, Hourglass } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle, Hourglass, FileCheck2 } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -41,6 +41,8 @@ import { topAssets } from "@/lib/assets";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { generateProjectedCandles } from "@/lib/projection-service";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 
 interface Rule {
   id: string;
@@ -67,6 +69,13 @@ const defaultDiscipline: DisciplineParams = {
   onFailure: 'Cooldown',
 };
 
+type GeneratedStrategy = {
+    fileName: string,
+    code: string,
+    config: StrategyConfig,
+    displayName: string
+};
+
 export default function StrategyMakerPage() {
   const { toast } = useToast();
   const router = useRouter();
@@ -79,6 +88,7 @@ export default function StrategyMakerPage() {
   const [isProjecting, setIsProjecting] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string | null>(null);
   const [generatedStrategies, setGeneratedStrategies] = usePersistentState<any[]>('sm-generated-strategies', []);
+  const [strategyForApproval, setStrategyForApproval] = useState<GeneratedStrategy | null>(null);
   const generationAbortController = useRef<AbortController | null>(null);
 
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
@@ -328,6 +338,7 @@ export default function StrategyMakerPage() {
     }
     
     setIsGenerating(true);
+    setStrategyForApproval(null);
     setGenerationStatus("Checking for duplicates...");
     generationAbortController.current = new AbortController();
     
@@ -353,32 +364,21 @@ export default function StrategyMakerPage() {
       
       if (generationAbortController.current.signal.aborted) throw new Error("Cancelled");
       
-      // Override name with "Bingkl XXX"
       const strategyNumber = 101 + generatedStrategies.length;
       const newName = `Bingkl ${strategyNumber}`;
-      const newFileName = `bingkl_${strategyNumber}_strategy.ts`;
-
-      // Replace the name in the generated code as well. This is a simple string replacement.
-      // A more robust solution might use an AST, but this is sufficient for a controlled template.
-      const updatedCode = generatedCode.code.replace(
-          `name: '${config.name}'`,
-          `name: '${newName}'`
-      );
-
-      setGenerationStatus("Strategy approved and saved!");
-      const newStrategy = {
-        fileName: newFileName,
-        code: updatedCode,
-        config: configString,
-        displayName: newName // Store the new display name
+      
+      const newStrategy: GeneratedStrategy = {
+        fileName: `bingkl_${strategyNumber}_strategy.ts`,
+        code: generatedCode.code,
+        config: JSON.parse(configString),
+        displayName: newName
       };
 
-      setGeneratedStrategies(prev => [...prev, newStrategy]);
+      setGenerationStatus("Strategy Ready for Approval!");
+      setStrategyForApproval(newStrategy);
       
-      toast({ title: "Strategy Generated!", description: `The strategy "${newName}" is ready and has been added to the approved list.` });
+      toast({ title: "Strategy Generated!", description: `The strategy "${newName}" is ready for your review.` });
       
-      setTimeout(() => router.push('/backtest'), 1000);
-
     } catch (error: any) {
       if (error.message !== "Cancelled") {
         toast({ title: "Generation Failed", description: error.message, variant: "destructive" });
@@ -391,6 +391,24 @@ export default function StrategyMakerPage() {
       generationAbortController.current = null;
     }
   };
+
+  const handleApproveAndTest = async () => {
+    if (!strategyForApproval) return;
+
+    // This is a placeholder for saving the file. In a real environment,
+    // this would be an API call to a backend that writes the file.
+    // For now, we'll store it in a way that the backtest page can find it.
+    localStorage.setItem('tempGeneratedStrategy', JSON.stringify(strategyForApproval));
+    
+    setGeneratedStrategies(prev => [...prev, strategyForApproval]);
+    setStrategyForApproval(null);
+    toast({
+        title: "Strategy Approved!",
+        description: `Redirecting to Backtest page with ${strategyForApproval.displayName} loaded.`
+    });
+
+    router.push(`/backtest?strategy=${strategyForApproval.fileName.replace('.ts', '')}`);
+  }
 
   const handleStopGeneration = () => {
     if (generationAbortController.current) {
@@ -427,7 +445,7 @@ export default function StrategyMakerPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="capitalize">Step 2: Logic & Rules</CardTitle>
+          <CardTitle className="capitalize">Step 2: {type === 'entry' ? 'Entry' : 'Exit'} Logic & Rules</CardTitle>
            <CardDescription>Define the rules for when to {type === 'entry' ? 'enter a buy or sell' : 'exit a position'}.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -471,6 +489,51 @@ export default function StrategyMakerPage() {
           </p>
       </div>
       
+      {strategyForApproval && (
+          <Card className="border-primary bg-primary/5">
+              <CardHeader>
+                  <CardTitle className="flex items-center justify-between text-primary">
+                      <span>Awaiting Approval: {strategyForApproval.displayName}</span>
+                      <FileCheck2 />
+                  </CardTitle>
+                  <CardDescription>Review the generated strategy configuration before testing.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                  <div>
+                      <h4 className="font-semibold text-sm mb-2">Indicators Used:</h4>
+                      <div className="p-3 border rounded-md bg-background/50 text-sm space-y-1">
+                          {Object.entries(strategyForApproval.config.indicators).map(([id, params]) => (
+                              <div key={id}>
+                                  <strong>{availableIndicators[id]?.name || id}: </strong>
+                                  <span className="font-mono text-xs text-muted-foreground">{JSON.stringify(params)}</span>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+                   <div>
+                      <h4 className="font-semibold text-sm mb-2">Entry Rules:</h4>
+                       <div className="p-3 border rounded-md bg-background/50 text-sm space-y-1">
+                          {strategyForApproval.config.entryConditions.map((rule) => (
+                              <p key={rule.id} className="font-mono text-xs">{rule.indicator1} {rule.condition.replace('_', ' ')} {rule.value}</p>
+                          ))}
+                      </div>
+                  </div>
+                  <div>
+                      <h4 className="font-semibold text-sm mb-2">Exit Rules:</h4>
+                       <div className="p-3 border rounded-md bg-background/50 text-sm space-y-1">
+                          {strategyForApproval.config.exitConditions.map((rule) => (
+                              <p key={rule.id} className="font-mono text-xs">{rule.indicator1} {rule.condition.replace('_', ' ')} {rule.value}</p>
+                          ))}
+                      </div>
+                  </div>
+              </CardContent>
+              <CardFooter className="gap-2">
+                  <Button variant="outline" className="w-full" onClick={() => setStrategyForApproval(null)}>Discard</Button>
+                  <Button className="w-full" onClick={handleApproveAndTest}>Approve & Send to Backtest</Button>
+              </CardFooter>
+          </Card>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
         <div className="xl:col-span-3 relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
@@ -641,7 +704,7 @@ export default function StrategyMakerPage() {
             <Card>
               <Collapsible open={isFinalizeOpen} onOpenChange={setIsFinalizeOpen}>
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Step 4: Finalize & Generate</CardTitle>
+                    <CardTitle>Step 4: Generate & Approve</CardTitle>
                      <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">
                           <ChevronDown className={cn("h-4 w-4 transition-transform", isFinalizeOpen && "rotate-180")} />
@@ -658,12 +721,15 @@ export default function StrategyMakerPage() {
                           <Label htmlFor="reverse">Reverse (Contrarian) Mode</Label>
                       </div>
                       {isGenerating && (
-                        <div className="flex items-center text-sm text-muted-foreground animate-pulse">
-                            <Hourglass className="mr-2 h-4 w-4" />
-                            <span>{generationStatus || "Starting generation..."}</span>
-                        </div>
+                        <Alert>
+                            <Hourglass className="h-4 w-4" />
+                            <AlertTitle>Generation in Progress</AlertTitle>
+                            <AlertDescription>
+                                {generationStatus || "Starting generation..."}
+                            </AlertDescription>
+                        </Alert>
                       )}
-                      {generatedStrategies.length > 0 && (
+                      {generatedStrategies.length > 0 && !isGenerating && (
                           <div className="space-y-2">
                               <Label>Approved this session:</Label>
                                <div className="p-3 border rounded-md space-y-1">
@@ -681,7 +747,7 @@ export default function StrategyMakerPage() {
                            </Button>
                       ) : (
                           <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
-                              <Save className="mr-2"/> Generate & Save Strategy
+                              <Save className="mr-2"/> Generate Strategy
                           </Button>
                       )}
                   </CardFooter>
