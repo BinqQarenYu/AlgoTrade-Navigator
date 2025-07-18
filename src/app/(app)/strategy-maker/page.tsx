@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -34,6 +34,8 @@ import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
 import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
+import { cn } from "@/lib/utils";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Rule {
   id: string;
@@ -65,7 +67,7 @@ export default function StrategyMakerPage() {
   const router = useRouter();
   const { canUseAi, consumeAiCredit, isConnected } = useApi();
   const { getChartData, isLoading: isFetchingData } = useDataManager();
-  const { symbol, baseAsset, quoteAsset, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('strategy-maker', 'BTC', 'USDT');
+  const { symbol, baseAsset, quoteAsset, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('strategy-maker', 'BTC', 'USDT');
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [config, setConfig] = usePersistentState<StrategyConfig>('strategy-maker-config', {
@@ -83,6 +85,7 @@ export default function StrategyMakerPage() {
   const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
   const [interval, setInterval] = usePersistentState<string>('strategy-maker-interval', "1h");
   const [chartHeight, setChartHeight] = usePersistentState<number>('strategy-maker-chart-height', 600);
+  const [isParamsOpen, setIsParamsOpen] = usePersistentState<boolean>('sm-params-open', false);
 
   // Fetch data for the chart
   useEffect(() => {
@@ -97,7 +100,7 @@ export default function StrategyMakerPage() {
         }
     };
     fetchData();
-  }, [isConnected, symbol, interval]);
+  }, [isConnected, symbol, interval, getChartData]);
 
   // Calculate indicators for the chart when config changes
   useEffect(() => {
@@ -117,16 +120,18 @@ export default function StrategyMakerPage() {
             id: 'temp-visualizer',
             name: 'Temp Visualizer',
             description: '',
-            calculate: async (data, params) => {
+            calculate: async (data) => {
                 let dataWithInd = JSON.parse(JSON.stringify(data));
                 
-                // Sequentially run calculations from real strategies that provide the needed indicators
                 for (const indicatorId in config.indicators) {
-                    // This is a proxy for having standalone indicator calculation functions
-                    const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
-
+                    const providingStrategy = allStrategies.find(s => {
+                        const strategyId = s.id.replace(/-/g, '_');
+                        const indicatorBaseName = indicatorId.split('_')[0];
+                        return strategyId.includes(indicatorBaseName);
+                    });
+                    
                     if (providingStrategy) {
-                      const indicatorParams = config.indicators[indicatorId];
+                      const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...config.indicators[indicatorId] };
                       dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams);
                     }
                 }
@@ -338,31 +343,41 @@ export default function StrategyMakerPage() {
             
             {Object.keys(config.indicators).length > 0 && (
                 <Card>
-                    <CardHeader>
-                        <CardTitle>2. Indicator Parameters</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {Object.entries(config.indicators).map(([id, params]) => (
-                            <div key={id} className="p-3 border rounded-md">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h4 className="font-semibold text-sm">{availableIndicators[id]?.name}</h4>
-                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveIndicator(id)}><X/></Button>
-                                </div>
-                                {Object.keys(params).map(paramName => (
-                                    <div key={paramName} className="flex items-center justify-between gap-4 my-1">
-                                        <Label className="text-xs capitalize text-muted-foreground">{paramName.replace(/([A-Z])/g, ' $1').trim()}</Label>
-                                        <Input
-                                            type="number"
-                                            value={params[paramName]}
-                                            onChange={(e) => handleIndicatorParamChange(id, paramName, e.target.value)}
-                                            className="h-8 w-24"
-                                            step={String(params[paramName]).includes('.') ? 0.01 : 1}
-                                        />
+                    <Collapsible open={isParamsOpen} onOpenChange={setIsParamsOpen}>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <CardTitle>2. Indicator Parameters</CardTitle>
+                             <CollapsibleTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <ChevronDown className={cn("h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
+                                    <span className="sr-only">Toggle</span>
+                                </Button>
+                            </CollapsibleTrigger>
+                        </CardHeader>
+                        <CollapsibleContent>
+                            <CardContent className="space-y-4">
+                                {Object.entries(config.indicators).map(([id, params]) => (
+                                    <div key={id} className="p-3 border rounded-md">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h4 className="font-semibold text-sm">{availableIndicators[id]?.name}</h4>
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleRemoveIndicator(id)}><X/></Button>
+                                        </div>
+                                        {Object.keys(params).map(paramName => (
+                                            <div key={paramName} className="flex items-center justify-between gap-4 my-1">
+                                                <Label className="text-xs capitalize text-muted-foreground">{paramName.replace(/([A-Z])/g, ' $1').trim()}</Label>
+                                                <Input
+                                                    type="number"
+                                                    value={params[paramName]}
+                                                    onChange={(e) => handleIndicatorParamChange(id, paramName, e.target.value)}
+                                                    className="h-8 w-24"
+                                                    step={String(params[paramName]).includes('.') ? 0.01 : 1}
+                                                />
+                                            </div>
+                                        ))}
                                     </div>
                                 ))}
-                            </div>
-                        ))}
-                    </CardContent>
+                            </CardContent>
+                        </CollapsibleContent>
+                    </Collapsible>
                 </Card>
             )}
             
