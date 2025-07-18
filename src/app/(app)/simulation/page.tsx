@@ -6,7 +6,6 @@ import React, { useState, useEffect, useMemo, useCallback } from "react"
 import Link from "next/link"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
 import {
@@ -28,9 +27,9 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube } from "lucide-react"
+import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult } from "@/lib/types"
+import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
@@ -40,38 +39,10 @@ import { Badge } from "@/components/ui/badge"
 import { BacktestResults } from "@/components/backtest-results"
 import { formatPrice } from "@/lib/utils"
 import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
-
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        if (isMounted) {
-          setState(JSON.parse(item));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [isHydrated ? state : defaultValue, setState];
-};
+import { usePersistentState } from "@/hooks/use-persistent-state"
+import { useSymbolManager } from "@/hooks/use-symbol-manager"
+import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover" // For default discipline
 
 const OpenPositionsCard = ({
     positions,
@@ -162,12 +133,7 @@ export default function SimulationPage() {
   const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
   const botChartData = simulationState.chartData;
   
-  // Local state for configuration UI
-  const [baseAsset, setBaseAsset] = usePersistentState<string>('sim-base-asset', "BTC");
-  const [quoteAsset, setQuoteAsset] = usePersistentState<string>('sim-quote-asset', "USDT");
-  const [availableQuotes, setAvailableQuotes] = useState<string[]>([]);
-  const symbol = useMemo(() => `${baseAsset}${quoteAsset}`, [baseAsset, quoteAsset]);
-
+  const { symbol, baseAsset, quoteAsset, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('sim', 'BTC', 'USDT');
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('sim-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('sim-interval', "1m");
   const [initialCapital, setInitialCapital] = usePersistentState<number>('sim-initial-capital', 100);
@@ -182,7 +148,6 @@ export default function SimulationPage() {
   const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
   const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
   const [isFetchingData, setIsFetchingData] = useState(false);
-  const [isClient, setIsClient] = useState(false);
 
   // Analysis State
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('sim-show-analysis', true);
@@ -195,6 +160,7 @@ export default function SimulationPage() {
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
+  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('sim-discipline-open', false);
   
   const handleSelectTrade = (trade: SimulatedTrade) => {
     setSelectedTrade(trade);
@@ -293,10 +259,6 @@ export default function SimulationPage() {
     }
   }, [chartDataWithIndicators, refreshChartAnalysis]);
 
-  useEffect(() => {
-    setIsClient(true)
-  }, []);
-
   // Effect to calculate and display indicators when data or strategy changes
   useEffect(() => {
     if (isRunning) {
@@ -321,8 +283,21 @@ export default function SimulationPage() {
     calculateAndSetIndicators();
   }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData]);
 
+  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
+    setStrategyParams(prev => ({
+      ...prev,
+      [selectedStrategy]: {
+        ...(prev[selectedStrategy] || {}),
+        discipline: {
+          ...(prev[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline),
+          [paramName]: value
+        }
+      }
+    }));
+  };
+
   useEffect(() => {
-    if (!isClient || !isConnected || isRunning || !symbol || !quoteAsset) {
+    if (!isConnected || isRunning) {
         if (!isRunning) setRawChartData([]);
         return;
     }
@@ -349,13 +324,7 @@ export default function SimulationPage() {
     };
 
     fetchData();
-  }, [symbol, quoteAsset, interval, isConnected, isClient, toast, isRunning]);
-
-  useEffect(() => {
-    const quotes = getAvailableQuotesForBase(baseAsset);
-    setAvailableQuotes(quotes);
-    if (!quotes.includes(quoteAsset)) setQuoteAsset(quotes[0] || '');
-  }, [baseAsset, quoteAsset, setQuoteAsset]);
+  }, [symbol, interval, isConnected, toast, isRunning]);
 
   const handleBotToggle = async () => {
     if (isRunning) {
@@ -445,13 +414,13 @@ export default function SimulationPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={setBaseAsset} value={baseAsset} disabled={isRunning}><SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
+                      <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}><SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
                         <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={isRunning || availableQuotes.length === 0}><SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
+                      <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning}><SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
                         <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
                       </Select>
                     </div>
@@ -461,13 +430,6 @@ export default function SimulationPage() {
                     <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
                       <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
                     </Select>
-                      {selectedStrategy !== 'none' && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                              {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                  <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                              ))}
-                          </div>
-                      )}
                   </div>
                    <div className="space-y-2">
                     <Label htmlFor="interval">Interval</Label>
@@ -494,6 +456,14 @@ export default function SimulationPage() {
 
                   <div className="flex items-center space-x-2 pt-2"><Switch id="reverse-logic" checked={useReverseLogic} onCheckedChange={setUseReverseLogic} disabled={isRunning} /><Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label></div>
                   <div className="flex items-center space-x-2 pt-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis">Show Liquidity Analysis</Label></div>
+                  
+                  <DisciplineSettings
+                    params={strategyParams[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline}
+                    onParamChange={handleDisciplineParamChange}
+                    isCollapsed={isDisciplineOpen}
+                    onCollapseChange={setDisciplineOpen}
+                    isDisabled={isRunning}
+                  />
                 </CardContent>
                 <CardFooter>
                   <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
@@ -538,5 +508,4 @@ export default function SimulationPage() {
     </div>
   )
 }
-
 
