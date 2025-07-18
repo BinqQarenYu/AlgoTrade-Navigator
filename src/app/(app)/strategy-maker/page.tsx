@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal } from "lucide-react";
-import type { DisciplineParams, HistoricalData } from "@/lib/types";
+import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings";
@@ -34,6 +34,7 @@ import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
 import { getStrategyById } from "@/lib/strategies";
+import { allStrategies } from "@/lib/strategies/all-strategies";
 
 interface Rule {
   id: string;
@@ -97,35 +98,43 @@ export default function StrategyMakerPage() {
         }
     };
     fetchData();
-  }, [isConnected, symbol, interval]);
+  }, [isConnected, symbol, interval, getChartData]);
 
   // Calculate indicators for the chart when config changes
   useEffect(() => {
     const calculateIndicators = async () => {
-        if (chartData.length === 0) {
-            setChartDataWithIndicators([]);
+        if (chartData.length === 0 || Object.keys(config.indicators).length === 0) {
+            setChartDataWithIndicators(chartData);
             return;
         }
 
-        let dataWithInd = JSON.parse(JSON.stringify(chartData)) as HistoricalData[];
+        // Dynamically build a temporary strategy to calculate all selected indicators
+        const tempStrategy: Strategy = {
+            id: 'temp-visualizer',
+            name: 'Temp Visualizer',
+            description: '',
+            calculate: async (data, params) => {
+                let dataWithInd = JSON.parse(JSON.stringify(data));
+                
+                // Sequentially run calculations from real strategies that provide the needed indicators
+                for (const indicatorId in config.indicators) {
+                    // Find a strategy that can calculate this indicator. This is a proxy.
+                    // This assumes a strategy exists that calculates the indicator we need.
+                    // A better system would have standalone indicator calculation functions.
+                    const providingStrategy = allStrategies.find(s => s.id.includes(indicatorId.split('_')[0]));
 
-        // Dynamically apply selected indicators
-        for (const indicatorId in config.indicators) {
-            // Find a strategy that uses this indicator to "borrow" its calculation logic
-            // This is a proxy for having standalone indicator calculation functions
-            const strategyThatUsesIndicator = getStrategyById(indicatorId) || Object.values(getStrategyById('code-based-consensus')!).find(s => 'calculate' in s && s.id.includes(indicatorId));
-
-            if (strategyThatUsesIndicator) {
-                // We need a way to map indicatorId to strategyId if they aren't the same.
-                // For now, assuming a 1-to-1 mapping exists for simplicity or finding one.
-                const tempStrategy = getStrategyById(indicatorId); // Simplistic assumption
-                if (tempStrategy) {
-                    const params = { ...(config.indicators[indicatorId] || {}) };
-                    dataWithInd = await tempStrategy.calculate(dataWithInd, params);
+                    if (providingStrategy) {
+                      const indicatorParams = config.indicators[indicatorId];
+                      // The result of one calculation becomes the input for the next, accumulating indicators.
+                      dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams);
+                    }
                 }
+                return dataWithInd;
             }
-        }
-        setChartDataWithIndicators(dataWithInd);
+        };
+
+        const calculatedData = await tempStrategy.calculate(chartData, config.indicators);
+        setChartDataWithIndicators(calculatedData);
     };
     calculateIndicators();
   }, [chartData, config.indicators]);
@@ -389,5 +398,3 @@ export default function StrategyMakerPage() {
     </div>
   );
 }
-
-    
