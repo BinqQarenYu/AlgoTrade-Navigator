@@ -33,11 +33,12 @@ import { generateStrategy } from "@/ai/flows/generate-strategy-flow";
 import { useSymbolManager } from "@/hooks/use-symbol-manager";
 import { useDataManager } from "@/context/data-manager-context";
 import { TradingChart } from "@/components/trading-chart";
-import { allStrategies } from "@/lib/strategies/all-strategies";
+import { strategies as allStrategies } from "@/lib/strategies/all-strategies";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { getStrategyById } from "@/lib/strategies";
 import { useLab } from "@/context/lab-context";
+import { topAssets } from "@/lib/assets";
+
 
 interface Rule {
   id: string;
@@ -126,7 +127,6 @@ export default function StrategyMakerPage() {
 
              if (providingStrategy) {
                 const indicatorParams = { ...(getIndicatorParams(indicatorId)), ...params[indicatorId] };
-                // A bit of a hack: some strategies need the symbol, so we pass it if available
                 dataWithInd = await providingStrategy.calculate(dataWithInd, indicatorParams, symbol);
              }
           }
@@ -321,8 +321,8 @@ export default function StrategyMakerPage() {
                           <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={!isConnected || isGenerating}>
                             <SelectTrigger id="base-asset"><SelectValue/></SelectTrigger>
                             <SelectContent>
-                              {Object.entries(availableIndicators).map(([id, {name}]) => (
-                                <SelectItem key={id} value={id}>{name}</SelectItem>
+                              {topAssets.map(asset => (
+                                <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
