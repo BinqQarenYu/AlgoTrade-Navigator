@@ -43,6 +43,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover" // For default discipline
+import { useDataManager } from "@/context/data-manager-context"
 
 const OpenPositionsCard = ({
     positions,
@@ -121,6 +122,7 @@ const OpenPositionsCard = ({
 export default function SimulationPage() {
   const { toast } = useToast()
   const { isConnected } = useApi();
+  const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
   const { 
     simulationState, 
     startSimulation, 
@@ -133,7 +135,7 @@ export default function SimulationPage() {
   const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
   const botChartData = simulationState.chartData;
   
-  const { symbol, baseAsset, quoteAsset, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('sim', 'BTC', 'USDT');
+  const { symbol, baseAsset, quoteAsset, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('sim', 'BTC', 'USDT');
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('sim-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('sim-interval', "1m");
   const [initialCapital, setInitialCapital] = usePersistentState<number>('sim-initial-capital', 100);
@@ -147,7 +149,6 @@ export default function SimulationPage() {
   // Local chart data management
   const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
   const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
-  const [isFetchingData, setIsFetchingData] = useState(false);
 
   // Analysis State
   const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('sim-show-analysis', true);
@@ -297,34 +298,27 @@ export default function SimulationPage() {
   };
 
   useEffect(() => {
-    if (!isConnected || isRunning) {
-        if (!isRunning) setRawChartData([]);
-        return;
-    }
+    if (isRunning) return;
 
     const fetchData = async () => {
-        setIsFetchingData(true);
-        setRawChartData([]);
-        toast({ title: "Fetching Market Data...", description: `Loading ${interval} data for ${symbol}.`});
-        try {
-            const klines = await getLatestKlinesByLimit(symbol, interval, 500);
-            setRawChartData(klines);
-            toast({ title: "Data Loaded", description: `Market data for ${symbol} is ready.` });
-        } catch (error: any) {
-            console.error("Failed to fetch historical data:", error);
-            toast({
-                title: "Failed to Load Data",
-                description: error.message || "Could not retrieve historical data from Binance.",
-                variant: "destructive"
-            });
-            setRawChartData([]);
-        } finally {
-            setIsFetchingData(false);
+        const data = await getChartData(symbol, interval);
+        if (data) {
+            setRawChartData(data);
         }
     };
 
     fetchData();
-  }, [symbol, interval, isConnected, toast, isRunning]);
+  }, [symbol, interval, isRunning, getChartData]);
+  
+  useEffect(() => {
+    if (dataError) {
+        toast({
+            title: "Failed to Load Data",
+            description: dataError,
+            variant: "destructive"
+        });
+    }
+  }, [dataError, toast]);
 
   const handleBotToggle = async () => {
     if (isRunning) {
@@ -508,4 +502,3 @@ export default function SimulationPage() {
     </div>
   )
 }
-
