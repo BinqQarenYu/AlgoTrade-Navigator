@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, type User, getAuth, type Auth } from 'firebase/auth';
-import { app } from '@/lib/firebase'; // Import the initialized app
+import { getFirebaseApp } from '@/lib/firebase'; // Import the safe initializer function
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -22,7 +22,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   
   useEffect(() => {
-    // Initialize auth only on the client side, and only if the app was successfully configured.
+    // getFirebaseApp() safely handles the configuration check.
+    // It will return null if keys are missing or invalid.
+    const app = getFirebaseApp();
+
     if (app) {
       const authInstance = getAuth(app);
       setAuth(authInstance);
@@ -32,7 +35,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       });
       return () => unsubscribe();
     } else {
-      // If app is null (due to misconfiguration), stop loading and treat as logged out.
+      // If app is null, it means config is invalid. Stop loading and treat as logged out.
       setLoading(false);
       setUser(null);
       setAuth(null);
@@ -42,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithGoogle = async () => {
     if (!auth) {
-        toast({ title: "Auth Not Configured", description: "Firebase is not configured correctly. Please check your API keys in the .env file.", variant: "destructive" });
+        toast({ title: "Authentication Not Configured", description: "Firebase is not configured correctly. Please check your API keys in the .env file.", variant: "destructive" });
         return;
     }
     const provider = new GoogleAuthProvider();
@@ -57,7 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logOut = async () => {
     if (!auth) {
-        toast({ title: "Auth Not Configured", description: "Firebase is not configured correctly.", variant: "destructive" });
+        toast({ title: "Authentication Not Configured", description: "Firebase is not configured correctly.", variant: "destructive" });
         return;
     }
     try {
