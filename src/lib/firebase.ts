@@ -1,7 +1,5 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
 
 // Your web app's Firebase configuration is read from environment variables
 const firebaseConfig = {
@@ -14,14 +12,15 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp | null = null;
-let auth: ReturnType<typeof getAuth> | null = null;
 
-// Check if all required config values are present and are not placeholders
+// A more robust check to ensure all required config values are present and are not placeholders.
 const hasValidConfig =
   firebaseConfig.apiKey &&
   !firebaseConfig.apiKey.includes("NEXT_PUBLIC_") &&
   firebaseConfig.authDomain &&
-  firebaseConfig.projectId;
+  !firebaseConfig.authDomain.includes("NEXT_PUBLIC_") &&
+  firebaseConfig.projectId &&
+  !firebaseConfig.projectId.includes("NEXT_PUBLIC_");
 
 if (hasValidConfig) {
   if (!getApps().length) {
@@ -41,16 +40,5 @@ if (hasValidConfig) {
   );
 }
 
-// Initialize Auth only if app was successfully initialized
-if (app) {
-  try {
-    auth = getAuth(app);
-  } catch (e) {
-    console.error("Firebase auth initialization failed:", e);
-    // Ensure auth is null if getAuth fails
-    auth = null;
-  }
-}
-
-// Export auth as a named export that can be null
-export { app, auth };
+// Export only the app instance. The auth instance will be created in the AuthContext.
+export { app };

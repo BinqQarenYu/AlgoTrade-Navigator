@@ -2,8 +2,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, type User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut, type User, getAuth, type Auth } from 'firebase/auth';
+import { app } from '@/lib/firebase'; // Import the initialized app
 import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
@@ -18,11 +18,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [auth, setAuth] = useState<Auth | null>(null);
   const { toast } = useToast();
+  
+  useEffect(() => {
+    // Initialize auth only on the client side, and only if the app was successfully configured.
+    if (app) {
+      const authInstance = getAuth(app);
+      setAuth(authInstance);
+      const unsubscribe = onAuthStateChanged(authInstance, (currentUser) => {
+        setUser(currentUser);
+        setLoading(false);
+      });
+      return () => unsubscribe();
+    } else {
+      // If app is null (due to misconfiguration), stop loading and treat as logged out.
+      setLoading(false);
+      setUser(null);
+      setAuth(null);
+    }
+  }, []);
+
 
   const signInWithGoogle = async () => {
     if (!auth) {
-        toast({ title: "Auth Not Configured", description: "Firebase is not configured correctly. Please check your API keys.", variant: "destructive" });
+        toast({ title: "Auth Not Configured", description: "Firebase is not configured correctly. Please check your API keys in the .env file.", variant: "destructive" });
         return;
     }
     const provider = new GoogleAuthProvider();
@@ -48,20 +68,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       toast({ title: "Sign-Out Failed", description: error.message, variant: "destructive" });
     }
   };
-
-  useEffect(() => {
-    if (auth) {
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-          setUser(currentUser);
-          setLoading(false);
-        });
-        return () => unsubscribe();
-    } else {
-        // If auth is null (due to misconfiguration), stop loading and treat as logged out.
-        setLoading(false);
-        setUser(null);
-    }
-  }, []);
 
   return (
     <AuthContext.Provider value={{ user, loading, signInWithGoogle, logOut }}>
