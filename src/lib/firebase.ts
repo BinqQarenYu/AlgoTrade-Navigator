@@ -16,7 +16,7 @@ export function getFirebaseApp(): FirebaseApp | null {
   // A more robust check to ensure all required config values are present and are not placeholders.
   const hasValidConfig =
     firebaseConfig.apiKey &&
-    !firebaseConfig.apiKey.includes("YOUR_") && // Explicitly check for placeholder
+    !firebaseConfig.apiKey.startsWith("YOUR_") && // Explicitly check for placeholder
     firebaseConfig.authDomain &&
     firebaseConfig.projectId;
 
