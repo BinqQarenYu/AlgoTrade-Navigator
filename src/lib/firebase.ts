@@ -16,11 +16,9 @@ let app: FirebaseApp | null = null;
 // A more robust check to ensure all required config values are present and are not placeholders.
 const hasValidConfig =
   firebaseConfig.apiKey &&
-  !firebaseConfig.apiKey.includes("NEXT_PUBLIC_") &&
+  !firebaseConfig.apiKey.includes("YOUR_") &&
   firebaseConfig.authDomain &&
-  !firebaseConfig.authDomain.includes("NEXT_PUBLIC_") &&
-  firebaseConfig.projectId &&
-  !firebaseConfig.projectId.includes("NEXT_PUBLIC_");
+  firebaseConfig.projectId;
 
 if (hasValidConfig) {
   if (!getApps().length) {
