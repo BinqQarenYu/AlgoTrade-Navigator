@@ -1275,7 +1275,7 @@ const BacktestPageContent = () => {
           selectedTradeId={selectedTrade?.id}
         />}
 
-        {summaryStats && overfittingResult && overfittingResult.score >= 50 && (
+        {summaryStats && overfittingResult && (
             <OverfittingAnalysisCard result={overfittingResult} />
         )}
 
