@@ -1,7 +1,8 @@
 
+
 "use client";
 
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import type { HistoricalData } from '@/lib/types';
 import { getLatestKlinesByLimit, getHistoricalKlines } from '@/lib/binance-service';
 import { useApi } from './api-context';
@@ -23,7 +24,7 @@ interface DataManagerContextType {
 const DataManagerContext = createContext<DataManagerContextType | undefined>(undefined);
 
 export const DataManagerProvider = ({ children }: { children: ReactNode }) => {
-  const [cache, setCache] = useState<ChartDataCache>({});
+  const cacheRef = useRef<ChartDataCache>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { isConnected } = useApi();
@@ -36,16 +37,16 @@ export const DataManagerProvider = ({ children }: { children: ReactNode }) => {
     
     // Do not fetch if not connected
     if (!isConnected) {
-        setCache({}); // Clear cache when disconnected
+        cacheRef.current = {}; // Clear cache when disconnected
         return null;
     }
     
     // Generate a unique key for the request. Date range queries are not cached for now.
     const cacheKey = dateRange ? `DATERANGE-${symbol}-${interval}-${dateRange.from?.getTime()}-${dateRange.to?.getTime()}` : `${symbol}-${interval}`;
 
-    if (cache[cacheKey]) {
+    if (cacheRef.current[cacheKey]) {
       console.log(`[Cache] HIT for ${cacheKey}`);
-      return cache[cacheKey];
+      return cacheRef.current[cacheKey];
     }
 
     console.log(`[Cache] MISS for ${cacheKey}. Fetching from API...`);
@@ -62,7 +63,7 @@ export const DataManagerProvider = ({ children }: { children: ReactNode }) => {
       
       // Don't cache date range queries as they can be very large and specific
       if (!dateRange) {
-        setCache(prevCache => ({ ...prevCache, [cacheKey]: data }));
+        cacheRef.current[cacheKey] = data;
       }
       
       setIsLoading(false);
@@ -73,7 +74,7 @@ export const DataManagerProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
       return null;
     }
-  }, [isConnected, cache]);
+  }, [isConnected]);
 
   return (
     <DataManagerContext.Provider value={{ getChartData, isLoading, error }}>
