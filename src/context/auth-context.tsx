@@ -57,7 +57,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         return () => unsubscribe();
     } else {
+        // If auth is null (due to misconfiguration), stop loading and treat as logged out.
         setLoading(false);
+        setUser(null);
     }
   }, []);
 

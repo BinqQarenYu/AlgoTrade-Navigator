@@ -47,6 +47,8 @@ if (app) {
     auth = getAuth(app);
   } catch (e) {
     console.error("Firebase auth initialization failed:", e);
+    // Ensure auth is null if getAuth fails
+    auth = null;
   }
 }
 
