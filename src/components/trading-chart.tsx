@@ -313,8 +313,7 @@ export function TradingChart({
       if (!chartRef.current?.chart || !combinedData) return;
       const { candlestickSeries, tradePriceLines = [] } = chartRef.current;
 
-      // Clear previous highlight lines
-      tradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+      tradePriceLines.forEach((line: any) => line.series ? chartRef.current.chart.removeSeries(line) : candlestickSeries.removePriceLine(line));
       chartRef.current.tradePriceLines = [];
 
       if (highlightedTrade) {
@@ -327,7 +326,7 @@ export function TradingChart({
               exitTime = trade.sell.time;
               entryPrice = trade.buy.price;
               exitPrice = trade.sell.price;
-              type = 'long';
+              type = 'long'; // Grid trades are effectively long
           } else {
               const trade = highlightedTrade as BacktestResult;
               entryTime = trade.entryTime;
@@ -336,49 +335,41 @@ export function TradingChart({
               exitPrice = trade.exitPrice;
               type = trade.type;
           }
+          
+          // Safeguard against invalid time values
+          if (typeof entryTime !== 'number' || typeof exitTime !== 'number') {
+            console.warn("Skipping trade highlight due to invalid time values", highlightedTrade);
+            return;
+          }
 
           const fromTime = toTimestamp(entryTime);
           const toTime = toTimestamp(exitTime);
 
           const newLines = [
-              candlestickSeries.createPriceLine({
-                  price: entryPrice,
-                  color: type === 'long' ? '#3b82f6' : '#a855f7',
-                  lineWidth: 1,
-                  lineStyle: LineStyle.Dashed,
-                  axisLabelVisible: true,
-                  title: 'Entry'
-              }),
-              candlestickSeries.createPriceLine({
-                  price: exitPrice,
-                  color: type === 'long' ? '#16a34a' : '#dc2626',
-                  lineWidth: 1,
-                  lineStyle: LineStyle.Dashed,
-                  axisLabelVisible: true,
-                  title: 'Exit'
-              })
+              candlestickSeries.createPriceLine({ price: entryPrice, color: '#3b82f6', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Entry' }),
+              candlestickSeries.createPriceLine({ price: exitPrice, color: type === 'long' ? '#16a34a' : '#dc2626', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Exit' })
           ];
           
           chartRef.current.tradePriceLines = newLines;
 
-          // Pan and zoom to the trade
           chartRef.current.chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
           
-          // Add a background highlight for the trade duration
-          // This is a bit of a hack using a thick line series
+          const highlightColor = type === 'long' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)';
+          
           const highlightSeries = chartRef.current.chart.addLineSeries({
               priceScaleId: 'left',
-              color: 'rgba(139, 92, 246, 0.15)', // A neutral purple highlight
-              lineWidth: 100, // Very thick line to simulate a background
+              color: highlightColor,
+              lineWidth: 100, 
               lastValueVisible: false,
               priceLineVisible: false,
               crosshairMarkerVisible: false,
           });
+          
           highlightSeries.setData([
               { time: fromTime, value: (entryPrice + exitPrice) / 2 },
               { time: toTime, value: (entryPrice + exitPrice) / 2 },
           ]);
-          // Add this to our list of lines to be cleared
+          
           chartRef.current.tradePriceLines.push(highlightSeries);
       }
   }, [highlightedTrade, combinedData, interval]);
@@ -454,5 +445,3 @@ export function TradingChart({
     </Card>
   );
 }
-
-    
