@@ -206,7 +206,7 @@ export default function LabPage() {
   const [isAnalysisToolsOpen, setIsAnalysisToolsOpen] = usePersistentState<boolean>('lab-analysis-tools-open', true);
   const [isPhysicsPanelsOpen, setIsPhysicsPanelsOpen] = usePersistentState<boolean>('lab-physics-panels-open', true);
   const [isManipulationCardOpen, setManipulationCardOpen] = usePersistentState<boolean>('lab-manipulation-card-open', true);
-  const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('lab-projection-card-open', true);
+  const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('lab-projection-card-open', false);
   const [isLiquidityDetailsOpen, setIsLiquidityDetailsOpen] = usePersistentState<boolean>('lab-liquidity-details-open', true);
   
   const selectedConsensusStrategiesRef = useRef(selectedConsensusStrategies);
