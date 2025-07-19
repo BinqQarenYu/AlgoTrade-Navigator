@@ -1,6 +1,6 @@
 
 // Import the functions you need from the SDKs you need
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -15,19 +15,40 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-let app;
-// Check if all required config values are present before initializing
-if (firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId) {
-    if (!getApps().length) {
-        app = initializeApp(firebaseConfig);
-    } else {
-        app = getApps()[0];
+let app: FirebaseApp | null = null;
+let auth: ReturnType<typeof getAuth> | null = null;
+
+// Check if all required config values are present and not placeholders
+const hasValidConfig =
+  firebaseConfig.apiKey &&
+  !firebaseConfig.apiKey.startsWith("TODO") &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.projectId;
+
+if (hasValidConfig) {
+  if (!getApps().length) {
+    try {
+      app = initializeApp(firebaseConfig);
+    } catch (e) {
+      console.error("Firebase initialization failed:", e);
     }
+  } else {
+    app = getApps()[0];
+  }
 } else {
-    console.error("Firebase configuration is missing or incomplete. Please check your .env file.");
+  console.warn(
+    "Firebase configuration is missing or incomplete. Please check your .env file. Auth features will be disabled."
+  );
 }
 
-
 // Initialize Auth only if app was successfully initialized
-export const auth = app ? getAuth(app) : null;
+if (app) {
+  try {
+    auth = getAuth(app);
+  } catch (e) {
+    console.error("Firebase auth initialization failed:", e);
+  }
+}
+
+// Export auth as a named export that can be null
+export { auth };
