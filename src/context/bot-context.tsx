@@ -216,7 +216,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [setBotInstances]);
 
   useEffect(() => {
-    const liveBotRunning = Object.values(liveBotState.bots).some(bot => bot.status !== 'idle' && bot.status !== 'error');
+    // A live bot is active ONLY if it's not in manual mode
+    const liveBotRunning = Object.values(liveBotState.bots).some(bot => 
+      !bot.config.isManual && // This is the key change
+      bot.status !== 'idle' && 
+      bot.status !== 'error'
+    );
     
     setIsTradingActive(liveBotRunning);
   }, [liveBotState.bots]);
@@ -299,7 +304,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             if (config.useAIPrediction) consumeAiCredit(); // Consume credit only on confirmed signals
             const currentPrice = lastCandle.close;
             const stopLossPrice = lastCandle?.stopLossLevel ? lastCandle.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
-            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
+            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.stopLoss / 100));
             
             const newSignal: TradeSignal = {
                 asset: config.symbol,
@@ -770,7 +775,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         stillOpenOrders.push({ price: newSellPrice, side: 'sell' });
                     }
                 } else if (config.direction === 'short' && !isBuy) {
-                    const newBuyPrice = order.price - profitPerGrid;
+                    const newBuyPrice = order.price - grid.profitPerGrid;
                     if (newBuyPrice >= config.lowerPrice) {
                         stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
                     }
