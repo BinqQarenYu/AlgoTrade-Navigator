@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma, UserCheck } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma, UserCheck, LogIn, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar"
 import { Button } from "./ui/button"
+import { useAuth } from "@/context/auth-context"
+import { Skeleton } from "./ui/skeleton"
 
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,6 +32,47 @@ const menuItems = [
   { href: "/manual", label: "Manual Trading", icon: UserCheck },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
+
+const AuthProfile = () => {
+    const { user, loading, signInWithGoogle, logOut } = useAuth();
+
+    if (loading) {
+        return (
+            <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
+                </div>
+            </div>
+        )
+    }
+
+    if (user) {
+        return (
+             <div className="flex items-center gap-3">
+              <Avatar>
+                <AvatarImage src={user.photoURL || 'https://placehold.co/40x40'} alt={user.displayName || 'User'} data-ai-hint="profile avatar" />
+                <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 flex-col truncate">
+                <span className="text-sm font-medium truncate">{user.displayName || 'User'}</span>
+                <span className="text-xs text-muted-foreground truncate">{user.email || 'No email'}</span>
+              </div>
+               <Button variant="ghost" size="icon" onClick={logOut} className="shrink-0">
+                    <LogOut />
+               </Button>
+            </div>
+        )
+    }
+
+    return (
+        <Button onClick={signInWithGoogle} className="w-full">
+            <LogIn/>
+            Sign In With Google
+        </Button>
+    )
+}
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -67,16 +110,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4">
-           <div className="flex items-center gap-3">
-              <Avatar>
-                <AvatarImage src="https://placehold.co/40x40" alt="@shadcn" data-ai-hint="profile avatar" />
-                <AvatarFallback>BT</AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col">
-                <span className="text-sm font-medium">Bingkl Tech</span>
-                <span className="text-xs text-muted-foreground">letstopfraudscam@gmail.com</span>
-              </div>
-            </div>
+           <AuthProfile/>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
