@@ -183,7 +183,7 @@ export function TradingChart({
         });
     });
 
-    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [], tradeHighlightSeries: null };
+    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [], tradeHighlightSeries: [] };
     
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainer);
@@ -311,14 +311,12 @@ export function TradingChart({
   // Effect to highlight a selected trade from the backtest results
   useEffect(() => {
       if (!chartRef.current?.chart || !combinedData) return;
-      const { chart, candlestickSeries, tradePriceLines = [], tradeHighlightSeries } = chartRef.current;
+      const { chart, candlestickSeries, tradePriceLines = [], tradeHighlightSeries = [] } = chartRef.current;
 
       // Correctly remove previous highlights
-      if (tradeHighlightSeries) {
-          chart.removeSeries(tradeHighlightSeries);
-          chartRef.current.tradeHighlightSeries = null;
-      }
+      tradeHighlightSeries.forEach((series: any) => chart.removeSeries(series));
       tradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+      chartRef.current.tradeHighlightSeries = [];
       chartRef.current.tradePriceLines = [];
 
       if (highlightedTrade) {
@@ -335,6 +333,10 @@ export function TradingChart({
               type = 'long';
           } else {
               const trade = highlightedTrade as BacktestResult;
+              if (typeof trade.entryTime !== 'number' || typeof trade.exitTime !== 'number') {
+                console.warn("Skipping trade highlight due to invalid time values", highlightedTrade);
+                return;
+              }
               entryTime = trade.entryTime;
               exitTime = trade.exitTime;
               entryPrice = trade.entryPrice;
@@ -342,8 +344,8 @@ export function TradingChart({
               type = trade.type;
           }
           
-          if (typeof entryTime !== 'number' || typeof exitTime !== 'number' || isNaN(entryTime) || isNaN(exitTime)) {
-            console.warn("Skipping trade highlight due to invalid time values", highlightedTrade);
+          if (isNaN(entryTime) || isNaN(exitTime)) {
+            console.warn("Skipping trade highlight due to NaN time values", highlightedTrade);
             return;
           }
 
@@ -361,7 +363,7 @@ export function TradingChart({
           
           const highlightColor = type === 'long' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(168, 85, 247, 0.2)';
           
-          const newHighlightSeries = chart.addAreaSeries({
+          const highlightSeries = chart.addAreaSeries({
               priceScaleId: 'left',
               lineColor: 'transparent',
               topColor: highlightColor,
@@ -371,30 +373,29 @@ export function TradingChart({
               crosshairMarkerVisible: false,
           });
           
-          const highlightData = [
-              { time: fromTime, value: Math.max(entryPrice, exitPrice) },
-              { time: toTime, value: Math.max(entryPrice, exitPrice) }
-          ];
-          newHighlightSeries.setData(highlightData);
-          
-          // A second series for the bottom line of the area
-          const baselineSeries = chart.addAreaSeries({
-              priceScaleId: 'left',
-              lineColor: 'transparent',
-              topColor: 'transparent',
-              bottomColor: 'transparent', // Make it invisible
-              lastValueVisible: false,
-              priceLineVisible: false,
-              crosshairMarkerVisible: false,
+          // To create a rectangle, we need to set the area between two price levels.
+          // We can't use setBaseline, so we'll just set a single data range.
+          // The area will be from the value to the bottom of the chart.
+          // To create a bounded box, one would typically use two area series.
+          // For simplicity, we'll use a wide line series as a background. This is a common workaround.
+
+          const newHighlightSeries = chart.addLineSeries({
+            priceScaleId: 'left',
+            color: highlightColor,
+            lineWidth: 50, // This is a trick to make a thick line act as a background
+            lastValueVisible: false,
+            priceLineVisible: false,
+            crosshairMarkerVisible: false,
           });
-          baselineSeries.setData([
-              { time: fromTime, value: Math.min(entryPrice, exitPrice) },
-              { time: toTime, value: Math.min(entryPrice, exitPrice) }
+
+          // The line will be drawn at the average price. Its thickness will create the highlight effect.
+          const avgPrice = (entryPrice + exitPrice) / 2;
+          newHighlightSeries.setData([
+              { time: fromTime, value: avgPrice },
+              { time: toTime, value: avgPrice },
           ]);
-          newHighlightSeries.setBaseline(baselineSeries);
 
-
-          chartRef.current.tradeHighlightSeries = newHighlightSeries;
+          chartRef.current.tradeHighlightSeries = [newHighlightSeries];
       }
   }, [highlightedTrade, combinedData, interval]);
 
