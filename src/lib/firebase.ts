@@ -1,3 +1,4 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 
@@ -16,7 +17,7 @@ export function getFirebaseApp(): FirebaseApp | null {
   // A more robust check to ensure all required config values are present and are not placeholders.
   const hasValidConfig =
     firebaseConfig.apiKey &&
-    !firebaseConfig.apiKey.startsWith("YOUR_") && // Explicitly check for placeholder
+    !firebaseConfig.apiKey.includes("YOUR_") && // Explicitly check for placeholder
     firebaseConfig.authDomain &&
     firebaseConfig.projectId;
 
