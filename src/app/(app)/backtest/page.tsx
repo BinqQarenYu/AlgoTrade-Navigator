@@ -54,8 +54,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { TradeHistory } from "@/components/dashboard/trade-history"
-import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfitting-analysis"
@@ -269,7 +267,6 @@ const BacktestPageContent = () => {
   const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
   const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('backtest-discipline-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [tradeHistory, setTradeHistory] = useState<Trade[]>([]);
   
   // New state for Replay Mode
   const [isReplaying, setIsReplaying] = useState(false);
@@ -372,15 +369,11 @@ const BacktestPageContent = () => {
         if (data) {
             setFullChartData(data);
         }
-        if (apiKey && secretKey) {
-            const { data: history } = await getTradeHistory(symbol, apiKey, secretKey);
-            setTradeHistory(history);
-        }
     };
 
     fetchData();
 
-  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData, apiKey, secretKey]);
+  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData]);
 
   // Effect to handle data errors from the context
   useEffect(() => {
@@ -925,14 +918,6 @@ const BacktestPageContent = () => {
 };
 
 
-  const handleClearTradeHistory = () => {
-    setTradeHistory([]);
-    toast({
-        title: "Trade History Cleared",
-        description: "Your trade history has been cleared from view. It will reappear on the next data fetch."
-    })
-  }
-
   const handleGenerateProjection = () => {
     if (fullChartData.length === 0) {
       toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
@@ -1360,7 +1345,7 @@ const BacktestPageContent = () => {
       <div className="xl:col-span-3 space-y-6">
         <div className="relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade || selectedForwardTrade} />
+                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
             </div>
             <div
                 onMouseDown={startChartResize}
@@ -1751,9 +1736,6 @@ const BacktestPageContent = () => {
 
       </div>
     </div>
-    <div className="mt-6">
-        <TradeHistory trades={tradeHistory} onClear={handleClearTradeHistory} />
-    </div>
     </div>
   )
 }
@@ -1766,5 +1748,3 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
-
-    
