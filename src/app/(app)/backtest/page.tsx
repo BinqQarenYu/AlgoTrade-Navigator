@@ -7,7 +7,6 @@ import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { TradingChart } from "@/components/trading-chart"
-import { PineScriptEditor } from "@/components/pine-script-editor"
 import { useDataManager } from "@/context/data-manager-context"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
@@ -36,7 +35,6 @@ import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams,
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
-import { analyzePineScript } from "@/ai/flows/analyze-pine-script"
 import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById as getStaticStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
@@ -1541,7 +1539,6 @@ const BacktestPageContent = () => {
             </CollapsibleContent>
           </Collapsible>
         </Card>
-        <PineScriptEditor onLoadScript={() => {}} isLoading={anyLoading} onAnalyze={(script) => analyzePineScript({ pineScript: script })} />
       </div>
     </div>
     <div className="mt-6">
