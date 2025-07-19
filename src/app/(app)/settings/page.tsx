@@ -64,7 +64,7 @@ import { useBot } from "@/context/bot-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { topAssets } from "@/lib/assets"
 import Link from "next/link"
-import { Separator } from "../ui/separator"
+import { Separator } from "@/components/ui/separator"
 
 export default function SettingsPage() {
   const { toast } = useToast()
