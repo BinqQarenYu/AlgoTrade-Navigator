@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -58,6 +58,7 @@ import { TradeHistory } from "@/components/dashboard/trade-history"
 import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
 import { usePersistentState } from "@/hooks/use-persistent-state"
+import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfitting-analysis"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -179,6 +180,36 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     return combinations;
 }
 
+const OverfittingAnalysisCard = ({ result }: { result: OverfittingResult }) => {
+    const riskVariant = {
+        'Low': 'default',
+        'Moderate': 'default',
+        'High': 'destructive',
+        'Very High': 'destructive'
+    }[result.riskLevel] as 'default' | 'destructive';
+    
+    const riskBgColor = {
+        'Low': 'bg-green-500/10 border-green-500/20 text-green-500',
+        'Moderate': 'bg-yellow-500/10 border-yellow-500/20 text-yellow-500',
+        'High': 'bg-orange-500/10 border-orange-500/20 text-orange-500',
+        'Very High': 'bg-red-500/10 border-red-500/20 text-red-500'
+    }[result.riskLevel];
+
+    return (
+        <Alert variant={riskVariant} className={cn("mt-4", riskBgColor)}>
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>Overfitting Analysis: {result.riskLevel} Risk</AlertTitle>
+            <AlertDescription>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                    {result.feedback.map((item, index) => (
+                        <li key={index}>{item}</li>
+                    ))}
+                </ul>
+            </AlertDescription>
+        </Alert>
+    );
+};
+
 const BacktestPageContent = () => {
   const { toast } = useToast()
   const router = useRouter();
@@ -209,6 +240,7 @@ const BacktestPageContent = () => {
   // State for backtest results
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
+  const [overfittingResult, setOverfittingResult] = useState<OverfittingResult | null>(null);
   const [contrarianResults, setContrarianResults] = useState<BacktestResult[] | null>(null);
   const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
@@ -467,6 +499,7 @@ const BacktestPageContent = () => {
   const handleClearReport = () => {
     setBacktestResults([]);
     setSummaryStats(null);
+    setOverfittingResult(null);
     setContrarianResults(null);
     setContrarianSummary(null);
     setSelectedTrade(null);
@@ -493,6 +526,7 @@ const BacktestPageContent = () => {
         // This is the key change: Reset all results before starting a new test.
         setBacktestResults([]);
         setSummaryStats(null);
+        setOverfittingResult(null);
         setContrarianResults(null);
         setContrarianSummary(null);
         setSelectedTrade(null);
@@ -669,6 +703,12 @@ const BacktestPageContent = () => {
         setFullChartData(dataWithSignals);
         setBacktestResults(trades);
         setSummaryStats(summary);
+        
+        // Run overfitting analysis
+        if (summary.totalTrades > 0) {
+            const overfittingCheck = detectOverfitting(summary, fullChartData.length);
+            setOverfittingResult(overfittingCheck);
+        }
 
         toast({
           title: "Backtest Complete",
@@ -1234,6 +1274,10 @@ const BacktestPageContent = () => {
           onSelectTrade={setSelectedTrade}
           selectedTradeId={selectedTrade?.id}
         />}
+
+        {summaryStats && overfittingResult && overfittingResult.score >= 50 && (
+            <OverfittingAnalysisCard result={overfittingResult} />
+        )}
 
         {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
             <BacktestResults 
