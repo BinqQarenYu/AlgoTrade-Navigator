@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
@@ -48,7 +49,7 @@ const seriesConfig: Record<string, { color: string, lineWidth?: number, lineStyl
 
 export function TradingChart({ 
   data = [], 
-  projectedData,
+  projectedData = [],
   symbol, 
   interval, 
   tradeSignal = null,
@@ -211,15 +212,31 @@ export function TradingChart({
     const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
     if (uniqueData.length === 0) return;
 
+    const historicalCandles = uniqueData.filter(d => !d.isProjected);
+    const projectedCandles = uniqueData.filter(d => d.isProjected);
+
     const isUpdate = uniqueData.length > 0 && lastRenderedDataRef.current.length > 0 && uniqueData[uniqueData.length - 2]?.time === lastRenderedDataRef.current[lastRenderedDataRef.current.length - 2]?.time;
     
-    const candlestickChartData = uniqueData.map(d => ({ time: toTimestamp(d.time), open: d.ha_open ?? d.open, high: d.ha_high ?? d.high, low: d.ha_low ?? d.low, close: d.ha_close ?? d.close, }));
+    const candlestickChartData = uniqueData.map(d => ({ 
+        time: toTimestamp(d.time), 
+        open: d.ha_open ?? d.open, 
+        high: d.ha_high ?? d.high, 
+        low: d.ha_low ?? d.low, 
+        close: d.ha_close ?? d.close, 
+        color: d.isProjected ? 'rgba(139, 92, 246, 0.5)' : undefined,
+        borderColor: d.isProjected ? 'rgba(139, 92, 246, 1)' : undefined,
+        wickColor: d.isProjected ? 'rgba(139, 92, 246, 1)' : undefined,
+    }));
     const volumeChartData = uniqueData.map(d => {
         let isUp = d.close >= d.open;
         if (d.ha_close !== undefined && d.ha_open !== undefined) {
             isUp = d.ha_close >= d.ha_open;
         }
-        return { time: toTimestamp(d.time), value: d.volume, color: isUp ? chartColors.volumeUpColor : chartColors.volumeDownColor };
+        return { 
+            time: toTimestamp(d.time), 
+            value: d.volume, 
+            color: d.isProjected ? 'rgba(107, 114, 128, 0.4)' : (isUp ? chartColors.volumeUpColor : chartColors.volumeDownColor) 
+        };
     });
     
     candlestickSeries.setData(candlestickChartData);
@@ -368,3 +385,5 @@ export function TradingChart({
     </Card>
   );
 }
+
+    

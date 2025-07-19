@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -59,6 +59,8 @@ import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfitting-analysis"
+import { generateProjectedCandles } from "@/lib/projection-service"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -234,6 +236,7 @@ const BacktestPageContent = () => {
   const [visibleChartData, setVisibleChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isProjecting, setIsProjecting] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
   
@@ -245,6 +248,14 @@ const BacktestPageContent = () => {
   const [contrarianResults, setContrarianResults] = useState<BacktestResult[] | null>(null);
   const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
+
+  // Projection State
+  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random' | 'frankenstein'>('backtest-projection-mode', 'frankenstein');
+  const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('backtest-projection-duration', '7d');
+  const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
+  const [forwardTestSummary, setForwardTestSummary] = useState<BacktestSummary | null>(null);
+  const [forwardTestTrades, setForwardTestTrades] = useState<BacktestResult[]>([]);
+  const [selectedForwardTrade, setSelectedForwardTrade] = useState<BacktestResult | null>(null);
 
   const [initialCapital, setInitialCapital] = usePersistentState<number>('backtest-initial-capital', 100);
   const [leverage, setLeverage] = usePersistentState<number>('backtest-leverage', 10);
@@ -391,11 +402,13 @@ const BacktestPageContent = () => {
       const strategy = getStrategyById(selectedStrategy);
       let dataWithInd: HistoricalData[];
 
+      const combinedData = [...fullChartData, ...projectedData];
+
       if (strategy) {
           const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          dataWithInd = await strategy.calculate(fullChartData, paramsForStrategy, symbol);
+          dataWithInd = await strategy.calculate(combinedData, paramsForStrategy, symbol);
       } else {
-          dataWithInd = [...fullChartData];
+          dataWithInd = [...combinedData];
       }
       
       const sliceEnd = isReplaying ? replayIndex + 1 : dataWithInd.length;
@@ -404,13 +417,13 @@ const BacktestPageContent = () => {
     };
     
     calculateAndSetIndicators();
-  }, [fullChartData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex, getStrategyById]);
+  }, [fullChartData, projectedData, selectedStrategy, strategyParams, symbol, isReplaying, replayIndex, getStrategyById]);
 
 
-  const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[]}> => {
+  const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[], trades: BacktestResult[]}> => {
     const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee, symbol } = params;
     const strategy = getStrategyById(strategyId);
-    if (!strategy) return { summary: null, dataWithSignals: data };
+    if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
     const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
     
@@ -434,7 +447,7 @@ const BacktestPageContent = () => {
                 const quantity = (initialCapital * (leverage || 1)) / entryPrice;
                 const grossPnl = (exitPrice - entryPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
+                trades.push({ id: `silent-trade-${i}`, type: 'long', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
                 positionType = null;
             }
         } else if (positionType === 'short') {
@@ -450,7 +463,7 @@ const BacktestPageContent = () => {
                 const quantity = (initialCapital * (leverage || 1)) / entryPrice;
                 const grossPnl = (entryPrice - exitPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
+                trades.push({ id: `silent-trade-${i}`, type: 'short', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
                 positionType = null;
             }
         }
@@ -480,7 +493,7 @@ const BacktestPageContent = () => {
       endingBalance: initialCapital + totalPnl,
       totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
     };
-    return { summary, dataWithSignals };
+    return { summary, dataWithSignals, trades };
   }
 
   const handleRunBacktestClick = () => {
@@ -505,6 +518,7 @@ const BacktestPageContent = () => {
     setContrarianResults(null);
     setContrarianSummary(null);
     setSelectedTrade(null);
+    handleClearProjection();
     toast({ title: "Report Cleared", description: "The backtest results have been cleared from view." });
   };
 
@@ -525,7 +539,6 @@ const BacktestPageContent = () => {
 
     if (!contrarian) {
         setIsBacktesting(true);
-        // This is the key change: Reset all results before starting a new test.
         setBacktestResults([]);
         setSummaryStats(null);
         setOverfittingResult(null);
@@ -533,6 +546,9 @@ const BacktestPageContent = () => {
         setContrarianResults(null);
         setContrarianSummary(null);
         setSelectedTrade(null);
+        setProjectedData([]);
+        setForwardTestTrades([]);
+        setForwardTestSummary(null);
     }
     
     const strategy = getStrategyById(selectedStrategy);
@@ -547,7 +563,6 @@ const BacktestPageContent = () => {
       description: `Running ${strategy.name} on ${symbol} (${interval}).`,
     });
     
-    // Invert the 'reverse' parameter for the contrarian test
     const baseParams = strategyParams[selectedStrategy] || {};
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
@@ -854,7 +869,7 @@ const BacktestPageContent = () => {
     };
   }, [isPlaying, isReplaying, replaySpeed]);
   
-  const anyLoading = isBacktesting || isFetchingData || isOptimizing;
+  const anyLoading = isBacktesting || isFetchingData || isOptimizing || isProjecting;
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
@@ -914,6 +929,60 @@ const BacktestPageContent = () => {
         description: "Your trade history has been cleared from view. It will reappear on the next data fetch."
     })
   }
+
+  const handleProjectAndTest = async () => {
+    if (fullChartData.length === 0) {
+      toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
+      return;
+    }
+    
+    setIsProjecting(true);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    toast({ title: "Generating Projection..." });
+
+    // Use a timeout to allow the UI to update before the potentially blocking generation starts
+    setTimeout(async () => {
+      try {
+        const newProjectedCandles = generateProjectedCandles(fullChartData, projectionMode, projectionDuration, interval);
+        
+        const strategyToTest = getStrategyById(selectedStrategy);
+        if (!strategyToTest) {
+            setProjectedData(newProjectedCandles);
+            toast({ title: "Projection Generated", description: "No strategy selected to forward-test." });
+            setIsProjecting(false);
+            return;
+        }
+
+        const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: false }; // Forward test always uses standard logic
+        
+        const { summary: fwdSummary, trades: fwdTrades, dataWithSignals: fwdData } = await runSilentBacktest(newProjectedCandles, {
+            strategyId: selectedStrategy,
+            strategyParams: paramsForStrategy,
+            initialCapital, leverage, takeProfit, stopLoss, fee, symbol
+        });
+        
+        setProjectedData(fwdData);
+        setForwardTestTrades(fwdTrades);
+        setForwardTestSummary(fwdSummary);
+        
+        toast({ title: "Forward Test Complete", description: "Strategy performance on the projected data is now available." });
+      } catch (e: any) {
+        toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
+      } finally {
+        setIsProjecting(false);
+      }
+    }, 50);
+  };
+  
+  const handleClearProjection = () => {
+    setProjectedData([]);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    setSelectedForwardTrade(null);
+    toast({ title: "Projection Cleared", description: "The chart and report have been reset." });
+  };
+
 
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy] || {};
@@ -1263,7 +1332,7 @@ const BacktestPageContent = () => {
       <div className="xl:col-span-3 space-y-6">
         <div className="relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
+                <TradingChart data={visibleChartData} projectedData={projectedData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade || selectedForwardTrade} />
             </div>
             <div
                 onMouseDown={startChartResize}
@@ -1283,6 +1352,14 @@ const BacktestPageContent = () => {
         {summaryStats && overfittingResult && (
             <OverfittingAnalysisCard result={overfittingResult} />
         )}
+
+        {forwardTestSummary && <BacktestResults 
+            results={forwardTestTrades} 
+            summary={forwardTestSummary} 
+            onSelectTrade={setSelectedForwardTrade}
+            selectedTradeId={selectedForwardTrade?.id}
+            title="Forward Test Report"
+        />}
 
         {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
             <BacktestResults 
@@ -1588,6 +1665,45 @@ const BacktestPageContent = () => {
             </CollapsibleContent>
           </Collapsible>
         </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
+                <CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <Label>Projection Mode</Label>
+                    <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
+                        <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2 font-semibold">Frankenstein (Recommended)</Label></div>
+                        <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
+                        <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
+                        <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
+                        <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
+                    </RadioGroup>
+                </div>
+                <div>
+                    <Label>Projection Duration</Label>
+                    <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-4 gap-2 mt-2" disabled={isProjecting}>
+                        <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1D</Label></div>
+                        <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3D</Label></div>
+                        <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7D</Label></div>
+                        <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1M</Label></div>
+                    </RadioGroup>
+                </div>
+            </CardContent>
+            <CardFooter className="flex-col gap-2">
+                <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || fullChartData.length === 0}>
+                    {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                    {isProjecting ? 'Generating...' : 'Project & Test'}
+                </Button>
+                <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Clear Projection
+                </Button>
+            </CardFooter>
+        </Card>
+
       </div>
     </div>
     <div className="mt-6">
@@ -1605,3 +1721,5 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
+    
