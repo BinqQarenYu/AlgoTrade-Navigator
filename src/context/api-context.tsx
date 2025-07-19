@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
@@ -12,6 +13,8 @@ interface ApiContextType {
   secretKey: string | null;
   coingeckoApiKey: string | null;
   coinmarketcapApiKey: string | null;
+  telegramBotToken: string | null;
+  telegramChatId: string | null;
   
   addProfile: (profile: ApiProfile) => void;
   updateProfile: (profile: ApiProfile) => void;
@@ -19,6 +22,8 @@ interface ApiContextType {
   setActiveProfile: (profileId: string | null) => void;
   setCoingeckoApiKey: (key: string | null) => void;
   setCoinmarketcapApiKey: (key: string | null) => void;
+  setTelegramBotToken: (token: string | null) => void;
+  setTelegramChatId: (id: string | null) => void;
   
   isConnected: boolean;
   setIsConnected: (status: boolean) => void;
@@ -48,6 +53,8 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [rateLimitThreshold, setRateLimitThreshold] = useState<number>(1100);
   const [coingeckoApiKey, setCoingeckoApiKey] = useState<string | null>(null);
   const [coinmarketcapApiKey, setCoinmarketcapApiKey] = useState<string | null>(null);
+  const [telegramBotToken, setTelegramBotToken] = useState<string | null>(null);
+  const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
   const [aiQuota, setAiQuota] = useState({
     used: 0,
     limit: 49,
@@ -63,6 +70,11 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedCgKey = localStorage.getItem('coingeckoApiKey');
     const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
     const storedAiQuota = localStorage.getItem('aiQuota');
+    const storedTgToken = localStorage.getItem('telegramBotToken');
+    const storedTgChatId = localStorage.getItem('telegramChatId');
+
+    if (storedTgToken) setTelegramBotToken(storedTgToken);
+    if (storedTgChatId) setTelegramChatId(storedTgChatId);
 
     if (storedAiQuota) {
         const parsed = JSON.parse(storedAiQuota);
@@ -111,6 +123,16 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     localStorage.setItem('apiProfiles', JSON.stringify(profiles));
   }, [profiles]);
+
+  useEffect(() => {
+    if (telegramBotToken) localStorage.setItem('telegramBotToken', telegramBotToken);
+    else localStorage.removeItem('telegramBotToken');
+  }, [telegramBotToken]);
+
+  useEffect(() => {
+    if (telegramChatId) localStorage.setItem('telegramChatId', telegramChatId);
+    else localStorage.removeItem('telegramChatId');
+  }, [telegramChatId]);
 
   // Persist coingecko key to localStorage
   useEffect(() => {
@@ -230,12 +252,16 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       secretKey: activeProfile?.secretKey || null,
       coingeckoApiKey,
       coinmarketcapApiKey,
+      telegramBotToken,
+      telegramChatId,
       addProfile,
       updateProfile,
       deleteProfile,
       setActiveProfile,
       setCoingeckoApiKey,
       setCoinmarketcapApiKey,
+      setTelegramBotToken,
+      setTelegramChatId,
       isConnected,
       setIsConnected, 
       apiLimit, 

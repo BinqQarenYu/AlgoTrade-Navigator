@@ -64,6 +64,7 @@ import { useBot } from "@/context/bot-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { topAssets } from "@/lib/assets"
 import Link from "next/link"
+import { Separator } from "../ui/separator"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -413,7 +414,7 @@ export default function SettingsPage() {
           <div>
             <CardTitle>Third-Party Integrations</CardTitle>
             <CardDescription>
-              Manage API keys for external data services.
+              Manage API keys for external data services and notifications.
             </CardDescription>
           </div>
           <CollapsibleTrigger asChild>
@@ -456,7 +457,7 @@ export default function SettingsPage() {
             </div>
             <Button onClick={handleSaveTelegramConfig}><Save className="mr-2 h-4 w-4"/>Save Telegram Settings</Button>
             
-            <hr className="border-border" />
+            <Separator />
 
             <div className="space-y-2">
                 <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
