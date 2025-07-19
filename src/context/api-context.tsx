@@ -15,6 +15,7 @@ interface ApiContextType {
   coinmarketcapApiKey: string | null;
   telegramBotToken: string | null;
   telegramChatId: string | null;
+  geminiApiKey: string | null;
   
   addProfile: (profile: ApiProfile) => void;
   updateProfile: (profile: ApiProfile) => void;
@@ -24,6 +25,7 @@ interface ApiContextType {
   setCoinmarketcapApiKey: (key: string | null) => void;
   setTelegramBotToken: (token: string | null) => void;
   setTelegramChatId: (id: string | null) => void;
+  setGeminiApiKey: (key: string | null) => void;
   
   isConnected: boolean;
   setIsConnected: (status: boolean) => void;
@@ -55,6 +57,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [coinmarketcapApiKey, setCoinmarketcapApiKey] = useState<string | null>(null);
   const [telegramBotToken, setTelegramBotToken] = useState<string | null>(null);
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [aiQuota, setAiQuota] = useState({
     used: 0,
     limit: 49,
@@ -69,12 +72,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     const storedThreshold = localStorage.getItem('rateLimitThreshold');
     const storedCgKey = localStorage.getItem('coingeckoApiKey');
     const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
+    const storedGeminiKey = localStorage.getItem('geminiApiKey');
     const storedAiQuota = localStorage.getItem('aiQuota');
     const storedTgToken = localStorage.getItem('telegramBotToken');
     const storedTgChatId = localStorage.getItem('telegramChatId');
 
     if (storedTgToken) setTelegramBotToken(storedTgToken);
     if (storedTgChatId) setTelegramChatId(storedTgChatId);
+    if (storedGeminiKey) setGeminiApiKey(storedGeminiKey);
 
     if (storedAiQuota) {
         const parsed = JSON.parse(storedAiQuota);
@@ -133,6 +138,18 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     if (telegramChatId) localStorage.setItem('telegramChatId', telegramChatId);
     else localStorage.removeItem('telegramChatId');
   }, [telegramChatId]);
+
+  useEffect(() => {
+    if (geminiApiKey) {
+        localStorage.setItem('geminiApiKey', geminiApiKey);
+        // This is a workaround to make the key available to the server-side Genkit environment
+        // In a real production app, this should be handled by a secure backend mechanism
+        process.env.GEMINI_API_KEY = geminiApiKey;
+    } else {
+        localStorage.removeItem('geminiApiKey');
+        delete process.env.GEMINI_API_KEY;
+    }
+  }, [geminiApiKey]);
 
   // Persist coingecko key to localStorage
   useEffect(() => {
@@ -206,6 +223,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const canUseAi = (): boolean => {
+    if (!geminiApiKey) {
+        toast({
+            title: "Google AI API Key Missing",
+            description: "Please set your Gemini API key in the Settings page to use AI features.",
+            variant: "destructive",
+        });
+        return false;
+    }
     let currentQuota = { ...aiQuota };
     const today = new Date().toISOString().split('T')[0];
 
@@ -254,6 +279,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       coinmarketcapApiKey,
       telegramBotToken,
       telegramChatId,
+      geminiApiKey,
       addProfile,
       updateProfile,
       deleteProfile,
@@ -262,6 +288,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       setCoinmarketcapApiKey,
       setTelegramBotToken,
       setTelegramChatId,
+      setGeminiApiKey,
       isConnected,
       setIsConnected, 
       apiLimit, 

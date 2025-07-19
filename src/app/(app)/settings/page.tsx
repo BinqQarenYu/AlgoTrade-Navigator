@@ -85,6 +85,8 @@ export default function SettingsPage() {
     setCoingeckoApiKey,
     coinmarketcapApiKey,
     setCoinmarketcapApiKey,
+    geminiApiKey,
+    setGeminiApiKey,
     aiQuota,
     setAiQuotaLimit,
     telegramBotToken,
@@ -103,6 +105,7 @@ export default function SettingsPage() {
   const [editingProfile, setEditingProfile] = useState<ApiProfile | null>(null);
   const [cgKeyValue, setCgKeyValue] = useState(coingeckoApiKey || "");
   const [cmcKeyValue, setCmcKeyValue] = useState(coinmarketcapApiKey || "");
+  const [geminiKeyValue, setGeminiKeyValue] = useState(geminiApiKey || "");
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
   const [telegramTokenInput, setTelegramTokenInput] = useState(telegramBotToken || "");
   const [telegramChatIdInput, setTelegramChatIdInput] = useState(telegramChatId || "");
@@ -128,6 +131,10 @@ export default function SettingsPage() {
   useEffect(() => {
     setCgKeyValue(coingeckoApiKey || "");
   }, [coingeckoApiKey]);
+  
+  useEffect(() => {
+    setGeminiKeyValue(geminiApiKey || "");
+  }, [geminiApiKey]);
 
   useEffect(() => {
     setCmcKeyValue(coinmarketcapApiKey || "");
@@ -235,6 +242,11 @@ export default function SettingsPage() {
   const handleSaveCgKey = () => {
     setCoingeckoApiKey(cgKeyValue);
     toast({ title: "CoinGecko API Key Saved" });
+  };
+
+  const handleSaveGeminiKey = () => {
+    setGeminiApiKey(geminiKeyValue);
+    toast({ title: "Google AI API Key Saved" });
   };
   
   const handleSaveCmcKey = () => {
@@ -426,6 +438,23 @@ export default function SettingsPage() {
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">
+             <div className="space-y-2">
+                <Label htmlFor="gemini-key">Google AI (Gemini) API Key</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                    id="gemini-key"
+                    type="password"
+                    value={geminiKeyValue}
+                    onChange={(e) => setGeminiKeyValue(e.target.value)}
+                    placeholder="Enter your Google AI API Key"
+                    />
+                    <Button onClick={handleSaveGeminiKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                    Required for all AI-powered features in the app. Get a key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>.
+                </p>
+            </div>
+            <Separator/>
              <div className="space-y-2">
                 <Label htmlFor="telegram-token">Telegram Bot Token (Optional)</Label>
                 <div className="flex items-center gap-2">
