@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle, Hourglass, FileCheck2 } from "lucide-react";
+import { Loader2, BrainCircuit, PlusCircle, Trash2, Save, X, GripHorizontal, ChevronDown, Recycle, Play, StopCircle, CheckCircle, Hourglass, FileCheck2, FileCode } from "lucide-react";
 import type { DisciplineParams, HistoricalData, Strategy } from "@/lib/types";
 import { usePersistentState } from "@/hooks/use-persistent-state";
 import { Switch } from "@/components/ui/switch";
@@ -372,7 +372,9 @@ export default function StrategyMakerPage() {
   const handleApproveAndTest = async () => {
     if (!strategyForApproval) return;
 
+    // Use a temporary key for the backtest page to pick up
     localStorage.setItem('tempGeneratedStrategy', JSON.stringify(strategyForApproval));
+    // Add to the permanent list
     setGeneratedStrategies(prev => [...prev, strategyForApproval]);
     setStrategyForApproval(null);
 
@@ -381,6 +383,7 @@ export default function StrategyMakerPage() {
         description: `${strategyForApproval.displayName} is now available across the app. Redirecting to Backtest page.`
     });
 
+    // Navigate to the backtest page with a special query param
     router.push(`/backtest?strategy=${strategyForApproval.id}`);
   }
 
@@ -388,6 +391,14 @@ export default function StrategyMakerPage() {
     if (generationAbortController.current) {
         generationAbortController.current.abort();
     }
+  };
+
+  const handleDeleteStrategy = (idToDelete: string) => {
+      setGeneratedStrategies(prev => prev.filter(s => s.id !== idToDelete));
+      toast({
+          title: "Strategy Deleted",
+          description: `The custom strategy has been removed.`
+      });
   };
 
   const handleProjectAndTest = () => {
@@ -444,6 +455,12 @@ export default function StrategyMakerPage() {
                           ))}
                       </div>
                   </div>
+                  <div className="space-y-2">
+                      <h4 className="font-semibold text-sm">Generated Code</h4>
+                      <div className="p-3 border rounded-md bg-background/50 text-sm max-h-40 overflow-y-auto">
+                           <pre className="text-xs whitespace-pre-wrap font-mono">{strategyForApproval.code}</pre>
+                      </div>
+                  </div>
               </CardContent>
               <CardFooter className="gap-2">
                   <Button variant="outline" className="w-full" onClick={() => setStrategyForApproval(null)}>Discard</Button>
@@ -471,7 +488,7 @@ export default function StrategyMakerPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Step 1: General Configuration</CardTitle>
-                    <CardDescription>Set the basic properties and select indicators to visualize and use in your logic.</CardDescription>
+                    <CardDescription>Set the asset and select indicators to visualize and use in your logic.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -641,7 +658,7 @@ export default function StrategyMakerPage() {
                                 <StopCircle className="mr-2"/> Stop Generation
                            </Button>
                       ) : (
-                          <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating}>
+                          <Button className="w-full" onClick={handleGenerateStrategy} disabled={isGenerating || Object.keys(config.indicators).length === 0 || config.entryConditions.length === 0}>
                               <Save className="mr-2"/> Generate Strategy
                           </Button>
                       )}
@@ -661,16 +678,25 @@ export default function StrategyMakerPage() {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">A list of pre-built and user-generated strategies.</p>
+                    <p className="text-sm text-muted-foreground">A list of user-generated strategies.</p>
                     <div className="p-3 border rounded-md max-h-48 overflow-y-auto">
-                      <ul className="space-y-1">
-                        {strategyMetadatas.map(strategy => (
-                          <li key={strategy.id} className="flex items-center gap-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span>{strategy.name}</span>
-                          </li>
-                        ))}
-                      </ul>
+                        {generatedStrategies.length > 0 ? (
+                            <ul className="space-y-1">
+                                {generatedStrategies.map(strategy => (
+                                <li key={strategy.id} className="flex items-center justify-between gap-2 text-sm">
+                                    <span className="flex items-center gap-2">
+                                        <FileCode className="h-4 w-4 text-primary" />
+                                        <span>{strategy.displayName}</span>
+                                    </span>
+                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteStrategy(strategy.id)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-center text-xs text-muted-foreground py-4">No custom strategies yet.</p>
+                        )}
                     </div>
                   </CardContent>
                 </CollapsibleContent>
