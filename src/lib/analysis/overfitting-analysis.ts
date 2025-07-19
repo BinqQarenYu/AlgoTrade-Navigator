@@ -1,29 +1,34 @@
 
-import type { BacktestSummary } from '../types';
+import type { BacktestSummary, BacktestResult } from '../types';
 
 export interface OverfittingResult {
   riskLevel: 'Low' | 'Moderate' | 'High' | 'Very High';
   score: number; // 0 (low risk) to 100 (high risk)
   feedback: string[];
+  outlierTradeIds: string[];
 }
 
 // --- Configuration Thresholds ---
 const WIN_RATE_THRESHOLDS = { moderate: 70, high: 80, veryHigh: 90 };
 const PROFIT_FACTOR_THRESHOLDS = { moderate: 2.5, high: 3.5, veryHigh: 5.0 };
 const TRADES_PER_1000_CANDLES_THRESHOLDS = { moderate: 20, low: 10, veryLow: 5 };
+const OUTLIER_STD_DEV_THRESHOLD = 3.0; // PnL > 3 standard deviations from the mean is an outlier
 
 /**
- * Analyzes a backtest summary to detect signs of overfitting.
+ * Analyzes a backtest summary and trade list to detect signs of overfitting.
  * @param summary The backtest summary statistics.
  * @param dataPointCount The total number of candles in the backtest period.
- * @returns An object containing the overfitting risk level, a numerical score, and detailed feedback.
+ * @param trades The full list of trades from the backtest.
+ * @returns An object containing the overfitting risk level, a score, feedback, and outlier trade IDs.
  */
 export function detectOverfitting(
   summary: BacktestSummary,
-  dataPointCount: number
+  dataPointCount: number,
+  trades: BacktestResult[]
 ): OverfittingResult {
   let score = 0;
   const feedback: string[] = [];
+  const outlierTradeIds: string[] = [];
 
   // 1. Analyze Win Rate
   if (summary.winRate >= WIN_RATE_THRESHOLDS.veryHigh) {
@@ -65,6 +70,24 @@ export function detectOverfitting(
       feedback.push(`Fewer than 5 trades were executed. The results are statistically meaningless and should be ignored.`);
   }
 
+  // 4. Analyze Outlier Trades
+  if (trades.length > 10) { // Only run this analysis if there's a reasonable number of trades
+    const pnlValues = trades.map(t => t.pnl);
+    const meanPnl = summary.totalPnl / summary.totalTrades;
+    const stdDevPnl = Math.sqrt(pnlValues.map(pnl => Math.pow(pnl - meanPnl, 2)).reduce((a, b) => a + b) / pnlValues.length);
+    
+    trades.forEach(trade => {
+        if (trade.pnl > meanPnl + (stdDevPnl * OUTLIER_STD_DEV_THRESHOLD)) {
+            outlierTradeIds.push(trade.id);
+        }
+    });
+
+    if (outlierTradeIds.length > 0) {
+        score += 15;
+        feedback.push(`Found ${outlierTradeIds.length} outlier trade(s) with exceptionally high profit. The strategy's performance may heavily depend on these rare events.`);
+    }
+  }
+
 
   // Determine final risk level
   let riskLevel: OverfittingResult['riskLevel'];
@@ -82,5 +105,5 @@ export function detectOverfitting(
       feedback.push("The backtest results appear to be within reasonable statistical boundaries. Continue validation with out-of-sample data.");
   }
 
-  return { riskLevel, score: Math.min(100, score), feedback };
+  return { riskLevel, score: Math.min(100, score), feedback, outlierTradeIds };
 }

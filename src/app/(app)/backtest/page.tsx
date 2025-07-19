@@ -241,6 +241,7 @@ const BacktestPageContent = () => {
   const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [summaryStats, setSummaryStats] = useState<BacktestSummary | null>(null);
   const [overfittingResult, setOverfittingResult] = useState<OverfittingResult | null>(null);
+  const [outlierTradeIds, setOutlierTradeIds] = useState<string[]>([]);
   const [contrarianResults, setContrarianResults] = useState<BacktestResult[] | null>(null);
   const [contrarianSummary, setContrarianSummary] = useState<BacktestSummary | null>(null);
   const [selectedTrade, setSelectedTrade] = useState<BacktestResult | null>(null);
@@ -500,6 +501,7 @@ const BacktestPageContent = () => {
     setBacktestResults([]);
     setSummaryStats(null);
     setOverfittingResult(null);
+    setOutlierTradeIds([]);
     setContrarianResults(null);
     setContrarianSummary(null);
     setSelectedTrade(null);
@@ -527,6 +529,7 @@ const BacktestPageContent = () => {
         setBacktestResults([]);
         setSummaryStats(null);
         setOverfittingResult(null);
+        setOutlierTradeIds([]);
         setContrarianResults(null);
         setContrarianSummary(null);
         setSelectedTrade(null);
@@ -706,8 +709,9 @@ const BacktestPageContent = () => {
         
         // Run overfitting analysis
         if (summary.totalTrades > 0) {
-            const overfittingCheck = detectOverfitting(summary, fullChartData.length);
+            const overfittingCheck = detectOverfitting(summary, fullChartData.length, trades);
             setOverfittingResult(overfittingCheck);
+            setOutlierTradeIds(overfittingCheck.outlierTradeIds);
         }
 
         toast({
@@ -1273,6 +1277,7 @@ const BacktestPageContent = () => {
           summary={summaryStats} 
           onSelectTrade={setSelectedTrade}
           selectedTradeId={selectedTrade?.id}
+          outlierTradeIds={outlierTradeIds}
         />}
 
         {summaryStats && overfittingResult && (

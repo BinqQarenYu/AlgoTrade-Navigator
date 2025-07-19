@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ScrollArea } from "./ui/scroll-area";
 import { cn, formatPrice } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info, ChevronDown, GripHorizontal, GitCompareArrows, AreaChart } from "lucide-react";
+import { Info, ChevronDown, GripHorizontal, GitCompareArrows, AreaChart, AlertTriangle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Button } from "./ui/button";
 
@@ -20,6 +20,7 @@ type BacktestResultsProps = {
   onSelectTrade: (trade: BacktestResult) => void;
   selectedTradeId?: string | null;
   title?: string;
+  outlierTradeIds?: string[];
 };
 
 const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
@@ -82,7 +83,7 @@ const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: R
   );
 };
 
-export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId, title = "Backtest Results" }: BacktestResultsProps) {
+export function BacktestResults({ results, summary, onSelectTrade, selectedTradeId, title = "Backtest Results", outlierTradeIds = [] }: BacktestResultsProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [logHeight, setLogHeight] = usePersistentState<number>(`backtest-results-height-${title.replace(/\s/g, '')}`, 288);
 
@@ -223,7 +224,8 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                     onClick={() => onSelectTrade(trade)}
                                     className={cn(
                                         "cursor-pointer hover:bg-muted/80",
-                                        selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20"
+                                        selectedTradeId === trade.id && "bg-primary/20 hover:bg-primary/20",
+                                        outlierTradeIds.includes(trade.id) && "bg-yellow-500/10"
                                     )}
                                 >
                                     <TableCell>
@@ -251,7 +253,21 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                         {trade.fee.toFixed(4)}
                                     </TableCell>
                                     <TableCell className={`font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {trade.pnl.toFixed(2)}
+                                        <div className="flex items-center gap-1">
+                                            {outlierTradeIds.includes(trade.id) && (
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>This trade is a statistical outlier.</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            )}
+                                            {trade.pnl.toFixed(2)}
+                                        </div>
                                     </TableCell>
                                     <TableCell className="text-right">
                                       {trade.reasoning && (
