@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -25,7 +26,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2, CalendarIcon } from "lucide-react"
+import { Loader2, Terminal, ChevronDown, FlaskConical, Wand2, ShieldAlert, RotateCcw, BrainCircuit, GripHorizontal, Play, StopCircle, Settings, ShieldCheck, AreaChart, Trash2, CalendarIcon, TestTube } from "lucide-react"
 import { cn, formatPrice, formatLargeNumber, intervalToMs } from "@/lib/utils"
 import type { HistoricalData, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, BacktestResult, BacktestSummary, PhysicsChartConfig, OrderBookData } from "@/lib/types"
 import { topAssets } from "@/lib/assets"
@@ -120,7 +121,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
 
 export default function LabPage() {
   const { toast } = useToast()
-  const { isConnected, canUseAi, consumeAiCredit } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit, geminiApiKey } = useApi();
   const { strategyParams, setStrategyParams } = useLab();
   const strategyParamsRef = useRef(strategyParams);
   useEffect(() => {
@@ -171,7 +172,8 @@ export default function LabPage() {
 
   // Projection State
   const [isProjecting, setIsProjecting] = useState(false);
-  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random'>('lab-projection-mode', 'neutral');
+  const [isTesting, setIsTesting] = useState(false);
+  const [projectionMode, setProjectionMode] = usePersistentState<'upward' | 'downward' | 'neutral' | 'random' | 'frankenstein'>('lab-projection-mode', 'frankenstein');
   const [projectionDuration, setProjectionDuration] = usePersistentState<'1d' | '3d' | '7d' | '1m'>('lab-projection-duration', '7d');
   const [projectedData, setProjectedData] = useState<HistoricalData[]>([]);
   const [forwardTestSummary, setForwardTestSummary] = useState<BacktestSummary | null>(null);
@@ -610,7 +612,7 @@ export default function LabPage() {
     setOrderBookData(data);
   }, []);
 
-  const anyLoading = isFetchingData || isReportPending || isScanning || isProjecting;
+  const anyLoading = isFetchingData || isReportPending || isScanning || isProjecting || isTesting;
   const canAnalyze = !anyLoading && isConnected && chartData.length > 0;
   
   const renderParameterControls = () => {
@@ -679,7 +681,7 @@ export default function LabPage() {
     );
   };
 
-  const handleProjectAndTest = async () => {
+  const handleGenerateProjection = () => {
     if (chartData.length === 0) {
       toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
       return;
@@ -690,138 +692,148 @@ export default function LabPage() {
     setForwardTestTrades([]);
     toast({ title: "Generating Projection..." });
 
-    setTimeout(async () => {
+    setTimeout(() => {
       try {
         const newProjectedCandles = generateProjectedCandles(chartData, projectionMode, projectionDuration, interval);
-        
-        const strategyToTest = getStrategyById(selectedStrategy);
-        if (!strategyToTest) {
-            setProjectedData(newProjectedCandles);
-            toast({ title: "Projection Generated", description: "No strategy selected to forward-test." });
-            setIsProjecting(false);
-            return;
-        }
-
-        const combinedData = [...chartData, ...newProjectedCandles];
-        const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic };
-        
-        const dataWithSignals = await strategyToTest.calculate(combinedData, paramsForStrategy);
-        const testedProjectedData = dataWithSignals.slice(chartData.length);
-        
-        setProjectedData(testedProjectedData);
-
-        const trades: BacktestResult[] = [];
-        let positionType: 'long' | 'short' | null = null;
-        let entryTime = 0;
-        let entryPrice = 0;
-        let stopLossPrice = 0;
-        let takeProfitPrice = 0;
-        
-        for (let i = 0; i < testedProjectedData.length; i++) {
-          const d = testedProjectedData[i];
-
-          // Check for exits first
-          if (positionType !== null) {
-              let exitPrice: number | null = null;
-              let closeReason: BacktestResult['closeReason'] = 'signal';
-              
-              if (positionType === 'long') {
-                  if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-                  else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
-              } else { // short
-                  if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-                  else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-                  else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
-              }
-
-              if (exitPrice !== null) {
-                  const tradeQuantity = (initialCapital * leverage) / entryPrice;
-                  const entryValue = entryPrice * tradeQuantity;
-                  const exitValue = exitPrice * tradeQuantity;
-                  const totalFee = (entryValue + exitValue) * (fee / 100);
-
-                  const grossPnl = positionType === 'long' 
-                      ? (exitValue - entryValue)
-                      : (entryValue - exitValue);
-                  const netPnl = grossPnl - totalFee;
-
-                  trades.push({
-                      id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
-                      exitTime: d.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
-                      closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                      fee: totalFee, reasoning: 'Projected Trade'
-                  });
-                  positionType = null;
-              }
-          }
-          
-          // Check for new entries
-          if (positionType === null) {
-              if (d.buySignal) {
-                  positionType = 'long';
-                  entryPrice = d.close;
-                  entryTime = d.time;
-                  stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-                  takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-              } else if (d.sellSignal) {
-                  positionType = 'short';
-                  entryPrice = d.close;
-                  entryTime = d.time;
-                  stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-                  takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-              }
-          }
-        }
-
-        // Close any open position at the end of the projection
-        if (positionType !== null) {
-            const lastCandle = testedProjectedData[testedProjectedData.length - 1];
-            const exitPrice = lastCandle.close;
-            const tradeQuantity = (initialCapital * leverage) / entryPrice;
-            const entryValue = entryPrice * tradeQuantity;
-            const exitValue = exitPrice * tradeQuantity;
-            const totalFee = (entryValue + exitValue) * (fee / 100);
-
-            const grossPnl = positionType === 'long' 
-                ? (exitValue - entryValue)
-                : (entryValue - exitValue);
-            const netPnl = grossPnl - totalFee;
-
-            trades.push({
-                id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
-                exitTime: lastCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
-                closeReason: 'signal', stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                fee: totalFee, reasoning: 'Closed at end of projection'
-            });
-        }
-        
-        if (trades.length > 0) {
-          const wins = trades.filter(t => t.pnl > 0);
-          const losses = trades.filter(t => t.pnl <= 0);
-          const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-          const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-          const totalLosses = Math.abs(losses.reduce((sum, t) => sum + t.pnl, 0));
-
-          const summary: BacktestSummary = {
-            totalTrades: trades.length,
-            winRate: (wins.length / trades.length) * 100,
-            totalPnl: totalPnl,
-            averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-            averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
-            profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
-            initialCapital, endingBalance: initialCapital + totalPnl, totalReturnPercent: (totalPnl/initialCapital)*100, totalFees: trades.reduce((s,t) => s + (t.fee || 0), 0)
-          };
-          setForwardTestSummary(summary);
-          setForwardTestTrades(trades);
-        }
-        
-        toast({ title: "Forward Test Complete", description: "Strategy signals have been applied to the projected data." });
+        setProjectedData(newProjectedCandles);
+        toast({ title: "Projection Generated", description: "Hypothetical future candles added to the chart." });
       } catch (e: any) {
         toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
       } finally {
         setIsProjecting(false);
       }
+    }, 50);
+  };
+
+  const handleTestOnProjection = async () => {
+    if (projectedData.length === 0) {
+        toast({ title: "No Projection Data", description: "Please generate a projection before testing.", variant: "destructive" });
+        return;
+    }
+    
+    setIsTesting(true);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    toast({ title: "Forward Testing Started..." });
+
+    setTimeout(async () => {
+        try {
+            const strategyToTest = getStrategyById(selectedStrategy);
+            if (!strategyToTest) {
+                toast({ title: "No Strategy Selected", description: "Please select a strategy to test.", variant: "destructive" });
+                setIsTesting(false);
+                return;
+            }
+
+            const combinedData = [...chartData, ...projectedData];
+            const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic };
+            
+            const dataWithSignals = await strategyToTest.calculate(combinedData, paramsForStrategy);
+            const testedProjectedData = dataWithSignals.slice(chartData.length);
+            
+            setProjectedData(testedProjectedData); // Update with signals for visualization
+            
+            const trades: BacktestResult[] = [];
+            let positionType: 'long' | 'short' | null = null;
+            let entryTime = 0;
+            let entryPrice = 0;
+            let stopLossPrice = 0;
+            let takeProfitPrice = 0;
+            
+            for (let i = 0; i < testedProjectedData.length; i++) {
+                const d = testedProjectedData[i];
+
+                if (positionType !== null) {
+                    let exitPrice: number | null = null;
+                    let closeReason: BacktestResult['closeReason'] = 'signal';
+                    
+                    if (positionType === 'long') {
+                        if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+                        else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+                        else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+                    } else {
+                        if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
+                        else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+                        else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+                    }
+
+                    if (exitPrice !== null) {
+                        const tradeQuantity = (initialCapital * leverage) / entryPrice;
+                        const entryValue = entryPrice * tradeQuantity;
+                        const exitValue = exitPrice * tradeQuantity;
+                        const totalFee = (entryValue + exitValue) * (fee / 100);
+                        const grossPnl = positionType === 'long' ? (exitValue - entryValue) : (entryValue - exitValue);
+                        const netPnl = grossPnl - totalFee;
+
+                        trades.push({
+                            id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
+                            exitTime: d.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
+                            closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice, fee: totalFee
+                        });
+                        positionType = null;
+                    }
+                }
+                
+                if (positionType === null) {
+                    if (d.buySignal) {
+                        positionType = 'long';
+                        entryPrice = d.close;
+                        entryTime = d.time;
+                        stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
+                        takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+                    } else if (d.sellSignal) {
+                        positionType = 'short';
+                        entryPrice = d.close;
+                        entryTime = d.time;
+                        stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
+                        takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+                    }
+                }
+            }
+
+            if (positionType !== null) {
+                const lastCandle = testedProjectedData[testedProjectedData.length - 1];
+                const exitPrice = lastCandle.close;
+                const tradeQuantity = (initialCapital * leverage) / entryPrice;
+                const entryValue = entryPrice * tradeQuantity;
+                const exitValue = exitPrice * tradeQuantity;
+                const totalFee = (entryValue + exitValue) * (fee / 100);
+                const grossPnl = positionType === 'long' ? (exitValue - entryValue) : (entryValue - exitValue);
+                const netPnl = grossPnl - totalFee;
+
+                trades.push({
+                    id: `fwd-${trades.length}`, type: positionType, entryTime, entryPrice,
+                    exitTime: lastCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / initialCapital) * 100,
+                    closeReason: 'signal', stopLoss: stopLossPrice, takeProfit: takeProfitPrice, fee: totalFee
+                });
+            }
+            
+            if (trades.length > 0) {
+                const wins = trades.filter(t => t.pnl > 0);
+                const losses = trades.filter(t => t.pnl <= 0);
+                const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+                const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
+                const totalLosses = Math.abs(losses.reduce((sum, t) => sum + t.pnl, 0));
+
+                const summary: BacktestSummary = {
+                    totalTrades: trades.length,
+                    winRate: (wins.length / trades.length) * 100,
+                    totalPnl, averageWin: wins.length > 0 ? totalWins / wins.length : 0,
+                    averageLoss: losses.length > 0 ? totalLosses / losses.length : 0,
+                    profitFactor: totalLosses > 0 ? totalWins / totalLosses : Infinity,
+                    initialCapital, endingBalance: initialCapital + totalPnl,
+                    totalReturnPercent: (totalPnl/initialCapital)*100,
+                    totalFees: trades.reduce((s,t) => s + (t.fee || 0), 0)
+                };
+                setForwardTestSummary(summary);
+            }
+            setForwardTestTrades(trades);
+            toast({ title: "Forward Test Complete", description: "Strategy performance on the projected data is now available." });
+        } catch (e: any) {
+            toast({ title: "Forward Test Failed", description: e.message, variant: "destructive" });
+        } finally {
+            setIsTesting(false);
+        }
     }, 50);
   };
   
@@ -1344,14 +1356,20 @@ export default function LabPage() {
                           </div>
                       </CardContent>
                       <CardFooter className="flex-col gap-2">
-                          <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || chartData.length === 0}>
+                        <div className="flex w-full gap-2">
+                          <Button className="w-full" onClick={handleGenerateProjection} disabled={anyLoading || chartData.length === 0}>
                               {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                              {isProjecting ? 'Generating...' : 'Project & Test Strategy'}
+                              {isProjecting ? 'Generating...' : 'Generate Projection'}
                           </Button>
-                          <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Clear Projection
+                          <Button className="w-full" variant="secondary" onClick={handleTestOnProjection} disabled={anyLoading || projectedData.length === 0}>
+                              {isTesting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <TestTube className="mr-2 h-4 w-4" />}
+                              {isTesting ? 'Testing...' : 'Test Strategy'}
                           </Button>
+                        </div>
+                        <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Clear Projection
+                        </Button>
                       </CardFooter>
                   </CollapsibleContent>
               </Collapsible>
