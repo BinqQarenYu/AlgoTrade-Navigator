@@ -246,7 +246,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                             trade.closeReason === 'take-profit' ? 'default' :
                                             trade.closeReason === 'stop-loss' ? 'destructive' : 'secondary'
                                         } className="whitespace-nowrap">
-                                            {trade.closeReason.replace('-', ' ')}
+                                            {trade.closeReason ? trade.closeReason.replace('-', ' ') : 'N/A'}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">
