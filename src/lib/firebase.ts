@@ -21,7 +21,7 @@ let auth: ReturnType<typeof getAuth> | null = null;
 // Check if all required config values are present and not placeholders
 const hasValidConfig =
   firebaseConfig.apiKey &&
-  !firebaseConfig.apiKey.startsWith("TODO") &&
+  !firebaseConfig.apiKey.startsWith("NEXT_PUBLIC_") &&
   firebaseConfig.authDomain &&
   firebaseConfig.projectId;
 
@@ -53,4 +53,4 @@ if (app) {
 }
 
 // Export auth as a named export that can be null
-export { auth };
+export { app, auth };
