@@ -183,7 +183,7 @@ export function TradingChart({
         });
     });
 
-    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [] };
+    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [], tradeHighlightSeries: null };
     
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainer);
@@ -311,22 +311,28 @@ export function TradingChart({
   // Effect to highlight a selected trade from the backtest results
   useEffect(() => {
       if (!chartRef.current?.chart || !combinedData) return;
-      const { candlestickSeries, tradePriceLines = [] } = chartRef.current;
+      const { chart, candlestickSeries, tradePriceLines = [], tradeHighlightSeries } = chartRef.current;
 
-      tradePriceLines.forEach((line: any) => line.series ? chartRef.current.chart.removeSeries(line) : candlestickSeries.removePriceLine(line));
+      // Correctly remove previous highlights
+      if (tradeHighlightSeries) {
+          chart.removeSeries(tradeHighlightSeries);
+          chartRef.current.tradeHighlightSeries = null;
+      }
+      tradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
       chartRef.current.tradePriceLines = [];
 
       if (highlightedTrade) {
           const isMatchedGridTrade = 'buy' in highlightedTrade && 'sell' in highlightedTrade;
           
-          let entryTime, exitTime, entryPrice, exitPrice, type;
+          let entryTime: number, exitTime: number, entryPrice: number, exitPrice: number, type: 'long' | 'short';
+
           if (isMatchedGridTrade) {
               const trade = highlightedTrade as MatchedGridTrade;
               entryTime = trade.buy.time;
               exitTime = trade.sell.time;
               entryPrice = trade.buy.price;
               exitPrice = trade.sell.price;
-              type = 'long'; // Grid trades are effectively long
+              type = 'long';
           } else {
               const trade = highlightedTrade as BacktestResult;
               entryTime = trade.entryTime;
@@ -336,8 +342,7 @@ export function TradingChart({
               type = trade.type;
           }
           
-          // Safeguard against invalid time values
-          if (typeof entryTime !== 'number' || typeof exitTime !== 'number') {
+          if (typeof entryTime !== 'number' || typeof exitTime !== 'number' || isNaN(entryTime) || isNaN(exitTime)) {
             console.warn("Skipping trade highlight due to invalid time values", highlightedTrade);
             return;
           }
@@ -352,25 +357,44 @@ export function TradingChart({
           
           chartRef.current.tradePriceLines = newLines;
 
-          chartRef.current.chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
+          chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
           
-          const highlightColor = type === 'long' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)';
+          const highlightColor = type === 'long' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(168, 85, 247, 0.2)';
           
-          const highlightSeries = chartRef.current.chart.addLineSeries({
+          const newHighlightSeries = chart.addAreaSeries({
               priceScaleId: 'left',
-              color: highlightColor,
-              lineWidth: 100, 
+              lineColor: 'transparent',
+              topColor: highlightColor,
+              bottomColor: highlightColor,
               lastValueVisible: false,
               priceLineVisible: false,
               crosshairMarkerVisible: false,
           });
           
-          highlightSeries.setData([
-              { time: fromTime, value: (entryPrice + exitPrice) / 2 },
-              { time: toTime, value: (entryPrice + exitPrice) / 2 },
-          ]);
+          const highlightData = [
+              { time: fromTime, value: Math.max(entryPrice, exitPrice) },
+              { time: toTime, value: Math.max(entryPrice, exitPrice) }
+          ];
+          newHighlightSeries.setData(highlightData);
           
-          chartRef.current.tradePriceLines.push(highlightSeries);
+          // A second series for the bottom line of the area
+          const baselineSeries = chart.addAreaSeries({
+              priceScaleId: 'left',
+              lineColor: 'transparent',
+              topColor: 'transparent',
+              bottomColor: 'transparent', // Make it invisible
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: false,
+          });
+          baselineSeries.setData([
+              { time: fromTime, value: Math.min(entryPrice, exitPrice) },
+              { time: toTime, value: Math.min(entryPrice, exitPrice) }
+          ]);
+          newHighlightSeries.setBaseline(baselineSeries);
+
+
+          chartRef.current.tradeHighlightSeries = newHighlightSeries;
       }
   }, [highlightedTrade, combinedData, interval]);
 
