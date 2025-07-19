@@ -2,8 +2,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration is read from environment variables
 const firebaseConfig = {
@@ -18,10 +16,10 @@ const firebaseConfig = {
 let app: FirebaseApp | null = null;
 let auth: ReturnType<typeof getAuth> | null = null;
 
-// Check if all required config values are present and not placeholders
+// Check if all required config values are present and are not placeholders
 const hasValidConfig =
   firebaseConfig.apiKey &&
-  !firebaseConfig.apiKey.startsWith("NEXT_PUBLIC_") &&
+  !firebaseConfig.apiKey.includes("NEXT_PUBLIC_") &&
   firebaseConfig.authDomain &&
   firebaseConfig.projectId;
 
@@ -31,6 +29,8 @@ if (hasValidConfig) {
       app = initializeApp(firebaseConfig);
     } catch (e) {
       console.error("Firebase initialization failed:", e);
+      // Ensure app is null if initialization fails
+      app = null;
     }
   } else {
     app = getApps()[0];
