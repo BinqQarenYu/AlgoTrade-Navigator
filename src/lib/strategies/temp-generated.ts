@@ -1,6 +1,7 @@
+
 // This file is a placeholder for dynamically generated strategies.
-// It is NOT imported by default to prevent build errors. The backtest page
-// will load the strategy from localStorage when needed.
+// The functionality related to this has been removed for the V1 release
+// to simplify the codebase and will be re-introduced later.
 
 import type { Strategy } from '@/lib/types';
 

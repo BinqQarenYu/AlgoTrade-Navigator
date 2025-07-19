@@ -89,9 +89,9 @@ export default function DashboardPage() {
       {isTradingActive && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
-            <AlertTitle>Trading Session Active</AlertTitle>
+            <AlertTitle>Live Bot Session Active</AlertTitle>
             <AlertDescription>
-                Live data fetching on the dashboard is paused to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link> or <Link href="/manual" className="font-bold underline">Manual</Link> pages.
+                Dashboard data is paused to prioritize live trading. Check the <Link href="/live" className="font-bold underline">Live Trading</Link> or <Link href="/manual" className="font-bold underline">Manual Trading</Link> pages for real-time updates.
             </AlertDescription>
         </Alert>
       )}

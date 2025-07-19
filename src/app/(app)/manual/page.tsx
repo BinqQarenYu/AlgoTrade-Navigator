@@ -160,8 +160,6 @@ const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onRes
                 <DisciplineSettings
                     params={params.discipline || defaultAwesomeOscillatorParams.discipline}
                     onParamChange={onDisciplineChange}
-                    isCollapsed={isDisciplineOpen}
-                    onCollapseChange={setIsDisciplineOpen}
                     isDisabled={isTradingActive}
                 />
 
@@ -182,7 +180,7 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
         running: {
             color: 'bg-blue-600 hover:bg-blue-600',
             icon: Bot,
-            text: 'Running',
+            text: 'Monitoring',
             tooltip: 'The bot is actively monitoring the market for a new trade signal.'
         },
         analyzing: {
@@ -239,7 +237,7 @@ StatusBadge.displayName = 'StatusBadge';
 
 export default function ManualTradingPage() {
     const { toast } = useToast();
-    const { isConnected, activeProfile } = useApi();
+    const { isConnected } = useApi();
     const { 
         startBotInstance, 
         stopBotInstance, 
@@ -353,13 +351,14 @@ export default function ManualTradingPage() {
             {isConnected ? (
                 <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
                     <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>CONNECTED</AlertTitle>
+                    <AlertTitle>API Connected</AlertTitle>
                     <AlertDescription>
                         You are connected to the Binance API. Signal monitoring is enabled.
                     </AlertDescription>
                 </Alert>
             ) : (
                 <Alert variant="destructive">
+                    <AlertTitle>API Disconnected</AlertTitle>
                     <AlertDescription>
                         Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable signal monitoring.
                     </AlertDescription>
@@ -386,7 +385,7 @@ export default function ManualTradingPage() {
                                     <TableHead className="w-[50px]">#</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
-                                    <TableHead>Entry/Exit</TableHead>
+                                    <TableHead>Signal Details (Entry/SL/TP)</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
                                     <TableHead>Interval</TableHead>
@@ -482,7 +481,7 @@ const BotInstanceRow = memo(({
                                 {lastSignal.action === 'UP' ? <TrendingUp className="mr-1 h-3 w-3"/> : <TrendingDown className="mr-1 h-3 w-3"/>}
                                 {formatPrice(lastSignal.entryPrice)}
                             </span>
-                            <span className="text-muted-foreground">{formatPrice(lastSignal.takeProfit)} / {formatPrice(lastSignal.stopLoss)}</span>
+                            <span className="text-muted-foreground">{formatPrice(lastSignal.stopLoss)} / {formatPrice(lastSignal.takeProfit)}</span>
                         </div>
                     ) : <span className="text-xs text-muted-foreground">--</span>}
                 </TableCell>
@@ -564,7 +563,7 @@ const BotInstanceRow = memo(({
                                             disabled={!isConnected}
                                         >
                                             {isBotRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
-                                            {isBotRunning ? 'Stop' : 'Start'}
+                                            {isBotRunning ? 'Stop Monitor' : 'Start Monitor'}
                                         </Button>
                                     </div>
                                 </TooltipTrigger>

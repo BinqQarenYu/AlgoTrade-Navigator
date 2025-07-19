@@ -59,7 +59,7 @@ import {
 import { TradeHistory } from "@/components/dashboard/trade-history"
 import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
-import tempGeneratedStrategy from '@/lib/strategies/temp-generated';
+import { usePersistentState } from "@/hooks/use-persistent-state"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -181,48 +181,6 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     return combinations;
 }
 
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item && item !== "undefined") {
-        const parsed = JSON.parse(item);
-        if (key.endsWith('-date-range') && parsed) {
-          if (parsed.from) parsed.from = new Date(parsed.from);
-          if (parsed.to) parsed.to = new Date(parsed.to);
-        }
-        if (isMounted) {
-          setState(parsed);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state for key:', key, e);
-      localStorage.removeItem(key);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      if (state !== undefined) {
-        window.localStorage.setItem(key, JSON.stringify(state));
-      } else {
-        window.localStorage.removeItem(key);
-      }
-    }
-  }, [key, state, isHydrated]);
-
-  return [isHydrated ? state : defaultValue, setState];
-};
-
 const BacktestPageContent = () => {
   const { toast } = useToast()
   const router = useRouter();
@@ -232,58 +190,7 @@ const BacktestPageContent = () => {
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
   const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
-  const [generatedStrategy, setGeneratedStrategy] = useState<Strategy | null>(null);
-
-  const getStrategyById = useCallback((id: string): Strategy | undefined => {
-    if (generatedStrategy && id === generatedStrategy.id) {
-        return generatedStrategy;
-    }
-    return getStaticStrategyById(id);
-  }, [generatedStrategy]);
-
-  useEffect(() => {
-    const strategyId = searchParams.get('strategy');
-    if (strategyId === 'temp-generated') {
-      const storedStrategyData = localStorage.getItem('tempGeneratedStrategy');
-      if (storedStrategyData) {
-        try {
-          const parsed = JSON.parse(storedStrategyData);
-          
-          // Reconstruct the calculate function. This is a security risk in a real app,
-          // but acceptable for this sandboxed environment.
-          const calculateFn = new Function('data', 'params', `return (async () => { ${parsed.code} })()`);
-
-          const newStrategy: Strategy = {
-            id: parsed.fileName.replace('.ts', ''),
-            name: parsed.displayName,
-            description: parsed.config.description,
-            calculate: calculateFn as any,
-          };
-          
-          setGeneratedStrategy(newStrategy);
-          setActiveStrategies(prev => [
-            { id: newStrategy.id, name: newStrategy.name },
-            ...prev.filter(s => s.id !== newStrategy.id)
-          ]);
-          setSelectedStrategy(newStrategy.id);
-          // Set the params for the newly loaded strategy
-          setStrategyParams(prev => ({
-              ...prev,
-              [newStrategy.id]: parsed.config
-          }));
-          
-          toast({ title: 'Generated Strategy Loaded', description: `Ready to backtest "${newStrategy.name}".`});
-
-        } catch (e) {
-          console.error("Failed to load generated strategy:", e);
-          toast({ title: 'Load Failed', description: 'Could not load the generated strategy from storage.', variant: 'destructive'});
-        } finally {
-            localStorage.removeItem('tempGeneratedStrategy');
-        }
-      }
-    }
-  }, [searchParams, toast, setStrategyParams]);
-
+  const getStrategyById = getStaticStrategyById;
 
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");

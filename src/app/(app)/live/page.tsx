@@ -372,13 +372,14 @@ export default function LiveTradingPage() {
             {isConnected ? (
                 <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
                     <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>CONNECTED</AlertTitle>
+                    <AlertTitle>API Connected</AlertTitle>
                     <AlertDescription>
                         You are connected to the Binance API. Live trading features are enabled.
                     </AlertDescription>
                 </Alert>
             ) : (
                 <Alert variant="destructive">
+                    <AlertTitle>API Disconnected</AlertTitle>
                     <AlertDescription>
                         Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable live trading features.
                     </AlertDescription>
