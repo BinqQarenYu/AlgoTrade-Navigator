@@ -1,6 +1,4 @@
 
-'use server';
-
 import type { BacktestSummary } from '../types';
 
 export interface OverfittingResult {
