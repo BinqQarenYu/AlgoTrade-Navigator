@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -237,6 +236,7 @@ const BacktestPageContent = () => {
   const [isBacktesting, setIsBacktesting] = useState(false)
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isProjecting, setIsProjecting] = useState(false);
+  const [isTestingOnProjection, setIsTestingOnProjection] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
   
@@ -869,7 +869,7 @@ const BacktestPageContent = () => {
     };
   }, [isPlaying, isReplaying, replaySpeed]);
   
-  const anyLoading = isBacktesting || isFetchingData || isOptimizing || isProjecting;
+  const anyLoading = isBacktesting || isFetchingData || isOptimizing || isProjecting || isTestingOnProjection;
 
   const handleIntervalChange = (newInterval: string) => {
     setInterval(newInterval);
@@ -930,7 +930,7 @@ const BacktestPageContent = () => {
     })
   }
 
-  const handleProjectAndTest = async () => {
+  const handleGenerateProjection = () => {
     if (fullChartData.length === 0) {
       toast({ title: "No Data", description: "Please load market data before projecting.", variant: "destructive" });
       return;
@@ -942,31 +942,11 @@ const BacktestPageContent = () => {
     toast({ title: "Generating Projection..." });
 
     // Use a timeout to allow the UI to update before the potentially blocking generation starts
-    setTimeout(async () => {
+    setTimeout(() => {
       try {
         const newProjectedCandles = generateProjectedCandles(fullChartData, projectionMode, projectionDuration, interval);
-        
-        const strategyToTest = getStrategyById(selectedStrategy);
-        if (!strategyToTest) {
-            setProjectedData(newProjectedCandles);
-            toast({ title: "Projection Generated", description: "No strategy selected to forward-test." });
-            setIsProjecting(false);
-            return;
-        }
-
-        const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: false }; // Forward test always uses standard logic
-        
-        const { summary: fwdSummary, trades: fwdTrades, dataWithSignals: fwdData } = await runSilentBacktest(newProjectedCandles, {
-            strategyId: selectedStrategy,
-            strategyParams: paramsForStrategy,
-            initialCapital, leverage, takeProfit, stopLoss, fee, symbol
-        });
-        
-        setProjectedData(fwdData);
-        setForwardTestTrades(fwdTrades);
-        setForwardTestSummary(fwdSummary);
-        
-        toast({ title: "Forward Test Complete", description: "Strategy performance on the projected data is now available." });
+        setProjectedData(newProjectedCandles);
+        toast({ title: "Projection Generated", description: "Hypothetical future candles added to chart." });
       } catch (e: any) {
         toast({ title: "Projection Failed", description: e.message, variant: "destructive" });
       } finally {
@@ -975,6 +955,51 @@ const BacktestPageContent = () => {
     }, 50);
   };
   
+  const handleTestOnProjection = async () => {
+      if (projectedData.length === 0) {
+        toast({ title: "No Projection Data", description: "Please generate a projection before testing.", variant: "destructive" });
+        return;
+      }
+
+      setIsTestingOnProjection(true);
+      setForwardTestSummary(null);
+      setForwardTestTrades([]);
+      toast({ title: "Forward Test Started..." });
+      
+       setTimeout(async () => {
+          try {
+            const strategyToTest = getStrategyById(selectedStrategy);
+            if (!strategyToTest) {
+                toast({ title: "No Strategy Selected", description: "Please select a strategy to test.", variant: "destructive" });
+                setIsTestingOnProjection(false);
+                return;
+            }
+
+            const paramsForStrategy = { ...(strategyParams[selectedStrategy] || {}), reverse: false }; // Forward test always uses standard logic
+            
+            const { summary: fwdSummary, trades: fwdTrades, dataWithSignals: fwdData } = await runSilentBacktest(projectedData, {
+                strategyId: selectedStrategy,
+                strategyParams: paramsForStrategy,
+                initialCapital, leverage, takeProfit, stopLoss, fee, symbol
+            });
+            
+            // Update the projected data with the signals from the test
+            const originalDataLength = fullChartData.length;
+            const updatedProjectedData = fwdData.slice(originalDataLength);
+            setProjectedData(fwdData); // Update the state with data including signals
+
+            setForwardTestTrades(fwdTrades);
+            setForwardTestSummary(fwdSummary);
+            
+            toast({ title: "Forward Test Complete", description: "Strategy performance on the projected data is now available." });
+          } catch (e: any) {
+            toast({ title: "Forward Test Failed", description: e.message, variant: "destructive" });
+          } finally {
+            setIsTestingOnProjection(false);
+          }
+       }, 50);
+  };
+
   const handleClearProjection = () => {
     setProjectedData([]);
     setForwardTestSummary(null);
@@ -1323,7 +1348,7 @@ const BacktestPageContent = () => {
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={() => { setIsConfirming(false); runBacktest(); }}>
-                    Confirm & Run
+                    Confirm &amp; Run
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
@@ -1668,7 +1693,7 @@ const BacktestPageContent = () => {
 
         <Card>
             <CardHeader>
-                <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
+                <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp;amp; Forward Testing</CardTitle>
                 <CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1693,10 +1718,16 @@ const BacktestPageContent = () => {
                 </div>
             </CardContent>
             <CardFooter className="flex-col gap-2">
-                <Button className="w-full" onClick={handleProjectAndTest} disabled={anyLoading || fullChartData.length === 0}>
-                    {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                    {isProjecting ? 'Generating...' : 'Project & Test'}
-                </Button>
+                 <div className="flex w-full gap-2">
+                    <Button className="w-full" onClick={handleGenerateProjection} disabled={anyLoading || fullChartData.length === 0}>
+                        {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                        {isProjecting ? 'Generating...' : 'Generate Projection'}
+                    </Button>
+                     <Button className="w-full" variant="secondary" onClick={handleTestOnProjection} disabled={anyLoading || projectedData.length === 0}>
+                        {isTestingOnProjection ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <TestTube className="mr-2 h-4 w-4" />}
+                        {isTestingOnProjection ? 'Testing...' : 'Test on Projection'}
+                    </Button>
+                </div>
                 <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Clear Projection
