@@ -72,9 +72,6 @@ export function TradingChart({
   showManipulationOverlay = true,
   physicsConfig,
   quantumFieldData = [],
-  showWalls = true,
-  showLiquidity = true,
-  showTargets = true,
 }: { 
   data: HistoricalData[];
   projectedData?: HistoricalData[];
@@ -100,9 +97,6 @@ export function TradingChart({
   showManipulationOverlay?: boolean;
   physicsConfig?: PhysicsChartConfig;
   quantumFieldData?: QuantumFieldData[];
-  showWalls?: boolean;
-  showLiquidity?: boolean;
-  showTargets?: boolean;
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -189,7 +183,7 @@ export function TradingChart({
         });
     });
 
-    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [] };
+    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [] };
     
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainer);
@@ -268,7 +262,7 @@ export function TradingChart({
     
     lastRenderedDataRef.current = uniqueData;
 
-  }, [combinedData, highlightedTrade, showAnalysis]);
+  }, [combinedData, showAnalysis]);
 
   // Effect to draw signal lines
   useEffect(() => {
@@ -298,7 +292,7 @@ export function TradingChart({
     wallPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
     
     const newLines: any[] = [];
-    if (showAnalysis && showWalls && wallLevels?.length > 0) {
+    if (showAnalysis && wallLevels?.length > 0) {
         wallLevels.forEach(wall => {
             const isBid = wall.type === 'bid';
             newLines.push(candlestickSeries.createPriceLine({
@@ -312,7 +306,82 @@ export function TradingChart({
         });
     }
     chartRef.current.wallPriceLines = newLines;
-  }, [wallLevels, showAnalysis, showWalls]);
+  }, [wallLevels, showAnalysis]);
+
+  // Effect to highlight a selected trade from the backtest results
+  useEffect(() => {
+      if (!chartRef.current?.chart || !combinedData) return;
+      const { candlestickSeries, tradePriceLines = [] } = chartRef.current;
+
+      // Clear previous highlight lines
+      tradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
+      chartRef.current.tradePriceLines = [];
+
+      if (highlightedTrade) {
+          const isMatchedGridTrade = 'buy' in highlightedTrade && 'sell' in highlightedTrade;
+          
+          let entryTime, exitTime, entryPrice, exitPrice, type;
+          if (isMatchedGridTrade) {
+              const trade = highlightedTrade as MatchedGridTrade;
+              entryTime = trade.buy.time;
+              exitTime = trade.sell.time;
+              entryPrice = trade.buy.price;
+              exitPrice = trade.sell.price;
+              type = 'long';
+          } else {
+              const trade = highlightedTrade as BacktestResult;
+              entryTime = trade.entryTime;
+              exitTime = trade.exitTime;
+              entryPrice = trade.entryPrice;
+              exitPrice = trade.exitPrice;
+              type = trade.type;
+          }
+
+          const fromTime = toTimestamp(entryTime);
+          const toTime = toTimestamp(exitTime);
+
+          const newLines = [
+              candlestickSeries.createPriceLine({
+                  price: entryPrice,
+                  color: type === 'long' ? '#3b82f6' : '#a855f7',
+                  lineWidth: 1,
+                  lineStyle: LineStyle.Dashed,
+                  axisLabelVisible: true,
+                  title: 'Entry'
+              }),
+              candlestickSeries.createPriceLine({
+                  price: exitPrice,
+                  color: type === 'long' ? '#16a34a' : '#dc2626',
+                  lineWidth: 1,
+                  lineStyle: LineStyle.Dashed,
+                  axisLabelVisible: true,
+                  title: 'Exit'
+              })
+          ];
+          
+          chartRef.current.tradePriceLines = newLines;
+
+          // Pan and zoom to the trade
+          chartRef.current.chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
+          
+          // Add a background highlight for the trade duration
+          // This is a bit of a hack using a thick line series
+          const highlightSeries = chartRef.current.chart.addLineSeries({
+              priceScaleId: 'left',
+              color: 'rgba(139, 92, 246, 0.15)', // A neutral purple highlight
+              lineWidth: 100, // Very thick line to simulate a background
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: false,
+          });
+          highlightSeries.setData([
+              { time: fromTime, value: (entryPrice + exitPrice) / 2 },
+              { time: toTime, value: (entryPrice + exitPrice) / 2 },
+          ]);
+          // Add this to our list of lines to be cleared
+          chartRef.current.tradePriceLines.push(highlightSeries);
+      }
+  }, [highlightedTrade, combinedData, interval]);
 
   const formattedSymbol = useMemo(() => {
     if (!symbol) return 'No Asset Selected';

@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -1359,7 +1360,7 @@ const BacktestPageContent = () => {
       <div className="xl:col-span-3 space-y-6">
         <div className="relative pb-4">
             <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-                <TradingChart data={visibleChartData} projectedData={projectedData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade || selectedForwardTrade} />
+                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade || selectedForwardTrade} />
             </div>
             <div
                 onMouseDown={startChartResize}
