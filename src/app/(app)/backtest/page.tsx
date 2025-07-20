@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -44,7 +44,6 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
-import { RiskGuardian } from "@/lib/risk-guardian"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
@@ -59,6 +58,7 @@ import { usePersistentState } from "@/hooks/use-persistent-state"
 import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfitting-analysis"
 import { generateProjectedCandles } from "@/lib/projection-service"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -263,9 +263,6 @@ const BacktestPageContent = () => {
   const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
   const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
-  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('backtest-controls-open', true);
-  const [isParamsOpen, setParamsOpen] = usePersistentState<boolean>('backtest-params-open', false);
-  const [isDisciplineOpen, setDisciplineOpen] = usePersistentState<boolean>('backtest-discipline-open', false);
   const [isConfirming, setIsConfirming] = useState(false);
   
   // New state for Replay Mode
@@ -275,6 +272,7 @@ const BacktestPageContent = () => {
   const [replaySpeed, setReplaySpeed] = useState(500); // ms per candle. 1000=slow, 500=medium, 200=fast
   const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('backtest-projection-card-open', false);
+  const [activeTab, setActiveTab] = useState("chart");
 
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
@@ -563,8 +561,7 @@ const BacktestPageContent = () => {
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
     const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
-    const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
-
+    
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
@@ -607,8 +604,6 @@ const BacktestPageContent = () => {
             : entryValue - exitValue;
           const netPnl = grossPnl - totalFee;
 
-          riskGuardian.registerTrade(netPnl);
-
           trades.push({
             id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
             pnlPercent: (netPnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
@@ -622,14 +617,6 @@ const BacktestPageContent = () => {
       if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
         
-        const { allowed, reason } = riskGuardian.canTrade();
-        if (!allowed) {
-            if (!contrarian) {
-                toast({ title: "Discipline Action", description: reason, variant: "destructive" });
-            }
-            continue; 
-        }
-
         if (potentialSignal) {
           let isValidSignal = false;
           let prediction: PredictMarketOutput | null = null;
@@ -1343,280 +1330,128 @@ const BacktestPageContent = () => {
     </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 space-y-6">
-        <div className="relative pb-4">
-            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-                <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
-            </div>
-            <div
-                onMouseDown={startChartResize}
-                className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
-            >
-                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
-            </div>
-        </div>
-        {summaryStats && <BacktestResults 
-          results={backtestResults} 
-          summary={summaryStats} 
-          onSelectTrade={setSelectedTrade}
-          selectedTradeId={selectedTrade?.id}
-          outlierTradeIds={outlierTradeIds}
-        />}
-
-        {summaryStats && overfittingResult && (
-            <OverfittingAnalysisCard result={overfittingResult} />
-        )}
-
-        {forwardTestSummary && <BacktestResults 
-            results={forwardTestTrades} 
-            summary={forwardTestSummary} 
-            onSelectTrade={setSelectedForwardTrade}
-            selectedTradeId={selectedForwardTrade?.id}
-            title="Forward Test Report"
-        />}
-
-        {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
-            <BacktestResults 
-                results={contrarianResults || []} 
-                summary={contrarianSummary} 
-                onSelectTrade={() => {}} // Contrarian trades not selectable on chart
-                title="Contrarian Report"
-            />
-        )}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="chart">
+                    <BarChart2 className="mr-2 h-4 w-4"/> Chart
+                </TabsTrigger>
+                <TabsTrigger value="reports">
+                     <TrendingUp className="mr-2 h-4 w-4"/> Reports
+                </TabsTrigger>
+            </TabsList>
+            <TabsContent value="chart" className="mt-4">
+                <div className="relative pb-4">
+                    <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+                        <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
+                    </div>
+                    <div
+                        onMouseDown={startChartResize}
+                        className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+                    >
+                        <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+                    </div>
+                </div>
+            </TabsContent>
+            <TabsContent value="reports" className="mt-4 space-y-4">
+                {summaryStats && <BacktestResults 
+                    results={backtestResults} 
+                    summary={summaryStats} 
+                    onSelectTrade={(trade) => { setSelectedTrade(trade); setActiveTab("chart"); }}
+                    selectedTradeId={selectedTrade?.id}
+                    outlierTradeIds={outlierTradeIds}
+                />}
+                {summaryStats && overfittingResult && (
+                    <OverfittingAnalysisCard result={overfittingResult} />
+                )}
+                {forwardTestSummary && <BacktestResults 
+                    results={forwardTestTrades} 
+                    summary={forwardTestSummary} 
+                    onSelectTrade={(trade) => { setSelectedForwardTrade(trade); setActiveTab("chart"); }}
+                    selectedTradeId={selectedForwardTrade?.id}
+                    title="Forward Test Report"
+                />}
+                {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
+                    <BacktestResults 
+                        results={contrarianResults || []} 
+                        summary={contrarianSummary} 
+                        onSelectTrade={() => {}} // Contrarian trades not selectable
+                        title="Contrarian Report"
+                    />
+                )}
+                 {!summaryStats && (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                        <p>Run a backtest to see reports here.</p>
+                    </div>
+                )}
+            </TabsContent>
+        </Tabs>
       </div>
       <div className="xl:col-span-2 space-y-6">
         <Card>
-          <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Backtest Controls</CardTitle>
-                <CardDescription>Configure your backtesting parameters.</CardDescription>
-              </div>
-              <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
-                      <span className="sr-only">Toggle</span>
-                  </Button>
-              </CollapsibleTrigger>
+            <CardHeader>
+              <CardTitle>Configuration</CardTitle>
+              <CardDescription>Configure your backtesting parameters.</CardDescription>
             </CardHeader>
-            <Separator className="my-0" />
-            <CollapsibleContent>
-              <CardContent className="space-y-4 pt-6">
-                <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={setBaseAsset} value={baseAsset} disabled={!isConnected || anyLoading || isReplaying}>
-                        <SelectTrigger id="base-asset">
-                          <SelectValue placeholder="Select asset" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {topAssets.map(asset => (
-                            <SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker} - {asset.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={!isConnected || anyLoading || availableQuotes.length === 0 || isReplaying}>
-                        <SelectTrigger id="quote-asset">
-                          <SelectValue placeholder="Select asset" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableQuotes.map(asset => (
-                            <SelectItem key={asset} value={asset}>{asset}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                </div>
-
-                 <div className="space-y-2">
-                    <Label>Date range</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !date && "text-muted-foreground"
-                          )}
-                          disabled={anyLoading || isReplaying}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {isClient && date?.from ? (
-                            date.to ? (
-                              <>
-                                {format(date.from, "LLL dd, y")} -{" "}
-                                {format(date.to, "LLL dd, y")}
-                              </>
-                            ) : (
-                              format(date.from, "LLL dd, y")
-                            )
-                          ) : (
-                            <span>Pick a date range</span>
-                          )}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto flex p-0" align="start">
-                         <Calendar
-                          initialFocus
-                          mode="range"
-                          defaultMonth={date?.from}
-                          selected={date}
-                          onSelect={setDate}
-                          numberOfMonths={1}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                <div className="space-y-2">
-                    <Label htmlFor="strategy">Strategy</Label>
-                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading || isReplaying}>
-                        <SelectTrigger id="strategy">
-                        <SelectValue placeholder="Select strategy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                        <SelectItem value="none">None (Candles Only)</SelectItem>
-                        {activeStrategies.map(strategy => (
-                            <SelectItem key={strategy.id} value={strategy.id}>{strategy.name}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                    {selectedStrategy !== 'none' && (
-                        <div className="flex flex-wrap gap-1 pt-1">
-                            {(strategyIndicatorMap[selectedStrategy] || []).map(indicator => (
-                                <Badge key={indicator} variant="secondary">{indicator}</Badge>
-                            ))}
+             <CardContent>
+                <Tabs defaultValue="strategy" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="strategy"><BrainCircuit/>Strategy</TabsTrigger>
+                        <TabsTrigger value="core"><Settings/>Core</TabsTrigger>
+                        <TabsTrigger value="risk"><ShieldCheck/>Risk & AI</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="strategy" className="pt-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="base-asset">Asset</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <Select onValueChange={setBaseAsset} value={baseAsset} disabled={anyLoading}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
+                                </Select>
+                                <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0}>
+                                    <SelectTrigger><SelectValue/></SelectTrigger>
+                                    <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                    )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="interval">Interval</Label>
-                  <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading || isReplaying}>
-                    <SelectTrigger id="interval">
-                      <SelectValue placeholder="Select interval" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1m">1 Minute</SelectItem>
-                      <SelectItem value="5m">5 Minutes</SelectItem>
-                      <SelectItem value="15m">15 Minutes</SelectItem>
-                      <SelectItem value="1h">1 Hour</SelectItem>
-                      <SelectItem value="4h">4 Hours</SelectItem>
-                      <SelectItem value="1d">1 Day</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Collapsible open={isParamsOpen} onOpenChange={setParamsOpen}>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="outline" size="sm" className="w-full">
-                      <BrainCircuit className="mr-2 h-4 w-4" />
-                      <span>Strategy Parameters</span>
-                      <ChevronDown className={cn("ml-auto h-4 w-4 transition-transform", isParamsOpen && "rotate-180")} />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="p-4 border rounded-md bg-muted/50 space-y-4">
-                    {renderParameterControls()}
-                  </CollapsibleContent>
-                </Collapsible>
-                
-                 <DisciplineSettings 
-                    params={strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams}
-                    onParamChange={handleDisciplineParamChange}
-                    isDisabled={anyLoading || isReplaying}
-                />
-                
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="initial-capital">Initial Capital ($)</Label>
-                        <Input 
-                            id="initial-capital" 
-                            type="number" 
-                            value={initialCapital}
-                            onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)}
-                            placeholder="10000"
-                            disabled={anyLoading || isReplaying}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="leverage">Leverage (x)</Label>
-                        <Input 
-                            id="leverage" 
-                            type="number" 
-                            value={leverage}
-                            onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)}
-                            placeholder="10"
-                            min="1"
-                            disabled={anyLoading || isReplaying}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="fee">Fee (%)</Label>
-                        <Input 
-                            id="fee" 
-                            type="number" 
-                            value={fee}
-                            onChange={(e) => setFee(parseFloat(e.target.value) || 0)}
-                            placeholder="0.04"
-                            disabled={anyLoading || isReplaying}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="take-profit">Take Profit (%)</Label>
-                        <Input 
-                            id="take-profit" 
-                            type="number" 
-                            value={takeProfit}
-                            onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)}
-                            placeholder="5"
-                            disabled={anyLoading || isReplaying}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="stop-loss">Stop Loss (%)</Label>
-                        <Input 
-                            id="stop-loss" 
-                            type="number" 
-                            value={stopLoss}
-                            onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)}
-                            placeholder="2"
-                            disabled={anyLoading || isReplaying}
-                        />
-                    </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Analysis Tools</Label>
-                  <div className="p-3 border rounded-md bg-muted/50 space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading || isReplaying || selectedStrategy === 'code-based-consensus'} />
-                        <div className="flex flex-col">
-                            <Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label>
+                        <div className="space-y-2">
+                            <Label htmlFor="interval">Interval</Label>
+                            <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}><SelectTrigger id="interval"><SelectValue/></SelectTrigger>
+                                <SelectContent><SelectItem value="1m">1m</SelectItem><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem><SelectItem value="1d">1d</SelectItem></SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="strategy">Strategy</Label>
+                            <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                                <SelectContent>{activeStrategies.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
+                            </Select>
+                        </div>
+                        {renderParameterControls()}
+                    </TabsContent>
+                    <TabsContent value="core" className="pt-4 space-y-4">
+                        <div className="space-y-2">
+                            <Label>Date Range</Label>
+                            <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!date && "text-muted-foreground")} disabled={anyLoading}><CalendarIcon className="mr-2 h-4 w-4"/>{isClient && date?.from?(date.to?(`${format(date.from,"LLL dd, y")} - ${format(date.to,"LLL dd, y")}`):format(date.from,"LLL dd, y")):<span>Pick a date range</span>}</Button></PopoverTrigger><PopoverContent className="w-auto flex p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1}/></PopoverContent></Popover>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2"><Label htmlFor="initial-capital">Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={e=>setInitialCapital(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                            <div className="space-y-2"><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" value={leverage} onChange={e=>setLeverage(parseInt(e.target.value,10)||1)} disabled={anyLoading}/></div>
+                            <div className="space-y-2"><Label htmlFor="take-profit">Take Profit (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={e=>setTakeProfit(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                            <div className="space-y-2"><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={e=>setStopLoss(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                        </div>
+                         <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                    </TabsContent>
+                    <TabsContent value="risk" className="pt-4 space-y-4">
+                        <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline||defaultDisciplineParams} onParamChange={handleDisciplineParamChange} isDisabled={anyLoading}/>
+                        <Separator/>
+                        <div className="space-y-2">
+                            <div className="flex items-center space-x-2"><Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading||selectedStrategy==='code-based-consensus'}/><Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label></div>
                             <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
                         </div>
-                      </div>
-                      {useAIValidation && (
-                          <>
-                              <div className="border-b -mx-3"></div>
-                              <div className="space-y-2 pt-4">
-                              <Label htmlFor="max-ai-validations">Max Validations Per Run</Label>
-                              <Input 
-                                  id="max-ai-validations" 
-                                  type="number" 
-                                  value={maxAiValidations}
-                                  onChange={(e) => setMaxAiValidations(parseInt(e.target.value, 10) || 0)}
-                                  placeholder="20"
-                                  disabled={anyLoading || isReplaying}
-                              />
-                              <p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p>
-                              </div>
-                          </>
-                      )}
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="flex-col gap-2">
+                        {useAIValidation && <div className="space-y-2 pl-2"><Label htmlFor="max-ai-validations">Max Validations Per Run</Label><Input id="max-ai-validations" type="number" value={maxAiValidations} onChange={e=>setMaxAiValidations(parseInt(e.target.value,10)||0)} disabled={anyLoading}/><p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p></div>}
+                    </TabsContent>
+                </Tabs>
+             </CardContent>
+             <CardFooter className="flex-col gap-2">
                 <div className="flex w-full gap-2">
                   <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
                     {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1625,23 +1460,13 @@ const BacktestPageContent = () => {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button className="w-full" variant="secondary" disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
-                          <Send className="mr-2 h-4 w-4"/>
-                          Export Strategy
+                          <Send className="mr-2 h-4 w-4"/>Export
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleExport('live')}>
-                        <Bot className="mr-2 h-4 w-4"/>
-                        Export to Live Trading
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport('manual')}>
-                        <Bot className="mr-2 h-4 w-4"/>
-                        Export to Manual Trading
-                      </DropdownMenuItem>
-                       <DropdownMenuItem onClick={() => handleExport('simulation')}>
-                        <TestTube className="mr-2 h-4 w-4"/>
-                        Export to Paper Trading
-                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('live')}><Bot className="mr-2 h-4 w-4"/>To Live Trading</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleExport('manual')}><Bot className="mr-2 h-4 w-4"/>To Manual Trading</DropdownMenuItem>
+                       <DropdownMenuItem onClick={() => handleExport('simulation')}><TestTube className="mr-2 h-4 w-4"/>To Paper Trading</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -1651,89 +1476,33 @@ const BacktestPageContent = () => {
                         {isReplaying ? "View Full Report" : "Start Replay"}
                     </Button>
                     <Button className="w-full" variant="destructive" onClick={handleClearReport} disabled={anyLoading || !summaryStats}>
-                        <Trash2 className="mr-2 h-4 w-4"/>
-                        Clear Report
+                        <Trash2 className="mr-2 h-4 w-4"/>Clear Report
                     </Button>
                 </div>
-                 {isReplaying && (
-                    <Card>
-                        <CardHeader className="p-4">
-                            <CardTitle className="text-base">Replay Controls ({replayIndex + 1} / {fullChartData.length})</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 space-y-4">
-                            <div className="flex items-center justify-center gap-2">
-                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
-                                <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
-                            </div>
-                            <div className="flex items-center justify-center gap-2">
-                              <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
-                              <Button size="sm" variant={replaySpeed === 500 ? 'default' : 'outline'} onClick={() => setReplaySpeed(500)}>Medium</Button>
-                              <Button size="sm" variant={replaySpeed === 200 ? 'default' : 'outline'} onClick={() => setReplaySpeed(200)}>Fast</Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
-              </CardFooter>
-            </CollapsibleContent>
-          </Collapsible>
+             </CardFooter>
         </Card>
 
         <Card>
             <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle>
-                        <CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription>
-                    </div>
-                     <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} />
-                        </Button>
-                    </CollapsibleTrigger>
+                    <div><CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle><CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription></div>
+                     <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent className="space-y-4">
-                        <div>
-                            <Label>Projection Mode</Label>
-                            <RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}>
-                                <div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2 font-semibold">Frankenstein (Recommended)</Label></div>
-                                <div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div>
-                                <div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div>
-                                <div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div>
-                                <div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div>
-                            </RadioGroup>
-                        </div>
-                        <div>
-                            <Label>Projection Duration</Label>
-                            <RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-4 gap-2 mt-2" disabled={isProjecting}>
-                                <div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1D</Label></div>
-                                <div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3D</Label></div>
-                                <div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7D</Label></div>
-                                <div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1M</Label></div>
-                            </RadioGroup>
-                        </div>
+                        <div><Label>Projection Mode</Label><RadioGroup value={projectionMode} onValueChange={(v) => setProjectionMode(v as any)} className="grid grid-cols-2 gap-4 mt-2" disabled={isProjecting}><div className="col-span-2"><RadioGroupItem value="frankenstein" id="frankenstein" /><Label htmlFor="frankenstein" className="ml-2 font-semibold">Frankenstein (Recommended)</Label></div><div><RadioGroupItem value="upward" id="upward" /><Label htmlFor="upward" className="ml-2">Upward Trend</Label></div><div><RadioGroupItem value="downward" id="downward" /><Label htmlFor="downward" className="ml-2">Downward Trend</Label></div><div><RadioGroupItem value="neutral" id="neutral" /><Label htmlFor="neutral" className="ml-2">Neutral</Label></div><div><RadioGroupItem value="random" id="random" /><Label htmlFor="random" className="ml-2">Random</Label></div></RadioGroup></div>
+                        <div><Label>Projection Duration</Label><RadioGroup value={projectionDuration} onValueChange={(v) => setProjectionDuration(v as any)} className="grid grid-cols-4 gap-2 mt-2" disabled={isProjecting}><div><RadioGroupItem value="1d" id="1d" /><Label htmlFor="1d" className="ml-2">1D</Label></div><div><RadioGroupItem value="3d" id="3d" /><Label htmlFor="3d" className="ml-2">3D</Label></div><div><RadioGroupItem value="7d" id="7d" /><Label htmlFor="7d" className="ml-2">7D</Label></div><div><RadioGroupItem value="1m" id="1m" /><Label htmlFor="1m" className="ml-2">1M</Label></div></RadioGroup></div>
                     </CardContent>
                     <CardFooter className="flex-col gap-2">
                         <div className="flex w-full gap-2">
-                            <Button className="w-full" onClick={handleGenerateProjection} disabled={anyLoading || fullChartData.length === 0}>
-                                {isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
-                                {isProjecting ? 'Generating...' : 'Generate Projection'}
-                            </Button>
-                            <Button className="w-full" variant="secondary" onClick={handleTestOnProjection} disabled={anyLoading || projectedData.length === 0}>
-                                {isTestingOnProjection ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <TestTube className="mr-2 h-4 w-4" />}
-                                {isTestingOnProjection ? 'Testing...' : 'Test on Projection'}
-                            </Button>
+                            <Button className="w-full" onClick={handleGenerateProjection} disabled={anyLoading || fullChartData.length === 0}>{isProjecting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{isProjecting ? 'Generating...' : 'Generate Projection'}</Button>
+                            <Button className="w-full" variant="secondary" onClick={handleTestOnProjection} disabled={anyLoading || projectedData.length === 0}>{isTestingOnProjection ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <TestTube className="mr-2 h-4 w-4" />}{isTestingOnProjection ? 'Testing...' : 'Test on Projection'}</Button>
                         </div>
-                        <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}>
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Clear Projection
-                        </Button>
+                        <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}><Trash2 className="mr-2 h-4 w-4" />Clear Projection</Button>
                     </CardFooter>
                 </CollapsibleContent>
             </Collapsible>
         </Card>
-
       </div>
     </div>
     </div>
