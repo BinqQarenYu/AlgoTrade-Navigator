@@ -32,7 +32,6 @@ import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
 import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
 import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
 import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
-import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
@@ -115,7 +114,6 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'parabolic-sar-flip': defaultParabolicSarFlipParams,
     'peak-formation-fib': defaultPffParams,
     'pivot-point-reversal': defaultPivotPointReversalParams,
-    'reverse-pff': defaultReversePffParams,
     'rsi-divergence': defaultRsiDivergenceParams,
     'sma-crossover': defaultSmaCrossoverParams,
     'stochastic-crossover': defaultStochasticCrossoverParams,

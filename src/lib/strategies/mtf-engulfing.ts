@@ -67,7 +67,6 @@ const mtfEngulfingStrategy: Strategy = {
     // Add guard clause to prevent error on empty data
     if (!data || data.length < params.emaLength) return dataWithIndicators;
 
-    // --- FIX START: Fetch HTF data with proper lookback for EMA warm-up ---
     const htfIntervalMap = { '1D': '1d', '4h': '4h', '1h': '1h' } as const;
     const htfBinanceInterval = htfIntervalMap[params.htf];
     const htfIntervalMs = intervalToMs(htfBinanceInterval);
@@ -89,7 +88,6 @@ const mtfEngulfingStrategy: Strategy = {
       console.warn("Could not fetch enough HTF data for MTF Engulfing strategy to warm up EMA.");
       return dataWithIndicators; // Return original data if HTF fetch fails
     }
-    // --- FIX END ---
 
     const htfEmaValues = calculateEMA(htfDataRaw.map(d => d.close), params.emaLength);
     const htfDataWithEma = htfDataRaw.map((d, i) => ({ ...d, ema_long: htfEmaValues[i] }));

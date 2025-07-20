@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -52,7 +53,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { TradeHistory } from "@/components/dashboard/trade-history"
 import { getTradeHistory } from "@/lib/binance-service";
 import { Separator } from "@/components/ui/separator"
 import { usePersistentState } from "@/hooks/use-persistent-state"
@@ -1539,9 +1539,7 @@ const BacktestPageContent = () => {
         </Card>
       </div>
     </div>
-    <div className="mt-6">
-        <TradeHistory trades={tradeHistory} onClear={handleClearTradeHistory} />
-    </div>
+    
     </div>
   )
 }

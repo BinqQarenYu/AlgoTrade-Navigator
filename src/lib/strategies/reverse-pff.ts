@@ -127,14 +127,14 @@ const reversePffStrategy: Strategy = {
                                 const fib618 = pullbackLow + fibRange * params.fibLevel2;
                                 
                                 if (data[l].high >= fib50) {
-                                    if(params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
-                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
+                                    if(params.reverse) dataWithIndicators[l].sellSignal = fib50;
+                                    else dataWithIndicators[l].buySignal = fib50;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
                                 if (data[l].high >= fib618) {
-                                    if(params.reverse) dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
-                                    else dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
+                                     if(params.reverse) dataWithIndicators[l].sellSignal = fib618;
+                                    else dataWithIndicators[l].buySignal = fib618;
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
@@ -182,14 +182,14 @@ const reversePffStrategy: Strategy = {
                                 const fib618 = pullbackHigh - fibRange * params.fibLevel2;
                                  
                                 if (data[l].low <= fib50) {
-                                    if(params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
-                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
+                                    if(params.reverse) dataWithIndicators[l].buySignal = fib50;
+                                    else dataWithIndicators[l].sellSignal = fib50;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                  }
                                  if (data[l].low <= fib618) {
-                                    if(params.reverse) dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
-                                    else dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
+                                    if(params.reverse) dataWithIndicators[l].buySignal = fib618;
+                                    else dataWithIndicators[l].sellSignal = fib618;
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                  }
