@@ -322,7 +322,7 @@ export function TradingChart({
       if (highlightedTrade) {
           const isMatchedGridTrade = 'buy' in highlightedTrade && 'sell' in highlightedTrade;
           
-          let entryTime: number, exitTime: number, entryPrice: number, exitPrice: number, type: 'long' | 'short';
+          let entryTime: number, exitTime: number, entryPrice: number, exitPrice: number, type: 'long' | 'short', sl: number | undefined, tp: number | undefined;
 
           if (isMatchedGridTrade) {
               const trade = highlightedTrade as MatchedGridTrade;
@@ -331,6 +331,8 @@ export function TradingChart({
               entryPrice = trade.buy.price;
               exitPrice = trade.sell.price;
               type = 'long';
+              sl = undefined; // Grid trades don't have a single SL/TP
+              tp = undefined;
           } else {
               const trade = highlightedTrade as BacktestResult;
               if (typeof trade.entryTime !== 'number' || typeof trade.exitTime !== 'number') {
@@ -342,6 +344,8 @@ export function TradingChart({
               entryPrice = trade.entryPrice;
               exitPrice = trade.exitPrice;
               type = trade.type;
+              sl = trade.stopLoss;
+              tp = trade.takeProfit;
           }
           
           if (isNaN(entryTime) || isNaN(exitTime)) {
@@ -357,45 +361,52 @@ export function TradingChart({
               candlestickSeries.createPriceLine({ price: exitPrice, color: type === 'long' ? '#16a34a' : '#dc2626', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Exit' })
           ];
           
+          if (sl !== undefined) {
+             newLines.push(candlestickSeries.createPriceLine({ price: sl, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'SL'}));
+          }
+          if (tp !== undefined) {
+             newLines.push(candlestickSeries.createPriceLine({ price: tp, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'TP'}));
+          }
+          
           chartRef.current.tradePriceLines = newLines;
 
           chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
           
-          const highlightColor = type === 'long' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(168, 85, 247, 0.2)';
+          const highlightColor = 'rgba(59, 130, 246, 0.2)'; // Blueish highlight
           
-          const highlightSeries = chart.addAreaSeries({
+          const newHighlightSeries = chart.addAreaSeries({
               priceScaleId: 'left',
               lineColor: 'transparent',
               topColor: highlightColor,
-              bottomColor: highlightColor,
+              bottomColor: 'transparent', // Only shade the top area
               lastValueVisible: false,
               priceLineVisible: false,
               crosshairMarkerVisible: false,
           });
-          
-          // To create a rectangle, we need to set the area between two price levels.
-          // We can't use setBaseline, so we'll just set a single data range.
-          // The area will be from the value to the bottom of the chart.
-          // To create a bounded box, one would typically use two area series.
-          // For simplicity, we'll use a wide line series as a background. This is a common workaround.
 
-          const newHighlightSeries = chart.addLineSeries({
-            priceScaleId: 'left',
-            color: highlightColor,
-            lineWidth: 50, // This is a trick to make a thick line act as a background
-            lastValueVisible: false,
-            priceLineVisible: false,
-            crosshairMarkerVisible: false,
-          });
-
-          // The line will be drawn at the average price. Its thickness will create the highlight effect.
-          const avgPrice = (entryPrice + exitPrice) / 2;
+          // To create a bounded box, we provide two points for the area series
           newHighlightSeries.setData([
-              { time: fromTime, value: avgPrice },
-              { time: toTime, value: avgPrice },
+              { time: fromTime, value: Math.max(entryPrice, exitPrice) * 1.05 }, // Set top of highlight area
+              { time: toTime, value: Math.max(entryPrice, exitPrice) * 1.05 },
           ]);
+          
+          // And a second series to define the bottom
+          const baselineSeries = chart.addAreaSeries({
+              priceScaleId: 'left',
+              lineColor: 'transparent',
+              topColor: highlightColor,
+              bottomColor: 'transparent',
+              lastValueVisible: false,
+              priceLineVisible: false,
+              crosshairMarkerVisible: false,
+          });
+           baselineSeries.setData([
+              { time: fromTime, value: Math.min(entryPrice, exitPrice) * 0.95 },
+              { time: toTime, value: Math.min(entryPrice, exitPrice) * 0.95 },
+           ]);
 
-          chartRef.current.tradeHighlightSeries = [newHighlightSeries];
+
+          chartRef.current.tradeHighlightSeries = [newHighlightSeries, baselineSeries];
       }
   }, [highlightedTrade, combinedData, interval]);
 
