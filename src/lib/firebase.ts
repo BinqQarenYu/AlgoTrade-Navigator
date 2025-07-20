@@ -1,4 +1,3 @@
-
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 
@@ -24,6 +23,7 @@ export function getFirebaseApp(): FirebaseApp | null {
   if (!hasValidConfig) {
     // This warning is helpful for developers setting up the project for the first time.
     // We can safely return null and the AuthProvider will handle it gracefully.
+    console.warn("Firebase configuration is missing or incomplete. Please check your .env file. Authentication and deployment features will be disabled.");
     return null;
   }
   
