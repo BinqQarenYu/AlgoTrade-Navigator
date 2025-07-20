@@ -44,6 +44,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
+import { RiskGuardian } from "@/lib/risk-guardian"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { format, addDays } from "date-fns"
@@ -563,6 +564,7 @@ const BacktestPageContent = () => {
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
     const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
+    const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
     
     let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
     
@@ -606,6 +608,8 @@ const BacktestPageContent = () => {
             : entryValue - exitValue;
           const netPnl = grossPnl - totalFee;
 
+          riskGuardian.registerTrade(netPnl);
+
           trades.push({
             id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
             pnlPercent: (netPnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
@@ -618,6 +622,15 @@ const BacktestPageContent = () => {
       // --- Entry Logic (Only if not in a position) ---
       if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
+        
+        const { allowed, reason } = riskGuardian.canTrade();
+        if (!allowed && disciplineConfig.enableDiscipline) {
+            // Don't show toast for contrarian run to avoid spam
+            if (!contrarian) {
+                toast({ title: "Discipline Action", description: reason, variant: "destructive" });
+            }
+            continue; 
+        }
         
         if (potentialSignal) {
           let isValidSignal = false;

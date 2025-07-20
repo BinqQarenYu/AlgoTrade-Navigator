@@ -441,12 +441,6 @@ export type GridBacktestSummary = {
     apr: number;
 }
 
-export type Grid = {
-    levels: number[];
-    profitPerGrid: number;
-    quantityPerGrid: number;
-};
-
 export type GridTrade = {
     id: string;
     time: number;
