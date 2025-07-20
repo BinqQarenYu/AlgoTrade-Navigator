@@ -1536,7 +1536,7 @@ const BacktestPageContent = () => {
                     <div className="flex items-center justify-center gap-2">
                         <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
                         <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying}><StepForward/></Button>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
