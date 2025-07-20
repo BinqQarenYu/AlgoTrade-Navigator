@@ -1526,6 +1526,26 @@ const BacktestPageContent = () => {
                 </CollapsibleContent>
             </Card>
         </Collapsible>
+        
+        {isReplaying && (
+            <Card>
+                <CardHeader className="p-4">
+                    <CardTitle className="text-base">Replay Controls ({replayIndex + 1} / {fullChartData.length})</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 space-y-4">
+                    <div className="flex items-center justify-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
+                        <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying || replayIndex >= fullChartData.length -1}><StepForward/></Button>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
+                      <Button size="sm" variant={replaySpeed === 500 ? 'default' : 'outline'} onClick={() => setReplaySpeed(500)}>Medium</Button>
+                      <Button size="sm" variant={replaySpeed === 200 ? 'default' : 'outline'} onClick={() => setReplaySpeed(200)}>Fast</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
 
         <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
             <Card>
