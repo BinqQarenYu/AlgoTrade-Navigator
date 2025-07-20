@@ -273,6 +273,8 @@ const BacktestPageContent = () => {
   const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('backtest-projection-card-open', false);
   const [activeTab, setActiveTab] = useState("chart");
+  const [isConfigOpen, setIsConfigOpen] = usePersistentState<boolean>('backtest-config-open', true);
+  const [isChartOpen, setIsChartOpen] = usePersistentState<boolean>('backtest-chart-open', true);
 
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
@@ -1330,16 +1332,18 @@ const BacktestPageContent = () => {
     </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
       <div className="xl:col-span-3 space-y-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="chart">
-                    <BarChart2 className="mr-2 h-4 w-4"/> Chart
-                </TabsTrigger>
-                <TabsTrigger value="reports">
-                     <TrendingUp className="mr-2 h-4 w-4"/> Reports
-                </TabsTrigger>
-            </TabsList>
-            <TabsContent value="chart" className="mt-4">
+        <Collapsible open={isChartOpen} onOpenChange={setIsChartOpen}>
+            <div className="flex items-center justify-between pb-2">
+                <div className="flex items-center gap-2">
+                    <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isChartOpen && "rotate-180")} />
+                        </Button>
+                    </CollapsibleTrigger>
+                    <h3 className="text-lg font-semibold">Visual Analysis Chart</h3>
+                </div>
+            </div>
+            <CollapsibleContent>
                 <div className="relative pb-4">
                     <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
                         <TradingChart data={visibleChartData} symbol={symbol} interval={interval} onIntervalChange={handleIntervalChange} highlightedTrade={selectedTrade} />
@@ -1351,25 +1355,28 @@ const BacktestPageContent = () => {
                         <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
                     </div>
                 </div>
-            </TabsContent>
+            </CollapsibleContent>
+        </Collapsible>
+        <Tabs defaultValue="reports" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="reports">
+                     <TrendingUp className="mr-2 h-4 w-4"/> Backtest Reports
+                </TabsTrigger>
+                 <TabsTrigger value="forward_test">
+                     <AreaChart className="mr-2 h-4 w-4"/> Forward Test
+                </TabsTrigger>
+            </TabsList>
             <TabsContent value="reports" className="mt-4 space-y-4">
                 {summaryStats && <BacktestResults 
                     results={backtestResults} 
                     summary={summaryStats} 
-                    onSelectTrade={(trade) => { setSelectedTrade(trade); setActiveTab("chart"); }}
+                    onSelectTrade={(trade) => { setSelectedTrade(trade); setIsChartOpen(true); }}
                     selectedTradeId={selectedTrade?.id}
                     outlierTradeIds={outlierTradeIds}
                 />}
                 {summaryStats && overfittingResult && (
                     <OverfittingAnalysisCard result={overfittingResult} />
                 )}
-                {forwardTestSummary && <BacktestResults 
-                    results={forwardTestTrades} 
-                    summary={forwardTestSummary} 
-                    onSelectTrade={(trade) => { setSelectedForwardTrade(trade); setActiveTab("chart"); }}
-                    selectedTradeId={selectedForwardTrade?.id}
-                    title="Forward Test Report"
-                />}
                 {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
                     <BacktestResults 
                         results={contrarianResults || []} 
@@ -1384,106 +1391,131 @@ const BacktestPageContent = () => {
                     </div>
                 )}
             </TabsContent>
+             <TabsContent value="forward_test" className="mt-4 space-y-4">
+                 {forwardTestSummary && <BacktestResults 
+                    results={forwardTestTrades} 
+                    summary={forwardTestSummary} 
+                    onSelectTrade={(trade) => { setSelectedForwardTrade(trade); setIsChartOpen(true); }}
+                    selectedTradeId={selectedForwardTrade?.id}
+                    title="Forward Test Report"
+                />}
+                 {!forwardTestSummary && (
+                    <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
+                        <p>Generate a projection and run a test to see results here.</p>
+                    </div>
+                )}
+             </TabsContent>
         </Tabs>
       </div>
       <div className="xl:col-span-2 space-y-6">
-        <Card>
-            <CardHeader>
-              <CardTitle>Configuration</CardTitle>
-              <CardDescription>Configure your backtesting parameters.</CardDescription>
-            </CardHeader>
-             <CardContent>
-                <Tabs defaultValue="strategy" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="strategy"><BrainCircuit/>Strategy</TabsTrigger>
-                        <TabsTrigger value="core"><Settings/>Core</TabsTrigger>
-                        <TabsTrigger value="risk"><ShieldCheck/>Risk & AI</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="strategy" className="pt-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="base-asset">Asset</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Select onValueChange={setBaseAsset} value={baseAsset} disabled={anyLoading}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
-                                </Select>
-                                <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0}>
-                                    <SelectTrigger><SelectValue/></SelectTrigger>
-                                    <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="interval">Interval</Label>
-                            <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}><SelectTrigger id="interval"><SelectValue/></SelectTrigger>
-                                <SelectContent><SelectItem value="1m">1m</SelectItem><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem><SelectItem value="1d">1d</SelectItem></SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="strategy">Strategy</Label>
-                            <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                                <SelectContent>{activeStrategies.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
-                            </Select>
-                        </div>
-                        {renderParameterControls()}
-                    </TabsContent>
-                    <TabsContent value="core" className="pt-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label>Date Range</Label>
-                            <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!date && "text-muted-foreground")} disabled={anyLoading}><CalendarIcon className="mr-2 h-4 w-4"/>{isClient && date?.from?(date.to?(`${format(date.from,"LLL dd, y")} - ${format(date.to,"LLL dd, y")}`):format(date.from,"LLL dd, y")):<span>Pick a date range</span>}</Button></PopoverTrigger><PopoverContent className="w-auto flex p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1}/></PopoverContent></Popover>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2"><Label htmlFor="initial-capital">Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={e=>setInitialCapital(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
-                            <div className="space-y-2"><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" value={leverage} onChange={e=>setLeverage(parseInt(e.target.value,10)||1)} disabled={anyLoading}/></div>
-                            <div className="space-y-2"><Label htmlFor="take-profit">Take Profit (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={e=>setTakeProfit(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
-                            <div className="space-y-2"><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={e=>setStopLoss(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
-                        </div>
-                         <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
-                    </TabsContent>
-                    <TabsContent value="risk" className="pt-4 space-y-4">
-                        <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline||defaultDisciplineParams} onParamChange={handleDisciplineParamChange} isDisabled={anyLoading}/>
-                        <Separator/>
-                        <div className="space-y-2">
-                            <div className="flex items-center space-x-2"><Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading||selectedStrategy==='code-based-consensus'}/><Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label></div>
-                            <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
-                        </div>
-                        {useAIValidation && <div className="space-y-2 pl-2"><Label htmlFor="max-ai-validations">Max Validations Per Run</Label><Input id="max-ai-validations" type="number" value={maxAiValidations} onChange={e=>setMaxAiValidations(parseInt(e.target.value,10)||0)} disabled={anyLoading}/><p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p></div>}
-                    </TabsContent>
-                </Tabs>
-             </CardContent>
-             <CardFooter className="flex-col gap-2">
-                <div className="flex w-full gap-2">
-                  <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
-                    {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className="w-full" variant="secondary" disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
-                          <Send className="mr-2 h-4 w-4"/>Export
+        <Collapsible open={isConfigOpen} onOpenChange={setIsConfigOpen}>
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Configuration</CardTitle>
+                    <CardDescription>Configure your backtesting parameters.</CardDescription>
+                  </div>
+                   <CollapsibleTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleExport('live')}><Bot className="mr-2 h-4 w-4"/>To Live Trading</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport('manual')}><Bot className="mr-2 h-4 w-4"/>To Manual Trading</DropdownMenuItem>
-                       <DropdownMenuItem onClick={() => handleExport('simulation')}><TestTube className="mr-2 h-4 w-4"/>To Paper Trading</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="flex w-full gap-2">
-                    <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
-                        {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
-                        {isReplaying ? "View Full Report" : "Start Replay"}
-                    </Button>
-                    <Button className="w-full" variant="destructive" onClick={handleClearReport} disabled={anyLoading || !summaryStats}>
-                        <Trash2 className="mr-2 h-4 w-4"/>Clear Report
-                    </Button>
-                </div>
-             </CardFooter>
-        </Card>
+                    </CollapsibleTrigger>
+                </CardHeader>
+                <CollapsibleContent>
+                     <CardContent>
+                        <Tabs defaultValue="strategy" className="w-full">
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="strategy"><BrainCircuit/>Strategy</TabsTrigger>
+                                <TabsTrigger value="core"><Settings/>Core</TabsTrigger>
+                                <TabsTrigger value="risk"><ShieldCheck/>Risk & AI</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="strategy" className="pt-4 space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="base-asset">Asset</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Select onValueChange={setBaseAsset} value={baseAsset} disabled={anyLoading}>
+                                            <SelectTrigger><SelectValue/></SelectTrigger>
+                                            <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
+                                        </Select>
+                                        <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0}>
+                                            <SelectTrigger><SelectValue/></SelectTrigger>
+                                            <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="interval">Interval</Label>
+                                    <Select onValueChange={handleIntervalChange} value={interval} disabled={anyLoading}><SelectTrigger id="interval"><SelectValue/></SelectTrigger>
+                                        <SelectContent><SelectItem value="1m">1m</SelectItem><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem><SelectItem value="1d">1d</SelectItem></SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="strategy">Strategy</Label>
+                                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={anyLoading}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
+                                        <SelectContent>{activeStrategies.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
+                                    </Select>
+                                </div>
+                                {renderParameterControls()}
+                            </TabsContent>
+                            <TabsContent value="core" className="pt-4 space-y-4">
+                                <div className="space-y-2">
+                                    <Label>Date Range</Label>
+                                    <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!date && "text-muted-foreground")} disabled={anyLoading}><CalendarIcon className="mr-2 h-4 w-4"/>{isClient && date?.from?(date.to?(`${format(date.from,"LLL dd, y")} - ${format(date.to,"LLL dd, y")}`):format(date.from,"LLL dd, y")):<span>Pick a date range</span>}</Button></PopoverTrigger><PopoverContent className="w-auto flex p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1}/></PopoverContent></Popover>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2"><Label htmlFor="initial-capital">Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={e=>setInitialCapital(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                    <div className="space-y-2"><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" value={leverage} onChange={e=>setLeverage(parseInt(e.target.value,10)||1)} disabled={anyLoading}/></div>
+                                    <div className="space-y-2"><Label htmlFor="take-profit">Take Profit (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={e=>setTakeProfit(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                    <div className="space-y-2"><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={e=>setStopLoss(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                </div>
+                                 <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                            </TabsContent>
+                            <TabsContent value="risk" className="pt-4 space-y-4">
+                                <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline||defaultDisciplineParams} onParamChange={handleDisciplineParamChange} isDisabled={anyLoading}/>
+                                <Separator/>
+                                <div className="space-y-2">
+                                    <div className="flex items-center space-x-2"><Switch id="ai-validation" checked={useAIValidation} onCheckedChange={setUseAIValidation} disabled={anyLoading||selectedStrategy==='code-based-consensus'}/><Label htmlFor="ai-validation" className="cursor-pointer">Enable AI Validation</Label></div>
+                                    <p className="text-xs text-muted-foreground">Let an AI validate each signal. Slower but more accurate.</p>
+                                </div>
+                                {useAIValidation && <div className="space-y-2 pl-2"><Label htmlFor="max-ai-validations">Max Validations Per Run</Label><Input id="max-ai-validations" type="number" value={maxAiValidations} onChange={e=>setMaxAiValidations(parseInt(e.target.value,10)||0)} disabled={anyLoading}/><p className="text-xs text-muted-foreground">Limits AI calls to prevent exceeding API quotas.</p></div>}
+                            </TabsContent>
+                        </Tabs>
+                     </CardContent>
+                     <CardFooter className="flex-col gap-2">
+                        <div className="flex w-full gap-2">
+                          <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
+                            {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button className="w-full" variant="secondary" disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
+                                  <Send className="mr-2 h-4 w-4"/>Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleExport('live')}><Bot className="mr-2 h-4 w-4"/>To Live Trading</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleExport('manual')}><Bot className="mr-2 h-4 w-4"/>To Manual Trading</DropdownMenuItem>
+                               <DropdownMenuItem onClick={() => handleExport('simulation')}><TestTube className="mr-2 h-4 w-4"/>To Paper Trading</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="flex w-full gap-2">
+                            <Button className="w-full" variant="outline" onClick={isReplaying ? handleStopReplayAndRunBacktest : startReplay} disabled={anyLoading || fullChartData.length < 50}>
+                                {isReplaying ? <History className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                                {isReplaying ? "View Full Report" : "Start Replay"}
+                            </Button>
+                            <Button className="w-full" variant="destructive" onClick={handleClearReport} disabled={anyLoading || !summaryStats}>
+                                <Trash2 className="mr-2 h-4 w-4"/>Clear Report
+                            </Button>
+                        </div>
+                     </CardFooter>
+                </CollapsibleContent>
+            </Card>
+        </Collapsible>
 
-        <Card>
-            <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
+        <Collapsible open={isProjectionCardOpen} onOpenChange={setProjectionCardOpen}>
+            <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div><CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle><CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription></div>
                      <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
@@ -1501,8 +1533,8 @@ const BacktestPageContent = () => {
                         <Button className="w-full" variant="outline" onClick={handleClearProjection} disabled={projectedData.length === 0 || anyLoading}><Trash2 className="mr-2 h-4 w-4" />Clear Projection</Button>
                     </CardFooter>
                 </CollapsibleContent>
-            </Collapsible>
-        </Card>
+            </Card>
+        </Collapsible>
       </div>
     </div>
     </div>
