@@ -183,7 +183,7 @@ export function TradingChart({
         });
     });
 
-    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [], tradeHighlightSeries: [] };
+    chartRef.current = { chart, candlestickSeries, volumeSeries, chartColors, lineSeriesContainer, priceLines: [], tradePriceLines: [] };
     
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(chartContainer);
@@ -200,43 +200,52 @@ export function TradingChart({
   useEffect(() => {
     if (!chartRef.current?.chart || !combinedData) return;
 
-    const { candlestickSeries, volumeSeries, chartColors, lineSeriesContainer } = chartRef.current;
+    const { candlestickSeries, volumeSeries, chartColors } = chartRef.current;
     
     const sortedData = [...combinedData].sort((a, b) => a.time - b.time);
     const uniqueData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time);
     if (uniqueData.length === 0) return;
 
-    const historicalCandles = uniqueData.filter(d => !d.isProjected);
-    const projectedCandles = uniqueData.filter(d => d.isProjected);
-
     const isUpdate = uniqueData.length > 0 && lastRenderedDataRef.current.length > 0 && uniqueData[uniqueData.length - 2]?.time === lastRenderedDataRef.current[lastRenderedDataRef.current.length - 2]?.time;
     
-    const candlestickChartData = uniqueData.map(d => ({ 
-        time: toTimestamp(d.time), 
-        open: d.ha_open ?? d.open, 
-        high: d.ha_high ?? d.high, 
-        low: d.ha_low ?? d.low, 
-        close: d.ha_close ?? d.close, 
-        color: d.isProjected ? 'rgba(139, 92, 246, 0.5)' : undefined,
-        borderColor: d.isProjected ? 'rgba(139, 92, 246, 1)' : undefined,
-        wickColor: d.isProjected ? 'rgba(139, 92, 246, 1)' : undefined,
-    }));
+    const tradeEntryTime = highlightedTrade && 'entryTime' in highlightedTrade ? highlightedTrade.entryTime : (highlightedTrade && 'buy' in highlightedTrade ? highlightedTrade.buy.time : null);
+    const tradeExitTime = highlightedTrade && 'exitTime' in highlightedTrade ? highlightedTrade.exitTime : (highlightedTrade && 'sell' in highlightedTrade ? highlightedTrade.sell.time : null);
+
+    const candlestickChartData = uniqueData.map(d => { 
+        const isHighlighted = tradeEntryTime && tradeExitTime && d.time >= tradeEntryTime && d.time <= tradeExitTime;
+        const color = isHighlighted ? 'rgba(59, 130, 246, 0.8)' : (d.isProjected ? 'rgba(139, 92, 246, 0.5)' : undefined);
+        const wickColor = isHighlighted ? '#3b82f6' : (d.isProjected ? 'rgba(139, 92, 246, 1)' : undefined);
+
+        return { 
+            time: toTimestamp(d.time), 
+            open: d.ha_open ?? d.open, 
+            high: d.ha_high ?? d.high, 
+            low: d.ha_low ?? d.low, 
+            close: d.ha_close ?? d.close, 
+            color: color,
+            borderColor: wickColor,
+            wickColor: wickColor,
+        };
+    });
+
     const volumeChartData = uniqueData.map(d => {
         let isUp = d.close >= d.open;
         if (d.ha_close !== undefined && d.ha_open !== undefined) {
             isUp = d.ha_close >= d.ha_open;
         }
+        const isHighlighted = tradeEntryTime && tradeExitTime && d.time >= tradeEntryTime && d.time <= tradeExitTime;
         return { 
             time: toTimestamp(d.time), 
             value: d.volume, 
-            color: d.isProjected ? 'rgba(107, 114, 128, 0.4)' : (isUp ? chartColors.volumeUpColor : chartColors.volumeDownColor) 
+            color: isHighlighted ? '#3b82f6' : (d.isProjected ? 'rgba(107, 114, 128, 0.4)' : (isUp ? chartColors.volumeUpColor : chartColors.volumeDownColor)) 
         };
     });
     
     candlestickSeries.setData(candlestickChartData);
     volumeSeries.setData(volumeChartData);
-
-    // Dynamically update line series based on available data keys
+    
+    // Series updates remain the same...
+    const { lineSeriesContainer } = chartRef.current;
     Object.keys(lineSeriesContainer).forEach(key => {
         if (showAnalysis && uniqueData.some(d => d[key as keyof HistoricalData] != null)) {
             const lineData = uniqueData
@@ -247,14 +256,14 @@ export function TradingChart({
             lineSeriesContainer[key].setData([]);
         }
     });
-    
+
     const signalMarkers = showAnalysis ? uniqueData.map(d => {
         if (d.buySignal) return { time: toTimestamp(d.time), position: 'belowBar', color: chartColors.barUpColor, shape: 'arrowUp', text: 'Buy' };
         if (d.sellSignal) return { time: toTimestamp(d.time), position: 'aboveBar', color: chartColors.barDownColor, shape: 'arrowDown', text: 'Sell' };
         return null;
     }).filter(Boolean) : [];
     
-    candlestickSeries.setMarkers(signalMarkers);
+    candlestickSeries.setMarkers(signalMarkers as any);
 
     if (!isUpdate) {
       chartRef.current.chart.timeScale().fitContent();
@@ -262,7 +271,7 @@ export function TradingChart({
     
     lastRenderedDataRef.current = uniqueData;
 
-  }, [combinedData, showAnalysis]);
+  }, [combinedData, showAnalysis, highlightedTrade]);
 
   // Effect to draw signal lines
   useEffect(() => {
@@ -311,12 +320,9 @@ export function TradingChart({
   // Effect to highlight a selected trade from the backtest results
   useEffect(() => {
       if (!chartRef.current?.chart || !combinedData) return;
-      const { chart, candlestickSeries, tradePriceLines = [], tradeHighlightSeries = [] } = chartRef.current;
+      const { chart, candlestickSeries, tradePriceLines = [] } = chartRef.current;
 
-      // Correctly remove previous highlights
-      tradeHighlightSeries.forEach((series: any) => chart.removeSeries(series));
       tradePriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
-      chartRef.current.tradeHighlightSeries = [];
       chartRef.current.tradePriceLines = [];
 
       if (highlightedTrade) {
@@ -331,14 +337,11 @@ export function TradingChart({
               entryPrice = trade.buy.price;
               exitPrice = trade.sell.price;
               type = 'long';
-              sl = undefined; // Grid trades don't have a single SL/TP
+              sl = undefined;
               tp = undefined;
           } else {
               const trade = highlightedTrade as BacktestResult;
-              if (typeof trade.entryTime !== 'number' || typeof trade.exitTime !== 'number') {
-                console.warn("Skipping trade highlight due to invalid time values", highlightedTrade);
-                return;
-              }
+              if (typeof trade.entryTime !== 'number' || typeof trade.exitTime !== 'number') return;
               entryTime = trade.entryTime;
               exitTime = trade.exitTime;
               entryPrice = trade.entryPrice;
@@ -348,10 +351,7 @@ export function TradingChart({
               tp = trade.takeProfit;
           }
           
-          if (isNaN(entryTime) || isNaN(exitTime)) {
-            console.warn("Skipping trade highlight due to NaN time values", highlightedTrade);
-            return;
-          }
+          if (isNaN(entryTime) || isNaN(exitTime)) return;
 
           const fromTime = toTimestamp(entryTime);
           const toTime = toTimestamp(exitTime);
@@ -361,52 +361,12 @@ export function TradingChart({
               candlestickSeries.createPriceLine({ price: exitPrice, color: type === 'long' ? '#16a34a' : '#dc2626', lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: 'Exit' })
           ];
           
-          if (sl !== undefined) {
-             newLines.push(candlestickSeries.createPriceLine({ price: sl, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'SL'}));
-          }
-          if (tp !== undefined) {
-             newLines.push(candlestickSeries.createPriceLine({ price: tp, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'TP'}));
-          }
+          if (sl !== undefined) newLines.push(candlestickSeries.createPriceLine({ price: sl, color: '#ef4444', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'SL'}));
+          if (tp !== undefined) newLines.push(candlestickSeries.createPriceLine({ price: tp, color: '#22c55e', lineWidth: 1, lineStyle: LineStyle.Dotted, axisLabelVisible: true, title: 'TP'}));
           
           chartRef.current.tradePriceLines = newLines;
 
           chart.timeScale().setVisibleRange({ from: fromTime - intervalToMs(interval)/1000 * 10, to: toTime + intervalToMs(interval)/1000 * 10 });
-          
-          const highlightColor = 'rgba(59, 130, 246, 0.2)'; // Blueish highlight
-          
-          const newHighlightSeries = chart.addAreaSeries({
-              priceScaleId: 'left',
-              lineColor: 'transparent',
-              topColor: highlightColor,
-              bottomColor: 'transparent', // Only shade the top area
-              lastValueVisible: false,
-              priceLineVisible: false,
-              crosshairMarkerVisible: false,
-          });
-
-          // To create a bounded box, we provide two points for the area series
-          newHighlightSeries.setData([
-              { time: fromTime, value: Math.max(entryPrice, exitPrice) * 1.05 }, // Set top of highlight area
-              { time: toTime, value: Math.max(entryPrice, exitPrice) * 1.05 },
-          ]);
-          
-          // And a second series to define the bottom
-          const baselineSeries = chart.addAreaSeries({
-              priceScaleId: 'left',
-              lineColor: 'transparent',
-              topColor: highlightColor,
-              bottomColor: 'transparent',
-              lastValueVisible: false,
-              priceLineVisible: false,
-              crosshairMarkerVisible: false,
-          });
-           baselineSeries.setData([
-              { time: fromTime, value: Math.min(entryPrice, exitPrice) * 0.95 },
-              { time: toTime, value: Math.min(entryPrice, exitPrice) * 0.95 },
-           ]);
-
-
-          chartRef.current.tradeHighlightSeries = [newHighlightSeries, baselineSeries];
       }
   }, [highlightedTrade, combinedData, interval]);
 
