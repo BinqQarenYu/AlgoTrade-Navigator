@@ -93,10 +93,6 @@ interface BotContextType {
   botInstances: BotInstance[];
   setBotInstances: React.Dispatch<React.SetStateAction<BotInstance[]>>;
   addBotInstance: (config: Partial<LiveBotConfig>) => void;
-  // Config transfer
-  simulationConfigForNextLoad: SimulationConfig | null;
-  setSimulationConfigForNextLoad: (config: Omit<SimulationConfig, 'useAIPrediction' | 'fee'>) => void;
-  clearSimulationConfig: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -189,16 +185,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [isTradingActive, setIsTradingActive] = useState(false);
   const [isAnalysisActive, setIsAnalysisActive] = useState(false);
   const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
-  const [simulationConfigForNextLoad, setSimConfig] = useState<SimulationConfig | null>(null);
   
-  const setSimulationConfigForNextLoad = (config: Omit<SimulationConfig, 'useAIPrediction' | 'fee'>) => {
-    setSimConfig({ ...config, useAIPrediction: false, fee: 0.04 });
-  };
-  
-  const clearSimulationConfig = () => {
-      setSimConfig(null);
-  };
-
   const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
     const newId = `bot_${Date.now()}`;
     const newBot: BotInstance = {
@@ -1109,9 +1096,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       botInstances,
       setBotInstances,
       addBotInstance,
-      simulationConfigForNextLoad,
-      setSimulationConfigForNextLoad,
-      clearSimulationConfig
     }}>
       {children}
     </BotContext.Provider>

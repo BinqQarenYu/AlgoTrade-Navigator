@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -130,8 +129,6 @@ export default function SimulationPage() {
     isTradingActive,
     strategyParams,
     setStrategyParams,
-    simulationConfigForNextLoad,
-    clearSimulationConfig,
   } = useBot();
 
   const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
@@ -164,33 +161,6 @@ export default function SimulationPage() {
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
   
-    // Effect to apply configuration from backtest page
-  useEffect(() => {
-    if (simulationConfigForNextLoad) {
-        const { asset, interval, strategy, strategyParams: params, capital, leverage, takeProfit: tp, stopLoss: sl } = simulationConfigForNextLoad;
-        const parsed = symbol.includes('USDT') ? { base: asset.replace('USDT', ''), quote: 'USDT' } : null;
-        if(parsed) {
-            handleBaseAssetChange(parsed.base);
-            handleQuoteAssetChange(parsed.quote);
-        }
-        setInterval(interval);
-        setSelectedStrategy(strategy);
-        setStrategyParams(prev => ({ ...prev, [strategy]: params }));
-        setInitialCapital(capital);
-        setLeverage(leverage);
-        setTakeProfit(tp);
-        setStopLoss(sl);
-        setUseReverseLogic(params.reverse || false);
-
-        toast({
-            title: "Configuration Loaded",
-            description: "Settings from the Backtest page have been applied.",
-        });
-        clearSimulationConfig(); // Clear the config after applying it
-    }
-  }, [simulationConfigForNextLoad, clearSimulationConfig]);
-
-
   const handleSelectTrade = (trade: SimulatedTrade) => {
     setSelectedTrade(trade);
     setSelectedPosition(null);
