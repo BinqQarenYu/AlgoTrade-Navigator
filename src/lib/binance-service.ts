@@ -6,12 +6,23 @@ import type { Ticker } from 'ccxt';
 import ccxt from 'ccxt';
 
 // This function is now the single point of contact for all client-side requests to our proxy.
-async function callProxy<T>(path: string, method: 'GET' | 'POST' = 'GET', body?: Record<string, any>): Promise<{ data: T, usedWeight: number }> {
+async function callProxy<T>(
+    path: string, 
+    method: 'GET' | 'POST' = 'GET', 
+    body?: Record<string, any>,
+    keys?: { apiKey: string, secretKey: string }
+): Promise<{ data: T, usedWeight: number }> {
     try {
+        const requestBody: any = { path, method, body };
+        if (keys) {
+            requestBody.apiKey = keys.apiKey;
+            requestBody.secretKey = keys.secretKey;
+        }
+
         const response = await fetch('/api/binance-proxy', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path, method, body }),
+            body: JSON.stringify(requestBody),
         });
 
         const result = await response.json();
@@ -38,8 +49,8 @@ const binance = new ccxt.binance({
     enableRateLimit: true, 
 });
 
-export const getAccountBalance = async (): Promise<{ data: Portfolio, usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account');
+export const getAccountBalance = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Portfolio, usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
   const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
     totalPnl: parseFloat(data.totalUnrealizedProfit),
@@ -48,8 +59,8 @@ export const getAccountBalance = async (): Promise<{ data: Portfolio, usedWeight
   return { data: portfolioData, usedWeight };
 };
 
-export const getOpenPositions = async (): Promise<{ data: Position[], usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk');
+export const getOpenPositions = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Position[], usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys);
   const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
     .map((pos: any): Position => {
@@ -71,6 +82,7 @@ export const placeOrder = async (
   symbol: string, 
   side: OrderSide, 
   quantity: number,
+  keys: { apiKey: string, secretKey: string },
   reduceOnly: boolean = false
 ): Promise<OrderResult> => {
   
@@ -92,7 +104,7 @@ export const placeOrder = async (
       body.reduceOnly = 'true';
   }
 
-  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body);
+  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body, keys);
 
   return {
     orderId: String(responseData.orderId),

@@ -115,6 +115,8 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
+  
   const setActiveProfile = useCallback((profileId: string | null) => {
     if (profileId !== activeProfileId) {
       setIsConnected(false);
@@ -172,16 +174,15 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const testConnection = async (): Promise<boolean> => {
+    if (!activeProfile) return false;
     try {
-        const { usedWeight } = await getAccountBalance();
+        const { usedWeight } = await getAccountBalance({ apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         setApiLimit({ used: usedWeight, limit: 1200 });
         return true;
     } catch (error) {
         return false;
     }
   };
-
-  const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
   return (
     <ApiContext.Provider value={{ 

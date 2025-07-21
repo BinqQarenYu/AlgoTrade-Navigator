@@ -9,16 +9,17 @@ const BINANCE_API_URL = 'https://fapi.binance.com';
 // This is the core proxy logic. It forwards requests from the client to the Binance API.
 export async function POST(request: NextRequest) {
   try {
-    const { path, method, body } = await request.json();
+    const { path, method, body, apiKey, secretKey } = await request.json();
 
     if (!path || !method) {
       return NextResponse.json({ error: 'Missing path or method' }, { status: 400 });
     }
 
-    const apiKey = process.env.BINANCE_API_KEY;
-    const secretKey = process.env.BINANCE_SECRET_KEY;
+    // Use keys from the request body, or fall back to environment variables.
+    const finalApiKey = apiKey || process.env.BINANCE_API_KEY;
+    const finalSecretKey = secretKey || process.env.BINANCE_SECRET_KEY;
 
-    if (!apiKey || !secretKey) {
+    if (!finalApiKey || !finalSecretKey) {
       return NextResponse.json({ error: 'API keys are not configured on the server.' }, { status: 500 });
     }
 
@@ -34,7 +35,7 @@ export async function POST(request: NextRequest) {
     }
     
     const signature = crypto
-      .createHmac('sha256', secretKey)
+      .createHmac('sha256', finalSecretKey)
       .update(queryString)
       .digest('hex');
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
     const options: RequestInit = {
       method,
       headers: {
-        'X-MBX-APIKEY': apiKey,
+        'X-MBX-APIKEY': finalApiKey,
         'Content-Type': 'application/json',
       },
       cache: 'no-store',
@@ -61,6 +62,10 @@ export async function POST(request: NextRequest) {
     const usedWeight = parseInt(response.headers.get('x-fapi-used-weight-1m') || '0', 10);
 
     if (!response.ok) {
+        // Handle specific geo-blocking errors coming from our proxy
+        if (data?.msg?.includes('restricted location')) {
+             throw new Error(data.msg);
+        }
         return NextResponse.json({ error: data.msg || 'Binance API error', code: data.code, usedWeight }, { status: response.status });
     }
 
