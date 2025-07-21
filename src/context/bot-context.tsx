@@ -65,21 +65,12 @@ interface GridBacktestState {
 // --- Context Type ---
 interface BotContextType {
   liveBotState: LiveBotState;
-  simulationState: SimulationState;
-  gridState: GridState;
-  gridBacktestState: GridBacktestState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
-  isAnalysisActive: boolean; // For non-trading, analysis-only processes
   startBotInstance: (config: LiveBotConfig & { id: string, isManual?: boolean }) => void;
   stopBotInstance: (botId: string) => void;
   closePosition: (position: Position) => void;
-  startSimulation: (config: SimulationConfig) => void;
-  stopSimulation: () => void;
-  startGridSimulation: (config: GridConfig) => void;
-  stopGridSimulation: () => void;
-  runGridBacktest: (config: GridBacktestConfig) => void;
   // Discipline state
   showRecommendation: boolean;
   strategyRecommendation: RankedTradeSignal | null;
@@ -155,47 +146,23 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     dismissRecommendation();
   };
   
-  // --- Simulation State ---
-   const [simulationState, setSimulationState] = useState<SimulationState>({
-    isRunning: false, config: null, logs: [], chartData: [],
-    portfolio: { initialCapital: 0, balance: 0, pnl: 0 },
-    openPositions: [], tradeHistory: [], summary: null
-  });
-  const simulationWsRef = useRef<WebSocket | null>(null);
-  const isAnalyzingSimRef = useRef(false);
-
-  // --- Grid Trading State ---
-  const [gridState, setGridState] = useState<GridState>({
-    isRunning: false, config: null, chartData: [], grid: null, trades: [], openOrders: [], summary: null
-  });
-  const gridWsRef = useRef<WebSocket | null>(null);
-  const currentCandleRef = useRef<Partial<HistoricalData> | null>(null);
-  const candleTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // --- Grid Backtest State ---
-  const [gridBacktestState, setGridBacktestState] = useState<GridBacktestState>({
-    isBacktesting: false, backtestSummary: null, backtestTrades: [], unmatchedTrades: []
-  });
-
-
   // --- Global State ---
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
-  const [isAnalysisActive, setIsAnalysisActive] = useState(false);
   const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
   
   const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
     const newId = `bot_${Date.now()}`;
     const newBot: BotInstance = {
       id: newId,
-      asset: config.asset || '',
+      asset: config.asset || 'BTCUSDT',
       interval: config.interval || '1h',
       capital: config.capital || 100,
       leverage: config.leverage || 10,
       takeProfit: config.takeProfit || 1.5,
       stopLoss: config.stopLoss || 1,
-      strategy: config.strategy || '',
-      strategyParams: config.strategyParams || {},
+      strategy: config.strategy || 'ema-crossover',
+      strategyParams: config.strategyParams || defaultEmaCrossoverParams,
       isManual: config.isManual || false,
     };
     setBotInstances(prev => [...prev, newBot]);
@@ -233,8 +200,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const addLiveLog = useCallback((botId: string, message: string) => addLog(setLiveBotState, message, botId), [addLog]);
-  const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
-  const addGridLog = useCallback((message: string) => addLog(setGridState, message), [addLog]);
   
   // --- Reusable Analysis Logic ---
   const analyzeAsset = useCallback(async (
@@ -514,485 +479,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [apiKey, secretKey, toast, activeProfile]);
   
-  // --- Simulation Logic ---
-  const handleSimulationTick = useCallback(async (newCandle: HistoricalData) => {
-    setSimulationState(current => {
-      if (!current.isRunning || !current.config) return current;
-      isAnalyzingSimRef.current = true;
-
-      let { chartData, openPositions, tradeHistory, portfolio } = current;
-      const config = current.config;
-
-      if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
-        chartData[chartData.length - 1] = newCandle;
-      } else {
-        chartData.push(newCandle);
-        chartData = chartData.slice(-1000);
-      }
-
-      const updatedPositions = [...openPositions];
-      const newTrades: any[] = [];
-
-      for (const pos of openPositions) {
-        let exitPrice: number | null = null;
-        let closeReason: any = 'signal';
-
-        if (pos.side === 'long') {
-          if (newCandle.low <= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
-          else if (newCandle.high >= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
-        } else {
-          if (newCandle.high >= pos.stopLoss) { exitPrice = pos.stopLoss; closeReason = 'stop-loss'; }
-          else if (newCandle.low <= pos.takeProfit) { exitPrice = pos.takeProfit; closeReason = 'take-profit'; }
-        }
-
-        if (exitPrice) {
-          const entryValue = pos.entryPrice * pos.size;
-          const exitValue = exitPrice * pos.size;
-          const pnl = pos.side === 'long' ? exitValue - entryValue : entryValue - exitValue;
-          const fee = (entryValue + exitValue) * (config.fee / 100);
-          const netPnl = pnl - fee;
-
-          const trade = {
-            id: pos.id, type: pos.side, entryTime: pos.entryTime, entryPrice: pos.entryPrice,
-            exitTime: newCandle.time, exitPrice, pnl: netPnl, pnlPercent: (netPnl / portfolio.balance) * 100,
-            closeReason, stopLoss: pos.stopLoss, takeProfit: pos.takeProfit, fee,
-          };
-          
-          newTrades.push(trade);
-          addSimLog(`Closed ${pos.side.toUpperCase()} position for ${pos.asset} for $${netPnl.toFixed(2)} PNL.`);
-          portfolio.balance += netPnl;
-          portfolio.pnl += netPnl;
-        }
-      }
-
-      const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
-      
-      if (stillOpenPositions.length === 0) {
-        analyzeAsset(config, chartData).then(result => {
-          if (result.signal) {
-            setSimulationState(prev => {
-              if (prev.openPositions.length > 0) return prev;
-              const newPosSize = (prev.portfolio.balance * config.leverage) / result.signal!.entryPrice;
-              const newPosition = {
-                id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal!.action === 'UP' ? 'long' : 'short',
-                entryPrice: result.signal!.entryPrice, entryTime: result.signal!.timestamp, size: newPosSize,
-                stopLoss: result.signal!.stopLoss, takeProfit: result.signal!.takeProfit,
-              };
-              
-              addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
-              return { ...prev, openPositions: [...prev.openPositions, newPosition] };
-            });
-          }
-        });
-      }
-      
-      const allTrades = [...tradeHistory, ...newTrades];
-      const wins = allTrades.filter(t => t.pnl > 0);
-      const losses = allTrades.filter(t => t.pnl <= 0);
-      const totalPnl = allTrades.reduce((sum, t) => sum + t.pnl, 0);
-      const totalFees = allTrades.reduce((sum, t) => sum + (t.fee || 0), 0);
-      const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-      const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-
-      const summary = {
-        totalTrades: allTrades.length,
-        winRate: allTrades.length > 0 ? (wins.length / allTrades.length) * 100 : 0,
-        totalPnl: totalPnl,
-        totalFees,
-        averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-        averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
-        profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
-        initialCapital: config.initialCapital,
-        endingBalance: portfolio.balance,
-        totalReturnPercent: config.initialCapital > 0 ? (totalPnl / config.initialCapital) * 100 : 0
-      };
-
-      isAnalyzingSimRef.current = false;
-      return {
-        ...current,
-        chartData,
-        openPositions: stillOpenPositions,
-        tradeHistory: [...tradeHistory, ...newTrades],
-        portfolio,
-        summary,
-      };
-    });
-  }, [addSimLog, analyzeAsset]);
-
-  const stopSimulation = useCallback(() => {
-    if (simulationWsRef.current) {
-        simulationWsRef.current.close();
-        simulationWsRef.current = null;
-    }
-    isAnalyzingSimRef.current = false;
-    setSimulationState(prev => ({...prev, isRunning: false, config: null}));
-    addSimLog("Simulation stopped by user.");
-    toast({ title: "Simulation Stopped" });
-  }, [addSimLog, toast]);
-
-  const startSimulation = useCallback(async (config: SimulationConfig) => {
-    addSimLog("Starting simulation...");
-    stopSimulation();
-    
-    setSimulationState({
-        isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Simulation starting...`],
-        chartData: [],
-        portfolio: { initialCapital: config.initialCapital, balance: config.initialCapital, pnl: 0 },
-        openPositions: [], tradeHistory: [], summary: null
-    });
-    
-    try {
-        const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-        setSimulationState(prev => ({...prev, chartData: initialKlines}));
-        addSimLog(`Loaded ${initialKlines.length} initial candles.`);
-
-        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
-        simulationWsRef.current = ws;
-
-        ws.onopen = () => addSimLog("Live data connection established.");
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data.e === 'kline' && data.k.x) {
-                const newCandle: HistoricalData = {
-                    time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h),
-                    low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v),
-                };
-                handleSimulationTick(newCandle);
-            }
-        };
-        ws.onerror = () => addSimLog("WebSocket connection error.");
-        ws.onclose = () => addSimLog("WebSocket connection closed.");
-        
-        toast({ title: "Simulation Started", description: `Monitoring ${config.symbol} with simulated funds.` });
-
-    } catch (e: any) {
-        addSimLog(`Error starting simulation: ${e.message}`);
-        toast({ title: "Failed to Start", description: e.message, variant: "destructive" });
-        stopSimulation();
-    }
-  }, [addSimLog, toast, stopSimulation, handleSimulationTick]);
-  
-  // --- Grid Trading Logic ---
-  const stopGridSimulation = useCallback(() => {
-    addGridLog("Stopping grid forward-test.");
-    if (gridWsRef.current) {
-        gridWsRef.current.close();
-        gridWsRef.current = null;
-    }
-     if (candleTimerRef.current) {
-        clearInterval(candleTimerRef.current);
-        candleTimerRef.current = null;
-    }
-    currentCandleRef.current = null;
-    setGridState(prev => ({ ...prev, isRunning: false }));
-  }, [addGridLog]);
-  
-  const handleGridTick = useCallback((price: number, time: number) => {
-    setGridState(current => {
-        if (!current.isRunning || !current.grid || !current.config) return current;
-
-        let { openOrders, trades, summary, grid, config } = current;
-
-        if (!currentCandleRef.current || currentCandleRef.current.time !== time) {
-            currentCandleRef.current = { time, open: price, high: price, low: price, close: price, volume: 0 };
-        } else {
-            currentCandleRef.current.high = Math.max(currentCandleRef.current.high!, price);
-            currentCandleRef.current.low = Math.min(currentCandleRef.current.low!, price);
-            currentCandleRef.current.close = price;
-        }
-
-        if (config.stopLossPrice && price <= config.stopLossPrice) {
-            addGridLog(`GLOBAL STOP LOSS triggered at ${price}. Stopping forward-test.`);
-            stopGridSimulation();
-            return { ...current, isRunning: false };
-        }
-        if (config.takeProfitPrice && price >= config.takeProfitPrice) {
-            addGridLog(`GLOBAL TAKE PROFIT triggered at ${price}. Stopping forward-test.`);
-            stopGridSimulation();
-            return { ...current, isRunning: false };
-        }
-        
-        const highestGridLine = Math.max(...grid.levels);
-        const lowestGridLine = Math.min(...grid.levels);
-
-        const canTrailUp = config.trailingUp && (!config.trailingUpTriggerPrice || price > config.trailingUpTriggerPrice);
-        const canTrailDown = config.trailingDown && (!config.trailingDownTriggerPrice || price < config.trailingDownTriggerPrice);
-        
-        let gridShifted = false;
-        if (canTrailUp && price > highestGridLine) {
-            const shiftAmount = price - highestGridLine;
-            addGridLog(`Trailing Up: Price broke upper bound. Shifting grid up by ${shiftAmount.toFixed(4)}.`);
-            grid.levels = grid.levels.map(level => level + shiftAmount);
-            gridShifted = true;
-        } else if (canTrailDown && price < lowestGridLine) {
-            const shiftAmount = lowestGridLine - price;
-            addGridLog(`Trailing Down: Price broke lower bound. Shifting grid down by ${shiftAmount.toFixed(4)}.`);
-            grid.levels = grid.levels.map(level => level - shiftAmount);
-            gridShifted = true;
-        }
-        
-        if (gridShifted) {
-             const currentPrice = price; 
-            if (config.direction === 'long') {
-                openOrders = grid.levels.filter(p => p <= currentPrice).map(p => ({ price: p, side: 'buy' }));
-            } else if (config.direction === 'short') {
-                openOrders = grid.levels.filter(p => p >= currentPrice).map(p => ({ price: p, side: 'sell' }));
-            } else { 
-                openOrders = grid.levels.map(p => ({ price: p, side: p < currentPrice ? 'buy' : 'sell' }));
-            }
-            config.lowerPrice = Math.min(...grid.levels);
-            config.upperPrice = Math.max(...grid.levels);
-        }
-
-        const newTrades: any[] = [];
-        let stillOpenOrders = [...openOrders];
-
-        stillOpenOrders = stillOpenOrders.filter(order => {
-            const isBuy = order.side === 'buy';
-            const priceCrossed = isBuy ? price <= order.price : price >= order.price;
-
-            if (priceCrossed) {
-                const trade = { id: `grid_${order.price}_${time}_${Math.random()}`, time, price: order.price, side: order.side };
-                newTrades.push(trade);
-                
-                if (config.direction === 'long' && isBuy) {
-                    const newSellPrice = order.price + grid.profitPerGrid;
-                    if (newSellPrice <= config.upperPrice) {
-                        stillOpenOrders.push({ price: newSellPrice, side: 'sell' });
-                    }
-                } else if (config.direction === 'short' && !isBuy) {
-                    const newBuyPrice = order.price - grid.profitPerGrid;
-                    if (newBuyPrice >= config.lowerPrice) {
-                        stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
-                    }
-                } else if (config.direction === 'neutral') {
-                    const newOrderPrice = isBuy ? order.price + grid.profitPerGrid : order.price - profitPerGrid;
-                    if (newOrderPrice > 0 && newOrderPrice >= config.lowerPrice && newOrderPrice <= config.upperPrice) {
-                        stillOpenOrders.push({ price: newOrderPrice, side: isBuy ? 'sell' : 'buy' });
-                    }
-                }
-                
-                if (summary) {
-                    summary.totalPnl += grid.profitPerGrid * grid.quantityPerGrid;
-                    summary.gridPnl += grid.profitPerGrid * grid.quantityPerGrid;
-                    summary.totalTrades += 1;
-                }
-                return false;
-            }
-            return true;
-        });
-        
-        return {
-            ...current,
-            openOrders: stillOpenOrders,
-            trades: [...trades, ...newTrades],
-            summary: summary ? {...summary} : current.summary,
-            grid: {...grid},
-            config: {...config},
-        };
-    });
-  }, [addGridLog, stopGridSimulation]);
-
-  const startGridSimulation = useCallback(async (config: GridConfig) => {
-    stopGridSimulation();
-    addGridLog(`Creating grid for ${config.symbol}...`);
-    
-    let gridLevels: number[] = [];
-    let profitPerGrid = 0;
-    if (config.mode === 'arithmetic') {
-        const priceStep = (config.upperPrice - config.lowerPrice) / (config.gridCount - 1);
-        profitPerGrid = priceStep;
-        for (let i = 0; i < config.gridCount; i++) {
-            gridLevels.push(config.lowerPrice + i * priceStep);
-        }
-    } else {
-        const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
-        for (let i = 0; i < config.gridCount; i++) {
-            const price = config.lowerPrice * Math.pow(ratio, i);
-            gridLevels.push(price);
-        }
-        profitPerGrid = (gridLevels[1] - gridLevels[0]);
-    }
-
-    const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
-    const quantityPerGrid = investmentPerGrid / (gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length);
-
-    const newGrid = {
-        levels: gridLevels,
-        profitPerGrid,
-        quantityPerGrid,
-    };
-    
-    toast({ title: "Grid Live Simulation Started", description: `Grid created for ${config.symbol}.` });
-    
-    try {
-        const initialKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-        const currentPrice = initialKlines.length > 0 ? initialKlines[initialKlines.length-1].close : (config.lowerPrice + config.upperPrice) / 2;
-        
-        let initialOrders: { price: number; side: 'buy' | 'sell' }[] = [];
-        if (config.direction === 'long') {
-            initialOrders = gridLevels.filter(p => p <= currentPrice).map(price => ({ price, side: 'buy' }));
-            addGridLog(`Long mode: Placing ${initialOrders.length} buy orders.`);
-        } else if (config.direction === 'short') {
-            initialOrders = gridLevels.filter(p => p >= currentPrice).map(price => ({ price, side: 'sell' }));
-            addGridLog(`Short mode: Placing ${initialOrders.length} sell orders.`);
-        } else {
-            initialOrders = gridLevels.map(price => ({ price, side: price < currentPrice ? 'buy' : 'sell' }));
-            addGridLog(`Neutral mode: Placing ${initialOrders.filter(o=>o.side==='buy').length} buy and ${initialOrders.filter(o=>o.side==='sell').length} sell orders.`);
-        }
-
-        setGridState({
-            isRunning: true,
-            config,
-            grid: newGrid,
-            chartData: initialKlines,
-            trades: [],
-            openOrders: initialOrders,
-            summary: { totalPnl: 0, gridPnl: 0, totalTrades: 0 },
-        });
-
-        addGridLog(`Loaded ${initialKlines.length} initial candles for live simulation.`);
-        
-        const intervalMs = intervalToMs(config.interval);
-        candleTimerRef.current = setInterval(() => {
-            if (currentCandleRef.current) {
-                setGridState(prev => {
-                    const newChartData = [...prev.chartData];
-                    const lastCandle = newChartData[newChartData.length-1];
-                    if(lastCandle && lastCandle.time === currentCandleRef.current!.time) {
-                        newChartData[newChartData.length - 1] = currentCandleRef.current as HistoricalData;
-                    } else if (currentCandleRef.current) {
-                        newChartData.push(currentCandleRef.current as HistoricalData);
-                    }
-                    return {...prev, chartData: newChartData.slice(-1000)};
-                });
-            }
-        }, 1000);
-
-        const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@aggTrade`);
-        gridWsRef.current = ws;
-
-        ws.onopen = () => addGridLog("Grid live simulation feed connected.");
-        ws.onmessage = (event) => {
-            const trade = JSON.parse(event.data);
-            if (trade.e === 'aggTrade') {
-                const price = parseFloat(trade.p);
-                const time = trade.T;
-                handleGridTick(price, time);
-            }
-        };
-        ws.onerror = () => addGridLog("Grid live simulation WebSocket error.");
-        ws.onclose = () => addGridLog("Grid live simulation WebSocket closed.");
-
-    } catch (e: any) {
-        addGridLog(`Error starting grid live simulation: ${e.message}`);
-        toast({ title: "Grid Start Failed", description: e.message, variant: "destructive" });
-        stopGridSimulation();
-    }
-  }, [addGridLog, toast, stopGridSimulation, handleGridTick]);
-
-  // --- Grid Backtest Logic ---
-  const runGridBacktest = useCallback(async (config: GridBacktestConfig) => {
-    setGridBacktestState({ isBacktesting: true, backtestSummary: null, backtestTrades: [], unmatchedTrades: [] });
-    toast({ title: "Grid Backtest Started", description: `Fetching data for ${config.symbol} for the last ${config.backtestDays} days...` });
-    try {
-        const endTime = Date.now();
-        const startTime = addDays(endTime, -config.backtestDays).getTime();
-        const klines = await getHistoricalKlines(config.symbol, config.interval, startTime, endTime);
-
-        toast({ title: "Data Loaded", description: `Running backtest on ${klines.length} candles...` });
-
-        let gridLevels: number[] = [];
-        let profitPerGrid = 0;
-        if (config.mode === 'arithmetic') {
-            const priceStep = (config.upperPrice - config.lowerPrice) / (config.gridCount - 1);
-            profitPerGrid = priceStep;
-            for (let i = 0; i < config.gridCount; i++) gridLevels.push(config.lowerPrice + i * priceStep);
-        } else {
-            const ratio = Math.pow(config.upperPrice / config.lowerPrice, 1 / (config.gridCount - 1));
-            for (let i = 0; i < config.gridCount; i++) gridLevels.push(config.lowerPrice * Math.pow(ratio, i));
-            profitPerGrid = (gridLevels[1] - gridLevels[0]);
-        }
-        const investmentPerGrid = (config.investment * config.leverage) / config.gridCount;
-        const avgGridPrice = gridLevels.reduce((a, b) => a + b, 0) / gridLevels.length;
-        const quantityPerGrid = investmentPerGrid / avgGridPrice;
-        
-        let openOrders: { price: number; side: 'buy' | 'sell' }[] = [];
-        const initialPrice = klines[0].close;
-
-        if (config.direction === 'long') {
-            openOrders = gridLevels.filter(p => p <= initialPrice).map(price => ({ price, side: 'buy' }));
-        } else if (config.direction === 'short') {
-            openOrders = gridLevels.filter(p => p >= initialPrice).map(price => ({ price, side: 'sell' }));
-        } else {
-            openOrders = gridLevels.map(price => ({ price, side: price < initialPrice ? 'buy' : 'sell' }));
-        }
-
-        let gridPnl = 0;
-        const matchedTrades: MatchedGridTrade[] = [];
-        const openBuys: any[] = [];
-
-        for (const candle of klines) {
-            let stillOpenOrders: { price: number, side: 'buy' | 'sell' }[] = [];
-        
-            const ordersThisCandle: { price: number, side: 'buy' | 'sell' }[] = [];
-            
-            for (const order of openOrders) {
-                if (order.side === 'buy' && candle.low <= order.price) {
-                    ordersThisCandle.push(order);
-                } else if (order.side === 'sell' && candle.high >= order.price) {
-                    ordersThisCandle.push(order);
-                } else {
-                    stillOpenOrders.push(order);
-                }
-            }
-
-            ordersThisCandle.sort((a,b) => a.side === 'sell' ? -1 : 1);
-
-            for (const order of ordersThisCandle) {
-                const trade = { id: `bt_${order.price}_${candle.time}`, time: candle.time, price: order.price, side: order.side };
-                
-                if (trade.side === 'buy') {
-                    openBuys.push(trade);
-                    const takeProfitPrice = order.price + profitPerGrid;
-                    if (takeProfitPrice <= config.upperPrice) {
-                        stillOpenOrders.push({ price: takeProfitPrice, side: 'sell' });
-                    }
-                } else {
-                    if (openBuys.length > 0) {
-                        const matchedBuy = openBuys.shift()!;
-                        const pnl = (trade.price - matchedBuy.price) * quantityPerGrid;
-                        gridPnl += pnl;
-                        matchedTrades.push({ id: `match_${matchedBuy.id}`, pnl, buy: matchedBuy, sell: trade });
-                    }
-                    const newBuyPrice = order.price - profitPerGrid;
-                    if (newBuyPrice >= config.lowerPrice) {
-                        stillOpenOrders.push({ price: newBuyPrice, side: 'buy' });
-                    }
-                }
-            }
-            openOrders = stillOpenOrders;
-        }
-        
-        const totalTrades = matchedTrades.length * 2 + openBuys.length;
-        const endPrice = klines[klines.length - 1].close;
-        const unrealizedPnl = openBuys.reduce((acc, buy) => acc + (endPrice - buy.price) * quantityPerGrid, 0);
-
-        const totalPnl = gridPnl + unrealizedPnl;
-        const maxDrawdown = 0;
-        const totalFees = totalTrades * (avgGridPrice * quantityPerGrid * 0.04 / 100);
-        const apr = (totalPnl / config.investment) / config.backtestDays * 365 * 100;
-        
-        const summary: GridBacktestSummary = { totalPnl, gridPnl, unrealizedPnl, totalTrades, maxDrawdown, totalFees, apr };
-        setGridBacktestState({ isBacktesting: false, backtestSummary: summary, backtestTrades: matchedTrades, unmatchedTrades: openBuys });
-        toast({ title: "Backtest Complete", description: "Grid strategy performance report is ready." });
-
-    } catch (e: any) {
-        toast({ title: "Backtest Failed", description: e.message, variant: "destructive" });
-        setGridBacktestState({ isBacktesting: false, backtestSummary: null, backtestTrades: [], unmatchedTrades: [] });
-    }
-  }, [toast]);
-  
   // --- Test Trade Logic ---
   const executeTestTrade = useCallback(async (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => {
     if (!activeProfile || !apiKey || !secretKey) {
@@ -1061,31 +547,19 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     return () => {
       Object.values(liveWsRefs.current).forEach(ws => ws?.close());
-      if (simulationWsRef.current) simulationWsRef.current.close();
-      if (gridWsRef.current) gridWsRef.current.close();
-      if (candleTimerRef.current) clearInterval(candleTimerRef.current);
-       if (updateIntervalRef.current) clearInterval(updateIntervalRef.current);
+      if (updateIntervalRef.current) clearInterval(updateIntervalRef.current);
     }
   }, []);
 
   return (
     <BotContext.Provider value={{ 
       liveBotState, 
-      simulationState,
-      gridState,
-      gridBacktestState,
       strategyParams,
       setStrategyParams,
       isTradingActive,
-      isAnalysisActive,
       startBotInstance,
       stopBotInstance,
       closePosition,
-      startSimulation,
-      stopSimulation,
-      startGridSimulation,
-      stopGridSimulation,
-      runGridBacktest,
       showRecommendation,
       strategyRecommendation,
       activateRecommendedStrategy,

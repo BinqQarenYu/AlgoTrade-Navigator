@@ -216,7 +216,7 @@ const BacktestPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
-  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance, setSimulationConfigForNextLoad } = useBot();
+  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
   const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
@@ -874,7 +874,7 @@ const BacktestPageContent = () => {
     setFullChartData([]);
   };
 
-  const handleExport = (targetPage: 'live' | 'manual' | 'simulation') => {
+  const handleExport = (targetPage: 'live' | 'manual') => {
     if (!symbol || !selectedStrategy || selectedStrategy === 'none') {
         toast({ title: "Incomplete Configuration", description: "Please select an asset and a strategy before exporting.", variant: "destructive" });
         return;
@@ -889,35 +889,18 @@ const BacktestPageContent = () => {
         stopLoss,
         strategy: selectedStrategy,
         strategyParams: strategyParams[selectedStrategy] || {},
+        isManual: targetPage === 'manual',
     };
 
-    let pageName = "";
-    let route = "";
-
-    switch (targetPage) {
-        case 'live':
-            addBotInstance({ ...currentConfig, isManual: false });
-            pageName = "Live Trading";
-            route = "/live";
-            break;
-        case 'manual':
-            addBotInstance({ ...currentConfig, isManual: true });
-            pageName = "Manual Trading";
-            route = "/manual";
-            break;
-        case 'simulation':
-            setSimulationConfigForNextLoad(currentConfig);
-            pageName = "Paper Trading";
-            route = "/simulation";
-            break;
-    }
-
+    addBotInstance(currentConfig);
+    
+    const pageName = targetPage === 'live' ? "Live Trading" : "Manual Trading";
     toast({
         title: `Exported to ${pageName}`,
         description: `Configuration for ${symbol} with ${getStrategyById(selectedStrategy)?.name} strategy has been sent to the ${pageName} page.`
     });
-    router.push(route);
-};
+    router.push(`/${targetPage}`);
+  };
 
 
   const handleGenerateProjection = () => {
@@ -1509,7 +1492,6 @@ const BacktestPageContent = () => {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleExport('live')}><Bot className="mr-2 h-4 w-4"/>To Live Trading</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleExport('manual')}><Bot className="mr-2 h-4 w-4"/>To Manual Trading</DropdownMenuItem>
-                               <DropdownMenuItem onClick={() => handleExport('simulation')}><TestTube className="mr-2 h-4 w-4"/>To Paper Trading</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
