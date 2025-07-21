@@ -3,7 +3,7 @@
 AlgoTrade Navigator is a powerful, AI-driven platform for developing, backtesting, and deploying automated cryptocurrency trading strategies. Built with a modern tech stack, it provides a comprehensive toolkit for both novice and experienced algorithmic traders to leverage market data and generative AI.
 
 ## Core Features
-
+g
 -   **Advanced Backtesting Engine:** Test trading strategies against historical market data with detailed performance reports, including PNL, win rate, and profit factor.
 -   **Live Paper Trading:** Forward-test your strategies in a simulated environment using a live market data feed without risking real capital.
 -   **Live & Manual Trading Matrix:** Deploy a portfolio of fully automated trading bots or use AI-powered signals for manual trade execution.

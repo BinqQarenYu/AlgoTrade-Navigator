@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils"
 import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById, strategyIndicatorMap } from "@/lib/strategies"
+import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -118,7 +118,7 @@ const OpenPositionsCard = ({
     );
 };
 
-export default function SimulationPage() {
+function SimulationPageContent() {
   const { toast } = useToast()
   const { isConnected } = useApi();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
@@ -497,4 +497,19 @@ export default function SimulationPage() {
       </div>
     </div>
   )
+}
+
+export default function SimulationPage() {
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
+
+    // Render a loading state or null on the server to avoid hydration errors
+    if (!isClient) {
+        return null;
+    }
+
+    return <SimulationPageContent />;
 }
