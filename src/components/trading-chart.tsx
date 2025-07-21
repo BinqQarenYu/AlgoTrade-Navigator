@@ -4,13 +4,12 @@
 
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { createChart, ColorType, LineStyle, PriceScaleMode } from 'lightweight-charts';
-import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, SpoofedWall, Wall, GridTrade, MatchedGridTrade, PhysicsChartConfig, QuantumFieldData } from '@/lib/types';
-import type { DetectManipulationOutput } from '@/ai/flows/detect-manipulation-flow';
+import type { HistoricalData, TradeSignal, BacktestResult, LiquidityEvent, LiquidityTarget, MatchedGridTrade } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
-import { Camera, AlertTriangle, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
-import { formatPrice, formatLargeNumber, intervalToMs } from '@/lib/utils';
+import { Camera } from 'lucide-react';
+import { formatPrice, intervalToMs } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
@@ -55,23 +54,9 @@ export function TradingChart({
   tradeSignal = null,
   highlightedTrade = null,
   onIntervalChange,
-  wallLevels = [],
-  spoofedWalls = [],
   liquidityEvents = [],
   liquidityTargets = [],
-  gridLevels = [],
-  gridTrades = [],
-  matchedGridTrades = [],
-  unmatchedGridTrades = [],
-  lineWidth = 2,
-  consensusResult = null,
   showAnalysis = true,
-  chartType = 'candlestick',
-  scaleMode = 'linear',
-  manipulationResult = null,
-  showManipulationOverlay = true,
-  physicsConfig,
-  quantumFieldData = [],
 }: { 
   data: HistoricalData[];
   projectedData?: HistoricalData[];
@@ -80,27 +65,12 @@ export function TradingChart({
   tradeSignal?: TradeSignal | null;
   highlightedTrade?: BacktestResult | MatchedGridTrade | null;
   onIntervalChange?: (newInterval: string) => void;
-  wallLevels?: Wall[];
-  spoofedWalls?: SpoofedWall[];
   liquidityEvents?: LiquidityEvent[];
   liquidityTargets?: LiquidityTarget[];
-  gridLevels?: number[];
-  gridTrades?: GridTrade[];
-  matchedGridTrades?: MatchedGridTrade[];
-  unmatchedGridTrades?: GridTrade[];
-  lineWidth?: number;
-  consensusResult?: { price: number; direction: 'UP' | 'DOWN' } | null;
   showAnalysis?: boolean;
-  chartType?: 'candlestick' | 'line';
-  scaleMode?: 'linear' | 'logarithmic';
-  manipulationResult?: DetectManipulationOutput | null;
-  showManipulationOverlay?: boolean;
-  physicsConfig?: PhysicsChartConfig;
-  quantumFieldData?: QuantumFieldData[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
-  const [spoofZone, setSpoofZone] = useState<{ top: number, bottom: number, startTime: number } | null>(null);
   const spoofZoneTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastRenderedDataRef = useRef<HistoricalData[]>([]);
 
@@ -292,30 +262,6 @@ export function TradingChart({
         chartRef.current.priceLines = newLines;
     }
   }, [tradeSignal]);
-    
-  // Effect to draw wall lines from Order Book
-  useEffect(() => {
-    if (!chartRef.current?.chart) return;
-    const { candlestickSeries, wallPriceLines = [] } = chartRef.current;
-
-    wallPriceLines.forEach((line: any) => candlestickSeries.removePriceLine(line));
-    
-    const newLines: any[] = [];
-    if (showAnalysis && wallLevels?.length > 0) {
-        wallLevels.forEach(wall => {
-            const isBid = wall.type === 'bid';
-            newLines.push(candlestickSeries.createPriceLine({
-                price: wall.price,
-                color: isBid ? '#60a5fa' : '#c084fc',
-                lineWidth: 2,
-                lineStyle: LineStyle.Dotted,
-                axisLabelVisible: true,
-                title: isBid ? ' BID WALL' : ' ASK WALL',
-            }));
-        });
-    }
-    chartRef.current.wallPriceLines = newLines;
-  }, [wallLevels, showAnalysis]);
 
   // Effect to highlight a selected trade from the backtest results
   useEffect(() => {

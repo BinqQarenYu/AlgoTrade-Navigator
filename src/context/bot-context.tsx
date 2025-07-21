@@ -4,7 +4,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, SimulationState, SimulationConfig, GridState, GridConfig, GridBacktestConfig, GridBacktestSummary, MatchedGridTrade, LiveBotStateForAsset } from '@/lib/types';
+import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, LiveBotStateForAsset } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { addDays } from 'date-fns';
@@ -55,12 +55,6 @@ interface LiveBotState {
   bots: Record<string, LiveBotStateForAsset>; // Keyed by bot instance ID
 }
 
-interface GridBacktestState {
-    isBacktesting: boolean;
-    backtestSummary: GridBacktestSummary | null;
-    backtestTrades: MatchedGridTrade[];
-    unmatchedTrades: any[];
-}
 
 // --- Context Type ---
 interface BotContextType {
@@ -169,9 +163,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [setBotInstances]);
 
   useEffect(() => {
-    // A live bot is active ONLY if it's not in manual mode
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => 
-      !bot.config.isManual && // This is the key change
+      !bot.config.isManual &&
       bot.status !== 'idle' && 
       bot.status !== 'error'
     );
@@ -295,7 +288,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
   
   const runLiveBotCycle = useCallback(async (botId: string, isNewCandle: boolean = false) => {
-    // This function now relies on data being present in dataBufferRef
     const botState = liveBotState.bots[botId];
     const data = dataBufferRef.current[botId];
 
@@ -311,7 +303,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!allowed) {
       addLiveLog(botId, `Discipline action: ${reason}`);
       setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
-      // Handle 'adapt' mode if needed
       return; 
     }
 

@@ -15,7 +15,6 @@ import cciReversionStrategy from './cci-reversion';
 import chaikinMoneyFlowStrategy from './chaikin-money-flow';
 import coppockCurveStrategy from './coppock-curve';
 import elderRayStrategy from './elder-ray-index';
-import heikinAshiTrendStrategy from './heikin-ashi-trend';
 import keltnerChannelsStrategy from './keltner-channels';
 import momentumCrossStrategy from './momentum-cross';
 import obvDivergenceStrategy from './obv-divergence';
@@ -29,7 +28,6 @@ import hyperPeakFormationOldStrategy from './hyper-peak-formation-old';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
-import smoothedHeikinAshiPullbackStrategy from './smoothed-heikin-ashi-pullback';
 import codeBasedConsensusStrategy from './code-based-consensus';
 import mtfEngulfingStrategy from './mtf-engulfing';
 import smiMfiSupertrendStrategy from './smi-mfi-supertrend';
@@ -55,7 +53,6 @@ export const strategies: Strategy[] = [
   chaikinMoneyFlowStrategy,
   coppockCurveStrategy,
   elderRayStrategy,
-  heikinAshiTrendStrategy,
   keltnerChannelsStrategy,
   momentumCrossStrategy,
   obvDivergenceStrategy,
@@ -65,7 +62,6 @@ export const strategies: Strategy[] = [
   vwapCrossStrategy,
   williamsRStrategy,
   emaCciMacdStrategy,
-  smoothedHeikinAshiPullbackStrategy,
   mtfEngulfingStrategy,
   smiMfiSupertrendStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));

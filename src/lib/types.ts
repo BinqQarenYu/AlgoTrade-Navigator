@@ -115,55 +115,9 @@ export type HistoricalData = {
   // For AI Consensus strategy
   aiReasoning?: string;
   aiConfidence?: number;
-  // For Grid Trading
-  gridLevels?: number[];
   isProjected?: boolean;
-  // For Physics-Based Visualization
-  k1_stiffness_range?: number;
-  volume_resistance_index_N?: number;
-  pressure_depth?: number;
-  avg_pressure_depth_N?: number;
-  depthTotal?: number;
-  depth_imbalance_ratio?: number;
-  burst_potential_index_N?: number;
-  sentimentScore?: number;
-  predicted_next_pump_prob?: number;
-  predicted_next_dump_prob?: number;
-  predicted_next_burst_prob?: number;
 };
 
-export type PhysicsChartConfig = {
-  showDepth: boolean;
-  showImbalance: boolean;
-  showStiffness: boolean;
-  showPressure: boolean;
-  showBPI: boolean;
-  showSentiment: boolean;
-  bpiThreshold: number;
-};
-
-// Represents the probability distribution for a single future time step
-export type QuantumFieldData = {
-    time: number;
-    priceLevels: {
-        price: number;
-        probability: number;
-    }[];
-    mean?: number;
-    sigma?: number;
-}
-
-export type QuantumPredictionSummary = {
-  trend: 'BULLISH' | 'BEARISH' | 'RANGING';
-  targetPrice: number; // The Mean (μ)
-  confidence: number;
-  sigma: number; // The Standard Deviation (σ)
-  range: {
-    min: number; // μ - σ
-    max: number; // μ + σ
-  }
-  reasoning: string;
-};
 
 export type Portfolio = {
   balance: number;
@@ -275,47 +229,6 @@ export type StrategyAnalysisInput = {
     indicatorValues: Record<string, any>;
 };
 
-export type SimulationConfig = { 
-  symbol: string; 
-  interval: string; 
-  strategy: string;
-  strategyParams: any;
-  initialCapital: number; 
-  leverage: number; 
-  takeProfit: number; 
-  stopLoss: number; 
-  useAIPrediction: boolean;
-  fee: number; 
-};
-export type SimulatedTrade = BacktestResult;
-
-export type SimulatedPosition = {
-    id: string;
-    asset: string;
-    side: 'long' | 'short';
-    entryPrice: number;
-    entryTime: number;
-    size: number;
-    stopLoss: number;
-    takeProfit: number;
-};
-
-export type SimulationState = {
-    isRunning: boolean;
-    config: SimulationConfig | null;
-    logs: string[];
-    chartData: HistoricalData[];
-    portfolio: {
-        initialCapital: number;
-        balance: number;
-        pnl: number;
-    };
-    openPositions: SimulatedPosition[];
-    tradeHistory: SimulatedTrade[];
-    summary: BacktestSummary | null;
-};
-
-
 export interface Strategy {
   id: string;
   name: string;
@@ -408,67 +321,6 @@ export type SavedManipulationScan = {
 
 export type SavedReport = SavedMarketReport | SavedManipulationScan;
 
-export type GridConfig = {
-    symbol: string;
-    interval: string;
-    lowerPrice: number;
-    upperPrice: number;
-    gridCount: number;
-    leverage: number;
-    mode: 'arithmetic' | 'geometric';
-    direction: 'neutral' | 'long' | 'short';
-    investment: number;
-    trailingUp: boolean;
-    trailingDown: boolean;
-    // Optional advanced parameters
-    stopLossPrice?: number;
-    takeProfitPrice?: number;
-    trailingUpTriggerPrice?: number;
-    trailingDownTriggerPrice?: number;
-};
-
-export type GridBacktestConfig = GridConfig & {
-    backtestDays: number;
-}
-
-export type GridBacktestSummary = {
-    totalPnl: number;
-    gridPnl: number;
-    unrealizedPnl: number;
-    totalTrades: number;
-    totalFees: number;
-    maxDrawdown: number;
-    apr: number;
-}
-
-export type GridTrade = {
-    id: string;
-    time: number;
-    price: number;
-    side: 'buy' | 'sell';
-};
-
-export type MatchedGridTrade = {
-    id: string;
-    pnl: number;
-    buy: GridTrade;
-    sell: GridTrade;
-}
-
-export type GridState = {
-    isRunning: boolean;
-    config: GridConfig | null;
-    chartData: HistoricalData[];
-    grid: Grid | null;
-    trades: GridTrade[];
-    openOrders: { price: number, side: 'buy' | 'sell' }[];
-    summary: {
-        totalPnl: number;
-        gridPnl: number;
-        totalTrades: number;
-    } | null;
-};
-
 export type OrderBookData = {
     bids: { price: number; quantity: number }[];
     asks: { price: number; quantity: number }[];
@@ -522,4 +374,13 @@ export type DetectManipulationOutput = {
   accumulationPeriod?: { startTime: number; endTime: number; };
   pumpPeriod?: { startTime: number; endTime: number; };
   distributionPeriod?: { startTime: number; endTime: number; };
+};
+
+// Types for Grid Trading - REMOVED
+
+export type MatchedGridTrade = {
+  id: string;
+  buy: { price: number, time: number };
+  sell: { price: number, time: number };
+  pnl: number;
 };

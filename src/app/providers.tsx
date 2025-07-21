@@ -4,7 +4,6 @@
 import { ApiProvider } from "@/context/api-context";
 import { BotProvider, useBot } from "@/context/bot-context";
 import { DataManagerProvider } from "@/context/data-manager-context";
-import { LabProvider } from "@/context/lab-context";
 import { StrategyRecommendation } from "@/components/trading-discipline/StrategyRecommendation";
 import { AuthProvider } from "@/context/auth-context";
 
@@ -35,11 +34,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <AuthProvider>
         <ApiProvider>
         <BotProvider>
-            <LabProvider>
-                <DataManagerProvider>
-                <AppStatefulWrapper>{children}</AppStatefulWrapper>
-                </DataManagerProvider>
-            </LabProvider>
+            <DataManagerProvider>
+            <AppStatefulWrapper>{children}</AppStatefulWrapper>
+            </DataManagerProvider>
         </BotProvider>
         </ApiProvider>
     </AuthProvider>
