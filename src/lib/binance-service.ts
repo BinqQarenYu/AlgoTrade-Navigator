@@ -32,6 +32,12 @@ const callAuthenticatedGetApi = async <T>(path: string, queryString: string, api
     });
 
     const usedWeight = parseInt(response.headers.get('x-fapi-used-weight-1m') || '0', 10);
+    
+    // Handle geo-blocking error specifically
+    if (response.status === 451 || response.status === 403) {
+      throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -40,7 +46,7 @@ const callAuthenticatedGetApi = async <T>(path: string, queryString: string, api
     return { data: data as T, usedWeight };
   } catch (error: any) {
     console.error(`Error fetching from Binance API (${path}):`, error);
-    if (error.message.includes('Binance API Error')) {
+    if (error.message.includes('Binance API Error') || error.message.includes('Service unavailable')) {
       throw error;
     }
     throw new Error("Failed to connect to Binance. Please check your network connection and API keys.");
@@ -142,6 +148,9 @@ export const getHistoricalKlines = async (
 
     } catch (error: any) {
         console.error(`Error fetching klines via CCXT:`, error);
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+             throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        }
         if (error instanceof ccxt.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
         } else if (error instanceof ccxt.ExchangeError) {
@@ -185,6 +194,9 @@ export const getLatestKlinesByLimit = async (
 
     } catch (error: any) {
         console.error(`Error fetching latest klines via CCXT:`, error);
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+             throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        }
         if (error instanceof ccxt.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
         } else if (error instanceof ccxt.ExchangeError) {
@@ -283,6 +295,10 @@ export const placeOrder = async (
     const responseData = await response.json();
 
     if (!response.ok) {
+      // Handle geo-blocking error specifically
+      if (response.status === 451 || response.status === 403) {
+          throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+      }
       // Handle a specific error for reduceOnly orders on non-existent positions
       if (responseData.code === -2022 && responseData.msg.includes('ReduceOnly Order is rejected')) {
         throw new Error(`Close order failed: No open position for ${symbol} on the specified side.`);
@@ -300,43 +316,9 @@ export const placeOrder = async (
     };
   } catch (error: any) {
     console.error(`Error placing order on Binance:`, error);
-    if (error.message.includes('Binance API Error') || error.message.includes('Close order failed')) {
+    if (error.message.includes('Binance API Error') || error.message.includes('Close order failed') || error.message.includes('Service unavailable')) {
       throw error;
     }
     throw new Error("Failed to send order to Binance. Please check your network and API permissions.");
   }
 };
-
-export const getDepthSnapshot = async (symbol: string): Promise<any> => {
-    if (!symbol) {
-        throw new Error("getDepthSnapshot was called without a symbol.");
-    }
-    const upperSymbol = symbol.toUpperCase();
-    const url = `${BINANCE_API_URL}/fapi/v1/depth?symbol=${upperSymbol}&limit=500`;
-
-    try {
-        const response = await fetch(url, { cache: 'no-store' });
-        
-        const contentType = response.headers.get('content-type');
-        if (!response.ok || !contentType || !contentType.includes('application/json')) {
-            const errorText = await response.text();
-            let errorMessage = `Binance API returned a non-OK or non-JSON response (Status: ${response.status}).`;
-            // Try to parse error if it's JSON, otherwise use the text.
-            try {
-                const errorData = JSON.parse(errorText);
-                errorMessage = `Binance API Error: ${errorData.msg || 'Unknown error'} (Code: ${errorData.code || 'N/A'})`;
-            } catch (e) {
-                // Not a JSON error, maybe HTML. Don't log the full page.
-                console.error("Received non-JSON error from Binance:", errorText.substring(0, 500));
-            }
-            throw new Error(errorMessage);
-        }
-        
-        return await response.json();
-        
-    } catch (error: any) {
-        console.error(`Error fetching depth snapshot from Binance API:`, error);
-        // Re-throw the specific error we created, or a generic one if it came from `fetch` itself (e.g., network error).
-        throw new Error(error.message || "Failed to connect to Binance for order book data.");
-    }
-}

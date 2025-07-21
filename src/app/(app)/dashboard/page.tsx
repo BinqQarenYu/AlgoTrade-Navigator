@@ -10,7 +10,7 @@ import { useApi } from "@/context/api-context";
 import { useBot } from "@/context/bot-context";
 import type { Portfolio, Position } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Terminal, Bot } from "lucide-react";
+import { Terminal, Bot, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
@@ -65,13 +65,18 @@ export default function DashboardPage() {
           console.error(error);
           setPortfolio(null);
           setPositions([]);
-          const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
-          setError(errorMessage);
-          toast({
-            title: "Data Fetch Failed",
-            description: error.message || "Could not retrieve data from Binance.",
-            variant: "destructive",
-          });
+          
+          if (error.message.includes('Service unavailable')) {
+             setError(error.message); // Show the geo-restriction error directly
+          } else {
+             const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
+             setError(errorMessage);
+             toast({
+                title: "Data Fetch Failed",
+                description: error.message || "Could not retrieve data from Binance.",
+                variant: "destructive",
+            });
+          }
         }
       } else {
         setPortfolio(null);
@@ -108,8 +113,8 @@ export default function DashboardPage() {
 
       {error && !isTradingActive && (
          <Alert variant="destructive">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>API Error</AlertTitle>
+          {error.includes('Service unavailable') ? <Globe className="h-4 w-4" /> : <Terminal className="h-4 w-4" />}
+          <AlertTitle>{error.includes('Service unavailable') ? 'Geo-Restriction Error' : 'API Error'}</AlertTitle>
           <AlertDescription>
             {error}
           </AlertDescription>

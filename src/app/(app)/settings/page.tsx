@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -206,13 +205,17 @@ export default function SettingsPage() {
         setApiLimit({ used: usedWeight, limit: 1200 })
       } catch (error: any) {
         setIsConnected(false)
-        if (error.message && error.message.includes('-2015')) {
-            // Specific handling for the -2015 IP/permissions error
-            setConnectionError(error.message);
+        const errorMessage = error.message || "An unknown error occurred.";
+        
+        // Handle geo-restriction error differently from other errors
+        if (errorMessage.includes('Service unavailable') || errorMessage.includes('restricted location')) {
+            setConnectionError(errorMessage);
+        } else if (errorMessage.includes('-2015')) { // Specific handling for the -2015 IP/permissions error
+            setConnectionError(errorMessage);
         } else {
             toast({
                 title: "Connection Failed",
-                description: error.message || "Please check your API keys and permissions.",
+                description: errorMessage,
                 variant: "destructive",
             });
         }
@@ -320,18 +323,26 @@ export default function SettingsPage() {
               <CardContent className="space-y-4">
                  {connectionError && (
                     <Alert variant="destructive">
-                        <ShieldAlert className="h-4 w-4" />
-                        <AlertTitle>Connection Failed (Error -2015)</AlertTitle>
+                        {connectionError.includes('Service unavailable') ? <Globe className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                        <AlertTitle>
+                            {connectionError.includes('Service unavailable') ? 'Geo-Restriction Error' : 'Connection Failed'}
+                        </AlertTitle>
                         <AlertDescription>
-                            <p>Binance rejected the connection. This is usually due to one of two issues:</p>
-                            <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>
-                                    <strong>IP Whitelist:</strong> If your key has IP restrictions, you MUST add the server's IP address (shown below) to your key's whitelist in Binance.
-                                </li>
-                                <li>
-                                    <strong>Permissions:</strong> Ensure your API key has "Enable Futures" permissions checked in Binance.
-                                </li>
-                            </ul>
+                            {connectionError.includes('-2015') ? (
+                                <>
+                                 <p>Binance rejected the connection (Error -2015). This is usually due to one of two issues:</p>
+                                 <ul className="list-disc pl-5 mt-2 space-y-1">
+                                     <li>
+                                         <strong>IP Whitelist:</strong> If your key has IP restrictions, you MUST add the server's IP address (shown below) to your key's whitelist in Binance.
+                                     </li>
+                                     <li>
+                                         <strong>Permissions:</strong> Ensure your API key has "Enable Futures" permissions checked in Binance.
+                                     </li>
+                                 </ul>
+                                </>
+                            ) : (
+                                <p>{connectionError}</p>
+                            )}
                         </AlertDescription>
                     </Alert>
                 )}
