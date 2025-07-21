@@ -46,12 +46,8 @@ type BotInstance = LiveBotConfig & {
     id: string;
 };
 
-interface LiveBotState {
-  bots: Record<string, LiveBotStateForAsset>;
-}
-
 interface BotContextType {
-  liveBotState: LiveBotState;
+  liveBotState: { bots: Record<string, LiveBotStateForAsset> };
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
@@ -108,7 +104,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
   const { activeProfile, canUseAi, consumeAiCredit } = useApi();
   
-  const [liveBotState, setLiveBotState] = useState<LiveBotState>({ bots: {} });
+  const [liveBotState, setLiveBotState] = useState<{ bots: Record<string, LiveBotStateForAsset> }>({ bots: {} });
   const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
   const riskGuardianRefs = useRef<Record<string, RiskGuardian | null>>({});
   const dataBufferRef = useRef<Record<string, HistoricalData[]>>({});

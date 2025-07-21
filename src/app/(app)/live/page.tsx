@@ -160,7 +160,7 @@ const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onRes
                 </div>
 
                 <DisciplineSettings
-                    params={params.discipline || defaultSmaCrossoverParams.discipline}
+                    params={params.discipline || defaultAwesomeOscillatorParams.discipline}
                     onParamChange={onDisciplineChange}
                     isDisabled={isTradingActive}
                 />
@@ -309,7 +309,7 @@ export default function LiveTradingPage() {
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
         handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultSmaCrossoverParams.discipline),
+            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
             [paramName]: value
         });
     }, [botInstances, handleStrategyParamChange]);

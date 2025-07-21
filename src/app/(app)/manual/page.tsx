@@ -76,6 +76,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'peak-formation-fib': defaultPffParams,
     'pivot-point-reversal': defaultPivotPointReversalParams,
     'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
     'stochastic-crossover': defaultStochasticCrossoverParams,
     'supertrend': defaultSupertrendParams,
     'volume-delta': defaultVolumeDeltaParams,

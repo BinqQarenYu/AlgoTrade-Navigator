@@ -210,11 +210,6 @@ export type LiveBotStateForAsset = {
   logs: string[];
 };
 
-export type LiveBotState = {
-  bots: Record<string, LiveBotStateForAsset>; // Keyed by bot instance ID
-};
-
-
 export type PricePredictionOutput = {
     predictedPrice: number;
     predictedDirection: 'UP' | 'DOWN' | 'NEUTRAL';
