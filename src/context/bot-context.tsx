@@ -196,6 +196,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       stopLoss: config.stopLoss || 1,
       strategy: config.strategy || '',
       strategyParams: config.strategyParams || {},
+      isManual: config.isManual || false,
     };
     setBotInstances(prev => [...prev, newBot]);
   }, [setBotInstances]);
