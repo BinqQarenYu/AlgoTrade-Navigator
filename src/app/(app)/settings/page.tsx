@@ -243,8 +243,8 @@ export default function SettingsPage() {
           </CardHeader>
           <CollapsibleContent>
             <CardContent className="space-y-4">
-                <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API calls originate from our server, not your computer. To use an IP-restricted key, add the Server IP below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
-                <div className="flex items-center justify-between rounded-lg border p-3"><div className="space-y-1"><Label>Your Browser IP</Label><p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p></div></div>
+                <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API keys are stored on the server for security. This means all requests to Binance originate from the server, not your browser. To use an IP-restricted key, you MUST add the **Server IP** below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
+                <div className="flex items-center justify-between rounded-lg border p-3"><div className="space-y-1"><Label>Your Browser IP (For Reference Only)</Label><p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p></div></div>
                 <div className="flex items-center justify-between rounded-lg border bg-primary/10 p-3">
                     <div className="space-y-1"><Label>Application Server IP (Whitelist this one)</Label><p className="font-mono text-sm font-semibold text-primary">{serverIpAddress || "Loading..."}</p></div>
                     <Button variant="ghost" size="sm" onClick={() => { if(serverIpAddress) { navigator.clipboard.writeText(serverIpAddress); toast({ title: "Copied!", description: "Server IP copied to clipboard." }); } }} disabled={!serverIpAddress || serverIpAddress === 'Unavailable'}><Copy className="mr-2 h-4 w-4" /> Copy</Button>
