@@ -44,9 +44,10 @@ import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-fl
 import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
 import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
 import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
-import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
@@ -156,7 +157,7 @@ const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onRes
                 </div>
 
                 <DisciplineSettings
-                    params={params.discipline || defaultAwesomeOscillatorParams.discipline}
+                    params={params.discipline || defaultSmaCrossoverParams.discipline}
                     onParamChange={onDisciplineChange}
                     isDisabled={isTradingActive}
                 />
@@ -292,7 +293,7 @@ export default function ManualTradingPage() {
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
         handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
+            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultSmaCrossoverParams.discipline),
             [paramName]: value
         });
     }, [botInstances, handleStrategyParamChange]);

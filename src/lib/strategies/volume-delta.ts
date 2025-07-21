@@ -62,7 +62,7 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
     const maxPrice = Math.max(...relevantData.map(d => d.high));
     const priceRange = maxPrice - minPrice;
     
-    if (priceRange === 0) return relevantData[0].close;
+    if (priceRange === 0) return relevantData[0]?.close || 0;
 
     // Adjust bin size based on price magnitude
     let binSize = 0.01; // for prices < $1

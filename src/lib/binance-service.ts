@@ -49,7 +49,6 @@ const callAuthenticatedGetApi = async <T>(path: string, queryString: string, api
 
 
 export const getAccountBalance = async (apiKey: string, secretKey: string): Promise<{ data: Portfolio, usedWeight: number }> => {
-  console.log("Fetching real account balance from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
   const { data, usedWeight } = await callAuthenticatedGetApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
@@ -63,7 +62,6 @@ export const getAccountBalance = async (apiKey: string, secretKey: string): Prom
 };
 
 export const getOpenPositions = async (apiKey: string, secretKey: string): Promise<{ data: Position[], usedWeight: number }> => {
-  console.log("Fetching open positions from Binance...");
   const timestamp = Date.now();
   const queryString = `timestamp=${timestamp}`;
   const { data, usedWeight } = await callAuthenticatedGetApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
@@ -86,7 +84,6 @@ export const getOpenPositions = async (apiKey: string, secretKey: string): Promi
 };
 
 export const getTradeHistory = async (symbol: string, apiKey: string, secretKey: string): Promise<{ data: Trade[], usedWeight: number }> => {
-    console.log(`Fetching trade history for ${symbol} from Binance...`);
     const timestamp = Date.now();
     const queryString = `symbol=${symbol}&timestamp=${timestamp}&limit=50`;
     const { data, usedWeight } = await callAuthenticatedGetApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
@@ -121,7 +118,6 @@ export const getHistoricalKlines = async (
     }
 
     const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching klines for ${upperSymbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
     
     const limit = 1500;
 
@@ -166,7 +162,6 @@ export const getLatestKlinesByLimit = async (
         return [];
     }
     const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching latest ${limit} klines for ${upperSymbol} (${interval})`);
 
     try {
         await binance.loadMarkets(true); // Force cache bypass
@@ -202,7 +197,6 @@ export const getLatestKlinesByLimit = async (
 
 export const get24hTickerStats = async (symbols: string[]): Promise<Record<string, Ticker>> => {
     if (symbols.length === 0) return {};
-    console.log(`Fetching 24h ticker stats for ${symbols.length} symbols...`);
     try {
         const tickers = await binance.fetchTickers(symbols, { 'newUpdates': false });
         return tickers;
@@ -318,7 +312,6 @@ export const getDepthSnapshot = async (symbol: string): Promise<any> => {
         throw new Error("getDepthSnapshot was called without a symbol.");
     }
     const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching depth snapshot for ${upperSymbol}`);
     const url = `${BINANCE_API_URL}/fapi/v1/depth?symbol=${upperSymbol}&limit=500`;
 
     try {

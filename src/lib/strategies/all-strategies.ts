@@ -4,7 +4,7 @@ import smaCrossoverStrategy from './sma-crossover';
 import emaCrossoverStrategy from './ema-crossover';
 import rsiDivergenceStrategy from './rsi-divergence';
 import peakFormationFibStrategy from './peak-formation-fib';
-import volumeDeltaStrategy from './volume-profile-delta';
+import volumeDeltaStrategy from './volume-delta';
 import macdCrossoverStrategy from './macd-crossover';
 import bollingerBandsStrategy from './bollinger-bands';
 import supertrendStrategy from './supertrend';
