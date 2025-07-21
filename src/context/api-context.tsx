@@ -1,14 +1,15 @@
 
-
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import type { ApiProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { getAccountBalance } from '@/lib/binance-service';
 
 interface ApiContextType {
   profiles: ApiProfile[];
   activeProfile: ApiProfile | null;
+  // These are now for display/selection only, not direct use
   apiKey: string | null;
   secretKey: string | null;
   coingeckoApiKey: string | null;
@@ -37,11 +38,14 @@ interface ApiContextType {
   aiQuota: {
     used: number;
     limit: number;
-    lastReset: string; // YYYY-MM-DD
+    lastReset: string;
   };
   setAiQuotaLimit: (newLimit: number) => void;
   canUseAi: () => boolean;
   consumeAiCredit: () => void;
+  
+  // New connection test function
+  testConnection: () => Promise<boolean>;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
@@ -84,7 +88,6 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     if (storedAiQuota) {
         const parsed = JSON.parse(storedAiQuota);
         const today = new Date().toISOString().split('T')[0];
-        // Reset if it's a new day
         if (parsed.lastReset !== today) {
             setAiQuota({ ...parsed, used: 0, lastReset: today });
         } else {
@@ -93,8 +96,6 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     }
 
     let loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
-    
-    // Simple migration for old profiles without permissions
     loadedProfiles = loadedProfiles.map((p: any) => ({
         ...p,
         permissions: p.permissions || 'ReadOnly'
@@ -102,83 +103,22 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
 
     setProfiles(loadedProfiles);
     
-    if (storedCgKey) {
-        setCoingeckoApiKey(storedCgKey);
-    }
-    if (storedCmcKey) {
-        setCoinmarketcapApiKey(storedCmcKey);
-    }
-
-    if (storedThreshold) {
-      setRateLimitThreshold(parseInt(storedThreshold, 10));
-    }
+    if (storedCgKey) setCoingeckoApiKey(storedCgKey);
+    if (storedCmcKey) setCoinmarketcapApiKey(storedCmcKey);
+    if (storedThreshold) setRateLimitThreshold(parseInt(storedThreshold, 10));
     
     if (storedActiveId && loadedProfiles.some((p: ApiProfile) => p.id === storedActiveId)) {
       setActiveProfileId(storedActiveId);
-      // Only set connected if an active profile exists and it was connected before
-      if (storedIsConnected) {
-        setIsConnected(true);
-      }
+      if (storedIsConnected) setIsConnected(true);
     } else {
-        setIsConnected(false); // No active profile, must be disconnected
+        setIsConnected(false);
     }
   }, []);
 
-  // Persist profiles to localStorage
-  useEffect(() => {
-    localStorage.setItem('apiProfiles', JSON.stringify(profiles));
-  }, [profiles]);
-
-  useEffect(() => {
-    if (telegramBotToken) localStorage.setItem('telegramBotToken', telegramBotToken);
-    else localStorage.removeItem('telegramBotToken');
-  }, [telegramBotToken]);
-
-  useEffect(() => {
-    if (telegramChatId) localStorage.setItem('telegramChatId', telegramChatId);
-    else localStorage.removeItem('telegramChatId');
-  }, [telegramChatId]);
-
-  useEffect(() => {
-    if (geminiApiKey) {
-        localStorage.setItem('geminiApiKey', geminiApiKey);
-        // This is a workaround to make the key available to the server-side Genkit environment
-        // In a real production app, this should be handled by a secure backend mechanism
-        process.env.GEMINI_API_KEY = geminiApiKey;
-    } else {
-        localStorage.removeItem('geminiApiKey');
-        delete process.env.GEMINI_API_KEY;
-    }
-  }, [geminiApiKey]);
-
-  // Persist coingecko key to localStorage
-  useEffect(() => {
-    if (coingeckoApiKey) {
-      localStorage.setItem('coingeckoApiKey', coingeckoApiKey);
-    } else {
-      localStorage.removeItem('coingeckoApiKey');
-    }
-  }, [coingeckoApiKey]);
-
-  useEffect(() => {
-    if (coinmarketcapApiKey) {
-      localStorage.setItem('coinmarketcapApiKey', coinmarketcapApiKey);
-    } else {
-      localStorage.removeItem('coinmarketcapApiKey');
-    }
-  }, [coinmarketcapApiKey]);
-
-
-  // Persist threshold to localStorage
-  useEffect(() => {
-    localStorage.setItem('rateLimitThreshold', String(rateLimitThreshold));
-  }, [rateLimitThreshold]);
-
-  // Persist activeProfileId to localStorage and handle connection status
   const setActiveProfile = useCallback((profileId: string | null) => {
     if (profileId !== activeProfileId) {
-      setIsConnected(false); // Disconnect when switching profiles
-      setApiLimit({ used: 0, limit: 1200 }); // Reset limit on profile switch
+      setIsConnected(false);
+      setApiLimit({ used: 0, limit: 1200 });
       setActiveProfileId(profileId);
       if (profileId) {
         localStorage.setItem('activeProfileId', profileId);
@@ -188,117 +128,72 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeProfileId]);
   
-  // Persist connection status
-  useEffect(() => {
-    localStorage.setItem('binance-isConnected', String(isConnected));
-    if (!isConnected) {
-      setApiLimit({ used: 0, limit: 1200 }); // Reset usage when disconnected
-    }
-  }, [isConnected]);
+  useEffect(() => { localStorage.setItem('apiProfiles', JSON.stringify(profiles)); }, [profiles]);
+  useEffect(() => { if (telegramBotToken) localStorage.setItem('telegramBotToken', telegramBotToken); else localStorage.removeItem('telegramBotToken'); }, [telegramBotToken]);
+  useEffect(() => { if (telegramChatId) localStorage.setItem('telegramChatId', telegramChatId); else localStorage.removeItem('telegramChatId'); }, [telegramChatId]);
+  useEffect(() => { if (geminiApiKey) localStorage.setItem('geminiApiKey', geminiApiKey); else localStorage.removeItem('geminiApiKey'); }, [geminiApiKey]);
+  useEffect(() => { if (coingeckoApiKey) localStorage.setItem('coingeckoApiKey', coingeckoApiKey); else localStorage.removeItem('coingeckoApiKey'); }, [coingeckoApiKey]);
+  useEffect(() => { if (coinmarketcapApiKey) localStorage.setItem('coinmarketcapApiKey', coinmarketcapApiKey); else localStorage.removeItem('coinmarketcapApiKey'); }, [coinmarketcapApiKey]);
+  useEffect(() => { localStorage.setItem('rateLimitThreshold', String(rateLimitThreshold)); }, [rateLimitThreshold]);
+  useEffect(() => { localStorage.setItem('binance-isConnected', String(isConnected)); if (!isConnected) { setApiLimit({ used: 0, limit: 1200 }); } }, [isConnected]);
+  useEffect(() => { localStorage.setItem('aiQuota', JSON.stringify(aiQuota)); }, [aiQuota]);
 
-  // Persist AI Quota
-  useEffect(() => {
-    localStorage.setItem('aiQuota', JSON.stringify(aiQuota));
-  }, [aiQuota]);
-
-  // --- Profile Management Functions ---
-  const addProfile = (profile: ApiProfile) => {
-    setProfiles(prev => [...prev, profile]);
-  };
-
-  const updateProfile = (updatedProfile: ApiProfile) => {
-    setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? updatedProfile : p));
-  };
-
-  const deleteProfile = (profileId: string) => {
-    setProfiles(prev => prev.filter(p => p.id !== profileId));
-    if (activeProfileId === profileId) {
-      setActiveProfile(null);
-    }
-  };
-
-  // --- AI Quota Management ---
-  const setAiQuotaLimit = (newLimit: number) => {
-    setAiQuota(prev => ({ ...prev, limit: Math.max(1, Math.min(50, newLimit)) }));
-  };
+  const addProfile = (profile: ApiProfile) => setProfiles(prev => [...prev, profile]);
+  const updateProfile = (updatedProfile: ApiProfile) => setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? updatedProfile : p));
+  const deleteProfile = (profileId: string) => { setProfiles(prev => prev.filter(p => p.id !== profileId)); if (activeProfileId === profileId) { setActiveProfile(null); } };
+  const setAiQuotaLimit = (newLimit: number) => setAiQuota(prev => ({ ...prev, limit: Math.max(1, Math.min(50, newLimit)) }));
 
   const canUseAi = (): boolean => {
     if (!geminiApiKey) {
-        toast({
-            title: "Google AI API Key Missing",
-            description: "Please set your Gemini API key in the Settings page to use AI features.",
-            variant: "destructive",
-        });
+        toast({ title: "Google AI API Key Missing", description: "Please set your Gemini API key in Settings.", variant: "destructive" });
         return false;
     }
     let currentQuota = { ...aiQuota };
     const today = new Date().toISOString().split('T')[0];
-
-    // Check if we need to reset the quota for a new day
     if (currentQuota.lastReset !== today) {
         const newQuota = { ...currentQuota, used: 0, lastReset: today };
         setAiQuota(newQuota);
-        currentQuota = newQuota; // use the new value for the check below
+        currentQuota = newQuota;
     }
-
     if (currentQuota.used >= currentQuota.limit) {
-      toast({
-        title: "AI Daily Quota Limit Reached",
-        description: `You have used ${currentQuota.used}/${currentQuota.limit} requests. The quota will reset tomorrow.`,
-        variant: "destructive",
-      });
+      toast({ title: "AI Daily Quota Reached", description: `Used ${currentQuota.used}/${currentQuota.limit}. Resets tomorrow.`, variant: "destructive" });
       return false;
     }
-    return true; // It's possible to use AI
+    return true;
   };
   
   const consumeAiCredit = () => {
-    // This function assumes canUseAi() was already called and returned true.
     const today = new Date().toISOString().split('T')[0];
     setAiQuota(prev => {
-        if (prev.lastReset !== today) {
-            // This case should be handled by canUseAi, but as a fallback:
-            return { ...prev, used: 1, lastReset: today };
-        }
-        if (prev.used < prev.limit) {
-            return { ...prev, used: prev.used + 1 };
-        }
-        return prev; // Don't increment if limit is already reached
+        if (prev.lastReset !== today) return { ...prev, used: 1, lastReset: today };
+        if (prev.used < prev.limit) return { ...prev, used: prev.used + 1 };
+        return prev;
     });
+  };
+
+  const testConnection = async (): Promise<boolean> => {
+    try {
+        const { usedWeight } = await getAccountBalance();
+        setApiLimit({ used: usedWeight, limit: 1200 });
+        return true;
+    } catch (error) {
+        return false;
+    }
   };
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
 
   return (
     <ApiContext.Provider value={{ 
-      profiles, 
-      activeProfile,
-      apiKey: activeProfile?.apiKey || null,
-      secretKey: activeProfile?.secretKey || null,
-      coingeckoApiKey,
-      coinmarketcapApiKey,
-      telegramBotToken,
-      telegramChatId,
-      geminiApiKey,
-      addProfile,
-      updateProfile,
-      deleteProfile,
-      setActiveProfile,
-      setCoingeckoApiKey,
-      setCoinmarketcapApiKey,
-      setTelegramBotToken,
-      setTelegramChatId,
-      setGeminiApiKey,
-      isConnected,
-      setIsConnected, 
-      apiLimit, 
-      setApiLimit,
-      rateLimitThreshold,
-      setRateLimitThreshold,
-      aiQuota,
-      setAiQuotaLimit,
-      canUseAi,
-      consumeAiCredit,
+      profiles, activeProfile,
+      apiKey: activeProfile?.apiKey || null, secretKey: activeProfile?.secretKey || null,
+      coingeckoApiKey, coinmarketcapApiKey, telegramBotToken, telegramChatId, geminiApiKey,
+      addProfile, updateProfile, deleteProfile, setActiveProfile,
+      setCoingeckoApiKey, setCoinmarketcapApiKey, setTelegramBotToken, setTelegramChatId, setGeminiApiKey,
+      isConnected, setIsConnected, apiLimit, setApiLimit,
+      rateLimitThreshold, setRateLimitThreshold,
+      aiQuota, setAiQuotaLimit, canUseAi, consumeAiCredit,
+      testConnection,
     }}>
       {children}
     </ApiContext.Provider>

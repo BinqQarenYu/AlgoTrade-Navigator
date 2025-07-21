@@ -14,7 +14,7 @@ import { Terminal, Bot, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
+  const { isConnected, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
   const { isTradingActive, closePosition } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (isTradingActive) {
+      if (isTradingActive || !isConnected || !activeProfile) {
         setIsLoading(false);
         setPortfolio(null);
         setPositions([]);
@@ -34,60 +34,41 @@ export default function DashboardPage() {
       setIsLoading(true);
       setError(null);
 
-      if (isConnected && apiKey && secretKey) {
-        if (apiLimit.used >= rateLimitThreshold) {
-            setError(`API rate limit threshold reached. Used: ${apiLimit.used}. Please wait a moment.`);
-            toast({
-                title: "Rate Limit Reached",
-                description: "Fetching paused to avoid exceeding API limits.",
-                variant: "destructive"
-            });
-            setIsLoading(false);
-            return;
-        }
+      if (apiLimit.used >= rateLimitThreshold) {
+          setError(`API rate limit threshold reached. Used: ${apiLimit.used}. Please wait a moment.`);
+          toast({ title: "Rate Limit Reached", description: "Fetching paused to avoid exceeding API limits.", variant: "destructive"});
+          setIsLoading(false);
+          return;
+      }
 
-        try {
-          // Fetch portfolio and positions in parallel
-          const [
-            { data: realPortfolio, usedWeight: pnlWeight },
-            { data: realPositions, usedWeight: posWeight },
-          ] = await Promise.all([
-            getAccountBalance(apiKey, secretKey),
-            getOpenPositions(apiKey, secretKey),
-          ]);
-          
-          setApiLimit({ used: posWeight, limit: 1200 });
-          
-          setPortfolio(realPortfolio);
-          setPositions(realPositions);
+      try {
+        const [{ data: realPortfolio, usedWeight: pnlWeight }, { data: realPositions, usedWeight: posWeight }] = await Promise.all([
+          getAccountBalance(),
+          getOpenPositions(),
+        ]);
+        
+        setApiLimit({ used: posWeight, limit: 1200 });
+        setPortfolio(realPortfolio);
+        setPositions(realPositions);
 
-        } catch (error: any) {
-          console.error(error);
-          setPortfolio(null);
-          setPositions([]);
-          
-          if (error.message.includes('Service unavailable')) {
-             setError(error.message); // Show the geo-restriction error directly
-          } else {
-             const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
-             setError(errorMessage);
-             toast({
-                title: "Data Fetch Failed",
-                description: error.message || "Could not retrieve data from Binance.",
-                variant: "destructive",
-            });
-          }
-        }
-      } else {
+      } catch (error: any) {
+        console.error(error);
         setPortfolio(null);
         setPositions([]);
+        
+        if (error.message.includes('Service unavailable')) {
+           setError(error.message);
+        } else {
+           const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
+           setError(errorMessage);
+           toast({ title: "Data Fetch Failed", description: error.message || "Could not retrieve data from Binance.", variant: "destructive"});
+        }
       }
       setIsLoading(false);
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive]);
-
+  }, [isConnected, activeProfile, toast, setApiLimit, rateLimitThreshold, isTradingActive]);
 
   return (
     <div className="space-y-6">
