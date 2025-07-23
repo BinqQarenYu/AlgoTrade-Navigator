@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, memo, useCallback, useRef } from "react"
@@ -386,7 +385,7 @@ export default function ManualTradingPage() {
                                     <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
                                     <TableHead>Live Price</TableHead>
-                                    <TableHead>Signal Details (Entry/SL/TP)</TableHead>
+                                    <TableHead>Trade Signal (Entry/SL/TP)</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
                                     <TableHead>Interval</TableHead>
@@ -491,11 +490,21 @@ const BotInstanceRow = memo(({
                 <TableCell>
                     {lastSignal ? (
                         <div className="flex flex-col text-xs font-mono">
-                            <span className={cn("flex items-center", lastSignal.action === 'UP' ? 'text-green-500' : 'text-red-500')}>
-                                {lastSignal.action === 'UP' ? <TrendingUp className="mr-1 h-3 w-3"/> : <TrendingDown className="mr-1 h-3 w-3"/>}
-                                {formatPrice(lastSignal.entryPrice)}
+                           <span className={cn(
+                                "flex items-center font-semibold", 
+                                lastSignal.action === 'UP' ? 'text-green-500' : 'text-red-500'
+                            )}>
+                                {lastSignal.action === 'UP' 
+                                    ? <><TrendingUp className="mr-1 h-4 w-4"/> BUY SIGNAL</> 
+                                    : <><TrendingDown className="mr-1 h-4 w-4"/> SELL SIGNAL</>
+                                }
                             </span>
-                            <span className="text-muted-foreground">{formatPrice(lastSignal.stopLoss)} / {formatPrice(lastSignal.takeProfit)}</span>
+                            <span className="text-muted-foreground mt-1">
+                                Entry: {formatPrice(lastSignal.entryPrice)}
+                            </span>
+                            <span className="text-muted-foreground">
+                                SL: {formatPrice(lastSignal.stopLoss)} / TP: {formatPrice(lastSignal.takeProfit)}
+                            </span>
                         </div>
                     ) : <span className="text-xs text-muted-foreground">--</span>}
                 </TableCell>
