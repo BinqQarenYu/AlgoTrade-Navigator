@@ -184,8 +184,8 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
             tooltip: 'The bot is actively monitoring the market for a new trade signal.'
         },
         analyzing: {
-            color: 'bg-yellow-500',
-            icon: Loader2,
+            color: 'bg-purple-600 hover:bg-purple-600',
+            icon: BrainCircuit,
             text: 'Analyzing',
             tooltip: 'The bot is performing its initial analysis to find a trade signal.'
         },
@@ -222,8 +222,8 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color, status === 'analyzing' && 'animate-spin')}>
-                        <Icon className="mr-1 h-3 w-3" /> {currentStatus.text}
+                    <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color)}>
+                        <Icon className={cn("mr-1 h-3 w-3", status === 'analyzing' && "animate-pulse")} /> {currentStatus.text}
                     </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
