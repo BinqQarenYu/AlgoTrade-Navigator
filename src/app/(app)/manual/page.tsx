@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity } from "lucide-react"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -385,6 +385,7 @@ export default function ManualTradingPage() {
                                     <TableHead className="w-[50px]">#</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
+                                    <TableHead>Live Price</TableHead>
                                     <TableHead>Signal Details (Entry/SL/TP)</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
@@ -457,6 +458,26 @@ const BotInstanceRow = memo(({
     isConnected: boolean,
 }) => {
     const lastSignal = botState?.activePosition;
+    const chartData = botState?.chartData || [];
+    const lastPrice = chartData.length > 0 ? chartData[chartData.length - 1].close : null;
+    const [priceColor, setPriceColor] = useState('text-muted-foreground');
+    const prevPriceRef = useRef<number | null>(lastPrice);
+
+    useEffect(() => {
+        if (lastPrice !== null) {
+            if (prevPriceRef.current !== null) {
+                if (lastPrice > prevPriceRef.current) {
+                    setPriceColor('text-green-500');
+                } else if (lastPrice < prevPriceRef.current) {
+                    setPriceColor('text-red-500');
+                }
+            }
+            prevPriceRef.current = lastPrice;
+            const timer = setTimeout(() => setPriceColor('text-muted-foreground'), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [lastPrice]);
+    
     return (
         <>
             <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
@@ -473,6 +494,16 @@ const BotInstanceRow = memo(({
                             {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
                         </SelectContent>
                     </Select>
+                </TableCell>
+                <TableCell>
+                    {isBotRunning && lastPrice !== null ? (
+                         <div className="flex items-center gap-1">
+                            <Activity className={cn("h-3 w-3 transition-colors", priceColor)} />
+                            <span className={cn("font-mono text-xs transition-colors", priceColor)}>
+                                ${formatPrice(lastPrice)}
+                            </span>
+                        </div>
+                    ) : <span className="text-xs text-muted-foreground">--</span>}
                 </TableCell>
                 <TableCell>
                     {lastSignal ? (
@@ -583,7 +614,7 @@ const BotInstanceRow = memo(({
             </TableRow>
             {openParams[bot.id] && bot.strategy && (
                 <TableRow>
-                    <TableCell colSpan={11} className="p-0">
+                    <TableCell colSpan={12} className="p-0">
                         <div className="p-4 bg-muted/30">
                             <StrategyParamsCard
                                 bot={bot}
