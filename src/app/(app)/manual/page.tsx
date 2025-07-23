@@ -2,7 +2,7 @@
 
 "use client"
 
-import React, { useState, useEffect, memo, useCallback } from "react"
+import React, { useState, useEffect, memo, useCallback, useRef } from "react"
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
