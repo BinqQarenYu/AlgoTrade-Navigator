@@ -460,23 +460,6 @@ const BotInstanceRow = memo(({
     const lastSignal = botState?.activePosition;
     const chartData = botState?.chartData || [];
     const lastPrice = chartData.length > 0 ? chartData[chartData.length - 1].close : null;
-    const [priceColor, setPriceColor] = useState('text-muted-foreground');
-    const prevPriceRef = useRef<number | null>(lastPrice);
-
-    useEffect(() => {
-        if (lastPrice !== null) {
-            if (prevPriceRef.current !== null) {
-                if (lastPrice > prevPriceRef.current) {
-                    setPriceColor('text-green-500');
-                } else if (lastPrice < prevPriceRef.current) {
-                    setPriceColor('text-red-500');
-                }
-            }
-            prevPriceRef.current = lastPrice;
-            const timer = setTimeout(() => setPriceColor('text-muted-foreground'), 500);
-            return () => clearTimeout(timer);
-        }
-    }, [lastPrice]);
     
     return (
         <>
@@ -498,8 +481,8 @@ const BotInstanceRow = memo(({
                 <TableCell>
                     {isBotRunning && lastPrice !== null ? (
                          <div className="flex items-center gap-1">
-                            <Activity className={cn("h-3 w-3 transition-colors", priceColor)} />
-                            <span className={cn("font-mono text-xs transition-colors", priceColor)}>
+                            <Activity className="h-3 w-3 text-muted-foreground" />
+                            <span className="font-mono text-xs text-muted-foreground">
                                 ${formatPrice(lastPrice)}
                             </span>
                         </div>
