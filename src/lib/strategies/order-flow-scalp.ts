@@ -70,8 +70,7 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
     if (priceRange > 1000) binSize = 10;
     else if (priceRange > 100) binSize = 1;
     else if (priceRange > 10) binSize = 0.5;
-    else if (priceRange > 1) binSize = 0.1;
-    else if (priceRange > 0.1) binSize = 0.01;
+    else if (priceRange > 0.1) binSize = 0.1;
     else if (priceRange > 0.01) binSize = 0.001;
 
     relevantData.forEach(d => {
@@ -98,6 +97,9 @@ const orderFlowScalpStrategy: Strategy = {
 
         const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data, params.deltaLookback);
 
+        let longSetupIndex = -1;
+        let shortSetupIndex = -1;
+
         for (let i = params.pocLookback; i < data.length; i++) {
             dataWithIndicators[i].volumeDelta = volumeDelta[i];
             dataWithIndicators[i].cumulativeVolumeDelta = cumulativeVolumeDelta[i];
@@ -113,19 +115,47 @@ const orderFlowScalpStrategy: Strategy = {
 
             const pocZoneUpper = poc * (1 + params.pocProximityPercent);
             const pocZoneLower = poc * (1 - params.pocProximityPercent);
-
-            // LONG condition (Absorption): Price tests POC zone from above and cumulative delta flips positive
-            const standardBuy = currentCandle.low <= pocZoneUpper && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open;
             
-            // SHORT condition (Exhaustion): Price tests POC zone from below and cumulative delta flips negative
-            const standardSell = currentCandle.high >= pocZoneLower && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open;
+            // --- Step 1: Identify Setups ---
 
-            if (params.reverse) {
-                if (standardBuy) dataWithIndicators[i].sellSignal = currentCandle.high;
-                if (standardSell) dataWithIndicators[i].buySignal = currentCandle.low;
-            } else {
-                if (standardBuy) dataWithIndicators[i].buySignal = currentCandle.low;
-                if (standardSell) dataWithIndicators[i].sellSignal = currentCandle.high;
+            // Long setup: Price dips into POC zone and closes back above it.
+            if (currentCandle.low <= pocZoneUpper && currentCandle.close > poc) {
+                longSetupIndex = i;
+                shortSetupIndex = -1; // Invalidate any pending short setup
+            }
+
+            // Short setup: Price rallies into POC zone and closes back below it.
+            if (currentCandle.high >= pocZoneLower && currentCandle.close < poc) {
+                shortSetupIndex = i;
+                longSetupIndex = -1; // Invalidate any pending long setup
+            }
+
+            // --- Step 2: Look for Triggers on Valid Setups ---
+
+            // Check for LONG trigger
+            if (longSetupIndex !== -1) {
+                // Check if delta has flipped positive SINCE the setup candle
+                if (prevCumulativeDelta <= 0 && currentCumulativeDelta > 0) {
+                     if (params.reverse) {
+                        dataWithIndicators[i].sellSignal = currentCandle.high;
+                    } else {
+                        dataWithIndicators[i].buySignal = currentCandle.low;
+                    }
+                    longSetupIndex = -1; // Consume the setup
+                }
+            }
+
+            // Check for SHORT trigger
+            if (shortSetupIndex !== -1) {
+                // Check if delta has flipped negative SINCE the setup candle
+                if (prevCumulativeDelta >= 0 && currentCumulativeDelta < 0) {
+                     if (params.reverse) {
+                        dataWithIndicators[i].buySignal = currentCandle.low;
+                    } else {
+                        dataWithIndicators[i].sellSignal = currentCandle.high;
+                    }
+                    shortSetupIndex = -1; // Consume the setup
+                }
             }
         }
         return dataWithIndicators;
@@ -133,3 +163,4 @@ const orderFlowScalpStrategy: Strategy = {
 }
 
 export default orderFlowScalpStrategy;
+
