@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -74,7 +75,6 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
     else if (priceRange > 0.01) binSize = 0.001;
 
     relevantData.forEach(d => {
-        // Use a representative price for the candle, like the close
         const priceBinKey = String(Math.round(d.close / binSize) * binSize);
         volumeAtPrice[priceBinKey] = (volumeAtPrice[priceBinKey] || 0) + d.volume;
 
@@ -111,11 +111,14 @@ const orderFlowScalpStrategy: Strategy = {
             const prevCumulativeDelta = cumulativeVolumeDelta[i - 1]!;
             const currentCumulativeDelta = cumulativeVolumeDelta[i]!;
 
-            // LONG condition (Absorption): Price tests POC from above and cumulative delta flips positive
-            const standardBuy = currentCandle.low <= poc * (1 + params.pocProximityPercent) && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open;
+            const pocZoneUpper = poc * (1 + params.pocProximityPercent);
+            const pocZoneLower = poc * (1 - params.pocProximityPercent);
+
+            // LONG condition (Absorption): Price tests POC zone from above and cumulative delta flips positive
+            const standardBuy = currentCandle.low <= pocZoneUpper && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open;
             
-            // SHORT condition (Exhaustion): Price tests POC from below and cumulative delta flips negative
-            const standardSell = currentCandle.high >= poc * (1 - params.pocProximityPercent) && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open;
+            // SHORT condition (Exhaustion): Price tests POC zone from below and cumulative delta flips negative
+            const standardSell = currentCandle.high >= pocZoneLower && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open;
 
             if (params.reverse) {
                 if (standardBuy) dataWithIndicators[i].sellSignal = currentCandle.high;

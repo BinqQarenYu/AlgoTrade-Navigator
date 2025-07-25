@@ -511,7 +511,7 @@ const BacktestPageContent = () => {
     }
   };
 
-  const handleClearReport = useCallback(async () => {
+  const handleClearReport = useCallback(() => {
     setBacktestResults([]);
     setSummaryStats(null);
     setOverfittingResult(null);
@@ -520,15 +520,8 @@ const BacktestPageContent = () => {
     setContrarianSummary(null);
     setSelectedTrade(null);
     handleClearProjection();
-    
-    // Refetch the original data to ensure a clean slate
-    const originalData = await getChartData(symbol, interval, date);
-    if (originalData) {
-      setFullChartData(originalData);
-    }
-
     toast({ title: "Report Cleared", description: "The backtest results and chart have been reset." });
-  }, [getChartData, symbol, interval, date, toast]);
+  }, [toast]);
 
   const runBacktest = async (contrarian = false) => {
     if (fullChartData.length === 0) {
@@ -1575,3 +1568,4 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
