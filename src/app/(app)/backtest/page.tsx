@@ -893,10 +893,9 @@ const BacktestPageContent = () => {
         stopLoss,
         strategy: selectedStrategy,
         strategyParams: strategyParams[selectedStrategy] || {},
-        isManual: targetPage === 'manual',
     };
 
-    addBotInstance(currentConfig);
+    addBotInstance(targetPage, currentConfig);
     
     const pageName = targetPage === 'live' ? "Live Trading" : "Manual Trading";
     toast({
@@ -1568,4 +1567,5 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
