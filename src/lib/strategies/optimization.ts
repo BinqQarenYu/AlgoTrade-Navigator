@@ -163,4 +163,9 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         supertrendPeriod: { min: 7, max: 14, step: 1 },
         supertrendMultiplier: { min: 2, max: 4, step: 1 },
     },
+    'order-flow-scalp': {
+        pocLookback: { min: 100, max: 300, step: 50 },
+        deltaLookback: { min: 3, max: 10, step: 2 },
+        pocProximityPercent: { min: 0.002, max: 0.01, step: 0.002 },
+    },
 };

@@ -95,6 +95,7 @@ import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-con
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
 import { defaultSmiMfiScalpParams } from "@/lib/strategies/smi-mfi-scalp"
+import { defaultOrderFlowScalpParams } from "@/lib/strategies/order-flow-scalp"
 
 interface DateRange {
   from?: Date;
@@ -135,6 +136,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
     'smi-mfi-scalp': defaultSmiMfiScalpParams,
+    'order-flow-scalp': defaultOrderFlowScalpParams,
 }
 
 const defaultDisciplineParams: DisciplineParams = {
