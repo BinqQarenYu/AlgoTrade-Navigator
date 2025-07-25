@@ -31,6 +31,7 @@ import emaCciMacdStrategy from './ema-cci-macd';
 import codeBasedConsensusStrategy from './code-based-consensus';
 import mtfEngulfingStrategy from './mtf-engulfing';
 import smiMfiSupertrendStrategy from './smi-mfi-supertrend';
+import smiMfiScalpStrategy from './smi-mfi-scalp';
 
 export const strategies: Strategy[] = [
   codeBasedConsensusStrategy,
@@ -64,6 +65,7 @@ export const strategies: Strategy[] = [
   emaCciMacdStrategy,
   mtfEngulfingStrategy,
   smiMfiSupertrendStrategy,
+  smiMfiScalpStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));
 
 export const getStrategyById = (id: string): Strategy | undefined => {

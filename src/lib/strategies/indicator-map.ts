@@ -31,4 +31,6 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'code-based-consensus': ['Multiple Indicators', 'Ensemble'],
   'mtf-engulfing': ['EMA', 'ATR', 'Engulfing Pattern'],
   'smi-mfi-supertrend': ['SMI', 'MFI', 'Pivot Supertrend'],
+  'smi-mfi-scalp': ['SMI', 'MFI', 'Pivot Supertrend'],
+  'order-flow-scalp': ['Volume Delta', 'POC'],
 };
