@@ -15,7 +15,7 @@ export interface OrderFlowScalpParams {
 export const defaultOrderFlowScalpParams: OrderFlowScalpParams = {
   pocLookback: 200,
   deltaLookback: 5,
-  pocProximityPercent: 0.005, // 0.5%
+  pocProximityPercent: 0.02, // 2.0%
   reverse: false,
   discipline: {
     enableDiscipline: true,
