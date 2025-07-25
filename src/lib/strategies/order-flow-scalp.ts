@@ -60,25 +60,33 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
 
     const minPrice = Math.min(...relevantData.map(d => d.low));
     const maxPrice = Math.max(...relevantData.map(d => d.high));
-    
-    // Dynamically determine bin size based on price magnitude
-    let binSize = 0.01; // Default for prices < $1
-    if (minPrice > 1000) binSize = 10;
-    else if (minPrice > 100) binSize = 1;
-    else if (minPrice > 1) binSize = 0.1;
+    const priceRange = maxPrice - minPrice;
+
+    if (priceRange === 0) return relevantData[relevantData.length - 1]?.close || 0;
+
+    // Dynamically determine bin size based on price magnitude of the range
+    let binSize = 0.000001; // Default for very small price ranges
+    if (priceRange > 1000) binSize = 10;
+    else if (priceRange > 100) binSize = 1;
+    else if (priceRange > 10) binSize = 0.5;
+    else if (priceRange > 1) binSize = 0.1;
+    else if (priceRange > 0.1) binSize = 0.01;
+    else if (priceRange > 0.01) binSize = 0.001;
 
     relevantData.forEach(d => {
         // Use a representative price for the candle, like the close
-        const priceBin = (Math.round(d.close / binSize) * binSize).toFixed(8);
-        volumeAtPrice[priceBin] = (volumeAtPrice[priceBin] || 0) + d.volume;
-        if (volumeAtPrice[priceBin] > maxVolume) {
-            maxVolume = volumeAtPrice[priceBin];
-            poc = parseFloat(priceBin);
+        const priceBinKey = String(Math.round(d.close / binSize) * binSize);
+        volumeAtPrice[priceBinKey] = (volumeAtPrice[priceBinKey] || 0) + d.volume;
+
+        if (volumeAtPrice[priceBinKey] > maxVolume) {
+            maxVolume = volumeAtPrice[priceBinKey];
+            poc = parseFloat(priceBinKey);
         }
     });
 
     return poc || (relevantData.length > 0 ? relevantData[relevantData.length - 1].close : 0);
 }
+
 
 const orderFlowScalpStrategy: Strategy = {
     id: 'order-flow-scalp',
