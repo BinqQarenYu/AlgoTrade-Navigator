@@ -94,7 +94,6 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
-import { defaultOrderFlowScalpParams } from "@/lib/strategies/order-flow-scalp"
 import { defaultSmiMfiScalpParams } from "@/lib/strategies/smi-mfi-scalp"
 
 interface DateRange {
@@ -135,7 +134,6 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
-    'order-flow-scalp': defaultOrderFlowScalpParams,
     'smi-mfi-scalp': defaultSmiMfiScalpParams,
 }
 
