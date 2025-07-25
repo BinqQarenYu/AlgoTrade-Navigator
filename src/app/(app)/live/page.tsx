@@ -257,26 +257,28 @@ export default function LiveTradingPage() {
         startBotInstance, 
         stopBotInstance, 
         liveBotState,
-        botInstances,
+        addBotInstance,
+        getBotInstances,
         setBotInstances,
-        addBotInstance: addBotContextInstance,
     } = useBot();
+    
+    const botInstances = getBotInstances('live');
     const { bots: runningBots } = liveBotState;
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
-    const addBotInstance = useCallback(() => {
-        addBotContextInstance({}); // Add an empty bot config
-    }, [addBotContextInstance]);
+    const handleAddBotInstance = useCallback(() => {
+        addBotInstance('live'); // Add an empty bot config
+    }, [addBotInstance]);
 
     useEffect(() => {
         if (botInstances.length === 0) {
-            addBotInstance(); // Ensure there's always at least one row
+            handleAddBotInstance(); // Ensure there's always at least one row
         }
-    }, [botInstances, addBotInstance]);
+    }, [botInstances, handleAddBotInstance]);
 
 
     const handleBotConfigChange = useCallback(<K extends keyof LiveBotConfig>(id: string, field: K, value: LiveBotConfig[K]) => {
-        setBotInstances(prev => prev.map(bot => {
+        setBotInstances('live', prev => prev.map(bot => {
             if (bot.id === id) {
                 const updatedValue = value;
                 const updatedBot = { ...bot, [field]: updatedValue };
@@ -290,7 +292,7 @@ export default function LiveTradingPage() {
     }, [setBotInstances]);
     
     const handleStrategyParamChange = useCallback((botId: string, param: string, value: any) => {
-        setBotInstances(prev => prev.map(bot => {
+        setBotInstances('live', prev => prev.map(bot => {
             if (bot.id === botId) {
                 const updatedParams = { ...bot.strategyParams };
                  if (typeof value === 'object') {
@@ -308,8 +310,10 @@ export default function LiveTradingPage() {
     }, [setBotInstances]);
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
+        const bot = botInstances.find(b => b.id === botId);
+        if (!bot) return;
         handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
+            ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
             [paramName]: value
         });
     }, [botInstances, handleStrategyParamChange]);
@@ -319,7 +323,7 @@ export default function LiveTradingPage() {
         if (bot) {
             const defaultParams = DEFAULT_PARAMS_MAP[bot.strategy];
             if (defaultParams) {
-                setBotInstances(prev => prev.map(b => b.id === botId ? { ...b, strategyParams: defaultParams } : b));
+                setBotInstances('live', prev => prev.map(b => b.id === botId ? { ...b, strategyParams: defaultParams } : b));
                 toast({ title: "Parameters Reset", description: "Parameters have been reset to their default values." });
             }
         }
@@ -330,7 +334,7 @@ export default function LiveTradingPage() {
             toast({ title: "Cannot Remove", description: "At least one bot configuration must remain.", variant: "destructive" });
             return;
         }
-        setBotInstances(prev => prev.filter(bot => bot.id !== id));
+        setBotInstances('live', prev => prev.filter(bot => bot.id !== id));
     }, [botInstances, setBotInstances, toast]);
 
     const toggleParams = useCallback((id: string) => {
@@ -417,7 +421,7 @@ export default function LiveTradingPage() {
                                 </div>
                             </DialogContent>
                         </Dialog>
-                         <Button onClick={addBotInstance} size="sm" variant="outline">
+                         <Button onClick={handleAddBotInstance} size="sm" variant="outline">
                             <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
                         </Button>
                     </div>

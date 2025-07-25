@@ -46,6 +46,8 @@ type BotInstance = LiveBotConfig & {
     id: string;
 };
 
+type BotListType = 'live' | 'manual';
+
 interface BotContextType {
   liveBotState: { bots: Record<string, LiveBotStateForAsset> };
   strategyParams: Record<string, any>;
@@ -60,9 +62,13 @@ interface BotContextType {
   dismissRecommendation: () => void;
   executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
   closeTestPosition: (symbol: string, capital: number, leverage: number) => void;
-  botInstances: BotInstance[];
-  setBotInstances: React.Dispatch<React.SetStateAction<BotInstance[]>>;
-  addBotInstance: (config: Partial<LiveBotConfig>) => void;
+  
+  // State for live and manual bots are now separate
+  liveBotInstances: BotInstance[];
+  manualBotInstances: BotInstance[];
+  setBotInstances: (type: BotListType, instances: React.SetStateAction<BotInstance[]>) => void;
+  addBotInstance: (type: BotListType, config?: Partial<LiveBotConfig>) => void;
+  getBotInstances: (type: BotListType) => BotInstance[];
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -118,25 +124,42 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
-  const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
+
+  // --- SEPARATED BOT INSTANCE STATE ---
+  const [liveBotInstances, setLiveBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
+  const [manualBotInstances, setManualBotInstances] = usePersistentState<BotInstance[]>('manual-bot-instances', []);
+
+  const getBotInstances = (type: BotListType) => {
+    return type === 'live' ? liveBotInstances : manualBotInstances;
+  }
   
-  const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
+  const setBotInstances = (type: BotListType, instances: React.SetStateAction<BotInstance[]>) => {
+    if (type === 'live') {
+      setLiveBotInstances(instances);
+    } else {
+      setManualBotInstances(instances);
+    }
+  }
+
+  const addBotInstance = useCallback((type: BotListType, config?: Partial<LiveBotConfig>) => {
     const newId = `bot_${Date.now()}`;
     const newBot: BotInstance = {
       id: newId,
-      asset: config.asset || 'BTCUSDT',
-      interval: config.interval || '1h',
-      capital: config.capital || 100,
-      leverage: config.leverage || 10,
-      takeProfit: config.takeProfit || 1.5,
-      stopLoss: config.stopLoss || 1,
-      strategy: config.strategy || 'ema-crossover',
-      strategyParams: config.strategyParams || defaultEmaCrossoverParams,
-      isManual: config.isManual || false,
+      asset: config?.asset || 'BTCUSDT',
+      interval: config?.interval || '1h',
+      capital: config?.capital || 100,
+      leverage: config?.leverage || 10,
+      takeProfit: config?.takeProfit || 1.5,
+      stopLoss: config?.stopLoss || 1,
+      strategy: config?.strategy || 'ema-crossover',
+      strategyParams: config?.strategyParams || defaultEmaCrossoverParams,
+      isManual: type === 'manual',
     };
-    setBotInstances(prev => [...prev, newBot]);
-  }, [setBotInstances]);
-
+    
+    const setter = type === 'live' ? setLiveBotInstances : setManualBotInstances;
+    setter(prev => [...prev, newBot]);
+  }, [setLiveBotInstances, setManualBotInstances]);
+  
   useEffect(() => {
     const liveBotRunning = Object.values(liveBotState.bots).some(bot => !bot.config.isManual && bot.status !== 'idle' && bot.status !== 'error');
     setIsTradingActive(liveBotRunning);
@@ -441,7 +464,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       startBotInstance, stopBotInstance, closePosition,
       showRecommendation, strategyRecommendation, activateRecommendedStrategy, dismissRecommendation,
       executeTestTrade, closeTestPosition,
-      botInstances, setBotInstances, addBotInstance,
+      liveBotInstances, manualBotInstances, addBotInstance, setBotInstances, getBotInstances,
     }}>
       {children}
     </BotContext.Provider>
