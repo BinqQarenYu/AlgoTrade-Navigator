@@ -45,7 +45,6 @@ const smiMfiSupertrendStrategy: Strategy = {
     if (data.length < requiredDataLength) return dataWithIndicators;
 
     // 1. Pivot Point Supertrend for trend direction
-    const pivotPoints = calculatePivotPoints(data, params.supertrendPeriod);
     const { supertrend, direction: supertrendDirection } = calculateSupertrend(data, params.supertrendPeriod, params.supertrendMultiplier);
 
     // 2. SMI of MFI for entry signals
@@ -57,7 +56,6 @@ const smiMfiSupertrendStrategy: Strategy = {
       d.supertrend_direction = supertrendDirection[i];
       d.smi = smi[i];
       d.smi_signal = smiSignal[i];
-      d.pivot_point = pivotPoints.pp[i];
 
       if (i < 1) return;
 
@@ -83,20 +81,20 @@ const smiMfiSupertrendStrategy: Strategy = {
       
       if (params.reverse) {
         if (standardBuy) {
-          d.sellSignal = d.close; // Corrected from d.high
+          d.sellSignal = d.close;
           d.stopLossLevel = d.high * 1.02; 
         }
         if (standardSell) {
-          d.buySignal = d.close; // Corrected from d.low
+          d.buySignal = d.close;
           d.stopLossLevel = d.low * 0.98; 
         }
       } else {
         if (standardBuy) {
-          d.buySignal = d.close; // Corrected from d.low
+          d.buySignal = d.close;
           d.stopLossLevel = d.low * 0.98;
         }
         if (standardSell) {
-          d.sellSignal = d.close; // Corrected from d.high
+          d.sellSignal = d.close;
           d.stopLossLevel = d.high * 1.02;
         }
       }

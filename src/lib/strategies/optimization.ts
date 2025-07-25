@@ -159,4 +159,8 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         smiPeriod: { min: 5, max: 10, step: 1 },
         smiEmaPeriod: { min: 3, max: 7, step: 1 },
     },
+    'smi-mfi-scalp': {
+        supertrendPeriod: { min: 7, max: 14, step: 1 },
+        supertrendMultiplier: { min: 2, max: 4, step: 1 },
+    },
 };
