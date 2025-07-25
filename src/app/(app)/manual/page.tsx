@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, memo, useCallback, useRef } from "react"
@@ -222,7 +223,7 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color)}>
-                        <Icon className={cn("mr-1 h-3 w-3", status === 'analyzing' && "animate-pulse")} /> {currentStatus.text}
+                        <Icon className={cn("mr-1 h-3 w-3", (status === 'analyzing' || status === 'running') && "animate-pulse")} /> {currentStatus.text}
                     </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -480,7 +481,7 @@ const BotInstanceRow = memo(({
                 <TableCell>
                     {isBotRunning && lastPrice !== null ? (
                          <div className="flex items-center gap-1">
-                            <Activity className="h-3 w-3 text-muted-foreground" />
+                            <Activity className="h-3 w-3 text-muted-foreground animate-pulse" />
                             <span className="font-mono text-xs text-muted-foreground">
                                 ${formatPrice(lastPrice)}
                             </span>
@@ -623,3 +624,6 @@ const BotInstanceRow = memo(({
     );
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
+
+
+    
