@@ -605,18 +605,27 @@ const BacktestPageContent = () => {
       if (positionType !== null) {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
-        if (positionType === 'long') {
-            const slPrice = stopLossPrice || (entryPrice * (1 - (stopLoss || 0) / 100));
-            const tpPrice = takeProfitPrice || (entryPrice * (1 + (takeProfit || 0) / 100));
-            if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-            else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-            else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
-        } else { // short
-            const slPrice = stopLossPrice || (entryPrice * (1 + (stopLoss || 0) / 100));
-            const tpPrice = takeProfitPrice || (entryPrice * (1 - (takeProfit || 0) / 100));
-            if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-            else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-            else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+        const isForcedAction = selectedStrategy === 'forced-action-scalp';
+
+        // Specific exit logic for forced-action scalping
+        if (isForcedAction && (d.buySignal || d.sellSignal)) {
+            exitPrice = d.close;
+            closeReason = 'signal';
+        } else {
+            // Standard exit logic for other strategies
+            if (positionType === 'long') {
+                const slPrice = stopLossPrice || (entryPrice * (1 - (stopLoss || 0) / 100));
+                const tpPrice = takeProfitPrice || (entryPrice * (1 + (takeProfit || 0) / 100));
+                if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
+            } else { // short
+                const slPrice = stopLossPrice || (entryPrice * (1 + (stopLoss || 0) / 100));
+                const tpPrice = takeProfitPrice || (entryPrice * (1 - (takeProfit || 0) / 100));
+                if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+            }
         }
 
         if (exitPrice !== null) {
@@ -639,7 +648,7 @@ const BacktestPageContent = () => {
         }
       }
 
-      // --- Entry Logic (Only if not in a position) ---
+      // --- Entry Logic (Only if not in a position OR if forced action) ---
       if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
         
@@ -1574,6 +1583,4 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
-
-
 
