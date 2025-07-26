@@ -41,6 +41,10 @@ import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
 import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-consensus';
 import { defaultMtfEngulfingParams } from '@/lib/strategies/mtf-engulfing';
 import { defaultSmiMfiSupertrendParams } from '@/lib/strategies/smi-mfi-supertrend';
+import { defaultSmiMfiScalpParams } from '@/lib/strategies/smi-mfi-scalp';
+import { defaultOrderFlowScalpParams } from '@/lib/strategies/order-flow-scalp';
+import { defaultForcedActionScalpParams } from '@/lib/strategies/forced-action-scalp';
+
 
 type BotInstance = LiveBotConfig & {
     id: string;
@@ -104,6 +108,9 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'smi-mfi-scalp': defaultSmiMfiScalpParams,
+    'order-flow-scalp': defaultOrderFlowScalpParams,
+    'forced-action-scalp': defaultForcedActionScalpParams,
 };
 
 export const BotProvider = ({ children }: { children: ReactNode }) => {
@@ -195,9 +202,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         let strategySignal: 'BUY' | 'SELL' | null = lastCandle.buySignal ? 'BUY' : 'SELL';
-        if (config.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
+        if (config.strategyParams.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
         
-        const prediction = config.useAIPrediction ? ( canUseAi() ? await predictMarket({ symbol: config.symbol, recentData: JSON.stringify(dataWithIndicators.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))), strategySignal: strategySignal }) : null ) : { prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', confidence: 1, reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).` };
+        const prediction = config.useAIPrediction ? ( canUseAi() ? await predictMarket({ symbol: config.symbol, recentData: JSON.stringify(dataWithIndicators.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))), strategySignal: strategySignal }) : null ) : { prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', confidence: 1, reasoning: `Signal from '${config.strategy}' (${config.strategyParams.reverse ? 'Reversed' : 'Standard'}).` };
 
         if (!prediction) return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
         
@@ -251,36 +258,37 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!strategy) return;
     
     const riskGuardian = riskGuardianRefs.current[botId];
-    const { allowed, reason } = riskGuardian?.canTrade() ?? { allowed: true, reason: '' };
-    if (!allowed) {
-      addLiveLog(botId, `Discipline action: ${reason}`);
-      setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
-      return; 
+    if (riskGuardian) {
+        const { allowed, reason } = riskGuardian.canTrade();
+        if (!allowed) {
+          addLiveLog(botId, `Discipline action: ${reason}`);
+          setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
+          return; 
+        }
     }
 
     try {
         const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
         const latestCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
+        // --- EXIT LOGIC (ALWAYS RUNS) ---
         if (currentPosition) {
             let closePosition = false;
             let closeReason = '';
             
+            // Standard TP/SL checks
             if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; } 
             else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; } 
             else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; } 
             else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
             
-            // Close & Reverse for Forced-Action
-            if (config.strategy === 'forced-action-scalp' && currentPosition.action === 'UP' && latestCandle.sellSignal) {
-                closePosition = true;
-                closeReason = 'Close and Reverse';
+            // Opposite signal check
+            const hasOppositeSignal = (currentPosition.action === 'UP' && latestCandle.sellSignal) || (currentPosition.action === 'DOWN' && latestCandle.buySignal);
+            if(hasOppositeSignal) {
+              closePosition = true;
+              closeReason = 'Opposite signal';
             }
-             if (config.strategy === 'forced-action-scalp' && currentPosition.action === 'DOWN' && latestCandle.buySignal) {
-                closePosition = true;
-                closeReason = 'Close and Reverse';
-            }
-
+            
             if (closePosition) {
                 addLiveLog(botId, `Exit signal: ${closeReason} hit.`);
                 if (!config.isManual) {
@@ -292,15 +300,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     riskGuardian?.registerTrade(pnl);
                 }
                 setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
-                currentPosition = null; // Ensure position is cleared before checking for new entry
+                currentPosition = null; // Clear position to allow for new entry on the same cycle if needed
             }
         }
         
-        // Always check for a new entry if not in a position
-        if (!currentPosition) {
+        // --- ENTRY LOGIC (ONLY ON NEW CANDLE & IF NOT IN POSITION) ---
+        if (!currentPosition && isNewCandle) {
           setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'analyzing'}}}));
           
           let strategySignal: 'BUY' | 'SELL' | null = latestCandle.buySignal ? 'BUY' : latestCandle.sellSignal ? 'SELL' : null;
+          
           if (strategySignal) {
             if (config.strategyParams.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
           
@@ -334,7 +343,11 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           } else {
              setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'running'}}}));
           }
+        } else if (!currentPosition) {
+            // Not a new candle, but not in a position, so just keep running status
+            setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'running'}}}));
         }
+
     } catch (e: any) {
         addLiveLog(botId, `CRITICAL ERROR: ${e.message}`);
         setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'error'}}}));
@@ -370,6 +383,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
       dataBufferRef.current[botId] = klines;
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
+      
+      // Initial cycle on load
       runLiveBotCycle(botId, true);
       
       if (liveWsRefs.current[botId]) liveWsRefs.current[botId]?.close();
@@ -381,10 +396,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         if (data.e === 'kline') {
           const newCandle: HistoricalData = { time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h), low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v) };
           const buffer = dataBufferRef.current[botId] || [];
-          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) buffer[buffer.length - 1] = newCandle;
-          else buffer.push(newCandle);
+          
+          const isNewCandle = data.k.x;
+
+          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) {
+            buffer[buffer.length - 1] = newCandle;
+          } else if (isNewCandle) {
+             buffer.push(newCandle);
+          }
           dataBufferRef.current[botId] = buffer.slice(-1000);
-          if (data.k.x) runLiveBotCycle(botId, true);
+          
+          // Run the cycle on every message for exits, but only flag new candle for entries.
+          runLiveBotCycle(botId, isNewCandle); 
         }
       };
       
