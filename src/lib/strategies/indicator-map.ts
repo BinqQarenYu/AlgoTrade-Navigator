@@ -33,4 +33,5 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'smi-mfi-supertrend': ['SMI', 'MFI', 'Pivot Supertrend'],
   'smi-mfi-scalp': ['Supertrend'],
   'order-flow-scalp': ['Volume Delta', 'POC'],
+  'forced-action-scalp': ['Supertrend', 'ATR'],
 };

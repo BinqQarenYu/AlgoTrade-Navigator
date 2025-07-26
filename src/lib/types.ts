@@ -55,6 +55,7 @@ export type HistoricalData = {
   ema_long?: number | null;
   rsi?: number | null;
   stopLossLevel?: number;
+  takeProfitLevel?: number; // Added for dynamic TP
   peakPrice?: number;
   poc?: number;
   volumeDelta?: number;

@@ -96,6 +96,7 @@ import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
 import { defaultSmiMfiScalpParams } from "@/lib/strategies/smi-mfi-scalp"
 import { defaultOrderFlowScalpParams } from "@/lib/strategies/order-flow-scalp"
+import { defaultForcedActionScalpParams } from "@/lib/strategies/forced-action-scalp"
 
 interface DateRange {
   from?: Date;
@@ -137,6 +138,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
     'smi-mfi-scalp': defaultSmiMfiScalpParams,
     'order-flow-scalp': defaultOrderFlowScalpParams,
+    'forced-action-scalp': defaultForcedActionScalpParams,
 }
 
 const defaultDisciplineParams: DisciplineParams = {
@@ -437,8 +439,8 @@ const BacktestPageContent = () => {
 
         if (positionType === 'long') {
             let exitPrice: number | null = null;
-            const slPrice = entryPrice * (1 - (stopLoss || 0) / 100);
-            const tpPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+            const slPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
+            const tpPrice = d.takeProfitLevel ?? (entryPrice * (1 + (takeProfit || 0) / 100));
 
             if (d.low <= slPrice) exitPrice = slPrice;
             else if (d.high >= tpPrice) exitPrice = tpPrice;
@@ -453,8 +455,8 @@ const BacktestPageContent = () => {
             }
         } else if (positionType === 'short') {
             let exitPrice: number | null = null;
-            const slPrice = entryPrice * (1 + (stopLoss || 0) / 100);
-            const tpPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+            const slPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
+            const tpPrice = d.takeProfitLevel ?? (entryPrice * (1 - (takeProfit || 0) / 100));
 
             if (d.high >= slPrice) exitPrice = slPrice;
             else if (d.low <= tpPrice) exitPrice = tpPrice;
@@ -520,7 +522,7 @@ const BacktestPageContent = () => {
     setContrarianSummary(null);
     setSelectedTrade(null);
     handleClearProjection();
-    toast({ title: "Report Cleared", description: "The backtest results and chart have been reset." });
+    toast({ title: "Report Cleared", description: "The backtest results have been reset." });
   }, [toast]);
 
   const runBacktest = async (contrarian = false) => {
@@ -684,11 +686,11 @@ const BacktestPageContent = () => {
             if (potentialSignal === 'BUY') {
               positionType = 'long';
               stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-              takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
+              takeProfitPrice = d.takeProfitLevel ?? (entryPrice * (1 + (takeProfit || 0) / 100));
             } else {
               positionType = 'short';
               stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-              takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
+              takeProfitPrice = d.takeProfitLevel ?? (entryPrice * (1 - (takeProfit || 0) / 100));
             }
           }
         }
@@ -976,13 +978,15 @@ const BacktestPageContent = () => {
        }, 50);
   };
 
-  const handleClearProjection = () => {
+  const handleClearProjection = useCallback(() => {
     setProjectedData([]);
     setForwardTestSummary(null);
     setForwardTestTrades([]);
     setSelectedForwardTrade(null);
-    toast({ title: "Projection Cleared", description: "The chart and report have been reset." });
-  };
+    if (!isBacktesting) { // Only toast if not in the middle of a full report clear
+        toast({ title: "Projection Cleared" });
+    }
+  }, [isBacktesting, toast]);
 
 
   const renderParameterControls = () => {
