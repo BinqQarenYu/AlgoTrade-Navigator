@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      if (isTradingActive || !isConnected || !activeProfile) {
+      if (!isConnected || !activeProfile) {
         setIsLoading(false);
         setPortfolio(null);
         setPositions([]);
@@ -69,7 +69,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, activeProfile, toast, setApiLimit, rateLimitThreshold, isTradingActive]);
+  }, [isConnected, activeProfile, toast, setApiLimit, rateLimitThreshold]);
 
   return (
     <div className="space-y-6">
@@ -78,12 +78,12 @@ export default function DashboardPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Live Bot Session Active</AlertTitle>
             <AlertDescription>
-                Dashboard data is paused to prioritize live trading. Check the <Link href="/live" className="font-bold underline">Live Trading</Link> or <Link href="/manual" className="font-bold underline">Manual Trading</Link> pages for real-time updates.
+                Your bots are running. You can monitor their individual performance on the <Link href="/live" className="font-bold underline">Live Trading</Link> or <Link href="/manual" className="font-bold underline">Manual Trading</Link> pages.
             </AlertDescription>
         </Alert>
       )}
 
-      {!isConnected && !isTradingActive && (
+      {!isConnected && (
         <Alert>
           <Terminal className="h-4 w-4" />
           <AlertTitle>API Disconnected</AlertTitle>
@@ -93,7 +93,7 @@ export default function DashboardPage() {
         </Alert>
       )}
 
-      {error && !isTradingActive && (
+      {error && (
          <Alert variant="destructive">
           {error.includes('Service unavailable') ? <Globe className="h-4 w-4" /> : <Terminal className="h-4 w-4" />}
           <AlertTitle>{error.includes('Service unavailable') ? 'Geo-Restriction Error' : 'API Error'}</AlertTitle>
@@ -104,7 +104,7 @@ export default function DashboardPage() {
       )}
 
       <PortfolioSummary 
-        isLoading={isLoading && isConnected && !isTradingActive}
+        isLoading={isLoading && isConnected}
         balance={portfolio?.balance} 
         totalPnl={portfolio?.totalPnl} 
         dailyVolume={portfolio?.dailyVolume} 
@@ -112,7 +112,7 @@ export default function DashboardPage() {
       
       <OpenPositions 
         positions={positions} 
-        isLoading={isLoading && isConnected && !isTradingActive}
+        isLoading={isLoading && isConnected}
         onClosePosition={closePosition}
         permissions={activeProfile?.permissions}
       />
