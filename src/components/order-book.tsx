@@ -13,7 +13,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collap
 import { Button } from './ui/button';
 import { ChevronDown, Play, StopCircle } from 'lucide-react';
 import type { Wall, SpoofedWall } from '@/lib/types';
-import { getDepthSnapshot } from '@/lib/binance-service';
+import { getDepthSnapshot, getMarkets } from '@/lib/binance-service';
+import { getPricePrecision } from '@/lib/utils';
+import type { Market } from 'ccxt';
 
 // Types for the order book
 type OrderBookLevel = [string, string]; // [price, quantity]
@@ -75,7 +77,7 @@ const groupLevels = (levels: OrderBookLevel[], grouping: number): OrderBookLevel
         const price = parseFloat(priceStr);
         const quantity = parseFloat(quantityStr);
         // Group price levels into buckets (e.g., group 65123.45 into 65120 for a grouping of 10)
-        const groupedPrice = Math.floor(price / grouping) * grouping;
+        const groupedPrice = Math.round(price / grouping) * grouping;
         const key = groupedPrice.toFixed(precision);
 
         if (aggregated[key]) {
@@ -98,12 +100,26 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStreamActive, setIsStreamActive] = usePersistentState<boolean>('lab-orderbook-stream-active', false);
     const [isCardOpen, setIsCardOpen] = usePersistentState<boolean>('lab-orderbook-card-open', true);
+    const [markets, setMarkets] = useState<Record<string, Market> | null>(null);
     
     const lastUpdateIdRef = useRef<number | null>(null);
     const isSyncingRef = useRef(false);
     const queuedUpdatesRef = useRef<any[]>([]);
     
     const previousWallsRef = useRef<Map<string, Wall>>(new Map());
+
+    useEffect(() => {
+        const fetchMarkets = async () => {
+            try {
+                const marketData = await getMarkets();
+                setMarkets(marketData);
+            } catch (error) {
+                console.error("Failed to fetch markets", error);
+                toast({ title: 'Error', description: 'Could not load market data. Precisions may be incorrect.', variant: 'destructive' });
+            }
+        };
+        fetchMarkets();
+    }, [toast]);
 
     useEffect(() => {
         let isMounted = true;
@@ -245,6 +261,8 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         const midPrice = lastBid > 0 && firstAsk > 0 ? (lastBid + firstAsk) / 2 : 0;
         const calculatedSpread = firstAsk > 0 && lastBid > 0 ? firstAsk - lastBid : 0;
 
+        const precision = getPricePrecision(symbol, markets);
+
         let grouping = 1.0;
         if (midPrice > 50000) grouping = 10;
         else if (midPrice > 2000) grouping = 1;
@@ -252,8 +270,6 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
         else if (midPrice > 10) grouping = 0.1;
         else if (midPrice > 0.1) grouping = 0.01;
         else grouping = 0.001;
-
-        const calculatedPrecision = Math.max(0, -Math.floor(Math.log10(grouping)));
 
         const aggregatedBids = groupLevels(sortedBids, grouping);
         const aggregatedAsks = groupLevels(sortedAsks, grouping);
@@ -290,10 +306,10 @@ export function OrderBook({ symbol, onWallsUpdate }: OrderBookProps) {
             spread: calculatedSpread,
             groupingSize: grouping,
             maxTotal: calculatedMaxTotal,
-            precision: calculatedPrecision,
+            precision: precision,
         };
 
-    }, [bids, asks]);
+    }, [bids, asks, symbol, markets]);
 
     // Effect to report walls and detect spoofs
     useEffect(() => {

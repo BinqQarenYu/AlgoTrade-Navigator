@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { parseSymbolString } from '@/lib/assets';
 import { Camera } from 'lucide-react';
-import { formatPrice, formatLargeNumber, intervalToMs } from '@/lib/utils';
+import { formatPrice, formatLargeNumber, intervalToMs, getPricePrecision } from '@/lib/utils';
+import { getMarkets } from '@/lib/binance-service';
 import { Skeleton } from './ui/skeleton';
+import type { Market } from 'ccxt';
 
 // Lightweight Charts expects time as a UTC timestamp in seconds.
 const toTimestamp = (time: number) => time / 1000;
@@ -61,6 +63,13 @@ export function TradingChart({
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
+  const [markets, setMarkets] = React.useState<Record<string, Market> | null>(null);
+
+  React.useEffect(() => {
+    getMarkets()
+      .then(setMarkets)
+      .catch(err => console.error("Failed to load markets for chart", err));
+  }, []);
   
   const lastCandle = data.length > 0 ? data[data.length - 1] : null;
   const previousCandle = data.length > 1 ? data[data.length - 2] : null;
@@ -69,13 +78,7 @@ export function TradingChart({
   const priceChangePercent = previousCandle && previousCandle.close !== 0 ? (priceChange / previousCandle.close) * 100 : 0;
   const priceColor = priceChange >= 0 ? 'text-green-500' : 'text-red-500';
 
-  const getChangePrecision = (price: number | null) => {
-    if (price === null) return 2;
-    if (price > 1000) return 2;
-    if (price > 1) return 4;
-    return 6;
-  };
-  const changePrecision = getChangePrecision(lastCandle?.close ?? null);
+  const changePrecision = useMemo(() => getPricePrecision(symbol, markets), [symbol, markets]);
 
   useEffect(() => {
     const chartContainer = chartContainerRef.current;
@@ -287,21 +290,7 @@ export function TradingChart({
         );
         if (uniqueData.length === 0) return;
 
-        const firstPrice = uniqueData[0].close;
-        let finalPrecision: number;
-        
-        if (firstPrice > 1000) { // e.g. BTC
-            finalPrecision = 2;
-        } else if (firstPrice > 10) { // e.g., ETH, SOL
-            finalPrecision = 4;
-        } else if (firstPrice > 0.1) { // e.g., ADA
-            finalPrecision = 5;
-        } else if (firstPrice > 0.0001) { // e.g., SHIB
-            finalPrecision = 8;
-        } else { // e.g., PEPE
-            finalPrecision = 10;
-        }
-        
+        const finalPrecision = getPricePrecision(symbol, markets);
         const minMove = 1 / Math.pow(10, finalPrecision);
 
         const priceScale = chart.priceScale('left');
@@ -504,7 +493,7 @@ export function TradingChart({
         manipulationZoneSeries.setData([]);
     }
 
-  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult]);
+  }, [data, highlightedTrade, liquidityEvents, showAnalysis, chartType, manipulationResult, symbol, markets]);
 
    // Effect to draw signal lines
     useEffect(() => {

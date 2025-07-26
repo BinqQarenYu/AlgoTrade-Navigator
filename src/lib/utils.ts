@@ -11,27 +11,72 @@ export function cn(...inputs: ClassValue[]) {
  * @param price The price to format.
  * @returns A formatted string representation of the price.
  */
-export function formatPrice(price: number): string {
+import { getMarkets } from './binance-service';
+import type { Market } from 'ccxt';
+
+// A cache for price precisions to avoid re-calculating
+const precisionCache = new Map<string, number>();
+
+/**
+ * Determines the number of decimal places to display for a given symbol's price.
+ * It fetches market data on the first call and caches it for subsequent requests.
+ * @param symbol The trading symbol (e.g., 'BTC/USDT').
+ * @param markets The loaded markets from ccxt.
+ * @returns The number of decimal places for the price.
+ */
+export const getPricePrecision = (symbol: string, markets: Record<string, Market> | null): number => {
+    if (precisionCache.has(symbol)) {
+        return precisionCache.get(symbol)!;
+    }
+
+    if (markets && markets[symbol]) {
+        const precision = markets[symbol].precision?.price;
+        if (precision) {
+             // CCXT's `precision` is the number of decimal places, which is what we need.
+            precisionCache.set(symbol, precision);
+            return precision;
+        }
+    }
+
+    // Fallback logic if market data is not available or doesn't contain precision
+    // This is based on the general price level of the asset.
+    console.warn(`No precision data for ${symbol}, using fallback logic.`);
+    if (!markets || !markets[symbol] || !markets[symbol].info) {
+        // This logic is a guesstimate and should be used as a last resort.
+        // A better approach would be to have a default from a config file.
+        return 2;
+    }
+
+    const lastPrice = markets[symbol].info?.lastPrice;
+    if (lastPrice) {
+        const price = parseFloat(lastPrice);
+        if (price > 1000) return 2;
+        if (price > 10) return 4;
+        if (price > 0.1) return 5;
+        if (price > 0.0001) return 8;
+        return 10;
+    }
+
+    return 2; // Default fallback
+};
+
+
+/**
+ * Formats a price with appropriate precision based on its value.
+ * @param price The price to format.
+ * @param precision The number of decimal places.
+ * @returns A formatted string representation of the price.
+ */
+export function formatPrice(price: number, precision?: number): string {
   if (price === 0) return '0.00';
   
-  let precision: number;
-  if (price > 1000) { // e.g. BTC
-    precision = 2;
-  } else if (price > 10) { // e.g. SOL
-    precision = 4;
-  } else if (price > 0.1) { // e.g. ADA
-    precision = 5;
-  } else if (price > 0.0001) { // e.g. SHIB
-    precision = 8;
-  } else { // e.g. PEPE
-    precision = 10;
-  }
+  const finalPrecision = precision ?? 2;
 
   // Use toLocaleString for larger numbers for comma separators, but toFixed for small ones for accuracy.
   if (price >= 1) {
-    return price.toLocaleString('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision });
+    return price.toLocaleString('en-US', { minimumFractionDigits: finalPrecision, maximumFractionDigits: finalPrecision });
   } else {
-    return price.toFixed(precision);
+    return price.toFixed(finalPrecision);
   }
 }
 

@@ -13,6 +13,28 @@ const binance = new ccxt.binance({
     options: { defaultType: 'future' },
 });
 
+// Cache for markets to avoid repeated API calls
+let marketsCache: ccxt.Markets | null = null;
+let marketsCacheTime: number = 0;
+
+export const getMarkets = async (forceRefresh = false): Promise<ccxt.Markets> => {
+    const now = Date.now();
+    // Refresh cache every hour
+    if (forceRefresh || !marketsCache || (now - marketsCacheTime > 3600 * 1000)) {
+        console.log('Fetching and caching markets from Binance...');
+        try {
+            marketsCache = await binance.loadMarkets();
+            marketsCacheTime = now;
+        } catch (error) {
+            console.error('Failed to fetch/cache markets:', error);
+            // In case of error, return the stale cache if it exists, otherwise throw
+            if (marketsCache) return marketsCache;
+            throw error;
+        }
+    }
+    return marketsCache;
+};
+
 // Helper for authenticated Binance API calls
 const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
   const signature = crypto
