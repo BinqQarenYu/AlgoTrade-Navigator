@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, ClipboardCheck } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, ClipboardCheck, TrendingUp, TrendingDown } from "lucide-react"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -266,6 +266,7 @@ export default function LiveTradingPage() {
         addBotInstance,
         getBotInstances,
         setBotInstances,
+        executeTestTrade,
     } = useBot();
     
     const botInstances = getBotInstances('live');
@@ -484,19 +485,16 @@ export default function LiveTradingPage() {
                                             isBotRunning={isRunning}
                                             isConnected={isConnected}
                                             canTrade={activeProfile?.permissions === 'FuturesTrading'}
+                                            onManualTrade={executeTestTrade}
                                         />
                                     )})}
                             </TableBody>
                         </Table>
                     </div>
                 </CardContent>
-            </Card>
+            </Card>>
 
-            <DisciplineSettings
-                params={botInstances[0]?.strategyParams.discipline || defaultDisciplineParams}
-                onParamChange={(param, value) => handleDisciplineParamChange(botInstances[0]?.id, param, value)}
-                isDisabled={runningBots[botInstances[0]?.id] !== undefined}
-            />
+             <DisciplineSettings />
         </div>
     );
 }
@@ -516,6 +514,7 @@ const BotInstanceRow = memo(({
     isBotRunning,
     isConnected,
     canTrade,
+    onManualTrade,
 }: {
     bot: BotInstance,
     index: number,
@@ -531,6 +530,7 @@ const BotInstanceRow = memo(({
     isBotRunning: boolean,
     isConnected: boolean,
     canTrade: boolean,
+    onManualTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
 }) => {
     return (
         <>
@@ -647,16 +647,32 @@ const BotInstanceRow = memo(({
                     </div>
                 </TableCell>
             </TableRow>
-            {openParams[bot.id] && bot.strategy && (
+            {openParams[bot.id] && (
                 <TableRow>
                     <TableCell colSpan={10} className="p-0">
-                        <div className="p-4 bg-muted/30">
-                            <StrategyParamsCard
-                                bot={bot}
-                                onParamChange={(param, value) => onParamChange(bot.id, param, value)}
-                                onReset={() => onResetParams(bot.id)}
-                                isTradingActive={isBotRunning}
-                            />
+                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30">
+                            <div className="md:col-span-2">
+                                <StrategyParamsCard
+                                    bot={bot}
+                                    onParamChange={(param, value) => onParamChange(bot.id, param, value)}
+                                    onReset={() => onResetParams(bot.id)}
+                                    isTradingActive={isBotRunning}
+                                />
+                            </div>
+                            <div className="space-y-4">
+                                <Card>
+                                    <CardHeader className="p-4"><CardTitle className="text-sm">Manual Execution</CardTitle></CardHeader>
+                                    <CardContent className="p-4 flex flex-col gap-2">
+                                        <Button variant="outline" onClick={() => onManualTrade(bot.asset, 'BUY', bot.capital, bot.leverage)} disabled={!isConnected || !canTrade || isBotRunning}><TrendingUp className="mr-2 h-4 w-4 text-green-500" /> Manual Long</Button>
+                                        <Button variant="outline" onClick={() => onManualTrade(bot.asset, 'SELL', bot.capital, bot.leverage)} disabled={!isConnected || !canTrade || isBotRunning}><TrendingDown className="mr-2 h-4 w-4 text-red-500" /> Manual Short</Button>
+                                    </CardContent>
+                                </Card>
+                                <DisciplineSettings
+                                    params={bot.strategyParams.discipline || defaultDisciplineParams}
+                                    onParamChange={(param, value) => onDisciplineChange(bot.id, param, value)}
+                                    isDisabled={isBotRunning}
+                                />
+                            </div>
                         </div>
                     </TableCell>
                 </TableRow>
