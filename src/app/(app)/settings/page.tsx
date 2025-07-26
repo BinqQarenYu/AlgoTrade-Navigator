@@ -51,7 +51,7 @@ export default function SettingsPage() {
     telegramChatId, setTelegramChatId,
   } = useApi()
   
-  const { executeTestTrade, closeTestPosition } = useBot();
+  const { executeTestTrade, closeTestPosition } = useBot()
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -334,7 +334,7 @@ export default function SettingsPage() {
                 <CardContent className="flex flex-col gap-4">
                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2"><Label htmlFor="test-symbol">Asset to Test</Label><Select onValueChange={setTestSymbol} value={testSymbol} disabled={!isConnected}><SelectTrigger id="test-symbol"><SelectValue /></SelectTrigger><SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>))}</SelectContent></Select></div>
-                        <div className="space-y-2"><Label htmlFor="test-capital">Test Capital ($)</Label><Input id="test-capital" type="number" value={testCapital} onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)} placeholder="10" disabled={!isConnected}/></div>
+                        <div className="space-y-2"><Label htmlFor="test-capital">Test Capital ($)</完毕/Label><Input id="test-capital" type="number" value={testCapital} onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)} placeholder="10" disabled={!isConnected}/></div>
                         <div className="space-y-2"><Label htmlFor="test-leverage">Test Leverage (x)</Label><Input id="test-leverage" type="number" min="1" value={testLeverage} onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)} placeholder="1" disabled={!isConnected}/></div>
                     </div>
                     <div className="flex gap-2">
@@ -382,7 +382,7 @@ export default function SettingsPage() {
                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(profile)} disabled={isConnected}><Edit className="h-4 w-4"/></Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isConnected}><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
-                                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the profile '{profile.name}'. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</Cancel><AlertDialogAction onClick={() => deleteProfile(profile.id)} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+                                                <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the profile '{profile.name}'. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteProfile(profile.id)} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                                             </AlertDialog>
                                         </div>
                                     </TableCell>
@@ -399,3 +399,5 @@ export default function SettingsPage() {
     </div>
   )
 }
+
+    
