@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 import { usePersistentState } from '@/hooks/use-persistent-state';
 
 interface DisciplineSettingsProps {
-  params: DisciplineParams;
+  params?: DisciplineParams;
   onParamChange: <K extends keyof DisciplineParams>(key: K, value: DisciplineParams[K]) => void;
   isDisabled?: boolean;
 }
@@ -46,7 +46,7 @@ export function DisciplineSettings({
                         <div className="flex items-center space-x-2">
                             <Switch
                                 id="enable-discipline"
-                                checked={params.enableDiscipline}
+                                checked={params?.enableDiscipline ?? true}
                                 onCheckedChange={(checked) => onParamChange('enableDiscipline', checked)}
                                 disabled={isDisabled}
                             />
@@ -56,7 +56,7 @@ export function DisciplineSettings({
                             </div>
                         </div>
 
-                        {params.enableDiscipline && (
+                        {(params?.enableDiscipline ?? true) && (
                             <>
                                 <div className="space-y-4 pt-2">
                                     <div className="grid grid-cols-2 gap-4">
@@ -65,7 +65,7 @@ export function DisciplineSettings({
                                             <Input
                                                 id="max-losses"
                                                 type="number"
-                                                value={params.maxConsecutiveLosses}
+                                                value={params?.maxConsecutiveLosses || 0}
                                                 onChange={(e) => onParamChange('maxConsecutiveLosses', parseInt(e.target.value, 10) || 0)}
                                                 disabled={isDisabled}
                                             />
@@ -75,7 +75,7 @@ export function DisciplineSettings({
                                             <Input
                                                 id="cooldown"
                                                 type="number"
-                                                value={params.cooldownPeriodMinutes}
+                                                value={params?.cooldownPeriodMinutes || 0}
                                                 onChange={(e) => onParamChange('cooldownPeriodMinutes', parseInt(e.target.value, 10) || 0)}
                                                 disabled={isDisabled}
                                             />
@@ -86,7 +86,7 @@ export function DisciplineSettings({
                                         <Input
                                             id="drawdown"
                                             type="number"
-                                            value={params.dailyDrawdownLimit}
+                                            value={params?.dailyDrawdownLimit || 0}
                                             onChange={(e) => onParamChange('dailyDrawdownLimit', parseInt(e.target.value, 10) || 0)}
                                             disabled={isDisabled}
                                         />
@@ -94,7 +94,7 @@ export function DisciplineSettings({
                                     <div className="space-y-3">
                                         <Label>On Failure Action</Label>
                                         <RadioGroup
-                                            value={params.onFailure}
+                                            value={params?.onFailure || 'Cooldown'}
                                             onValueChange={(value) => onParamChange('onFailure', value as 'Cooldown' | 'Adapt')}
                                             className="flex gap-4"
                                             disabled={isDisabled}
