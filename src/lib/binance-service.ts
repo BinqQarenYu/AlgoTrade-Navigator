@@ -79,6 +79,19 @@ export const getOpenPositions = async (keys: { apiKey: string, secretKey: string
   return { data: positionsData, usedWeight };
 };
 
+export const setLeverage = async (
+  symbol: string,
+  leverage: number,
+  keys: { apiKey: string, secretKey: string }
+): Promise<any> => {
+  const body = {
+    symbol,
+    leverage,
+  };
+  const { data } = await callProxy<any>('/fapi/v1/leverage', 'POST', body, keys);
+  return data;
+}
+
 export const placeOrder = async (
   symbol: string, 
   side: OrderSide, 

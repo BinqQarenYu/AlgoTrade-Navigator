@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect, useRe
 import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, LiveBotStateForAsset } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
+import { getLatestKlinesByLimit, placeOrder, setLeverage } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
 import { RiskGuardian } from '@/lib/risk-guardian';
@@ -360,6 +360,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const startBotInstance = useCallback(async (config: LiveBotConfig & { id: string, isManual?: boolean }) => {
     const botId = config.id;
+    if (!activeProfile) {
+        toast({ title: "Bot Start Failed", description: "No active API profile found.", variant: "destructive" });
+        return;
+    }
     addLiveLog(botId, `Starting bot for ${config.asset}...`);
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
     
@@ -380,6 +384,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
+      // Set leverage on Binance before starting
+      if (!config.isManual) {
+        await setLeverage(config.asset, config.leverage, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+        addLiveLog(botId, `Leverage set to ${config.leverage}x for ${config.asset}.`);
+      }
+
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
       dataBufferRef.current[botId] = klines;
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
@@ -421,7 +431,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Failed to Start Bot", description: error.message, variant: "destructive"});
         stopBotInstance(botId);
     }
-  }, [addLiveLog, toast, stopBotInstance, runLiveBotCycle]);
+  }, [addLiveLog, toast, stopBotInstance, runLiveBotCycle, activeProfile]);
   
   const closePosition = useCallback(async (position: Position) => {
     if (!activeProfile) {
@@ -459,6 +469,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     
     addLiveLog(symbol, `Executing test order: ${side} ${capital}x${leverage} on ${symbol}...`);
     try {
+        await setLeverage(symbol, leverage, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
         if (klines.length === 0) throw new Error("Could not fetch current price.");
         
