@@ -513,6 +513,16 @@ const BacktestPageContent = () => {
     }
   };
 
+  const handleClearProjection = useCallback(() => {
+    setProjectedData([]);
+    setForwardTestSummary(null);
+    setForwardTestTrades([]);
+    setSelectedForwardTrade(null);
+    if (!isBacktesting) { // Only toast if not in the middle of a full report clear
+        toast({ title: "Projection Cleared" });
+    }
+  }, [isBacktesting, toast]);
+
   const handleClearReport = useCallback(() => {
     setBacktestResults([]);
     setSummaryStats(null);
@@ -980,16 +990,6 @@ const BacktestPageContent = () => {
           }
        }, 50);
   };
-
-  const handleClearProjection = useCallback(() => {
-    setProjectedData([]);
-    setForwardTestSummary(null);
-    setForwardTestTrades([]);
-    setSelectedForwardTrade(null);
-    if (!isBacktesting) { // Only toast if not in the middle of a full report clear
-        toast({ title: "Projection Cleared" });
-    }
-  }, [isBacktesting, toast]);
 
 
   const renderParameterControls = () => {
@@ -1574,5 +1574,6 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
 
