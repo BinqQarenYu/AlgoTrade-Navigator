@@ -492,9 +492,7 @@ export default function LiveTradingPage() {
                         </Table>
                     </div>
                 </CardContent>
-            </Card>>
-
-             <DisciplineSettings />
+            </Card>
         </div>
     );
 }
