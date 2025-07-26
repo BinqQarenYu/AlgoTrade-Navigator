@@ -523,7 +523,7 @@ const BacktestPageContent = () => {
     setSelectedTrade(null);
     handleClearProjection();
     toast({ title: "Report Cleared", description: "The backtest results have been reset." });
-  }, [toast]);
+  }, [toast, handleClearProjection]);
 
   const runBacktest = async (contrarian = false) => {
     if (fullChartData.length === 0) {
@@ -596,12 +596,16 @@ const BacktestPageContent = () => {
         let exitPrice: number | null = null;
         let closeReason: BacktestResult['closeReason'] = 'signal';
         if (positionType === 'long') {
-            if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-            else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            const slPrice = stopLossPrice || (entryPrice * (1 - (stopLoss || 0) / 100));
+            const tpPrice = takeProfitPrice || (entryPrice * (1 + (takeProfit || 0) / 100));
+            if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+            else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
             else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
         } else { // short
-            if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-            else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            const slPrice = stopLossPrice || (entryPrice * (1 + (stopLoss || 0) / 100));
+            const tpPrice = takeProfitPrice || (entryPrice * (1 - (takeProfit || 0) / 100));
+            if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+            else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
             else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
         }
 
@@ -631,7 +635,6 @@ const BacktestPageContent = () => {
         
         const { allowed, reason } = riskGuardian.canTrade();
         if (!allowed && disciplineConfig.enableDiscipline) {
-            // Don't show toast for contrarian run to avoid spam
             if (!contrarian) {
                 toast({ title: "Discipline Action", description: reason, variant: "destructive" });
             }
