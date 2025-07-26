@@ -338,10 +338,10 @@ export default function SettingsPage() {
                         <div className="space-y-2"><Label htmlFor="test-leverage">Test Leverage (x)</Label><Input id="test-leverage" type="number" min="1" value={testLeverage} onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)} placeholder="1" disabled={!isConnected}/></div>
                     </div>
                     <div className="flex gap-2">
-                        <Button variant="outline" className="w-full" disabled={!isConnected} onClick={() => executeTestTrade(testSymbol, 'BUY', testCapital, testLeverage)}><TrendingUp className="mr-2 h-4 w-4 text-green-500" />Test Buy</Button>
-                        <Button variant="outline" className="w-full" disabled={!isConnected} onClick={() => executeTestTrade(testSymbol, 'SELL', testCapital, testLeverage)}><TrendingDown className="mr-2 h-4 w-4 text-red-500" />Test Sell</Button>
+                        <Button variant="outline" className="w-full" disabled={!isConnected || activeProfile?.permissions !== 'FuturesTrading'} onClick={() => executeTestTrade(testSymbol, 'BUY', testCapital, testLeverage)}><TrendingUp className="mr-2 h-4 w-4 text-green-500" />Test Buy</Button>
+                        <Button variant="outline" className="w-full" disabled={!isConnected || activeProfile?.permissions !== 'FuturesTrading'} onClick={() => executeTestTrade(testSymbol, 'SELL', testCapital, testLeverage)}><TrendingDown className="mr-2 h-4 w-4 text-red-500" />Test Sell</Button>
                     </div>
-                    <Button variant="destructive" className="w-full" disabled={!isConnected} onClick={() => closeTestPosition(testSymbol, testCapital, testLeverage)}><XCircle className="mr-2 h-4 w-4" />Close Test Position</Button>
+                    <Button variant="destructive" className="w-full" disabled={!isConnected || activeProfile?.permissions !== 'FuturesTrading'} onClick={() => closeTestPosition(testSymbol)}><XCircle className="mr-2 h-4 w-4" />Close Test Position</Button>
                     <p className="text-xs text-muted-foreground pt-2">These actions will execute real trades on your account. Ensure the capital and leverage are set to amounts you are comfortable with for testing.</p>
                 </CardContent>
             </CollapsibleContent>

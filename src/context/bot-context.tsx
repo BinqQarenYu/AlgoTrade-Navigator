@@ -65,7 +65,7 @@ interface BotContextType {
   activateRecommendedStrategy: (strategyId: string) => void;
   dismissRecommendation: () => void;
   executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
-  closeTestPosition: (symbol: string, capital: number, leverage: number) => void;
+  closeTestPosition: (symbol: string) => void;
   
   // State for live and manual bots are now separate
   liveBotInstances: BotInstance[];
@@ -467,7 +467,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    addLiveLog(symbol, `Executing test order: ${side} ${capital}x${leverage} on ${symbol}...`);
+    const logId = 'test-trade';
+    addLog(() => {}, `Executing test order: ${side} ${capital}x${leverage} on ${symbol}...`, logId);
+    
     try {
         await setLeverage(symbol, leverage, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
@@ -477,44 +479,42 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const quantity = (capital * leverage) / currentPrice;
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         toast({ title: "Test Order Placed", description: `${side} order for ${orderResult.quantity} ${symbol} submitted.` });
-        addLiveLog(symbol, `Test order successful. ID: ${orderResult.orderId}`);
+        addLog(() => {},`Test order successful. ID: ${orderResult.orderId}`, logId);
     } catch (e: any) {
         toast({ title: "Test Order Failed", description: e.message, variant: "destructive" });
-        addLiveLog(symbol, `Test order failed: ${e.message}`);
+        addLog(() => {}, `Test order failed: ${e.message}`, logId);
     }
-  }, [addLiveLog, toast, activeProfile]);
+  }, [addLog, toast, activeProfile]);
 
-  const closeTestPosition = useCallback(async (symbol: string, capital: number, leverage: number) => {
+  const closeTestPosition = useCallback(async (symbol: string) => {
     if (!activeProfile) {
       toast({ title: "Action Failed", description: "An active API profile is required.", variant: "destructive" });
       return;
     }
     
-    addLiveLog(symbol, `Attempting to close test position for ${symbol}...`);
-    
-    const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
-    if (klines.length === 0) {
-      toast({ title: "Close Failed", description: "Could not fetch current price.", variant: "destructive" });
-      return;
-    }
-    const currentPrice = klines[0].close;
-    const quantity = (capital * leverage) / currentPrice;
+    const logId = 'test-trade';
+    addLog(() => {}, `Attempting to close any open position for ${symbol}...`, logId);
     
     const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
 
     try { 
-      await placeOrder(symbol, 'SELL', quantity, keys, true); 
-      toast({title: "Close Signal Sent", description: `Sent SELL order for ${symbol}.`}); 
+      const {data: positions} = await getOpenPositions(keys);
+      const openPosition = positions.find(p => p.symbol === symbol);
+
+      if (openPosition) {
+        const side = openPosition.side === 'LONG' ? 'SELL' : 'BUY';
+        await placeOrder(symbol, side, openPosition.size, keys, true); 
+        toast({title: "Close Signal Sent", description: `Sent ${side} order for ${openPosition.size} ${symbol}.`}); 
+        addLog(() => {}, `Close order for ${symbol} sent successfully.`, logId);
+      } else {
+        toast({title: "No Position Found", description: `No open position found for ${symbol} to close.`});
+        addLog(() => {}, `No position found for ${symbol}.`, logId);
+      }
     } catch (e: any) { 
-      addLiveLog(symbol, `Could not close LONG (may not exist): ${e.message}`); 
+      toast({title: "Close Failed", description: `Failed to close position: ${e.message}`, variant: "destructive"});
+      addLog(() => {}, `Failed to close position for ${symbol}: ${e.message}`, logId);
     }
-    try { 
-      await placeOrder(symbol, 'BUY', quantity, keys, true); 
-      toast({title: "Close Signal Sent", description: `Sent BUY order for ${symbol}.`}); 
-    } catch (e: any) { 
-      addLiveLog(symbol, `Could not close SHORT (may not exist): ${e.message}`); 
-    }
-  }, [addLiveLog, toast, activeProfile]);
+  }, [addLog, toast, activeProfile]);
 
   useEffect(() => {
     return () => {
