@@ -98,18 +98,24 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'forced-action-scalp': defaultForcedActionScalpParams,
 }
 
+const defaultDisciplineParams: DisciplineParams = {
+    enableDiscipline: true,
+    maxConsecutiveLosses: 4,
+    cooldownPeriodMinutes: 15,
+    dailyDrawdownLimit: 10,
+    onFailure: 'Cooldown',
+};
+
 type BotInstance = LiveBotConfig & {
     id: string;
 };
 
-const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onReset, isTradingActive }: { 
+const StrategyParamsCard = memo(({ bot, onParamChange, onReset, isTradingActive }: { 
     bot: BotInstance, 
     onParamChange: (param: string, value: any) => void, 
-    onDisciplineChange: (param: keyof DisciplineParams, value: any) => void,
     onReset: () => void, 
     isTradingActive: boolean 
 }) => {
-    const [isDisciplineOpen, setIsDisciplineOpen] = useState(false);
     const strategyInfo = getStrategyById(bot.strategy);
     if (!strategyInfo) return null;
 
@@ -164,12 +170,6 @@ const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onRes
                         <Label htmlFor={`reverse-logic-${bot.id}`} className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
                     </div>
                 </div>
-
-                <DisciplineSettings
-                    params={params.discipline || defaultAwesomeOscillatorParams.discipline}
-                    onParamChange={onDisciplineChange}
-                    isDisabled={isTradingActive}
-                />
 
                 {DEFAULT_PARAMS_MAP[bot.strategy] && (
                     <Button onClick={onReset} variant="secondary" size="sm" className="w-full mt-4" disabled={isTradingActive}>
@@ -316,13 +316,26 @@ export default function LiveTradingPage() {
     }, [setBotInstances]);
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
-        const bot = botInstances.find(b => b.id === botId);
-        if (!bot) return;
-        handleStrategyParamChange(botId, 'discipline', {
-            ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
-            [paramName]: value
+        setBotInstances('live', prev => {
+            return prev.map(bot => {
+                if (bot.id === botId) {
+                    const currentParams = bot.strategyParams || {};
+                    const currentDisciplineParams = currentParams.discipline || defaultDisciplineParams;
+                    return {
+                        ...bot,
+                        strategyParams: {
+                            ...currentParams,
+                            discipline: {
+                                ...currentDisciplineParams,
+                                [paramName]: value
+                            }
+                        }
+                    };
+                }
+                return bot;
+            });
         });
-    }, [botInstances, handleStrategyParamChange]);
+    }, [setBotInstances]);
 
     const handleResetParams = useCallback((botId: string) => {
         const bot = botInstances.find(b => b.id === botId);
@@ -478,6 +491,12 @@ export default function LiveTradingPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            <DisciplineSettings
+                params={botInstances[0]?.strategyParams.discipline || defaultDisciplineParams}
+                onParamChange={(param, value) => handleDisciplineParamChange(botInstances[0]?.id, param, value)}
+                isDisabled={runningBots[botInstances[0]?.id] !== undefined}
+            />
         </div>
     );
 }
@@ -635,7 +654,6 @@ const BotInstanceRow = memo(({
                             <StrategyParamsCard
                                 bot={bot}
                                 onParamChange={(param, value) => onParamChange(bot.id, param, value)}
-                                onDisciplineChange={(param, value) => onDisciplineChange(bot.id, param, value)}
                                 onReset={() => onResetParams(bot.id)}
                                 isTradingActive={isBotRunning}
                             />
@@ -648,8 +666,3 @@ const BotInstanceRow = memo(({
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
 
-
-    
-
-
-      

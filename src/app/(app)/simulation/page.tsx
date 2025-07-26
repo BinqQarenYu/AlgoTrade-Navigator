@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react"
@@ -283,16 +284,20 @@ function SimulationPageContent() {
   }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData, symbol]);
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
-    setStrategyParams(prev => ({
-      ...prev,
-      [selectedStrategy]: {
-        ...(prev[selectedStrategy] || {}),
-        discipline: {
-          ...(prev[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline),
-          [paramName]: value
-        }
-      }
-    }));
+    setStrategyParams(prev => {
+        const currentParams = prev[selectedStrategy] || {};
+        const currentDisciplineParams = currentParams.discipline || defaultSmaCrossoverParams.discipline;
+        return {
+            ...prev,
+            [selectedStrategy]: {
+                ...currentParams,
+                discipline: {
+                    ...currentDisciplineParams,
+                    [paramName]: value
+                }
+            }
+        };
+    });
   };
 
   useEffect(() => {
@@ -449,11 +454,6 @@ function SimulationPageContent() {
                   <div className="flex items-center space-x-2 pt-2"><Switch id="reverse-logic" checked={useReverseLogic} onCheckedChange={setUseReverseLogic} disabled={isRunning} /><Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label></div>
                   <div className="flex items-center space-x-2 pt-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis">Show Liquidity Analysis</Label></div>
                   
-                  <DisciplineSettings
-                    params={strategyParams[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline}
-                    onParamChange={handleDisciplineParamChange}
-                    isDisabled={isRunning}
-                  />
                 </CardContent>
                 <CardFooter>
                   <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
@@ -465,6 +465,12 @@ function SimulationPageContent() {
             </Collapsible>
           </Card>
           
+          <DisciplineSettings
+            params={strategyParams[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline}
+            onParamChange={handleDisciplineParamChange}
+            isDisabled={isRunning}
+          />
+
           <BacktestResults 
             results={tradeHistory} 
             summary={summary} 

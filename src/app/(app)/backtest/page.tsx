@@ -286,37 +286,43 @@ const BacktestPageContent = () => {
 
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
-    let parsedValue = value;
-    if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
-      setStrategyParams(prev => ({
-          ...prev,
-          [strategyId]: {
-              ...prev[strategyId],
-              [paramName]: value,
-          }
-      }));
-      return;
-    }
-    if (typeof value !== 'boolean') {
-        parsedValue = (value === '' || isNaN(value as number))
-            ? 0
-            : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-    }
-    
-    setStrategyParams(prev => ({
-        ...prev,
-        [strategyId]: {
-            ...prev[strategyId],
-            [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' ? 0 : parsedValue,
+    setStrategyParams(prev => {
+        const currentParams = prev[strategyId] || {};
+        let parsedValue = value;
+        // Keep objects as is (for discipline settings)
+        if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
+            // No parsing needed
+        } else if (typeof value !== 'boolean') {
+            parsedValue = (value === '' || isNaN(value as number))
+                ? 0
+                : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
         }
-    }));
+        
+        return {
+            ...prev,
+            [strategyId]: {
+                ...currentParams,
+                [paramName]: isNaN(parsedValue as number) && typeof parsedValue !== 'boolean' && typeof parsedValue !== 'object' ? 0 : parsedValue,
+            }
+        };
+    });
   };
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
-      handleParamChange(selectedStrategy, 'discipline', {
-        ...(strategyParams[selectedStrategy] || defaultDisciplineParams),
-        [paramName]: value,
-      });
+    setStrategyParams(prev => {
+        const currentParams = prev[selectedStrategy] || {};
+        const currentDisciplineParams = currentParams.discipline || defaultDisciplineParams;
+        return {
+            ...prev,
+            [selectedStrategy]: {
+                ...currentParams,
+                discipline: {
+                    ...currentDisciplineParams,
+                    [paramName]: value
+                }
+            }
+        };
+    });
   };
   
   const handleResetParams = () => {
@@ -513,7 +519,7 @@ const BacktestPageContent = () => {
         runBacktest();
     }
   };
-
+  
   const handleClearProjection = useCallback(() => {
     setProjectedData([]);
     setForwardTestSummary(null);
