@@ -8,6 +8,7 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'donchian-channels': ['Donchian Channels'],
   'elder-ray-index': ['Elder-Ray Index', 'EMA'],
   'ema-crossover': ['EMA'],
+  'heikin-ashi-trend': ['Heikin Ashi'],
   'ichimoku-cloud': ['Ichimoku Cloud'],
   'keltner-channels': ['Keltner Channels', 'ATR'],
   'macd-crossover': ['MACD', 'EMA'],

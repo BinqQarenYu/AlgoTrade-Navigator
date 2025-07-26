@@ -46,9 +46,10 @@ import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-fl
 import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
 import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
 import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
-import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"
@@ -57,6 +58,9 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
+import { defaultSmiMfiScalpParams } from '@/lib/strategies/smi-mfi-scalp';
+import { defaultOrderFlowScalpParams } from '@/lib/strategies/order-flow-scalp';
+import { defaultForcedActionScalpParams } from '@/lib/strategies/forced-action-scalp';
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -77,6 +81,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'peak-formation-fib': defaultPffParams,
     'pivot-point-reversal': defaultPivotPointReversalParams,
     'rsi-divergence': defaultRsiDivergenceParams,
+    'sma-crossover': defaultSmaCrossoverParams,
     'stochastic-crossover': defaultStochasticCrossoverParams,
     'supertrend': defaultSupertrendParams,
     'volume-delta': defaultVolumeDeltaParams,
@@ -88,6 +93,9 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'smi-mfi-scalp': defaultSmiMfiScalpParams,
+    'order-flow-scalp': defaultOrderFlowScalpParams,
+    'forced-action-scalp': defaultForcedActionScalpParams,
 }
 
 type BotInstance = LiveBotConfig & {
@@ -184,8 +192,8 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
             tooltip: 'The bot is actively monitoring the market for a new trade signal.'
         },
         analyzing: {
-            color: 'bg-yellow-500',
-            icon: Loader2,
+            color: 'bg-purple-600 hover:bg-purple-600',
+            icon: BrainCircuit,
             text: 'Analyzing',
             tooltip: 'The bot is performing its initial analysis to find a trade signal.'
         },
@@ -222,8 +230,8 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color, status === 'analyzing' && 'animate-spin')}>
-                        <Icon className="mr-1 h-3 w-3" /> {currentStatus.text}
+                    <Badge variant={status === 'error' || status === 'cooldown' ? 'destructive' : status === 'idle' ? 'secondary' : 'default'} className={cn(currentStatus.color)}>
+                        <Icon className={cn("mr-1 h-3 w-3", (status === 'analyzing' || status === 'running') && "animate-pulse")} /> {currentStatus.text}
                     </Badge>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -255,26 +263,28 @@ export default function LiveTradingPage() {
         startBotInstance, 
         stopBotInstance, 
         liveBotState,
-        botInstances,
+        addBotInstance,
+        getBotInstances,
         setBotInstances,
-        addBotInstance: addBotContextInstance,
     } = useBot();
+    
+    const botInstances = getBotInstances('live');
     const { bots: runningBots } = liveBotState;
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
 
-    const addBotInstance = useCallback(() => {
-        addBotContextInstance({}); // Add an empty bot config
-    }, [addBotContextInstance]);
+    const handleAddBotInstance = useCallback(() => {
+        addBotInstance('live'); // Add an empty bot config
+    }, [addBotInstance]);
 
     useEffect(() => {
         if (botInstances.length === 0) {
-            addBotInstance(); // Ensure there's always at least one row
+            handleAddBotInstance(); // Ensure there's always at least one row
         }
-    }, [botInstances, addBotInstance]);
+    }, [botInstances, handleAddBotInstance]);
 
 
     const handleBotConfigChange = useCallback(<K extends keyof LiveBotConfig>(id: string, field: K, value: LiveBotConfig[K]) => {
-        setBotInstances(prev => prev.map(bot => {
+        setBotInstances('live', prev => prev.map(bot => {
             if (bot.id === id) {
                 const updatedValue = value;
                 const updatedBot = { ...bot, [field]: updatedValue };
@@ -288,7 +298,7 @@ export default function LiveTradingPage() {
     }, [setBotInstances]);
     
     const handleStrategyParamChange = useCallback((botId: string, param: string, value: any) => {
-        setBotInstances(prev => prev.map(bot => {
+        setBotInstances('live', prev => prev.map(bot => {
             if (bot.id === botId) {
                 const updatedParams = { ...bot.strategyParams };
                  if (typeof value === 'object') {
@@ -306,8 +316,10 @@ export default function LiveTradingPage() {
     }, [setBotInstances]);
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
+        const bot = botInstances.find(b => b.id === botId);
+        if (!bot) return;
         handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
+            ...(bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
             [paramName]: value
         });
     }, [botInstances, handleStrategyParamChange]);
@@ -317,7 +329,7 @@ export default function LiveTradingPage() {
         if (bot) {
             const defaultParams = DEFAULT_PARAMS_MAP[bot.strategy];
             if (defaultParams) {
-                setBotInstances(prev => prev.map(b => b.id === botId ? { ...b, strategyParams: defaultParams } : b));
+                setBotInstances('live', prev => prev.map(b => b.id === botId ? { ...b, strategyParams: defaultParams } : b));
                 toast({ title: "Parameters Reset", description: "Parameters have been reset to their default values." });
             }
         }
@@ -328,7 +340,7 @@ export default function LiveTradingPage() {
             toast({ title: "Cannot Remove", description: "At least one bot configuration must remain.", variant: "destructive" });
             return;
         }
-        setBotInstances(prev => prev.filter(bot => bot.id !== id));
+        setBotInstances('live', prev => prev.filter(bot => bot.id !== id));
     }, [botInstances, setBotInstances, toast]);
 
     const toggleParams = useCallback((id: string) => {
@@ -415,7 +427,7 @@ export default function LiveTradingPage() {
                                 </div>
                             </DialogContent>
                         </Dialog>
-                         <Button onClick={addBotInstance} size="sm" variant="outline">
+                         <Button onClick={handleAddBotInstance} size="sm" variant="outline">
                             <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
                         </Button>
                     </div>
