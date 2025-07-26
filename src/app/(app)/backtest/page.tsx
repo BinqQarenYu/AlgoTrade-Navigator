@@ -222,7 +222,8 @@ const BacktestPageContent = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
-  const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
+  const { isTradingActive, addBotInstance } = useBot();
+  const [strategyParams, setStrategyParams] = usePersistentState<Record<string, any>>('backtest-strategy-params', {});
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
   const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
@@ -313,7 +314,7 @@ const BacktestPageContent = () => {
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
       handleParamChange(selectedStrategy, 'discipline', {
-        ...(strategyParams[selectedStrategy]?.discipline || defaultDisciplineParams),
+        ...(strategyParams[selectedStrategy] || defaultDisciplineParams),
         [paramName]: value,
       });
   };
@@ -645,10 +646,14 @@ const BacktestPageContent = () => {
             fee: totalFee, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
           });
           positionType = null;
+          // For forced action, immediately continue to the next candle to ensure one trade per candle
+          if (isForcedAction) {
+              continue;
+          }
         }
       }
 
-      // --- Entry Logic (Only if not in a position OR if forced action) ---
+      // --- Entry Logic (Only if not in a position) ---
       if (positionType === null) {
         const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
         
