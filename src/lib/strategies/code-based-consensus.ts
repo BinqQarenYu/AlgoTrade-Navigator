@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
@@ -27,7 +26,8 @@ const codeBasedConsensusStrategy: Strategy = {
   name: 'Code-Based Consensus',
   description: 'Generates signals based on the majority vote of several selected technical strategies. Can be reversed to trade against the consensus.',
   
-  async calculate(data: HistoricalData[], params: CodeBasedConsensusParams = defaultCodeBasedConsensusParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<CodeBasedConsensusParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultCodeBasedConsensusParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length === 0 || params.strategies.length === 0) {
       return dataWithIndicators;

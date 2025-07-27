@@ -24,7 +24,8 @@ const momentumCrossStrategy: Strategy = {
   id: 'momentum-cross',
   name: 'Momentum Zero-Line Cross',
   description: 'A simple strategy that enters when momentum crosses the zero line, indicating a potential trend change.',
-  async calculate(data: HistoricalData[], params: MomentumCrossParams = defaultMomentumCrossParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<MomentumCrossParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultMomentumCrossParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.period) return dataWithIndicators;

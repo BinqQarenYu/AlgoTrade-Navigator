@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -87,7 +86,8 @@ const volumeDeltaStrategy: Strategy = {
     id: 'volume-delta',
     name: 'Volume Delta Confirmation',
     description: 'A strategy that confirms trades by analyzing buying/selling pressure (delta) at significant price levels (POC).',
-    async calculate(data: HistoricalData[], params: VolumeDeltaParams = defaultVolumeDeltaParams): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], userParams: Partial<VolumeDeltaParams> = {}): Promise<HistoricalData[]> {
+        const params = { ...defaultVolumeDeltaParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
         if (data.length < params.pocLookback) return dataWithIndicators;
 

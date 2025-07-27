@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateEMA, calculateCCI, calculateMACD } from '@/lib/indicators';
@@ -39,19 +38,19 @@ const emaCciMacdStrategy: Strategy = {
   id: 'ema-cci-macd',
   name: 'EMA-CCI-MACD Triple Confirmation',
   description: 'A trend-following strategy combining stacked EMAs for trend, CCI for pullbacks, and MACD for momentum confirmation.',
-  async calculate(data: HistoricalData[], params: Partial<EmaCciMacdParams> = {}): Promise<HistoricalData[]> {
-    const fullParams = { ...defaultEmaCciMacdParams, ...params };
+  async calculate(data: HistoricalData[], userParams: Partial<EmaCciMacdParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultEmaCciMacdParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const requiredDataLength = Math.max(fullParams.emaSlowPeriod, fullParams.cciPeriod, fullParams.macdLongPeriod + fullParams.macdSignalPeriod);
+    const requiredDataLength = Math.max(params.emaSlowPeriod, params.cciPeriod, params.macdLongPeriod + params.macdSignalPeriod);
 
     if (data.length < requiredDataLength) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);
-    const emaFast = calculateEMA(closePrices, fullParams.emaFastPeriod);
-    const emaMedium = calculateEMA(closePrices, fullParams.emaMediumPeriod);
-    const emaSlow = calculateEMA(closePrices, fullParams.emaSlowPeriod);
-    const cci = calculateCCI(data, fullParams.cciPeriod);
-    const { histogram: macdHistogram } = calculateMACD(closePrices, fullParams.macdShortPeriod, fullParams.macdLongPeriod, fullParams.macdSignalPeriod);
+    const emaFast = calculateEMA(closePrices, params.emaFastPeriod);
+    const emaMedium = calculateEMA(closePrices, params.emaMediumPeriod);
+    const emaSlow = calculateEMA(closePrices, params.emaSlowPeriod);
+    const cci = calculateCCI(data, params.cciPeriod);
+    const { histogram: macdHistogram } = calculateMACD(closePrices, params.macdShortPeriod, params.macdLongPeriod, params.macdSignalPeriod);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.ema_short = emaFast[i];
@@ -76,7 +75,7 @@ const emaCciMacdStrategy: Strategy = {
       // Trend Confirmation: Fast EMA is above Medium, which is above Slow
       const wasInUptrend = prevEmaFast > prevEmaMedium && prevEmaMedium > prevEmaSlow;
       // Pullback Confirmation: CCI crosses back up from oversold territory.
-      const cciBuyCross = prevCci <= -fullParams.cciLevel && currentCci > -fullParams.cciLevel;
+      const cciBuyCross = prevCci <= -params.cciLevel && currentCci > -params.cciLevel;
       // Momentum Confirmation: MACD histogram is positive.
       const wasMacdBullish = prevMacdHist > 0;
       
@@ -85,13 +84,13 @@ const emaCciMacdStrategy: Strategy = {
       // Trend Confirmation: Fast EMA is below Medium, which is below Slow
       const wasInDowntrend = prevEmaFast < prevEmaMedium && prevEmaMedium < prevEmaSlow;
       // Pullback Confirmation: CCI crosses back down from overbought territory.
-      const cciSellCross = prevCci >= fullParams.cciLevel && currentCci < fullParams.cciLevel;
+      const cciSellCross = prevCci >= params.cciLevel && currentCci < params.cciLevel;
       // Momentum Confirmation: MACD histogram is negative.
       const wasMacdBearish = prevMacdHist < 0;
 
       const standardSell = wasInDowntrend && cciSellCross && wasMacdBearish;
 
-      if (fullParams.reverse) {
+      if (params.reverse) {
           if (standardBuy) d.sellSignal = d.high;
           if (standardSell) d.buySignal = d.low;
       } else {

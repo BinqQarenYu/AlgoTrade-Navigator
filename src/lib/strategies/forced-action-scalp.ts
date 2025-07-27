@@ -33,7 +33,8 @@ const forcedActionScalpStrategy: Strategy = {
   name: 'Forced-Action Scalp',
   description: 'A high-frequency strategy that makes a trade on every candle based on Supertrend direction, using dynamic ATR-based Take Profit and Stop Loss levels.',
   
-  async calculate(data: HistoricalData[], params: ForcedActionScalpParams = defaultForcedActionScalpParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<ForcedActionScalpParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultForcedActionScalpParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     const requiredDataLength = Math.max(params.supertrendPeriod, params.atrPeriod);
 

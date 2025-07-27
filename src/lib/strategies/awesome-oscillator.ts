@@ -26,7 +26,8 @@ const awesomeOscillatorStrategy: Strategy = {
   id: 'awesome-oscillator',
   name: 'Awesome Oscillator Cross',
   description: 'Uses the Awesome Oscillator to identify bullish or bearish momentum by crossing the zero line.',
-  async calculate(data: HistoricalData[], params: AwesomeOscillatorParams = defaultAwesomeOscillatorParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<AwesomeOscillatorParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultAwesomeOscillatorParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.longPeriod) return dataWithIndicators;

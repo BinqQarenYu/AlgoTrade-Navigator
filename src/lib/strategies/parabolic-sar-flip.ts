@@ -28,7 +28,8 @@ const parabolicSarFlipStrategy: Strategy = {
   id: 'parabolic-sar-flip',
   name: 'Parabolic SAR Flip',
   description: 'A trend-following strategy that enters a trade when the Parabolic SAR dots flip from one side of the price to the other.',
-  async calculate(data: HistoricalData[], params: ParabolicSarFlipParams = defaultParabolicSarFlipParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<ParabolicSarFlipParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultParabolicSarFlipParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < 2) return dataWithIndicators;

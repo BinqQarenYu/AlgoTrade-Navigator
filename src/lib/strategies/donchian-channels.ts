@@ -24,7 +24,8 @@ const donchianChannelStrategy: Strategy = {
   id: 'donchian-channels',
   name: 'Donchian Channel Breakout',
   description: 'A volatility breakout strategy that buys on a close above the recent highest high and sells on a close below the recent lowest low.',
-  async calculate(data: HistoricalData[], params: DonchianChannelsParams = defaultDonchianChannelsParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<DonchianChannelsParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultDonchianChannelsParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.period) return dataWithIndicators;

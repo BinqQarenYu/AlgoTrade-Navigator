@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend } from '@/lib/indicators';
@@ -28,7 +27,8 @@ const smiMfiScalpStrategy: Strategy = {
   name: 'SMI MFI Scalp',
   description: 'A high-frequency scalping strategy that forces a trade decision on every candle based on the Supertrend indicator to determine the direction.',
   
-  async calculate(data: HistoricalData[], params: SmiMfiScalpParams = defaultSmiMfiScalpParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<SmiMfiScalpParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultSmiMfiScalpParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     
     if (data.length < params.supertrendPeriod) return dataWithIndicators;

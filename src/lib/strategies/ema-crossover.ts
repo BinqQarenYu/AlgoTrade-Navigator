@@ -26,7 +26,8 @@ const emaCrossoverStrategy: Strategy = {
   id: 'ema-crossover',
   name: 'EMA Crossover',
   description: 'A trend-following strategy using Exponential Moving Averages, which give more weight to recent prices.',
-  async calculate(data: HistoricalData[], params: EmaCrossoverParams = defaultEmaCrossoverParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<EmaCrossoverParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultEmaCrossoverParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.longPeriod) return dataWithIndicators;
 

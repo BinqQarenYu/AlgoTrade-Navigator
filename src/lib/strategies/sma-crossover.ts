@@ -26,7 +26,8 @@ const smaCrossoverStrategy: Strategy = {
   id: 'sma-crossover',
   name: 'SMA Crossover',
   description: 'A trend-following strategy that generates signals when a short-term SMA crosses a long-term SMA.',
-  async calculate(data: HistoricalData[], params: SmaCrossoverParams = defaultSmaCrossoverParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<SmaCrossoverParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultSmaCrossoverParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.longPeriod) return dataWithIndicators;
 

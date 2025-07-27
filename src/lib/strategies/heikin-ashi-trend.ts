@@ -22,7 +22,8 @@ const heikinAshiTrendStrategy: Strategy = {
   id: 'heikin-ashi-trend',
   name: 'Heikin-Ashi Trend',
   description: 'Uses smoothed Heikin-Ashi candles to identify strong trends and generates signals on trend reversals.',
-  async calculate(data: HistoricalData[], params: HeikinAshiTrendParams = defaultHeikinAshiTrendParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<HeikinAshiTrendParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultHeikinAshiTrendParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     
     if (data.length < 2) return dataWithIndicators;

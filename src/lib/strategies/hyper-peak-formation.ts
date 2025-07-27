@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -34,7 +33,7 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     },
 };
 
-// A swing high is confirmed only after 'lookaround' bars to its right have closed.
+// A confirmed swing high is confirmed only after 'lookaround' bars to its right have closed.
 function isConfirmedSwingHigh(data: HistoricalData[], index: number, lookaround: number): boolean {
     if (index < lookaround || index >= data.length - lookaround) return false;
     const currentHigh = data[index].high;
@@ -62,7 +61,8 @@ const hyperPeakFormationStrategy: Strategy = {
     id: 'hyper-peak-formation',
     name: 'Hyper Peak Formation (NEW)',
     description: 'A non-repainting strategy that identifies market peaks, waits for a break of structure, and enters on a Fibonacci retracement.',
-    async calculate(data: HistoricalData[], params: HyperPFFParams = defaultHyperPFFParams): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], userParams: Partial<HyperPFFParams> = {}): Promise<HistoricalData[]> {
+        const params = { ...defaultHyperPFFParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
         const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, signalStaleness, reverse } = params;
 
@@ -172,7 +172,7 @@ const hyperPeakFormationStrategy: Strategy = {
             const fibRangeLong = highSinceBos - peakLow;
             const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
             
-            if (data[i].low <= fib50Long && data[i - 1].low > fib50Long) {
+            if (i <= bosIndexLong + signalStaleness && data[i].low <= fib50Long && data[i - 1].low > fib50Long) {
                 if (reverse) {
                     dataWithIndicators[i].sellSignal = fib50Long;
                 } else {

@@ -62,7 +62,8 @@ const peakFormationFibStrategy: Strategy = {
     id: 'peak-formation-fib',
     name: 'Peak Formation Fib (Non-Repainting)',
     description: 'A non-repainting strategy that identifies market peaks, waits for a break of structure, and enters on a Fibonacci retracement.',
-    async calculate(data: HistoricalData[], params: PffParams = defaultPffParams): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], userParams: Partial<PffParams> = {}): Promise<HistoricalData[]> {
+        const params = { ...defaultPffParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
         const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, signalStaleness, reverse } = params;
 

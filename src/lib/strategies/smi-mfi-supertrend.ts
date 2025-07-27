@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend, calculateMFI, calculateSMI, calculatePivotPoints } from '@/lib/indicators';
@@ -38,7 +37,8 @@ const smiMfiSupertrendStrategy: Strategy = {
   name: 'SMI MFI + Pivot Supertrend',
   description: 'A trend-following strategy using Pivot Point Supertrend for trend and an SMI of MFI for entry signals.',
   
-  async calculate(data: HistoricalData[], params: SmiMfiSupertrendParams = defaultSmiMfiSupertrendParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<SmiMfiSupertrendParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultSmiMfiSupertrendParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     const requiredDataLength = Math.max(params.supertrendPeriod, params.mfiPeriod, params.smiPeriod + params.smiEmaPeriod);
 

@@ -28,7 +28,8 @@ const macdCrossoverStrategy: Strategy = {
   id: 'macd-crossover',
   name: 'MACD Crossover',
   description: 'A momentum strategy based on the MACD line crossing over or under its signal line.',
-  async calculate(data: HistoricalData[], params: MacdCrossoverParams = defaultMacdCrossoverParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<MacdCrossoverParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultMacdCrossoverParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.longPeriod) return dataWithIndicators;

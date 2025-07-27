@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -91,7 +89,8 @@ const orderFlowScalpStrategy: Strategy = {
     id: 'order-flow-scalp',
     name: 'Order Flow Scalp',
     description: 'Simulates "tape reading" by confirming trades with buying/selling pressure (delta) at significant volume levels (POC).',
-    async calculate(data: HistoricalData[], params: OrderFlowScalpParams = defaultOrderFlowScalpParams): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], userParams: Partial<OrderFlowScalpParams> = {}): Promise<HistoricalData[]> {
+        const params = { ...defaultOrderFlowScalpParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
         if (data.length < params.pocLookback) return dataWithIndicators;
 
@@ -163,4 +162,3 @@ const orderFlowScalpStrategy: Strategy = {
 }
 
 export default orderFlowScalpStrategy;
-

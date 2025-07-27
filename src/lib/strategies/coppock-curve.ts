@@ -28,7 +28,8 @@ const coppockCurveStrategy: Strategy = {
   id: 'coppock-curve',
   name: 'Coppock Curve',
   description: 'A long-term momentum indicator. Signals are generated when the curve moves from negative to positive.',
-  async calculate(data: HistoricalData[], params: CoppockCurveParams = defaultCoppockCurveParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<CoppockCurveParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultCoppockCurveParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     const requiredData = params.longRoC + params.wmaPeriod;
 
