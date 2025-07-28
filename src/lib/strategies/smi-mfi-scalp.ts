@@ -33,7 +33,6 @@ const smiMfiScalpStrategy: Strategy = {
     
     if (data.length < params.supertrendPeriod) return dataWithIndicators;
 
-    // 1. Pivot Point Supertrend for trend direction
     const { supertrend, direction: supertrendDirection } = calculateSupertrend(data, params.supertrendPeriod, params.supertrendMultiplier);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
@@ -45,27 +44,14 @@ const smiMfiScalpStrategy: Strategy = {
       const trendDirection = supertrendDirection[i];
       if (trendDirection === null) return;
 
-      // Trend Conditions - This is now the ONLY deciding factor
+      // Corrected Logic: Generate a neutral event based on the trend direction of the current candle.
       const isInUptrend = trendDirection === 1;
       const isInDowntrend = trendDirection === -1;
       
-      // Force a decision on every candle based on trend
-      if (params.reverse) {
-        // Trade against the trend
-        if (isInUptrend) {
-          d.sellSignal = d.close;
-        }
-        if (isInDowntrend) {
-          d.buySignal = d.close;
-        }
-      } else {
-        // Follow the trend
-        if (isInUptrend) {
-          d.buySignal = d.close;
-        }
-        if (isInDowntrend) {
-          d.sellSignal = d.close;
-        }
+      if (isInUptrend) {
+          d.bullish_event = true;
+      } else if (isInDowntrend) {
+          d.bearish_event = true;
       }
     });
 
