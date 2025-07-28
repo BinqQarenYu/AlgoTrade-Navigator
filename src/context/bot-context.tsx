@@ -4,7 +4,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, LiveBotStateForAsset } from '@/lib/types';
-import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getLatestKlinesByLimit, placeOrder, setLeverage, getOpenPositions } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
@@ -115,7 +114,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
 
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { activeProfile, canUseAi, consumeAiCredit } = useApi();
+  const { activeProfile } = useApi();
   
   const [liveBotState, setLiveBotState] = useState<{ bots: Record<string, LiveBotStateForAsset> }>({ bots: {} });
   const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
@@ -201,50 +200,47 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: `Bot ${botId} Stopped` });
   }, [toast]);
   
-  const runLiveBotCycle = useCallback(async (botId: string, isNewCandle: boolean = false) => {
+  const runLiveBotCycle = useCallback(async (botId: string, isCandleClose: boolean = false) => {
     const botState = liveBotState.bots[botId];
     const data = dataBufferRef.current[botId];
-
-    if (!botState || !data || (botState.status !== 'running' && botState.status !== 'analyzing' && botState.status !== 'position_open')) return;
+  
+    if (!botState || !data || (botState.status !== 'running' && botState.status !== 'position_open')) return;
     if (!activeProfile) return;
-    
+  
     const config = botState.config;
     let currentPosition = botState.activePosition;
     const strategy = getStrategyById(config.strategy);
     if (!strategy) return;
-    
+  
     const riskGuardian = riskGuardianRefs.current[botId];
     if (riskGuardian) {
         const { allowed, reason } = riskGuardian.canTrade();
         if (!allowed) {
           addLiveLog(botId, `Discipline action: ${reason}`);
-          setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
-          return; 
+          setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'cooldown' } } }));
+          return;
         }
     }
-
+  
     try {
-        const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
-        const latestCandle = dataWithIndicators[dataWithIndicators.length - 1];
-
-        // --- EXIT LOGIC (ALWAYS RUNS) ---
+        const latestCandle = data[data.length - 1];
+  
+        // --- EXIT LOGIC (runs on every tick) ---
         if (currentPosition) {
             let closePosition = false;
             let closeReason = '';
-            
-            if (currentPosition.action === 'UP' && latestCandle.low <= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; } 
-            else if (currentPosition.action === 'UP' && latestCandle.high >= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; } 
-            else if (currentPosition.action === 'DOWN' && latestCandle.high >= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; } 
-            else if (currentPosition.action === 'DOWN' && latestCandle.low <= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
-            
-            const hasOppositeSignal = (currentPosition.action === 'UP' && latestCandle.sellSignal) || (currentPosition.action === 'DOWN' && latestCandle.buySignal);
-            if(hasOppositeSignal) {
-              closePosition = true;
-              closeReason = 'Opposite signal';
+            const currentPrice = latestCandle.close;
+  
+            if (currentPosition.action === 'UP') {
+                if (currentPrice <= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; }
+                else if (currentPrice >= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
+            } else { // DOWN
+                if (currentPrice >= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; }
+                else if (currentPrice <= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
             }
-            
+  
             if (closePosition) {
-                addLiveLog(botId, `Exit signal: ${closeReason} hit.`);
+                addLiveLog(botId, `Exit signal: ${closeReason} hit at price ${currentPrice}.`);
                 if (!config.isManual) {
                     const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
                     const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
@@ -253,57 +249,51 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     const pnl = side === 'SELL' ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
                     riskGuardian?.registerTrade(pnl);
                 }
-                setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
-                currentPosition = null; 
+                setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], activePosition: null, status: 'running' } } }));
+                return; // Exit cycle after closing position
             }
         }
-        
-        // --- ENTRY LOGIC (ONLY ON NEW CANDLE & IF NOT IN POSITION) ---
-        if (!currentPosition && isNewCandle) {
-          setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'analyzing'}}}));
-          
-          let strategySignal: 'BUY' | 'SELL' | null = latestCandle.buySignal ? 'BUY' : latestCandle.sellSignal ? 'SELL' : null;
-          
-          if (strategySignal) {
-            if (config.strategyParams.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
-          
-            const signalAction = strategySignal === 'BUY' ? 'UP' : 'DOWN';
-            const currentPrice = latestCandle.close;
-            const stopLossPrice = latestCandle.stopLossLevel || (signalAction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100)));
-            const takeProfitPrice = latestCandle.takeProfitLevel || (signalAction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100)));
-            
-            const newSignal: TradeSignal = {
-              asset: config.asset,
-              action: signalAction,
-              entryPrice: currentPrice,
-              stopLoss: stopLossPrice,
-              takeProfit: takeProfitPrice,
-              confidence: 1,
-              reasoning: `Signal from '${config.strategy}'.`,
-              timestamp: latestCandle.time,
-              strategy: config.strategy,
-              peakPrice: latestCandle.peakPrice,
-            };
-
-            addLiveLog(botId, `New trade signal: ${newSignal.action} at ${newSignal.entryPrice}`);
-            if (!config.isManual) {
-                const side = newSignal.action === 'UP' ? 'BUY' : 'SELL';
-                const quantity = (config.capital * config.leverage) / newSignal.entryPrice;
-                await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
-                toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+  
+        // --- ENTRY LOGIC (runs ONLY on candle close) ---
+        if (isCandleClose && !currentPosition) {
+            const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
+            const signalCandle = dataWithIndicators[dataWithIndicators.length - 2]; // The candle that just closed
+  
+            const strategySignal: 'BUY' | 'SELL' | null = signalCandle.buySignal ? 'BUY' : signalCandle.sellSignal ? 'SELL' : null;
+  
+            if (strategySignal) {
+                const signalAction = strategySignal === 'BUY' ? 'UP' : 'DOWN';
+                const currentPrice = signalCandle.close; // Use the closing price of the signal candle
+                
+                const stopLossPrice = signalCandle.stopLossLevel || (signalAction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100)));
+                const takeProfitPrice = signalCandle.takeProfitLevel || (signalAction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100)));
+                
+                const newSignal: TradeSignal = {
+                  asset: config.asset,
+                  action: signalAction,
+                  entryPrice: currentPrice,
+                  stopLoss: stopLossPrice,
+                  takeProfit: takeProfitPrice,
+                  confidence: 1,
+                  reasoning: `Signal from '${config.strategy}' on candle close.`,
+                  timestamp: signalCandle.time,
+                  strategy: config.strategy,
+                  peakPrice: signalCandle.peakPrice,
+                };
+  
+                addLiveLog(botId, `New trade signal: ${newSignal.action} at ${newSignal.entryPrice}`);
+                if (!config.isManual) {
+                    const side = newSignal.action === 'UP' ? 'BUY' : 'SELL';
+                    const quantity = (config.capital * config.leverage) / newSignal.entryPrice;
+                    await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+                    toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+                }
+                setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], activePosition: newSignal, status: 'position_open' } } }));
             }
-            setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: newSignal, status: 'position_open'}}}));
-
-          } else {
-             setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'running'}}}));
-          }
-        } else if (!currentPosition) {
-            setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'running'}}}));
         }
-
     } catch (e: any) {
         addLiveLog(botId, `CRITICAL ERROR: ${e.message}`);
-        setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'error'}}}));
+        setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'error' } } }));
         if (e.message.includes('-2015') || e.message.toLowerCase().includes('invalid api-key')) {
             toast({ title: "API Key Failed!", description: "Bot stopped for safety.", variant: "destructive" });
             stopBotInstance(botId);
@@ -321,7 +311,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
     
     setLiveBotState(prev => ({
-        ...prev, bots: { ...prev.bots, [botId]: { status: 'analyzing', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
+        ...prev, bots: { ...prev.bots, [botId]: { status: 'running', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
     }));
 
     if (!updateIntervalRef.current) {
@@ -358,16 +348,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           const newCandle: HistoricalData = { time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h), low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v) };
           const buffer = dataBufferRef.current[botId] || [];
           
-          const isNewCandle = data.k.x;
+          const isCandleClose = data.k.x;
 
-          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time && !isNewCandle) {
+          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) {
             buffer[buffer.length - 1] = newCandle;
-          } else if (isNewCandle) {
+          } else {
              buffer.push(newCandle);
           }
           dataBufferRef.current[botId] = buffer.slice(-1000);
           
-          runLiveBotCycle(botId, isNewCandle); 
+          runLiveBotCycle(botId, isCandleClose); 
         }
       };
       

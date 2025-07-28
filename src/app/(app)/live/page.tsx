@@ -373,7 +373,7 @@ export default function LiveTradingPage() {
             return;
         }
 
-        const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open';
+        const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'position_open';
         
         if (isRunning) {
             stopBotInstance(botId);
@@ -679,4 +679,5 @@ const BotInstanceRow = memo(({
     );
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
+
 
