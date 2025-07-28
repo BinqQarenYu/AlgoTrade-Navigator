@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -97,6 +97,7 @@ import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertre
 import { defaultSmiMfiScalpParams } from "@/lib/strategies/smi-mfi-scalp"
 import { defaultOrderFlowScalpParams } from "@/lib/strategies/order-flow-scalp"
 import { defaultForcedActionScalpParams } from "@/lib/strategies/forced-action-scalp"
+import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface DateRange {
   from?: Date;
@@ -216,6 +217,60 @@ const OverfittingAnalysisCard = ({ result }: { result: OverfittingResult }) => {
         </Alert>
     );
 };
+
+const ParameterControl = ({ label, value, onChange, disabled, defaultValue, optimizationRange }: {
+    label: string;
+    value: number | string;
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    disabled?: boolean;
+    defaultValue?: number;
+    optimizationRange?: { min: number, max: number };
+}) => {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={label} className="capitalize">{label.replace(/([A-Z])/g, ' $1').trim()}</Label>
+      <Input 
+        id={label}
+        type="number"
+        value={value}
+        onChange={onChange}
+        step={String(value).includes('.') ? '0.001' : '1'}
+        disabled={disabled}
+      />
+      <div className="flex justify-between items-center text-xs text-muted-foreground pt-1">
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="flex items-center gap-1 cursor-help">
+                        <Info className="h-3 w-3" />
+                        Default: <span className="font-mono">{defaultValue ?? 'N/A'}</span>
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>The strategy's default value for this parameter.</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+        {optimizationRange && (
+             <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="flex items-center gap-1 cursor-help">
+                            <Wand2 className="h-3 w-3" />
+                            Opt. Range: <span className="font-mono">{optimizationRange.min}-{optimizationRange.max}</span>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        <p>The range used by the "Auto-Tune" feature.</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        )}
+      </div>
+    </div>
+  );
+};
+
 
 const BacktestPageContent = () => {
   const { toast } = useToast()
@@ -415,7 +470,7 @@ const BacktestPageContent = () => {
       const combinedData = [...fullChartData, ...projectedData];
 
       if (strategy) {
-          const paramsForStrategy = strategyParams[selectedStrategy] || {};
+          const paramsForStrategy = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
           dataWithInd = await strategy.calculate(combinedData, paramsForStrategy, symbol);
       } else {
           dataWithInd = [...combinedData];
@@ -583,7 +638,7 @@ const BacktestPageContent = () => {
       description: `Running ${strategy.name} on ${symbol} (${interval}).`,
     });
     
-    const baseParams = strategyParams[selectedStrategy] || {};
+    const baseParams = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
     const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
 
     const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
@@ -843,7 +898,7 @@ const BacktestPageContent = () => {
       setIsBacktesting(false);
       return;
     }
-    const paramsForStrategy = strategyParams[selectedStrategy] || {};
+    const paramsForStrategy = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
     const calculatedData = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
     setFullChartData(calculatedData); // Store data with all signals pre-calculated
     setBacktestResults([]);
@@ -1014,7 +1069,14 @@ const BacktestPageContent = () => {
 
   const renderParameterControls = () => {
     const params = strategyParams[selectedStrategy] || {};
+    const defaultParams = DEFAULT_PARAMS_MAP[selectedStrategy] || {};
+    const optimizationConfig = optimizationConfigs[selectedStrategy];
 
+    // Filter out complex or non-numeric params from the main display
+    const filteredParamKeys = Object.keys(defaultParams).filter(
+      key => typeof defaultParams[key] === 'number' || typeof defaultParams[key] === 'boolean'
+    );
+    
     // Special UI for hyper-peak-formation
     if (selectedStrategy === 'hyper-peak-formation' || selectedStrategy === 'hyper-peak-formation-old') {
       const isOld = selectedStrategy === 'hyper-peak-formation-old';
@@ -1177,76 +1239,13 @@ const BacktestPageContent = () => {
             </div>
         );
     }
-
-    if (selectedStrategy === 'smi-mfi-supertrend' || selectedStrategy === 'smi-mfi-scalp') {
-        const canOptimize = !!optimizationConfigs[selectedStrategy];
-        const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
-        return (
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="supertrendPeriod">Supertrend Period</Label>
-                        <Input id="supertrendPeriod" type="number" value={params.supertrendPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="supertrendMultiplier">Supertrend Multiplier</Label>
-                        <Input id="supertrendMultiplier" type="number" step="0.1" value={params.supertrendMultiplier || 0} onChange={(e) => handleParamChange(selectedStrategy, 'supertrendMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="mfiPeriod">MFI Period</Label>
-                        <Input id="mfiPeriod" type="number" value={params.mfiPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'mfiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="smiPeriod">SMI Period</Label>
-                        <Input id="smiPeriod" type="number" value={params.smiPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'smiPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="smiEmaPeriod">SMI EMA Period</Label>
-                        <Input id="smiEmaPeriod" type="number" value={params.smiEmaPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'smiEmaPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="overbought">Overbought Level</Label>
-                        <Input id="overbought" type="number" value={params.overbought || 0} onChange={(e) => handleParamChange(selectedStrategy, 'overbought', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                     <div className="space-y-2">
-                        <Label htmlFor="oversold">Oversold Level</Label>
-                        <Input id="oversold" type="number" value={params.oversold || 0} onChange={(e) => handleParamChange(selectedStrategy, 'oversold', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                </div>
-                 <div className="flex items-center space-x-2 pt-2">
-                    <Switch
-                    id="reverse-logic"
-                    checked={params.reverse || false}
-                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading || isReplaying}
-                    />
-                    <div className="flex flex-col">
-                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-                    </div>
-                </div>
-                 <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                    {canReset && (
-                        <Button onClick={handleResetParams} disabled={anyLoading || isReplaying} variant="secondary" className="w-full">
-                            <RotateCcw className="mr-2 h-4 w-4" />
-                            Reset to Default
-                        </Button>
-                    )}
-                    {canOptimize && (
-                      <Button onClick={handleAutoTune} disabled={anyLoading || isReplaying} variant="outline" className="w-full">
-                        {isOptimizing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                        {isOptimizing ? "Optimizing..." : "Auto-Tune Parameters"}
-                      </Button>
-                    )}
-                </div>
-            </div>
-        );
-    }
     
-    // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'discipline'));
+    // Filter out complex params for the generic controls
+    const numericParamKeys = Object.keys(defaultParams).filter(
+      key => typeof defaultParams[key] === 'number'
+    );
 
-    if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
+    if (numericParamKeys.length === 0 && selectedStrategy !== 'none') {
         return (
             <div className="flex items-center space-x-2 pt-2">
                 <Switch
@@ -1263,23 +1262,21 @@ const BacktestPageContent = () => {
         );
     }
     
-    if (Object.keys(filteredParams).length === 0) {
+    if (numericParamKeys.length === 0) {
         return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
     }
 
-    const controls = Object.entries(filteredParams).map(([key, value]) => {
+    const controls = numericParamKeys.map((key) => {
       return (
-        <div key={key} className="space-y-2">
-          <Label htmlFor={key} className="capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</Label>
-          <Input 
-            id={key}
-            type="number"
-            value={value as number || 0}
+        <ParameterControl
+            key={key}
+            label={key}
+            value={params[key] ?? 0}
             onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
-            step={String(value).includes('.') ? '0.001' : '1'}
             disabled={anyLoading || isReplaying}
-          />
-        </div>
+            defaultValue={defaultParams[key]}
+            optimizationRange={optimizationConfig?.[key]}
+        />
       );
     });
 
