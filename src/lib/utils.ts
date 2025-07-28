@@ -7,32 +7,27 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Formats a price with appropriate precision based on its value.
+ * Formats a price with appropriate precision based on its value for display purposes.
+ * This should NOT be used for sending order data to an exchange.
  * @param price The price to format.
  * @returns A formatted string representation of the price.
  */
 export function formatPrice(price: number): string {
   if (price === 0) return '0.00';
   
-  let precision: number;
-  if (price > 1000) { // e.g. BTC
-    precision = 2;
-  } else if (price > 10) { // e.g. SOL
-    precision = 4;
-  } else if (price > 0.1) { // e.g. ADA
-    precision = 5;
-  } else if (price > 0.0001) { // e.g. SHIB
-    precision = 8;
-  } else { // e.g. PEPE
-    precision = 10;
+  let precisionOptions: Intl.NumberFormatOptions;
+  
+  if (price >= 1000) { // e.g., BTC, ETH
+    precisionOptions = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+  } else if (price >= 1) { // e.g., SOL, ADA
+    precisionOptions = { minimumFractionDigits: 4, maximumFractionDigits: 4 };
+  } else if (price >= 0.001) { // e.g., SHIB
+    precisionOptions = { minimumFractionDigits: 6, maximumFractionDigits: 6 };
+  } else { // e.g., PEPE
+    precisionOptions = { minimumFractionDigits: 8, maximumFractionDigits: 8 };
   }
 
-  // Use toLocaleString for larger numbers for comma separators, but toFixed for small ones for accuracy.
-  if (price >= 1) {
-    return price.toLocaleString('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision });
-  } else {
-    return price.toFixed(precision);
-  }
+  return price.toLocaleString('en-US', precisionOptions);
 }
 
 

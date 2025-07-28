@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend, calculateMFI, calculateSMI, calculatePivotPoints } from '@/lib/indicators';
@@ -38,7 +37,8 @@ const smiMfiSupertrendStrategy: Strategy = {
   name: 'SMI MFI + Pivot Supertrend',
   description: 'A trend-following strategy using Pivot Point Supertrend for trend and an SMI of MFI for entry signals.',
   
-  async calculate(data: HistoricalData[], params: SmiMfiSupertrendParams = defaultSmiMfiSupertrendParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<SmiMfiSupertrendParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultSmiMfiSupertrendParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     const requiredDataLength = Math.max(params.supertrendPeriod, params.mfiPeriod, params.smiPeriod + params.smiEmaPeriod);
 
@@ -68,35 +68,23 @@ const smiMfiSupertrendStrategy: Strategy = {
       const isInUptrend = supertrendDirection[i] === 1;
       const isInDowntrend = supertrendDirection[i] === -1;
 
-      // Entry Conditions (SMI MFI)
-      const smiWasOversold = prev.smi <= params.oversold;
-      const smiCrossedUp = prev.smi <= prev.smi_signal && smi[i]! > smiSignal[i]!;
-      
-      const smiWasOverbought = prev.smi >= params.overbought;
-      const smiCrossedDown = prev.smi >= prev.smi_signal && smi[i]! < smiSignal[i]!;
+      // Entry Conditions (SMI of MFI crosses its signal line)
+      const bullishSmiCross = prev.smi <= prev.smi_signal && smi[i]! > smiSignal[i]!;
+      const bearishSmiCross = prev.smi >= prev.smi_signal && smi[i]! < smiSignal[i]!;
+
+      // Oscillator level condition
+      const isOversold = smi[i]! < params.oversold;
+      const isOverbought = smi[i]! > params.overbought;
 
       // Final Signals
-      const standardBuy = isInUptrend && smiWasOversold && smiCrossedUp;
-      const standardSell = isInDowntrend && smiWasOverbought && smiCrossedDown;
+      const standardBuy = isInUptrend && bullishSmiCross && isOversold;
+      const standardSell = isInDowntrend && bearishSmiCross && isOverbought;
       
-      if (params.reverse) {
-        if (standardBuy) {
-          d.sellSignal = d.close;
-          d.stopLossLevel = d.high * 1.02; 
-        }
-        if (standardSell) {
-          d.buySignal = d.close;
-          d.stopLossLevel = d.low * 0.98; 
-        }
-      } else {
-        if (standardBuy) {
-          d.buySignal = d.close;
-          d.stopLossLevel = d.low * 0.98;
-        }
-        if (standardSell) {
-          d.sellSignal = d.close;
-          d.stopLossLevel = d.high * 1.02;
-        }
+      if (standardBuy) {
+        d.bullish_event = true;
+      }
+      if (standardSell) {
+        d.bearish_event = true;
       }
     });
 

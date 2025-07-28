@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 
@@ -49,7 +48,8 @@ const liquidityGrabStrategy: Strategy = {
   id: 'liquidity-grab',
   name: 'Liquidity Grab',
   description: 'Identifies price sweeps below support or above resistance, then enters on a quick reversal, anticipating a trap.',
-  async calculate(data: HistoricalData[], params: LiquidityGrabParams = defaultLiquidityGrabParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<LiquidityGrabParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultLiquidityGrabParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     const { swingLookaround, confirmationCandles, maxSweepLookahead } = params;
 

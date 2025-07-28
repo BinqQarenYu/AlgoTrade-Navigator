@@ -1,4 +1,3 @@
-
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateEMA, calculateATR } from '@/lib/indicators';
@@ -62,7 +61,8 @@ const mtfEngulfingStrategy: Strategy = {
   name: 'MTF Engulfing',
   description: 'Uses a Higher Timeframe EMA for trend and enters on a Lower Timeframe Engulfing candle.',
   
-  async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol?: string): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<MtfEngulfingParams> = {}, symbol?: string): Promise<HistoricalData[]> {
+    const params = { ...defaultMtfEngulfingParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     // Add guard clause to prevent error on empty data
     if (!data || data.length < params.emaLength) return dataWithIndicators;

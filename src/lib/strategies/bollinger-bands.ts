@@ -5,14 +5,12 @@ import { calculateBollingerBands } from '@/lib/indicators';
 export interface BollingerBandsParams {
   period: number;
   stdDev: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultBollingerBandsParams: BollingerBandsParams = {
   period: 20,
   stdDev: 2,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -26,7 +24,8 @@ const bollingerBandsStrategy: Strategy = {
   id: 'bollinger-bands',
   name: 'Bollinger Bands Reversion',
   description: 'A mean-reversion strategy that enters trades when price touches an outer band and then reverts towards the middle band.',
-  async calculate(data: HistoricalData[], params: BollingerBandsParams = defaultBollingerBandsParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<BollingerBandsParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultBollingerBandsParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.period) return dataWithIndicators;
@@ -43,15 +42,11 @@ const bollingerBandsStrategy: Strategy = {
         const prevBar = data[i-1];
         const currentBar = d;
 
-        const standardBuy = prevBar.low <= lower[i-1]! && currentBar.close > lower[i]!;
-        const standardSell = prevBar.high >= upper[i-1]! && currentBar.close < upper[i]!;
-
-        if (params.reverse) {
-          if (standardBuy) d.sellSignal = currentBar.high;
-          if (standardSell) d.buySignal = currentBar.low;
-        } else {
-          if (standardBuy) d.buySignal = currentBar.low;
-          if (standardSell) d.sellSignal = currentBar.high;
+        if (prevBar.low <= lower[i-1]! && currentBar.close > lower[i]!) {
+          d.bullish_event = true;
+        }
+        if (prevBar.high >= upper[i-1]! && currentBar.close < upper[i]!) {
+          d.bearish_event = true;
         }
       }
     });

@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -59,7 +58,8 @@ const liquidityOrderFlowStrategy: Strategy = {
   name: 'Liquidity & Order Flow',
   description: 'A professional-grade strategy that identifies liquidity sweeps, confirms them with volume analysis, waits for a market structure shift, and seeks entry on a pullback to a Fair Value Gap.',
   
-  async calculate(data: HistoricalData[], params: LiquidityOrderFlowParams = defaultLiquidityOrderFlowParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<LiquidityOrderFlowParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultLiquidityOrderFlowParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     if (data.length < params.emaTrendPeriod) return dataWithIndicators;
 

@@ -4,13 +4,11 @@ import { calculateOBV, calculateSMA } from '@/lib/indicators';
 
 export interface ObvDivergenceParams {
   period: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultObvDivergenceParams: ObvDivergenceParams = {
   period: 20,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -24,28 +22,23 @@ const obvDivergenceStrategy: Strategy = {
   id: 'obv-divergence',
   name: 'OBV Divergence',
   description: 'Identifies potential reversals by comparing On-Balance Volume (OBV) trend with price trend.',
-  async calculate(data: HistoricalData[], params: ObvDivergenceParams = defaultObvDivergenceParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<ObvDivergenceParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultObvDivergenceParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
-    const period = params.period || 20; // Use the provided period or default to 20
-
-    if (data.length < period) return dataWithIndicators;
+    if (data.length < params.period) return dataWithIndicators;
 
     const obv = calculateOBV(data);
-    const obvSma = calculateSMA(obv.filter(v => v !== null) as number[], period);
+    const obvSma = calculateSMA(obv.filter(v => v !== null) as number[], params.period);
     const obvSmaPadded = [...Array(data.length - obvSma.length).fill(null), ...obvSma];
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.obv = obv[i];
       if (i > 0 && obv[i-1] !== null && obv[i] !== null && obvSmaPadded[i-1] !== null && obvSmaPadded[i] !== null) {
-        const standardBuy = obv[i]! > obvSmaPadded[i]! && obv[i-1]! <= obvSmaPadded[i-1]!;
-        const standardSell = obv[i]! < obvSmaPadded[i]! && obv[i-1]! >= obvSmaPadded[i-1]!;
-        
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (obv[i]! > obvSmaPadded[i]! && obv[i-1]! <= obvSmaPadded[i-1]!) {
+          d.bullish_event = true;
+        }
+        if (obv[i]! < obvSmaPadded[i]! && obv[i-1]! >= obvSmaPadded[i-1]!) {
+          d.bearish_event = true;
         }
       }
     });

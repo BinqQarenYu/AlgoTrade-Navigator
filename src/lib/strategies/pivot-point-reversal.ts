@@ -4,13 +4,11 @@ import { calculatePivotPoints } from '@/lib/indicators';
 
 export interface PivotPointReversalParams {
   period: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultPivotPointReversalParams: PivotPointReversalParams = {
   period: 24,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -24,7 +22,8 @@ const pivotPointReversalStrategy: Strategy = {
   id: 'pivot-point-reversal',
   name: 'Pivot Point Reversal',
   description: 'Trades reversals off of calculated support (S1, S2, S3) and resistance (R1, R2, R3) levels.',
-  async calculate(data: HistoricalData[], params: PivotPointReversalParams = defaultPivotPointReversalParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<PivotPointReversalParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultPivotPointReversalParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
     
     if (data.length < params.period) return dataWithIndicators;
@@ -40,23 +39,16 @@ const pivotPointReversalStrategy: Strategy = {
             const current = d;
             const prev = dataWithIndicators[i-1];
 
-            // Buy conditions (bounce off any support level)
-            const standardBuy = (s1[i] && prev.low > s1[i]! && current.low <= s1[i]! && current.close > s1[i]!) ||
+            const bullishEvent = (s1[i] && prev.low > s1[i]! && current.low <= s1[i]! && current.close > s1[i]!) ||
                 (s2[i] && prev.low > s2[i]! && current.low <= s2[i]! && current.close > s2[i]!) ||
                 (s3[i] && prev.low > s3[i]! && current.low <= s3[i]! && current.close > s3[i]!);
 
-            // Sell conditions (rejection from any resistance level)
-            const standardSell = (r1[i] && prev.high < r1[i]! && current.high >= r1[i]! && current.close < r1[i]!) ||
+            const bearishEvent = (r1[i] && prev.high < r1[i]! && current.high >= r1[i]! && current.close < r1[i]!) ||
                 (r2[i] && prev.high < r2[i]! && current.high >= r2[i]! && current.close < r2[i]!) ||
                 (r3[i] && prev.high < r3[i]! && current.high >= r3[i]! && current.close < r3[i]!);
             
-            if (params.reverse) {
-                if (standardBuy) d.sellSignal = d.high;
-                if (standardSell) d.buySignal = d.low;
-            } else {
-                if (standardBuy) d.buySignal = d.low;
-                if (standardSell) d.sellSignal = d.high;
-            }
+            if (bullishEvent) d.bullish_event = true;
+            if (bearishEvent) d.bearish_event = true;
         }
     });
 

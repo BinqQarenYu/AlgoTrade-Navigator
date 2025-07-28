@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -7,7 +6,6 @@ export interface VolumeDeltaParams {
   pocLookback: number;
   deltaLookback: number;
   pocProximityPercent: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
@@ -15,7 +13,6 @@ export const defaultVolumeDeltaParams: VolumeDeltaParams = {
   pocLookback: 200,
   deltaLookback: 5,
   pocProximityPercent: 0.005,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -87,7 +84,8 @@ const volumeDeltaStrategy: Strategy = {
     id: 'volume-delta',
     name: 'Volume Delta Confirmation',
     description: 'A strategy that confirms trades by analyzing buying/selling pressure (delta) at significant price levels (POC).',
-    async calculate(data: HistoricalData[], params: VolumeDeltaParams = defaultVolumeDeltaParams): Promise<HistoricalData[]> {
+    async calculate(data: HistoricalData[], userParams: Partial<VolumeDeltaParams> = {}): Promise<HistoricalData[]> {
+        const params = { ...defaultVolumeDeltaParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
         if (data.length < params.pocLookback) return dataWithIndicators;
 
@@ -107,17 +105,13 @@ const volumeDeltaStrategy: Strategy = {
             const currentCumulativeDelta = cumulativeVolumeDelta[i]!;
 
             // LONG condition: Price tests POC from above and cumulative delta flips positive
-            const standardBuy = currentCandle.low <= poc * (1 + params.pocProximityPercent) && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open;
+            if (currentCandle.low <= poc * (1 + params.pocProximityPercent) && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open) {
+                dataWithIndicators[i].bullish_event = true;
+            }
             
             // SHORT condition: Price tests POC from below and cumulative delta flips negative
-            const standardSell = currentCandle.high >= poc * (1 - params.pocProximityPercent) && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open;
-
-            if (params.reverse) {
-                if (standardBuy) dataWithIndicators[i].sellSignal = currentCandle.high;
-                if (standardSell) dataWithIndicators[i].buySignal = currentCandle.low;
-            } else {
-                if (standardBuy) dataWithIndicators[i].buySignal = currentCandle.low;
-                if (standardSell) dataWithIndicators[i].sellSignal = currentCandle.high;
+            if (currentCandle.high >= poc * (1 - params.pocProximityPercent) && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open) {
+                 dataWithIndicators[i].bearish_event = true;
             }
         }
         return dataWithIndicators;

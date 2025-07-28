@@ -6,7 +6,6 @@ export interface WilliamsRParams {
   period: number;
   overbought: number;
   oversold: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
@@ -14,7 +13,6 @@ export const defaultWilliamsRParams: WilliamsRParams = {
   period: 14,
   overbought: -20,
   oversold: -80,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -28,7 +26,8 @@ const williamsRStrategy: Strategy = {
   id: 'williams-r',
   name: 'Williams %R',
   description: 'A momentum indicator that signals overbought and oversold conditions, similar to the Stochastic Oscillator.',
-  async calculate(data: HistoricalData[], params: WilliamsRParams = defaultWilliamsRParams): Promise<HistoricalData[]> {
+  async calculate(data: HistoricalData[], userParams: Partial<WilliamsRParams> = {}): Promise<HistoricalData[]> {
+    const params = { ...defaultWilliamsRParams, ...userParams };
     const dataWithIndicators = JSON.parse(JSON.stringify(data));
 
     if (data.length < params.period) return dataWithIndicators;
@@ -38,17 +37,11 @@ const williamsRStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.williams_r = williamsR[i];
       if (i > 0 && williamsR[i-1] !== null && williamsR[i] !== null) {
-        // Buy signal: %R crosses back above oversold level
-        const standardBuy = williamsR[i-1]! <= params.oversold && williamsR[i]! > params.oversold;
-        // Sell signal: %R crosses back below overbought level
-        const standardSell = williamsR[i-1]! >= params.overbought && williamsR[i]! < params.overbought;
-
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (williamsR[i-1]! <= params.oversold && williamsR[i]! > params.oversold) {
+          d.bullish_event = true;
+        }
+        if (williamsR[i-1]! >= params.overbought && williamsR[i]! < params.overbought) {
+          d.bearish_event = true;
         }
       }
     });

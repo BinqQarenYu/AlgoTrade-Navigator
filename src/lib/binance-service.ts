@@ -50,6 +50,14 @@ const binanceExchange = new binance({
     enableRateLimit: true, 
 });
 
+// Centralized precision formatting using CCXT's loaded market data
+const formatToPrecision = (symbol: string, value: number, type: 'price' | 'amount'): string => {
+    if (type === 'price') {
+        return binanceExchange.priceToPrecision(symbol, value);
+    }
+    return binanceExchange.amountToPrecision(symbol, value);
+}
+
 export const getAccountBalance = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Portfolio, usedWeight: number }> => {
   const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
   const portfolioData = {
@@ -105,7 +113,7 @@ export const placeOrder = async (
       throw new Error(`Could not find market data for symbol: ${symbol}`);
   }
 
-  const formattedQuantity = binanceExchange.amountToPrecision(symbol, quantity);
+  const formattedQuantity = formatToPrecision(symbol, quantity, 'amount');
   
   const body: any = {
     symbol,
