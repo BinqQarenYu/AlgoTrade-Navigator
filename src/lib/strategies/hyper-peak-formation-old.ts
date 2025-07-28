@@ -10,8 +10,7 @@ export interface OldHyperPFFParams {
     emaLongPeriod: number;
     fibLevel1: number;
     fibLevel2: number;
-    maxLookahead: number; // This is the repainting parameter
-    reverse?: boolean;
+    maxLookahead: number;
     discipline: DisciplineParams;
 }
 
@@ -23,7 +22,6 @@ export const defaultOldHyperPFFParams: OldHyperPFFParams = {
     fibLevel1: 0.5,
     fibLevel2: 0.618,
     maxLookahead: 100,
-    reverse: false,
     discipline: {
         enableDiscipline: true,
         maxConsecutiveLosses: 4,
@@ -80,7 +78,7 @@ const hyperPeakFormationOldStrategy: Strategy = {
     async calculate(data: HistoricalData[], userParams: Partial<OldHyperPFFParams> = {}): Promise<HistoricalData[]> {
         const params = { ...defaultOldHyperPFFParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
-        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, maxLookahead, reverse } = params;
+        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, maxLookahead } = params;
 
         if (data.length < emaLongPeriod) return dataWithIndicators;
 

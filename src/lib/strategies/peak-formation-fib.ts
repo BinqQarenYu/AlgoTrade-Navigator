@@ -10,7 +10,7 @@ export interface PffParams {
     emaLongPeriod: number;
     fibLevel1: number;
     fibLevel2: number;
-    signalStaleness: number; // How many candles a signal remains valid after a Break of Structure
+    signalStaleness: number;
     discipline: DisciplineParams;
 }
 
@@ -31,8 +31,6 @@ export const defaultPffParams: PffParams = {
     },
 };
 
-// A confirmed swing high/low means 'lookaround' bars on BOTH sides have lower highs / higher lows.
-// This function can only confirm swings that are in the past.
 function isConfirmedSwingHigh(data: HistoricalData[], index: number, lookaround: number): boolean {
     if (index < lookaround || index >= data.length - lookaround) return false;
     const currentHigh = data[index].high;
@@ -55,7 +53,6 @@ function isConfirmedSwingLow(data: HistoricalData[], index: number, lookaround: 
     return true;
 }
 
-
 const peakFormationFibStrategy: Strategy = {
     id: 'peak-formation-fib',
     name: 'Peak Formation Fib (Non-Repainting)',
@@ -63,7 +60,7 @@ const peakFormationFibStrategy: Strategy = {
     async calculate(data: HistoricalData[], userParams: Partial<PffParams> = {}): Promise<HistoricalData[]> {
         const params = { ...defaultPffParams, ...userParams };
         const dataWithIndicators = JSON.parse(JSON.stringify(data));
-        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, signalStaleness } = params;
+        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, signalStaleness } = params;
 
         if (data.length < emaLongPeriod) return dataWithIndicators;
 
@@ -76,11 +73,8 @@ const peakFormationFibStrategy: Strategy = {
             d.ema_long = emaLong[i];
         });
 
-        // This revised logic iterates through each candle as if it's the "current" moment in time,
-        // ensuring it only acts on information that has already happened.
         for (let i = peakLookaround + swingLookaround; i < data.length; i++) {
             
-            // --- NON-REPAINTING SHORT SETUP ---
             let pfhIndex = -1;
             for (let j = i - peakLookaround; j > peakLookaround; j--) {
                 if (isConfirmedSwingHigh(data, j, peakLookaround)) {
@@ -120,7 +114,6 @@ const peakFormationFibStrategy: Strategy = {
                 }
             }
 
-            // --- NON-REPAINTING LONG SETUP ---
             let pflIndex = -1;
             for (let j = i - peakLookaround; j > peakLookaround; j--) {
                 if (isConfirmedSwingLow(data, j, peakLookaround)) {

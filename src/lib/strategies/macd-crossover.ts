@@ -6,7 +6,6 @@ export interface MacdCrossoverParams {
   shortPeriod: number;
   longPeriod: number;
   signalPeriod: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
@@ -14,7 +13,6 @@ export const defaultMacdCrossoverParams: MacdCrossoverParams = {
   shortPeriod: 12,
   longPeriod: 26,
   signalPeriod: 9,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -43,15 +41,11 @@ const macdCrossoverStrategy: Strategy = {
       d.macd_hist = histogram[i];
 
       if (i > 0 && macd[i-1] && signal[i-1] && macd[i] && signal[i]) {
-        const standardBuy = macd[i-1]! <= signal[i-1]! && macd[i]! > signal[i]!;
-        const standardSell = macd[i-1]! >= signal[i-1]! && macd[i]! < signal[i]!;
-
-        if (params.reverse) {
-          if (standardBuy) d.sellSignal = d.high;
-          if (standardSell) d.buySignal = d.low;
-        } else {
-          if (standardBuy) d.buySignal = d.low;
-          if (standardSell) d.sellSignal = d.high;
+        if (macd[i-1]! <= signal[i-1]! && macd[i]! > signal[i]!) {
+            d.bullish_event = true;
+        }
+        if (macd[i-1]! >= signal[i-1]! && macd[i]! < signal[i]!) {
+            d.bearish_event = true;
         }
       }
     });
