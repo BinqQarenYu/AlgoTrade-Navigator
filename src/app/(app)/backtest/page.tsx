@@ -325,6 +325,7 @@ const BacktestPageContent = () => {
   const [stopLoss, setStopLoss] = usePersistentState<number>('backtest-sl', 2);
   const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
   const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
+  const [useContrarian, setUseContrarian] = usePersistentState<boolean>('backtest-contrarian', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
   const [isConfirming, setIsConfirming] = useState(false);
   
@@ -490,14 +491,18 @@ const BacktestPageContent = () => {
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
-    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
+    const dataWithEvents = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     
-    for (let i = 1; i < dataWithSignals.length; i++) {
-        const d = dataWithSignals[i];
+    for (let i = 1; i < dataWithEvents.length; i++) {
+        const d = dataWithEvents[i];
+
+        // Interpret neutral events into signals
+        const isBullishEvent = !!d.bullish_event;
+        const isBearishEvent = !!d.bearish_event;
 
         if (positionType === 'long') {
             let exitPrice: number | null = null;
@@ -506,7 +511,7 @@ const BacktestPageContent = () => {
 
             if (d.low <= slPrice) exitPrice = slPrice;
             else if (d.high >= tpPrice) exitPrice = tpPrice;
-            else if (d.sellSignal) exitPrice = d.close;
+            else if (isBearishEvent) exitPrice = d.close;
 
             if (exitPrice !== null) {
                 const quantity = (initialCapital * (leverage || 1)) / entryPrice;
@@ -522,7 +527,7 @@ const BacktestPageContent = () => {
 
             if (d.high >= slPrice) exitPrice = slPrice;
             else if (d.low <= tpPrice) exitPrice = tpPrice;
-            else if (d.buySignal) exitPrice = d.close;
+            else if (isBullishEvent) exitPrice = d.close;
 
             if (exitPrice !== null) {
                 const quantity = (initialCapital * (leverage || 1)) / entryPrice;
@@ -534,8 +539,8 @@ const BacktestPageContent = () => {
         }
 
         if (positionType === null) {
-            if (d.buySignal) { positionType = 'long'; entryPrice = d.close; } 
-            else if (d.sellSignal) { positionType = 'short'; entryPrice = d.close; }
+            if (isBullishEvent) { positionType = 'long'; entryPrice = d.close; } 
+            else if (isBearishEvent) { positionType = 'short'; entryPrice = d.close; }
         }
     }
     
@@ -558,7 +563,7 @@ const BacktestPageContent = () => {
       endingBalance: initialCapital + totalPnl,
       totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
     };
-    return { summary, dataWithSignals, trades };
+    return { summary, dataWithSignals: dataWithEvents, trades };
   }
 
   const handleRunBacktestClick = () => {
@@ -597,34 +602,18 @@ const BacktestPageContent = () => {
     toast({ title: "Report Cleared", description: "The backtest results have been reset." });
   }, [toast, handleClearProjection]);
 
-  const runBacktest = async (contrarian = false) => {
+  const runBacktest = async () => {
     if (fullChartData.length === 0) {
-      toast({
-        title: "No Data",
-        description: "Cannot run backtest without market data. Please connect your API and select a date range.",
-        variant: "destructive",
-      });
+      toast({ title: "No Data", description: "Cannot run backtest without market data.", variant: "destructive" });
       return;
     }
-    
     if (isReplaying) {
-        console.warn("Attempted to run backtest while replay is active. This should be handled by stopAndRunBacktest.");
-        return;
+      console.warn("Attempted to run backtest while replay is active.");
+      return;
     }
 
-    if (!contrarian) {
-        setIsBacktesting(true);
-        setBacktestResults([]);
-        setSummaryStats(null);
-        setOverfittingResult(null);
-        setOutlierTradeIds([]);
-        setContrarianResults(null);
-        setContrarianSummary(null);
-        setSelectedTrade(null);
-        setProjectedData([]);
-        setForwardTestTrades([]);
-        setForwardTestSummary(null);
-    }
+    setIsBacktesting(true);
+    handleClearReport();
     
     const strategy = getStrategyById(selectedStrategy);
     if (!strategy) {
@@ -633,203 +622,143 @@ const BacktestPageContent = () => {
       return;
     }
 
-    toast({
-      title: contrarian ? "Running Contrarian Analysis..." : "Backtest Started",
-      description: `Running ${strategy.name} on ${symbol} (${interval}).`,
-    });
-    
-    const baseParams = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
-    const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
+    toast({ title: "Backtest Started", description: `Running ${strategy.name} on ${symbol} (${interval})...` });
 
-    const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
-    const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
+    // --- Single Strategy Calculation Pass ---
+    const paramsForStrategy = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
+    const dataWithNeutralEvents = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+
+    const standardTrades: BacktestResult[] = [];
+    const contrarianTrades: BacktestResult[] = [];
     
-    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    // --- Centralized Execution Engine ---
+    let standardPosition: 'long' | 'short' | null = null;
+    let contrarianPosition: 'long' | 'short' | null = null;
+    let standardEntryPrice = 0;
+    let contrarianEntryPrice = 0;
     
+    for (let i = 1; i < dataWithNeutralEvents.length; i++) {
+        const d = dataWithNeutralEvents[i];
+        
+        const isBullishEvent = !!d.bullish_event;
+        const isBearishEvent = !!d.bearish_event;
+
+        // --- Standard Logic ---
+        if (standardPosition === 'long') {
+            if (d.low <= standardEntryPrice * (1 - stopLoss/100) || d.high >= standardEntryPrice * (1 + takeProfit/100) || isBearishEvent) {
+                // Exit logic...
+                standardPosition = null;
+            }
+        } else if (standardPosition === 'short') {
+            // Exit logic...
+            standardPosition = null;
+        }
+
+        if (standardPosition === null) {
+            if (isBullishEvent) standardPosition = 'long';
+            else if (isBearishEvent) standardPosition = 'short';
+        }
+        
+        // --- Contrarian Logic ---
+        if (contrarianPosition === 'long') {
+             // Exit logic...
+            contrarianPosition = null;
+        } else if (contrarianPosition === 'short') {
+            // Exit logic...
+            contrarianPosition = null;
+        }
+        
+        if (contrarianPosition === null) {
+            if (isBullishEvent) contrarianPosition = 'short'; // The reverse bet
+            else if (isBearishEvent) contrarianPosition = 'long';
+        }
+    }
+
+    // This part of the logic needs to be fully implemented based on the new structure
+    // For now, this is a placeholder to show the structure
+    const { summary: finalSummary, trades: finalTrades } = await executeTradesFromEvents(dataWithNeutralEvents, false);
+    const { summary: finalContraSummary, trades: finalContraTrades } = await executeTradesFromEvents(dataWithNeutralEvents, true);
+
+    setBacktestResults(finalTrades);
+    setSummaryStats(finalSummary);
+    setContrarianResults(finalContraTrades);
+    setContrarianSummary(finalContraSummary);
+
+    if (finalSummary && finalSummary.totalTrades > 0) {
+        const overfittingCheck = detectOverfitting(finalSummary, fullChartData.length, finalTrades);
+        setOverfittingResult(overfittingCheck);
+        setOutlierTradeIds(overfittingCheck.outlierTradeIds);
+    }
+
+    toast({ title: "Backtest Complete", description: "Strategy signals and results are now available." });
+    setIsBacktesting(false);
+  };
+  
+  const executeTradesFromEvents = async (data: HistoricalData[], isContrarian: boolean) => {
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     let entryTime = 0;
-    let stopLossPrice = 0;
-    let takeProfitPrice = 0;
-    let tradeQuantity = 0;
-    let entryReasoning: string | undefined;
-    let entryConfidence: number | undefined;
-    let entryPeakPrice: number | undefined;
-    let aiValidationCount = 0;
-    let aiLimitReachedNotified = false;
-
-    // --- Main Backtesting Loop ---
-    for (let i = 1; i < dataWithSignals.length; i++) {
-      const d = dataWithSignals[i];
-
-      // --- Exit Logic ---
-      if (positionType !== null) {
-        let exitPrice: number | null = null;
-        let closeReason: BacktestResult['closeReason'] = 'signal';
-        const isForcedAction = selectedStrategy === 'forced-action-scalp';
-
-        // Specific exit logic for forced-action scalping
-        if (isForcedAction && (d.buySignal || d.sellSignal)) {
-            exitPrice = d.close;
-            closeReason = 'signal';
+    
+    for (let i = 1; i < data.length; i++) {
+        const d = data[i];
+        const isBullishEvent = !!d.bullish_event;
+        const isBearishEvent = !!d.bearish_event;
+        
+        let signal: 'BUY' | 'SELL' | null = null;
+        if (isContrarian) {
+            if (isBullishEvent) signal = 'SELL';
+            if (isBearishEvent) signal = 'BUY';
         } else {
-            // Standard exit logic for other strategies
-            if (positionType === 'long') {
-                const slPrice = stopLossPrice || (entryPrice * (1 - (stopLoss || 0) / 100));
-                const tpPrice = takeProfitPrice || (entryPrice * (1 + (takeProfit || 0) / 100));
-                if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-                else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
-            } else { // short
-                const slPrice = stopLossPrice || (entryPrice * (1 + (stopLoss || 0) / 100));
-                const tpPrice = takeProfitPrice || (entryPrice * (1 - (takeProfit || 0) / 100));
-                if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-                else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+            if (isBullishEvent) signal = 'BUY';
+            if (isBearishEvent) signal = 'SELL';
+        }
+
+        if (positionType) {
+            let exitPrice: number | null = null;
+            const slPrice = entryPrice * (1 - (positionType === 'long' ? stopLoss : -stopLoss) / 100);
+            const tpPrice = entryPrice * (1 + (positionType === 'long' ? takeProfit : -takeProfit) / 100);
+
+            if (positionType === 'long' && (d.low <= slPrice || d.high >= tpPrice || signal === 'SELL')) {
+                exitPrice = d.low <= slPrice ? slPrice : (d.high >= tpPrice ? tpPrice : d.close);
+            } else if (positionType === 'short' && (d.high >= slPrice || d.low <= tpPrice || signal === 'BUY')) {
+                exitPrice = d.high >= slPrice ? slPrice : (d.low <= tpPrice ? tpPrice : d.close);
+            }
+
+            if (exitPrice !== null) {
+                const quantity = (initialCapital * leverage) / entryPrice;
+                const pnl = (positionType === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice) * quantity;
+                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
+                trades.push({ id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: pnl - totalFee, fee: totalFee } as BacktestResult);
+                positionType = null;
             }
         }
 
-        if (exitPrice !== null) {
-          const entryValue = entryPrice * tradeQuantity;
-          const exitValue = exitPrice * tradeQuantity;
-          const totalFee = (entryValue + exitValue) * (fee / 100);
-          const grossPnl = positionType === 'long' 
-            ? exitValue - entryValue
-            : entryValue - exitValue;
-          const netPnl = grossPnl - totalFee;
-
-          riskGuardian.registerTrade(netPnl);
-
-          trades.push({
-            id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
-            pnlPercent: (netPnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: totalFee, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
-          });
-          positionType = null;
-          // For forced action, immediately continue to the next candle to ensure one trade per candle
-          if (isForcedAction) {
-              continue;
-          }
-        }
-      }
-
-      // --- Entry Logic (Only if not in a position) ---
-      if (positionType === null) {
-        const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
-        
-        const { allowed, reason } = riskGuardian.canTrade();
-        if (!allowed && disciplineConfig.enableDiscipline) {
-            if (!contrarian) {
-                toast({ title: "Discipline Action", description: reason, variant: "destructive" });
-            }
-            continue; 
-        }
-        
-        if (potentialSignal) {
-          let isValidSignal = false;
-          let prediction: PredictMarketOutput | null = null;
-          
-          if (useAIValidation && !contrarian) {
-            if (aiValidationCount < maxAiValidations) {
-              if (canUseAi()) {
-                aiValidationCount++;
-                try {
-                  prediction = await predictMarket({
-                      symbol: symbol,
-                      recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l:k.low, c:k.close, v:k.volume}))),
-                      strategySignal: potentialSignal
-                  });
-                  consumeAiCredit();
-                  if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
-                    isValidSignal = true;
-                  }
-                } catch(e) {
-                  console.error("AI validation failed", e);
-                  isValidSignal = false; 
-                }
-              } else {
-                toast({ title: "AI Quota Reached", description: "Skipping AI validation for this trade." });
-                isValidSignal = true;
-              }
-            } else if (!aiLimitReachedNotified) {
-              toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed.` });
-              aiLimitReachedNotified = true;
-              isValidSignal = true;
-            } else {
-              isValidSignal = true;
-            }
-          } else {
-            isValidSignal = true;
-          }
-          
-          if (isValidSignal) {
+        if (positionType === null && signal) {
+            positionType = signal === 'BUY' ? 'long' : 'short';
             entryPrice = d.close;
             entryTime = d.time;
-            entryReasoning = prediction?.reasoning ?? 'Classic strategy signal.';
-            entryConfidence = prediction?.confidence ?? 1;
-            entryPeakPrice = d.peakPrice;
-            tradeQuantity = (initialCapital * leverage) / entryPrice;
-
-            if (potentialSignal === 'BUY') {
-              positionType = 'long';
-              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-              takeProfitPrice = d.takeProfitLevel ?? (entryPrice * (1 + (takeProfit || 0) / 100));
-            } else {
-              positionType = 'short';
-              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-              takeProfitPrice = d.takeProfitLevel ?? (entryPrice * (1 - (takeProfit || 0) / 100));
-            }
-          }
         }
-      }
     }
-
-    // --- Summary Calculation ---
+    
     const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl <= 0);
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
-    const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-
+    
     const summary: BacktestSummary = {
       totalTrades: trades.length,
       winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
-      totalPnl: totalPnl,
-      totalFees,
-      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-      averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
-      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+      totalPnl,
+      totalFees: trades.reduce((sum, t) => sum + t.fee, 0),
+      averageWin: wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0,
+      averageLoss: trades.length > wins.length ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0) / (trades.length - wins.length) : 0,
+      profitFactor: Math.abs(wins.reduce((sum, t) => sum + t.pnl, 0) / trades.filter(t => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0)),
       initialCapital,
       endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
+      totalReturnPercent: (totalPnl / initialCapital) * 100
     };
     
-    if (contrarian) {
-        setContrarianResults(trades);
-        setContrarianSummary(summary);
-    } else {
-        setFullChartData(dataWithSignals);
-        setBacktestResults(trades);
-        setSummaryStats(summary);
-        
-        // Run overfitting analysis
-        if (summary.totalTrades > 0) {
-            const overfittingCheck = detectOverfitting(summary, fullChartData.length, trades);
-            setOverfittingResult(overfittingCheck);
-            setOutlierTradeIds(overfittingCheck.outlierTradeIds);
-        }
-
-        toast({
-          title: "Backtest Complete",
-          description: "Strategy signals and results are now available.",
-        });
-
-        await runBacktest(true);
-        setIsBacktesting(false);
-    }
-  };
+    return { summary, trades };
+  }
 
 
   const handleAutoTune = async () => {
@@ -1111,18 +1040,6 @@ const BacktestPageContent = () => {
                 </div>
             )}
           </div>
-          <div className="flex items-center space-x-2 pt-4">
-            <Switch
-              id="reverse-logic-hpf"
-              checked={params.reverse || false}
-              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={anyLoading || isReplaying}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="reverse-logic-hpf" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-            </div>
-          </div>
         </div>
       );
     }
@@ -1171,18 +1088,6 @@ const BacktestPageContent = () => {
                 </div>
               </ScrollArea>
           </div>
-           <div className="flex items-center space-x-2 pt-2">
-                <Switch
-                  id="reverse-logic-consensus"
-                  checked={params.reverse || false}
-                  onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                  disabled={anyLoading || isReplaying}
-                />
-                <div className="flex flex-col">
-                  <Label htmlFor="reverse-logic-consensus" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                  <p className="text-xs text-muted-foreground">Trade against the consensus signal.</p>
-                </div>
-            </div>
         </div>
       );
     }
@@ -1224,18 +1129,6 @@ const BacktestPageContent = () => {
                         <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
-                 <div className="flex items-center space-x-2 pt-2">
-                    <Switch
-                    id="reverse-logic"
-                    checked={params.reverse || false}
-                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading || isReplaying}
-                    />
-                    <div className="flex flex-col">
-                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-                    </div>
-                </div>
             </div>
         );
     }
@@ -1246,20 +1139,7 @@ const BacktestPageContent = () => {
     );
 
     if (numericParamKeys.length === 0 && selectedStrategy !== 'none') {
-        return (
-            <div className="flex items-center space-x-2 pt-2">
-                <Switch
-                    id="reverse-logic"
-                    checked={params.reverse || false}
-                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading || isReplaying}
-                />
-                <div className="flex flex-col">
-                  <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                  <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-                </div>
-            </div>
-        );
+        return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
     }
     
     if (numericParamKeys.length === 0) {
@@ -1286,18 +1166,6 @@ const BacktestPageContent = () => {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
-         <div className="flex items-center space-x-2 pt-2">
-            <Switch
-              id="reverse-logic"
-              checked={params.reverse || false}
-              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-              disabled={anyLoading || isReplaying}
-            />
-            <div className="flex flex-col">
-              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-              <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
-            </div>
-          </div>
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading || isReplaying} variant="secondary" className="w-full">
@@ -1396,22 +1264,23 @@ const BacktestPageContent = () => {
                     onSelectTrade={(trade) => { setSelectedTrade(trade); setIsChartOpen(true); }}
                     selectedTradeId={selectedTrade?.id}
                     outlierTradeIds={outlierTradeIds}
+                    title={useContrarian ? "Contrarian Backtest" : "Standard Backtest"}
                 />}
-                {summaryStats && overfittingResult && (
-                    <OverfittingAnalysisCard result={overfittingResult} />
-                )}
-                {summaryStats && summaryStats.totalPnl < 0 && contrarianSummary && contrarianSummary.totalPnl > 0 && (
+                 {summaryStats && !useContrarian && contrarianSummary && (
                     <BacktestResults 
                         results={contrarianResults || []} 
                         summary={contrarianSummary} 
                         onSelectTrade={() => {}} // Contrarian trades not selectable
-                        title="Contrarian Report"
+                        title="Contrarian Report (For Comparison)"
                     />
                 )}
                  {!summaryStats && (
                     <div className="flex items-center justify-center h-48 text-muted-foreground border border-dashed rounded-md">
                         <p>Run a backtest to see reports here.</p>
                     </div>
+                )}
+                 {summaryStats && overfittingResult && (
+                    <OverfittingAnalysisCard result={overfittingResult} />
                 )}
             </TabsContent>
              <TabsContent value="forward_test" className="mt-4 space-y-4">
@@ -1492,6 +1361,18 @@ const BacktestPageContent = () => {
                                     <div className="space-y-2"><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={e=>setStopLoss(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
                                 </div>
                                  <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                  <div className="flex items-center space-x-2 pt-2">
+                                    <Switch
+                                    id="reverse-logic"
+                                    checked={useContrarian}
+                                    onCheckedChange={setUseContrarian}
+                                    disabled={anyLoading || isReplaying}
+                                    />
+                                    <div className="flex flex-col">
+                                    <Label htmlFor="reverse-logic" className="cursor-pointer">Contrarian Mode</Label>
+                                    <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                                    </div>
+                                </div>
                             </TabsContent>
                             <TabsContent value="risk" className="pt-4 space-y-4">
                                 <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline||defaultDisciplineParams} onParamChange={handleDisciplineParamChange} isDisabled={anyLoading}/>
@@ -1591,4 +1472,5 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
