@@ -4,13 +4,11 @@ import { calculateDonchianChannels } from '@/lib/indicators';
 
 export interface DonchianChannelsParams {
   period: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultDonchianChannelsParams: DonchianChannelsParams = {
   period: 20,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -40,18 +38,11 @@ const donchianChannelStrategy: Strategy = {
       d.donchian_lower = lower[i];
       
       if (i > 0 && upper[i-1] && lower[i-1] && upper[i] && lower[i]) {
-        // Buy signal: close breaks above the upper channel
-        const standardBuy = data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!;
-
-        // Sell signal: close breaks below the lower channel
-        const standardSell = data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!;
-
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!) {
+            d.bullish_event = true;
+        }
+        if (data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!) {
+            d.bearish_event = true;
         }
       }
     });

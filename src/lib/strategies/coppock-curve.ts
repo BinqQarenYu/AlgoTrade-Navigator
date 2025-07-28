@@ -6,7 +6,6 @@ export interface CoppockCurveParams {
   longRoC: number;
   shortRoC: number;
   wmaPeriod: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
@@ -14,7 +13,6 @@ export const defaultCoppockCurveParams: CoppockCurveParams = {
   longRoC: 14,
   shortRoC: 11,
   wmaPeriod: 10,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -41,17 +39,11 @@ const coppockCurveStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.coppock = coppock[i];
       if (i > 0 && coppock[i-1] !== null && coppock[i] !== null) {
-        // Buy Signal: Curve crosses above zero
-        const standardBuy = coppock[i-1]! <= 0 && coppock[i]! > 0;
-        // Sell Signal: Curve crosses below zero
-        const standardSell = coppock[i-1]! >= 0 && coppock[i]! < 0;
-
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (coppock[i-1]! <= 0 && coppock[i]! > 0) {
+          d.bullish_event = true;
+        }
+        if (coppock[i-1]! >= 0 && coppock[i]! < 0) {
+          d.bearish_event = true;
         }
       }
     });

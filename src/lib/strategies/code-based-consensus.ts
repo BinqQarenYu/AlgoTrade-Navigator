@@ -5,13 +5,11 @@ import { getStrategyById } from './all-strategies';
 
 export interface CodeBasedConsensusParams {
   strategies: string[]; // Array of strategy IDs
-  reverse: boolean; // If true, it will trade against the consensus
   discipline: DisciplineParams;
 }
 
 export const defaultCodeBasedConsensusParams: CodeBasedConsensusParams = {
   strategies: ['ema-crossover', 'rsi-divergence', 'macd-crossover'],
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -35,27 +33,24 @@ const codeBasedConsensusStrategy: Strategy = {
 
     const allStrategyCalculations: Promise<HistoricalData[]>[] = [];
     
-    // Run all sub-strategies in parallel
     for (const strategyId of params.strategies) {
         const strategy = getStrategyById(strategyId);
         if (strategy) {
-            // Each strategy runs on a clean copy of the data
             allStrategyCalculations.push(strategy.calculate(JSON.parse(JSON.stringify(data))));
         }
     }
 
     const results = await Promise.all(allStrategyCalculations);
 
-    // Tally the votes for each candle
     for (let i = 0; i < data.length; i++) {
         let buyVotes = 0;
         let sellVotes = 0;
         
         for (const resultData of results) {
-            if (resultData[i]?.buySignal) {
+            if (resultData[i]?.bullish_event) {
                 buyVotes++;
             }
-            if (resultData[i]?.sellSignal) {
+            if (resultData[i]?.bearish_event) {
                 sellVotes++;
             }
         }
@@ -63,23 +58,10 @@ const codeBasedConsensusStrategy: Strategy = {
         const hasConsensus = buyVotes !== sellVotes;
         if (!hasConsensus) continue;
 
-        const isBuyConsensus = buyVotes > sellVotes;
-
-        // Generate final signal based on consensus and the reverse parameter
-        if (params.reverse) {
-            // Contrarian mode
-            if (isBuyConsensus) {
-                dataWithIndicators[i].sellSignal = data[i].high;
-            } else {
-                dataWithIndicators[i].buySignal = data[i].low;
-            }
+        if (buyVotes > sellVotes) {
+            dataWithIndicators[i].bullish_event = true;
         } else {
-            // Follower mode (default)
-            if (isBuyConsensus) {
-                dataWithIndicators[i].buySignal = data[i].low;
-            } else {
-                dataWithIndicators[i].sellSignal = data[i].high;
-            }
+            dataWithIndicators[i].bearish_event = true;
         }
     }
 

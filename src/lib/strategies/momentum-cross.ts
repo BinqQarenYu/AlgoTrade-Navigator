@@ -4,13 +4,11 @@ import { calculateMomentum } from '@/lib/indicators';
 
 export interface MomentumCrossParams {
   period: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultMomentumCrossParams: MomentumCrossParams = {
   period: 14,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -36,17 +34,11 @@ const momentumCrossStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.momentum = momentum[i];
       if (i > 0 && momentum[i-1] !== null && momentum[i] !== null) {
-        // Buy Signal: Momentum crosses above zero
-        const standardBuy = momentum[i-1]! <= 0 && momentum[i]! > 0;
-        // Sell Signal: Momentum crosses below zero
-        const standardSell = momentum[i-1]! >= 0 && momentum[i]! < 0;
-
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (momentum[i-1]! <= 0 && momentum[i]! > 0) {
+          d.bullish_event = true;
+        }
+        if (momentum[i-1]! >= 0 && momentum[i]! < 0) {
+          d.bearish_event = true;
         }
       }
     });

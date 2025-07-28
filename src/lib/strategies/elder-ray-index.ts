@@ -4,13 +4,11 @@ import { calculateElderRay, calculateEMA } from '@/lib/indicators';
 
 export interface ElderRayIndexParams {
   period: number;
-  reverse?: boolean;
   discipline: DisciplineParams;
 }
 
 export const defaultElderRayIndexParams: ElderRayIndexParams = {
   period: 13,
-  reverse: false,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -43,18 +41,11 @@ const elderRayStrategy: Strategy = {
         const trendUp = ema[i]! > ema[i-1]!;
         const trendDown = ema[i]! < ema[i-1]!;
 
-        // Buy Signal: EMA is rising and Bear Power crosses above zero
-        const standardBuy = trendUp && bearPower[i-1]! <= 0 && bearPower[i]! > 0;
-
-        // Sell Signal: EMA is falling and Bull Power crosses below zero
-        const standardSell = trendDown && bullPower[i-1]! >= 0 && bullPower[i]! < 0;
-        
-        if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
-        } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+        if (trendUp && bearPower[i-1]! <= 0 && bearPower[i]! > 0) {
+          d.bullish_event = true;
+        }
+        if (trendDown && bullPower[i-1]! >= 0 && bullPower[i]! < 0) {
+          d.bearish_event = true;
         }
       }
     });

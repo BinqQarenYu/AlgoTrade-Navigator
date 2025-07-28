@@ -31,7 +31,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
+import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
@@ -624,68 +624,28 @@ const BacktestPageContent = () => {
 
     toast({ title: "Backtest Started", description: `Running ${strategy.name} on ${symbol} (${interval})...` });
 
-    // --- Single Strategy Calculation Pass ---
+    // --- SINGLE PASS for Neutral Events ---
     const paramsForStrategy = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
     const dataWithNeutralEvents = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
 
-    const standardTrades: BacktestResult[] = [];
-    const contrarianTrades: BacktestResult[] = [];
+    // --- CENTRALIZED EXECUTION from Events ---
+    const { summary: standardSummary, trades: standardTrades } = await executeTradesFromEvents(dataWithNeutralEvents, false);
     
-    // --- Centralized Execution Engine ---
-    let standardPosition: 'long' | 'short' | null = null;
-    let contrarianPosition: 'long' | 'short' | null = null;
-    let standardEntryPrice = 0;
-    let contrarianEntryPrice = 0;
+    setBacktestResults(standardTrades);
+    setSummaryStats(standardSummary);
     
-    for (let i = 1; i < dataWithNeutralEvents.length; i++) {
-        const d = dataWithNeutralEvents[i];
-        
-        const isBullishEvent = !!d.bullish_event;
-        const isBearishEvent = !!d.bearish_event;
-
-        // --- Standard Logic ---
-        if (standardPosition === 'long') {
-            if (d.low <= standardEntryPrice * (1 - stopLoss/100) || d.high >= standardEntryPrice * (1 + takeProfit/100) || isBearishEvent) {
-                // Exit logic...
-                standardPosition = null;
-            }
-        } else if (standardPosition === 'short') {
-            // Exit logic...
-            standardPosition = null;
-        }
-
-        if (standardPosition === null) {
-            if (isBullishEvent) standardPosition = 'long';
-            else if (isBearishEvent) standardPosition = 'short';
-        }
-        
-        // --- Contrarian Logic ---
-        if (contrarianPosition === 'long') {
-             // Exit logic...
-            contrarianPosition = null;
-        } else if (contrarianPosition === 'short') {
-            // Exit logic...
-            contrarianPosition = null;
-        }
-        
-        if (contrarianPosition === null) {
-            if (isBullishEvent) contrarianPosition = 'short'; // The reverse bet
-            else if (isBearishEvent) contrarianPosition = 'long';
-        }
+    // Calculate Contrarian results if toggled, without re-running the strategy calculation.
+    if (useContrarian) {
+        const { summary: contraSummary, trades: contraTrades } = await executeTradesFromEvents(dataWithNeutralEvents, true);
+        setContrarianResults(contraTrades);
+        setContrarianSummary(contraSummary);
+    } else {
+        setContrarianResults(null);
+        setContrarianSummary(null);
     }
 
-    // This part of the logic needs to be fully implemented based on the new structure
-    // For now, this is a placeholder to show the structure
-    const { summary: finalSummary, trades: finalTrades } = await executeTradesFromEvents(dataWithNeutralEvents, false);
-    const { summary: finalContraSummary, trades: finalContraTrades } = await executeTradesFromEvents(dataWithNeutralEvents, true);
-
-    setBacktestResults(finalTrades);
-    setSummaryStats(finalSummary);
-    setContrarianResults(finalContraTrades);
-    setContrarianSummary(finalContraSummary);
-
-    if (finalSummary && finalSummary.totalTrades > 0) {
-        const overfittingCheck = detectOverfitting(finalSummary, fullChartData.length, finalTrades);
+    if (standardSummary && standardSummary.totalTrades > 0) {
+        const overfittingCheck = detectOverfitting(standardSummary, fullChartData.length, standardTrades);
         setOverfittingResult(overfittingCheck);
         setOutlierTradeIds(overfittingCheck.outlierTradeIds);
     }
@@ -699,6 +659,7 @@ const BacktestPageContent = () => {
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
     let entryTime = 0;
+    let entryIndex = -1;
     
     for (let i = 1; i < data.length; i++) {
         const d = data[i];
@@ -716,20 +677,38 @@ const BacktestPageContent = () => {
 
         if (positionType) {
             let exitPrice: number | null = null;
-            const slPrice = entryPrice * (1 - (positionType === 'long' ? stopLoss : -stopLoss) / 100);
-            const tpPrice = entryPrice * (1 + (positionType === 'long' ? takeProfit : -takeProfit) / 100);
+            const slPrice = data[entryIndex].stopLossLevel || (entryPrice * (1 - (positionType === 'long' ? stopLoss : -stopLoss) / 100));
+            const tpPrice = data[entryIndex].takeProfitLevel || (entryPrice * (1 + (positionType === 'long' ? takeProfit : -takeProfit) / 100));
 
-            if (positionType === 'long' && (d.low <= slPrice || d.high >= tpPrice || signal === 'SELL')) {
-                exitPrice = d.low <= slPrice ? slPrice : (d.high >= tpPrice ? tpPrice : d.close);
-            } else if (positionType === 'short' && (d.high >= slPrice || d.low <= tpPrice || signal === 'BUY')) {
-                exitPrice = d.high >= slPrice ? slPrice : (d.low <= tpPrice ? tpPrice : d.close);
+            let closeReason: BacktestResult['closeReason'] = 'signal';
+
+            if (positionType === 'long') {
+                if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (signal === 'SELL') { exitPrice = d.close; closeReason = 'signal'; }
+            } else if (positionType === 'short') {
+                if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (signal === 'BUY') { exitPrice = d.close; closeReason = 'signal'; }
             }
 
             if (exitPrice !== null) {
                 const quantity = (initialCapital * leverage) / entryPrice;
                 const pnl = (positionType === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: pnl - totalFee, fee: totalFee } as BacktestResult);
+                trades.push({ 
+                    id: `trade-${trades.length}`, 
+                    type: positionType, 
+                    entryTime, 
+                    entryPrice, 
+                    exitTime: d.time, 
+                    exitPrice, 
+                    pnl: pnl - totalFee, 
+                    fee: totalFee,
+                    closeReason,
+                    stopLoss: slPrice,
+                    takeProfit: tpPrice,
+                } as BacktestResult);
                 positionType = null;
             }
         }
@@ -738,20 +717,24 @@ const BacktestPageContent = () => {
             positionType = signal === 'BUY' ? 'long' : 'short';
             entryPrice = d.close;
             entryTime = d.time;
+            entryIndex = i;
         }
     }
     
     const wins = trades.filter(t => t.pnl > 0);
     const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
+    const totalFees = trades.reduce((sum, t) => sum + t.fee, 0);
+    const totalWins = wins.filter(t => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
+    const totalLosses = trades.filter(t => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0);
     
     const summary: BacktestSummary = {
       totalTrades: trades.length,
       winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
       totalPnl,
-      totalFees: trades.reduce((sum, t) => sum + t.fee, 0),
-      averageWin: wins.length > 0 ? wins.reduce((sum, t) => sum + t.pnl, 0) / wins.length : 0,
-      averageLoss: trades.length > wins.length ? trades.filter(t => t.pnl <= 0).reduce((sum, t) => sum + t.pnl, 0) / (trades.length - wins.length) : 0,
-      profitFactor: Math.abs(wins.reduce((sum, t) => sum + t.pnl, 0) / trades.filter(t => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0)),
+      totalFees,
+      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
+      averageLoss: trades.length > wins.length ? Math.abs(totalLosses / (trades.length - wins.length)) : 0,
+      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
       initialCapital,
       endingBalance: initialCapital + totalPnl,
       totalReturnPercent: (totalPnl / initialCapital) * 100
@@ -1266,7 +1249,7 @@ const BacktestPageContent = () => {
                     outlierTradeIds={outlierTradeIds}
                     title={useContrarian ? "Contrarian Backtest" : "Standard Backtest"}
                 />}
-                 {summaryStats && !useContrarian && contrarianSummary && (
+                 {summaryStats && useContrarian && contrarianSummary && (
                     <BacktestResults 
                         results={contrarianResults || []} 
                         summary={contrarianSummary} 
@@ -1472,5 +1455,6 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
 
