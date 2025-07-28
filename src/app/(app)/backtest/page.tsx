@@ -493,76 +493,16 @@ const BacktestPageContent = () => {
 
     const dataWithEvents = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
     
-    const trades: BacktestResult[] = [];
-    let positionType: 'long' | 'short' | null = null;
-    let entryPrice = 0;
-    
-    for (let i = 1; i < dataWithEvents.length; i++) {
-        const d = dataWithEvents[i];
+    const { summary, trades } = await executeTradesFromEvents(dataWithEvents, {
+        isContrarian: false,
+        initialCapital,
+        leverage,
+        takeProfit,
+        stopLoss,
+        fee,
+        disciplineParams: strategyParams.discipline || defaultDisciplineParams
+    });
 
-        // Interpret neutral events into signals
-        const isBullishEvent = !!d.bullish_event;
-        const isBearishEvent = !!d.bearish_event;
-
-        if (positionType === 'long') {
-            let exitPrice: number | null = null;
-            const slPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-            const tpPrice = d.takeProfitLevel ?? (entryPrice * (1 + (takeProfit || 0) / 100));
-
-            if (d.low <= slPrice) exitPrice = slPrice;
-            else if (d.high >= tpPrice) exitPrice = tpPrice;
-            else if (isBearishEvent) exitPrice = d.close;
-
-            if (exitPrice !== null) {
-                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
-                const grossPnl = (exitPrice - entryPrice) * quantity;
-                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ id: `silent-trade-${i}`, type: 'long', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
-                positionType = null;
-            }
-        } else if (positionType === 'short') {
-            let exitPrice: number | null = null;
-            const slPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-            const tpPrice = d.takeProfitLevel ?? (entryPrice * (1 - (takeProfit || 0) / 100));
-
-            if (d.high >= slPrice) exitPrice = slPrice;
-            else if (d.low <= tpPrice) exitPrice = tpPrice;
-            else if (isBullishEvent) exitPrice = d.close;
-
-            if (exitPrice !== null) {
-                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
-                const grossPnl = (entryPrice - exitPrice) * quantity;
-                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ id: `silent-trade-${i}`, type: 'short', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
-                positionType = null;
-            }
-        }
-
-        if (positionType === null) {
-            if (isBullishEvent) { positionType = 'long'; entryPrice = d.close; } 
-            else if (isBearishEvent) { positionType = 'short'; entryPrice = d.close; }
-        }
-    }
-    
-    const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl <= 0);
-    const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
-    const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-
-    const summary: BacktestSummary = {
-      totalTrades: trades.length,
-      winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
-      totalPnl: totalPnl,
-      totalFees,
-      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-      averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
-      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
-      initialCapital,
-      endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
-    };
     return { summary, dataWithSignals: dataWithEvents, trades };
   }
 
@@ -627,16 +567,25 @@ const BacktestPageContent = () => {
     // --- SINGLE PASS for Neutral Events ---
     const paramsForStrategy = { ...DEFAULT_PARAMS_MAP[selectedStrategy], ...(strategyParams[selectedStrategy] || {}) };
     const dataWithNeutralEvents = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    
+    const tradeParams = {
+        initialCapital,
+        leverage,
+        takeProfit,
+        stopLoss,
+        fee,
+        disciplineParams: paramsForStrategy.discipline || defaultDisciplineParams
+    };
 
     // --- CENTRALIZED EXECUTION from Events ---
-    const { summary: standardSummary, trades: standardTrades } = await executeTradesFromEvents(dataWithNeutralEvents, false);
+    const { summary: standardSummary, trades: standardTrades } = await executeTradesFromEvents(dataWithNeutralEvents, {...tradeParams, isContrarian: useContrarian });
     
     setBacktestResults(standardTrades);
     setSummaryStats(standardSummary);
     
     // Calculate Contrarian results if toggled, without re-running the strategy calculation.
     if (useContrarian) {
-        const { summary: contraSummary, trades: contraTrades } = await executeTradesFromEvents(dataWithNeutralEvents, true);
+        const { summary: contraSummary, trades: contraTrades } = await executeTradesFromEvents(dataWithNeutralEvents, {...tradeParams, isContrarian: false });
         setContrarianResults(contraTrades);
         setContrarianSummary(contraSummary);
     } else {
@@ -654,7 +603,21 @@ const BacktestPageContent = () => {
     setIsBacktesting(false);
   };
   
-  const executeTradesFromEvents = async (data: HistoricalData[], isContrarian: boolean) => {
+  const executeTradesFromEvents = async (
+    data: HistoricalData[], 
+    params: {
+        isContrarian: boolean;
+        initialCapital: number;
+        leverage: number;
+        takeProfit: number;
+        stopLoss: number;
+        fee: number;
+        disciplineParams: DisciplineParams;
+    }
+  ) => {
+    const { isContrarian, initialCapital, leverage, takeProfit, stopLoss, fee, disciplineParams } = params;
+    
+    const riskGuardian = new RiskGuardian(disciplineParams, initialCapital);
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
@@ -696,6 +659,10 @@ const BacktestPageContent = () => {
                 const quantity = (initialCapital * leverage) / entryPrice;
                 const pnl = (positionType === 'long' ? exitPrice - entryPrice : entryPrice - exitPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
+                const finalPnl = pnl - totalFee;
+
+                riskGuardian.registerTrade(finalPnl);
+
                 trades.push({ 
                     id: `trade-${trades.length}`, 
                     type: positionType, 
@@ -703,7 +670,7 @@ const BacktestPageContent = () => {
                     entryPrice, 
                     exitTime: d.time, 
                     exitPrice, 
-                    pnl: pnl - totalFee, 
+                    pnl: finalPnl, 
                     fee: totalFee,
                     closeReason,
                     stopLoss: slPrice,
@@ -714,6 +681,12 @@ const BacktestPageContent = () => {
         }
 
         if (positionType === null && signal) {
+            const { allowed, reason } = riskGuardian.canTrade();
+            if (!allowed) {
+                // Log discipline action if needed, e.g., toast(reason)
+                continue; // Skip trade if not allowed
+            }
+
             positionType = signal === 'BUY' ? 'long' : 'short';
             entryPrice = d.close;
             entryTime = d.time;
@@ -1455,6 +1428,7 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
 
 

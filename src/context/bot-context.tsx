@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
@@ -213,14 +214,6 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!strategy) return;
   
     const riskGuardian = riskGuardianRefs.current[botId];
-    if (riskGuardian) {
-        const { allowed, reason } = riskGuardian.canTrade();
-        if (!allowed) {
-          addLiveLog(botId, `Discipline action: ${reason}`);
-          setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'cooldown' } } }));
-          return;
-        }
-    }
   
     try {
         const latestCandle = data[data.length - 1];
@@ -256,10 +249,28 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   
         // --- ENTRY LOGIC (runs ONLY on candle close) ---
         if (isCandleClose && !currentPosition) {
+            if (riskGuardian) {
+                const { allowed, reason } = riskGuardian.canTrade();
+                if (!allowed) {
+                  addLiveLog(botId, `Discipline action: ${reason}`);
+                  setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'cooldown' } } }));
+                  return;
+                }
+            }
             const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
             const signalCandle = dataWithIndicators[dataWithIndicators.length - 2]; // The candle that just closed
   
-            const strategySignal: 'BUY' | 'SELL' | null = signalCandle.buySignal ? 'BUY' : signalCandle.sellSignal ? 'SELL' : null;
+            const isBullishEvent = !!signalCandle.bullish_event;
+            const isBearishEvent = !!signalCandle.bearish_event;
+
+            let strategySignal: 'BUY' | 'SELL' | null = null;
+            if (config.strategyParams.reverse) {
+                if (isBullishEvent) strategySignal = 'SELL';
+                if (isBearishEvent) strategySignal = 'BUY';
+            } else {
+                if (isBullishEvent) strategySignal = 'BUY';
+                if (isBearishEvent) strategySignal = 'SELL';
+            }
   
             if (strategySignal) {
                 const signalAction = strategySignal === 'BUY' ? 'UP' : 'DOWN';
@@ -407,6 +418,19 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
+    // Find a running bot for this symbol to check its RiskGuardian
+    const runningBotId = Object.keys(liveBotState.bots).find(id => liveBotState.bots[id].config.asset === symbol && liveBotState.bots[id].status !== 'idle');
+    if (runningBotId) {
+        const riskGuardian = riskGuardianRefs.current[runningBotId];
+        if (riskGuardian) {
+            const { allowed, reason } = riskGuardian.canTrade();
+            if (!allowed) {
+                toast({ title: "Manual Trade Blocked", description: `Discipline rules for the running ${symbol} bot prevent this action: ${reason}`, variant: "destructive", duration: 5000 });
+                return;
+            }
+        }
+    }
+    
     const logId = 'test-trade';
     addLiveLog(logId, `Executing manual order: ${side} ${capital}x${leverage} on ${symbol}...`);
     
@@ -424,7 +448,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "Manual Order Failed", description: e.message, variant: "destructive" });
         addLiveLog(logId, `Manual order failed: ${e.message}`);
     }
-  }, [addLiveLog, toast, activeProfile]);
+  }, [addLiveLog, toast, activeProfile, liveBotState.bots]);
 
   const closeTestPosition = useCallback(async (symbol: string) => {
     if (!activeProfile) {

@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, memo, useCallback } from "react"
@@ -382,6 +383,15 @@ export default function LiveTradingPage() {
     }, [botInstances, activeProfile, runningBots, startBotInstance, stopBotInstance, toast]);
     
     const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
+    
+    const handleManualTrade = (bot: BotInstance, side: 'BUY' | 'SELL') => {
+        const botState = runningBots[bot.id];
+        if (botState?.status === 'cooldown') {
+            toast({ title: "Trade Blocked", description: `This bot is in a disciplinary cooldown. Trading is disabled.`, variant: "destructive" });
+            return;
+        }
+        executeTestTrade(bot.asset, side, bot.capital, bot.leverage);
+    };
 
     return (
         <div className="space-y-6">
@@ -484,7 +494,7 @@ export default function LiveTradingPage() {
                                             isBotRunning={isRunning}
                                             isConnected={isConnected}
                                             canTrade={activeProfile?.permissions === 'FuturesTrading'}
-                                            onManualTrade={executeTestTrade}
+                                            onManualTrade={handleManualTrade}
                                         />
                                     )})}
                             </TableBody>
@@ -527,7 +537,7 @@ const BotInstanceRow = memo(({
     isBotRunning: boolean,
     isConnected: boolean,
     canTrade: boolean,
-    onManualTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
+    onManualTrade: (bot: BotInstance, side: 'BUY' | 'SELL') => void;
 }) => {
     return (
         <>
@@ -660,8 +670,8 @@ const BotInstanceRow = memo(({
                                 <Card>
                                     <CardHeader className="p-4"><CardTitle className="text-sm">Manual Execution</CardTitle></CardHeader>
                                     <CardContent className="p-4 flex flex-col gap-2">
-                                        <Button variant="outline" onClick={() => onManualTrade(bot.asset, 'BUY', bot.capital, bot.leverage)} disabled={!isConnected || !canTrade || isBotRunning}><TrendingUp className="mr-2 h-4 w-4 text-green-500" /> Manual Long</Button>
-                                        <Button variant="outline" onClick={() => onManualTrade(bot.asset, 'SELL', bot.capital, bot.leverage)} disabled={!isConnected || !canTrade || isBotRunning}><TrendingDown className="mr-2 h-4 w-4 text-red-500" /> Manual Short</Button>
+                                        <Button variant="outline" onClick={() => onManualTrade(bot, 'BUY')} disabled={!isConnected || !canTrade}><TrendingUp className="mr-2 h-4 w-4 text-green-500" /> Manual Long</Button>
+                                        <Button variant="outline" onClick={() => onManualTrade(bot, 'SELL')} disabled={!isConnected || !canTrade}><TrendingDown className="mr-2 h-4 w-4 text-red-500" /> Manual Short</Button>
                                     </CardContent>
                                 </Card>
                                 <DisciplineSettings
@@ -678,3 +688,4 @@ const BotInstanceRow = memo(({
     );
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
+
