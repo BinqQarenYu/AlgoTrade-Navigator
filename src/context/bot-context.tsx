@@ -431,7 +431,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         }
     }
     
-    const logId = 'test-trade';
+    const logId = runningBotId || 'manual-trade';
     addLiveLog(logId, `Executing manual order: ${side} ${capital}x${leverage} on ${symbol}...`);
     
     try {
@@ -456,7 +456,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    const logId = 'test-trade';
+    const logId = 'manual-trade';
     addLiveLog(logId, `Attempting to close any open position for ${symbol}...`);
     
     const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };

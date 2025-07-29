@@ -1,6 +1,6 @@
 # AlgoTrade Navigator 🚀
 
-AlgoTrade Navigator is a powerful, AI-driven platform for developing, backtesting, and deploying automated cryptocurrency trading strategies. Built with a modern tech stack, it provides a comprehensive toolkit for both novice and experienced algorithmic traders to leverage market data and generative AI.
+AlgoTrade Navigator is a powerful, AI-driven platform for developing, backtesting, and deploying automated cryptocurrency trading strategies. Built with a modern tech stack, it provides a gitcomprehensive toolkit for both novice and experienced algorithmic traders to leverage market data and generative AI.
 
 ## Core Features
 g
