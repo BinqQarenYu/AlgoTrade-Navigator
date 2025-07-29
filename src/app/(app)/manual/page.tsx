@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, memo, useCallback } from "react"
@@ -643,4 +642,3 @@ const BotInstanceRow = memo(({
     );
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
-

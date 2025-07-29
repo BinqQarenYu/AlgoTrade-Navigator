@@ -69,7 +69,8 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, activeProfile, toast, setApiLimit, rateLimitThreshold]);
+    // Re-fetch data if the trading session status changes
+  }, [isConnected, activeProfile, isTradingActive, toast, setApiLimit, rateLimitThreshold]);
 
   return (
     <div className="space-y-6">

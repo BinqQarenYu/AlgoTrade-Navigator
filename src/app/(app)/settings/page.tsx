@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -72,14 +71,10 @@ export default function SettingsPage() {
   const [testCapital, setTestCapital] = usePersistentState<number>('settings-test-capital', 10);
   const [testLeverage, setTestLeverage] = usePersistentState<number>('settings-test-leverage', 1);
 
-  const [isConnectionOpen, setConnectionOpen] = useState(true);
-  const [isIpOpen, setIpOpen] = useState(true);
   const [isIntegrationsOpen, setIntegrationsOpen] = useState(false);
   const [isRateLimitOpen, setRateLimitOpen] = useState(false);
   const [isAiQuotaOpen, setAiQuotaOpen] = useState(false);
   const [isProfilesOpen, setProfilesOpen] = useState(true);
-  const [isFeesOpen, setIsFeesOpen] = useState(false);
-  const [isTelegramOpen, setIsTelegramOpen] = useState(false);
 
   useEffect(() => { setCgKeyValue(coingeckoApiKey || ""); }, [coingeckoApiKey]);
   useEffect(() => { setGeminiKeyValue(geminiApiKey || ""); }, [geminiApiKey]);
@@ -176,7 +171,6 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
        <Card>
-        <Collapsible open={isConnectionOpen} onOpenChange={setConnectionOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-3">
@@ -187,12 +181,8 @@ export default function SettingsPage() {
                   {activeProfile ? `Manage your connection using the active profile: '${activeProfile.name}'.` : "Activate a profile below to connect."}
                 </CardDescription>
               </div>
-              <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isConnectionOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button>
-              </CollapsibleTrigger>
             </CardHeader>
-            <CollapsibleContent>
-              <CardContent className="space-y-4">
+            <CardContent className="space-y-4">
                  {connectionError && (
                     <Alert variant="destructive">
                         {connectionError.includes('Service unavailable') ? <Globe className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
@@ -217,8 +207,8 @@ export default function SettingsPage() {
                     {isConnecting ? "Please wait" : isConnected ? "Disconnect" : "Connect"}
                   </Button>
                 </div>
-              </CardContent>
-              {isConnected && activeProfile && (
+            </CardContent>
+            {isConnected && activeProfile && (
                 <CardFooter className="flex-col items-start gap-4 border-t pt-6">
                   <div className="w-full">
                     <h3 className="text-sm font-medium mb-2">API Rate Limits (Requests per Minute)</h3>
@@ -228,31 +218,24 @@ export default function SettingsPage() {
                     <Progress value={(apiLimit.used / apiLimit.limit) * 100} indicatorClassName={progressColorClass} />
                   </div>
                 </CardFooter>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
+            )}
       </Card>
       
       <Card>
-        <Collapsible open={isIpOpen} onOpenChange={setIpOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2"><Globe className="text-primary"/> IP Address Configuration</CardTitle>
                 <CardDescription>For API keys with IP restrictions, you must whitelist the server's outbound IP address.</CardDescription>
               </div>
-              <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isIpOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
           </CardHeader>
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
-                <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API keys are stored on the server for security. This means all requests to Binance originate from the server, not your browser. To use an IP-restricted key, you MUST add the **Server IP** below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
-                <div className="flex items-center justify-between rounded-lg border p-3"><div className="space-y-1"><Label>Your Browser IP (For Reference Only)</Label><p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p></div></div>
-                <div className="flex items-center justify-between rounded-lg border bg-primary/10 p-3">
-                    <div className="space-y-1"><Label>Application Server IP (Whitelist this one)</Label><p className="font-mono text-sm font-semibold text-primary">{serverIpAddress || "Loading..."}</p></div>
-                    <Button variant="ghost" size="sm" onClick={() => { if(serverIpAddress) { navigator.clipboard.writeText(serverIpAddress); toast({ title: "Copied!", description: "Server IP copied to clipboard." }); } }} disabled={!serverIpAddress || serverIpAddress === 'Unavailable'}><Copy className="mr-2 h-4 w-4" /> Copy</Button>
-                </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Collapsible>
+          <CardContent className="space-y-4">
+              <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API keys are stored on the server for security. This means all requests to Binance originate from the server, not your browser. To use an IP-restricted key, you MUST add the **Server IP** below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
+              <div className="flex items-center justify-between rounded-lg border p-3"><div className="space-y-1"><Label>Your Browser IP (For Reference Only)</Label><p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p></div></div>
+              <div className="flex items-center justify-between rounded-lg border bg-primary/10 p-3">
+                  <div className="space-y-1"><Label>Application Server IP (Whitelist this one)</Label><p className="font-mono text-sm font-semibold text-primary">{serverIpAddress || "Loading..."}</p></div>
+                  <Button variant="ghost" size="sm" onClick={() => { if(serverIpAddress) { navigator.clipboard.writeText(serverIpAddress); toast({ title: "Copied!", description: "Server IP copied to clipboard." }); } }} disabled={!serverIpAddress || serverIpAddress === 'Unavailable'}><Copy className="mr-2 h-4 w-4" /> Copy</Button>
+              </div>
+          </CardContent>
     </Card>
 
     <Card>

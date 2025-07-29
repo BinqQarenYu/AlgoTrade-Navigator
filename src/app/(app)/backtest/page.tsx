@@ -1,5 +1,4 @@
 
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -624,7 +623,7 @@ const BacktestPageContent = () => {
     let entryTime = 0;
     let entryIndex = -1;
     
-    for (let i = 1; i < data.length - 1; i++) { // Loop to length - 1 to ensure there's a next candle for entry
+    for (let i = 0; i < data.length; i++) { // Loop to full length
         const signalCandle = data[i];
         
         let signal: 'BUY' | 'SELL' | null = null;
@@ -648,11 +647,11 @@ const BacktestPageContent = () => {
             if (positionType === 'long') {
                 if (signalCandle.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
                 else if (signalCandle.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (signal === 'SELL') { exitPrice = data[i + 1].open; closeReason = 'signal'; } // Exit on next open
+                else if (signal === 'SELL' && data[i+1]) { exitPrice = data[i + 1].open; closeReason = 'signal'; }
             } else if (positionType === 'short') {
                 if (signalCandle.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
                 else if (signalCandle.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (signal === 'BUY') { exitPrice = data[i + 1].open; closeReason = 'signal'; } // Exit on next open
+                else if (signal === 'BUY' && data[i+1]) { exitPrice = data[i + 1].open; closeReason = 'signal'; }
             }
 
             if (exitPrice !== null) {
@@ -681,7 +680,7 @@ const BacktestPageContent = () => {
         }
 
         // --- ENTRY LOGIC ---
-        if (positionType === null && signal) {
+        if (positionType === null && signal && data[i+1]) { // Ensure next candle exists for entry
             const { allowed, reason } = riskGuardian.canTrade();
             if (!allowed) {
                 // Log discipline action if needed
@@ -689,7 +688,7 @@ const BacktestPageContent = () => {
             }
 
             positionType = signal === 'BUY' ? 'long' : 'short';
-            entryPrice = data[i + 1].open; // <<<< CORE CHANGE: Enter on the OPEN of the NEXT candle
+            entryPrice = data[i + 1].open;
             entryTime = data[i + 1].time;
             entryIndex = i + 1;
         }
@@ -1386,5 +1385,3 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
-
-    
