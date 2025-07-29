@@ -52,6 +52,13 @@ const binanceExchange = new binance({
 
 // Centralized precision formatting using CCXT's loaded market data
 const formatToPrecision = (symbol: string, value: number, type: 'price' | 'amount'): string => {
+    // Ensure markets are loaded before trying to use them
+    if (Object.keys(binanceExchange.markets).length === 0) {
+        // This is a fallback. In a real app, you'd want a more robust
+        // way to ensure markets are loaded, perhaps during an init phase.
+        console.warn("CCXT markets not loaded, using default precision.");
+        return String(value);
+    }
     if (type === 'price') {
         return binanceExchange.priceToPrecision(symbol, value);
     }
@@ -107,6 +114,11 @@ export const placeOrder = async (
   keys: { apiKey: string, secretKey: string },
   reduceOnly: boolean = false
 ): Promise<OrderResult> => {
+  
+  // Load markets if they haven't been loaded yet.
+  if (Object.keys(binanceExchange.markets).length === 0) {
+    await binanceExchange.loadMarkets();
+  }
   
   const market = binanceExchange.market(symbol);
   if (!market) {
