@@ -296,9 +296,9 @@ const BacktestPageContent = () => {
   const [fullChartData, setFullChartData] = useState<HistoricalData[]>([]);
   const [visibleChartData, setVisibleChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [isProjecting, setIsProjecting] = useState(false);
-  const [isTestingOnProjection, setIsTestingOnProjection] = useState(false);
+  const [isOptimizing, setIsOptimizing(false);
+  const [isProjecting, setIsProjecting(false);
+  const [isTestingOnProjection, setIsTestingOnProjection(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
   
@@ -624,35 +624,35 @@ const BacktestPageContent = () => {
     let entryTime = 0;
     let entryIndex = -1;
     
-    for (let i = 1; i < data.length; i++) {
-        const d = data[i];
-        const isBullishEvent = !!d.bullish_event;
-        const isBearishEvent = !!d.bearish_event;
+    for (let i = 1; i < data.length - 1; i++) { // Loop to length - 1 to ensure there's a next candle for entry
+        const signalCandle = data[i];
         
         let signal: 'BUY' | 'SELL' | null = null;
         if (isContrarian) {
-            if (isBullishEvent) signal = 'SELL';
-            if (isBearishEvent) signal = 'BUY';
+            if (signalCandle.bullish_event) signal = 'SELL';
+            if (signalCandle.bearish_event) signal = 'BUY';
         } else {
-            if (isBullishEvent) signal = 'BUY';
-            if (isBearishEvent) signal = 'SELL';
+            if (signalCandle.bullish_event) signal = 'BUY';
+            if (signalCandle.bearish_event) signal = 'SELL';
         }
-
+        
+        // --- EXIT LOGIC ---
         if (positionType) {
             let exitPrice: number | null = null;
+            let closeReason: BacktestResult['closeReason'] = 'signal';
+            
             const slPrice = data[entryIndex].stopLossLevel || (entryPrice * (1 - (positionType === 'long' ? stopLoss : -stopLoss) / 100));
             const tpPrice = data[entryIndex].takeProfitLevel || (entryPrice * (1 + (positionType === 'long' ? takeProfit : -takeProfit) / 100));
 
-            let closeReason: BacktestResult['closeReason'] = 'signal';
-
+            // Check for SL/TP hit on the current candle `i`
             if (positionType === 'long') {
-                if (d.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-                else if (d.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (signal === 'SELL') { exitPrice = d.close; closeReason = 'signal'; }
+                if (signalCandle.low <= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (signalCandle.high >= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (signal === 'SELL') { exitPrice = data[i + 1].open; closeReason = 'signal'; } // Exit on next open
             } else if (positionType === 'short') {
-                if (d.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
-                else if (d.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
-                else if (signal === 'BUY') { exitPrice = d.close; closeReason = 'signal'; }
+                if (signalCandle.high >= slPrice) { exitPrice = slPrice; closeReason = 'stop-loss'; }
+                else if (signalCandle.low <= tpPrice) { exitPrice = tpPrice; closeReason = 'take-profit'; }
+                else if (signal === 'BUY') { exitPrice = data[i + 1].open; closeReason = 'signal'; } // Exit on next open
             }
 
             if (exitPrice !== null) {
@@ -668,7 +668,7 @@ const BacktestPageContent = () => {
                     type: positionType, 
                     entryTime, 
                     entryPrice, 
-                    exitTime: d.time, 
+                    exitTime: signalCandle.time, 
                     exitPrice, 
                     pnl: finalPnl, 
                     fee: totalFee,
@@ -680,17 +680,18 @@ const BacktestPageContent = () => {
             }
         }
 
+        // --- ENTRY LOGIC ---
         if (positionType === null && signal) {
             const { allowed, reason } = riskGuardian.canTrade();
             if (!allowed) {
-                // Log discipline action if needed, e.g., toast(reason)
-                continue; // Skip trade if not allowed
+                // Log discipline action if needed
+                continue; // Skip trade
             }
 
             positionType = signal === 'BUY' ? 'long' : 'short';
-            entryPrice = d.close;
-            entryTime = d.time;
-            entryIndex = i;
+            entryPrice = data[i + 1].open; // <<<< CORE CHANGE: Enter on the OPEN of the NEXT candle
+            entryTime = data[i + 1].time;
+            entryIndex = i + 1;
         }
     }
     
@@ -1129,7 +1130,7 @@ const BacktestPageContent = () => {
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction onClick={() => { setIsConfirming(false); runBacktest(); }}>
-                    Confirm & Run
+                    Confirm &amp; Run
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
@@ -1232,7 +1233,7 @@ const BacktestPageContent = () => {
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="strategy"><BrainCircuit/>Strategy</TabsTrigger>
                                 <TabsTrigger value="core"><Settings/>Core</TabsTrigger>
-                                <TabsTrigger value="risk"><ShieldCheck/>Risk & AI</TabsTrigger>
+                                <TabsTrigger value="risk"><ShieldCheck/>Risk &amp; AI</TabsTrigger>
                             </TabsList>
                             <TabsContent value="strategy" className="pt-4 space-y-4">
                                 <div className="space-y-2">
@@ -1386,7 +1387,4 @@ export default function BacktestPage() {
     )
 }
 
-
-
-
-
+    
