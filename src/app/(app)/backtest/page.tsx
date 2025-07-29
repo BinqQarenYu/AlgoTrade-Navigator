@@ -296,9 +296,9 @@ const BacktestPageContent = () => {
   const [fullChartData, setFullChartData] = useState<HistoricalData[]>([]);
   const [visibleChartData, setVisibleChartData] = useState<HistoricalData[]>([]);
   const [isBacktesting, setIsBacktesting] = useState(false)
-  const [isOptimizing, setIsOptimizing(false);
-  const [isProjecting, setIsProjecting(false);
-  const [isTestingOnProjection, setIsTestingOnProjection(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isProjecting, setIsProjecting] = useState(false);
+  const [isTestingOnProjection, setIsTestingOnProjection] = useState(false);
   const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('backtest-strategy', strategyMetadatas[0].id);
   const [interval, setInterval] = usePersistentState<string>('backtest-interval', "1h");
   
