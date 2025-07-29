@@ -962,46 +962,27 @@ const BacktestPageContent = () => {
       key => typeof defaultParams[key] === 'number' || typeof defaultParams[key] === 'boolean'
     );
     
+    let parameterInputs;
+
     // Special UI for hyper-peak-formation
     if (selectedStrategy === 'hyper-peak-formation' || selectedStrategy === 'hyper-peak-formation-old') {
       const isOld = selectedStrategy === 'hyper-peak-formation-old';
-      return (
+      parameterInputs = (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="peakLookaround">Peak Lookaround</Label>
-              <Input id="peakLookaround" type="number" value={params.peakLookaround || 0} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="swingLookaround">Swing Lookaround</Label>
-              <Input id="swingLookaround" type="number" value={params.swingLookaround || 0} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading || isReplaying} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emaShortPeriod">EMA Short</Label>
-              <Input id="emaShortPeriod" type="number" value={params.emaShortPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="emaLongPeriod">EMA Long</Label>
-              <Input id="emaLongPeriod" type="number" value={params.emaLongPeriod || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} />
-            </div>
-            {isOld ? (
-                 <div className="space-y-2">
-                    <Label htmlFor="maxLookahead">Max Lookahead (Repainting)</Label>
-                    <Input id="maxLookahead" type="number" value={params.maxLookahead || 0} onChange={(e) => handleParamChange(selectedStrategy, 'maxLookahead', e.target.value)} disabled={anyLoading || isReplaying} />
-                </div>
+            <ParameterControl label="peakLookaround" value={params.peakLookaround ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'peakLookaround', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.peakLookaround} optimizationRange={optimizationConfig?.peakLookaround} />
+            <ParameterControl label="swingLookaround" value={params.swingLookaround ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'swingLookaround', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.swingLookaround} optimizationRange={optimizationConfig?.swingLookaround} />
+            <ParameterControl label="emaShortPeriod" value={params.emaShortPeriod ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaShortPeriod', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.emaShortPeriod} optimizationRange={optimizationConfig?.emaShortPeriod} />
+            <ParameterControl label="emaLongPeriod" value={params.emaLongPeriod ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLongPeriod', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.emaLongPeriod} optimizationRange={optimizationConfig?.emaLongPeriod} />
+             {isOld ? (
+                 <ParameterControl label="maxLookahead" value={params.maxLookahead ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'maxLookahead', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.maxLookahead} optimizationRange={optimizationConfig?.maxLookahead} />
             ) : (
-                <div className="space-y-2">
-                    <Label htmlFor="signalStaleness">Signal Staleness</Label>
-                    <Input id="signalStaleness" type="number" value={params.signalStaleness || 0} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} />
-                </div>
+                <ParameterControl label="signalStaleness" value={params.signalStaleness ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'signalStaleness', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.signalStaleness} optimizationRange={optimizationConfig?.signalStaleness} />
             )}
           </div>
         </div>
       );
-    }
-
-    // Special UI for code-based-consensus
-    if (selectedStrategy === 'code-based-consensus') {
+    } else if (selectedStrategy === 'code-based-consensus') {
       const selectedSubStrategies = params.strategies || [];
       const consensusStrategies = strategyMetadatas.filter(s => s.id !== 'code-based-consensus');
       const allStrategyIds = consensusStrategies.map(s => s.id);
@@ -1017,7 +998,7 @@ const BacktestPageContent = () => {
           handleParamChange(selectedStrategy, 'strategies', selectAll ? allStrategyIds : []);
       }
 
-      return (
+      parameterInputs = (
         <div className="space-y-4">
           <div>
               <div className="flex justify-between items-center mb-1">
@@ -1046,11 +1027,8 @@ const BacktestPageContent = () => {
           </div>
         </div>
       );
-    }
-    
-    // Special UI for MTF Engulfing
-    if (selectedStrategy === 'mtf-engulfing') {
-        return (
+    } else if (selectedStrategy === 'mtf-engulfing') {
+        parameterInputs = (
             <div className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="htf">Higher Timeframe (HTF)</Label>
@@ -1068,60 +1046,39 @@ const BacktestPageContent = () => {
                     </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="emaLength">EMA Length</Label>
-                        <Input id="emaLength" type="number" value={params.emaLength || 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="atrLength">ATR Length</Label>
-                        <Input id="atrLength" type="number" value={params.atrLength || 0} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="slAtrMultiplier">SL ATR Multiplier</Label>
-                        <Input id="slAtrMultiplier" type="number" step="0.1" value={params.slAtrMultiplier || 0} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="rrRatio">Risk/Reward Ratio</Label>
-                        <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
-                    </div>
+                    <ParameterControl label="emaLength" value={params.emaLength ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'emaLength', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.emaLength} optimizationRange={optimizationConfig?.emaLength} />
+                    <ParameterControl label="atrLength" value={params.atrLength ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'atrLength', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.atrLength} optimizationRange={optimizationConfig?.atrLength} />
+                    <ParameterControl label="slAtrMultiplier" value={params.slAtrMultiplier ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'slAtrMultiplier', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.slAtrMultiplier} optimizationRange={optimizationConfig?.slAtrMultiplier} />
+                    <ParameterControl label="rrRatio" value={params.rrRatio ?? 0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} defaultValue={defaultParams.rrRatio} optimizationRange={optimizationConfig?.rrRatio} />
                 </div>
             </div>
         );
+    } else {
+        const numericParamKeys = Object.keys(defaultParams).filter(key => typeof defaultParams[key] === 'number');
+        if (numericParamKeys.length === 0 && selectedStrategy !== 'none') {
+            parameterInputs = <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
+        } else {
+             const controls = numericParamKeys.map((key) => (
+                <ParameterControl
+                    key={key}
+                    label={key}
+                    value={params[key] ?? 0}
+                    onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
+                    disabled={anyLoading || isReplaying}
+                    defaultValue={defaultParams[key]}
+                    optimizationRange={optimizationConfig?.[key]}
+                />
+            ));
+             parameterInputs = <div className="grid grid-cols-2 gap-4">{controls}</div>;
+        }
     }
-    
-    // Filter out complex params for the generic controls
-    const numericParamKeys = Object.keys(defaultParams).filter(
-      key => typeof defaultParams[key] === 'number'
-    );
-
-    if (numericParamKeys.length === 0 && selectedStrategy !== 'none') {
-        return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
-    }
-    
-    if (numericParamKeys.length === 0) {
-        return <p className="text-sm text-muted-foreground">This strategy has no tunable parameters.</p>;
-    }
-
-    const controls = numericParamKeys.map((key) => {
-      return (
-        <ParameterControl
-            key={key}
-            label={key}
-            value={params[key] ?? 0}
-            onChange={(e) => handleParamChange(selectedStrategy, key, e.target.value)}
-            disabled={anyLoading || isReplaying}
-            defaultValue={defaultParams[key]}
-            optimizationRange={optimizationConfig?.[key]}
-        />
-      );
-    });
 
     const canOptimize = !!optimizationConfigs[selectedStrategy];
     const canReset = !!DEFAULT_PARAMS_MAP[selectedStrategy];
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">{controls}</div>
+        {parameterInputs}
         <div className="pt-2 flex flex-col sm:flex-row gap-2">
             {canReset && (
                 <Button onClick={handleResetParams} disabled={anyLoading || isReplaying} variant="secondary" className="w-full">
@@ -1428,6 +1385,7 @@ export default function BacktestPage() {
         </React.Suspense>
     )
 }
+
 
 
 
