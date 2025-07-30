@@ -257,6 +257,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                   return;
                 }
             }
+            // **THE FIX**: Re-calculate on the entire buffer to find complex patterns
             const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
             const signalCandle = dataWithIndicators[dataWithIndicators.length - 2]; // The candle that just closed
   
@@ -322,7 +323,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
     
     setLiveBotState(prev => ({
-        ...prev, bots: { ...prev.bots, [botId]: { status: 'running', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
+        ...prev, bots: { ...prev.bots, [botId]: { status: 'analyzing', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
     }));
 
     if (!updateIntervalRef.current) {
@@ -346,6 +347,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
       dataBufferRef.current[botId] = klines;
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
+      setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'running' } } }));
       
       runLiveBotCycle(botId, true);
       
