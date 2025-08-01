@@ -95,7 +95,7 @@ export default function ManualTradingPage() {
                                     <TableHead>TP (%)</TableHead>
                                     <TableHead>SL (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead className="text-right w-[180px]">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>

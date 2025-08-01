@@ -18,6 +18,8 @@ import { Bot, Play, StopCircle, Settings, Trash2, BrainCircuit, CheckCircle, Act
 import { StrategyParamsCard } from "./strategy-params-card"
 import { DisciplineSettings } from "./trading-discipline/DisciplineSettings"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+
 
 type BotInstance = LiveBotConfig & { id: string };
 type BotType = 'live' | 'manual';
@@ -244,7 +246,7 @@ export const BotInstanceRow = memo(({
             </TableRow>
             {openParams[bot.id] && (
                 <TableRow>
-                    <TableCell colSpan={botType === 'live' ? 11 : 12} className="p-0">
+                    <TableCell colSpan={botType === 'live' ? 12 : 13} className="p-0">
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30">
                             <div className="md:col-span-2">
                                 <StrategyParamsCard
@@ -274,4 +276,5 @@ export const BotInstanceRow = memo(({
     );
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
+
 

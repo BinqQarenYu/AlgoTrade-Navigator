@@ -36,12 +36,9 @@ export default function LiveTradingPage() {
     const { toast } = useToast();
     const { isConnected, activeProfile, telegramBotToken, telegramChatId } = useApi();
     const { 
-        startBotInstance, 
-        stopBotInstance, 
         liveBotState,
         addBotInstance,
         getBotInstances,
-        setBotInstances,
         executeTestTrade,
     } = useBot();
     
@@ -60,6 +57,10 @@ export default function LiveTradingPage() {
     }, [botInstances, handleAddBotInstance]);
 
     const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
+
+    const handleManualTrade = (bot: BotInstance, side: 'BUY' | 'SELL') => {
+        executeTestTrade(bot.asset, side, bot.capital, bot.leverage);
+    };
 
     return (
         <div className="space-y-6">
@@ -138,7 +139,7 @@ export default function LiveTradingPage() {
                                     <TableHead>TP (%)</TableHead>
                                     <TableHead>SL (%)</TableHead>
                                     <TableHead>Strategy</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead className="text-right w-[180px]">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -157,7 +158,7 @@ export default function LiveTradingPage() {
                                             isBotRunning={isRunning}
                                             isConnected={isConnected}
                                             canTrade={activeProfile?.permissions === 'FuturesTrading'}
-                                            onManualTrade={executeTestTrade}
+                                            onManualTrade={handleManualTrade}
                                             botType="live"
                                         />
                                     )})}
