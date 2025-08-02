@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma, UserCheck, LogIn, LogOut } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma, UserCheck, LogIn, LogOut, BookOpen } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -27,6 +27,7 @@ import { Skeleton } from "./ui/skeleton"
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
+  { href: "/strategies", label: "Strategies", icon: BookOpen },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: UserCheck },
   { href: "/settings", label: "Settings", icon: Settings },
