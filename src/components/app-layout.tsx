@@ -27,7 +27,6 @@ import { Skeleton } from "./ui/skeleton"
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/live", label: "Live Trading", icon: Bot },
-  { href: "/manual", label: "Manual Trading", icon: UserCheck },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
