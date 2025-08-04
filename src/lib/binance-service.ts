@@ -2,7 +2,7 @@
 'use client';
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
-import type { Ticker } from 'ccxt';
+import type { Ticker, Market } from 'ccxt';
 // Import only the specific exchange class we need
 import { binance } from 'ccxt';
 
@@ -49,6 +49,21 @@ const binanceExchange = new binance({
     options: { defaultType: 'future' },
     enableRateLimit: true, 
 });
+
+let marketsCache: Record<string, Market> | null = null;
+export const getMarkets = async (): Promise<Record<string, Market>> => {
+    if (marketsCache) {
+        return marketsCache;
+    }
+    try {
+        const markets = await binanceExchange.loadMarkets();
+        marketsCache = markets;
+        return markets;
+    } catch (e) {
+        console.error("Could not load markets from CCXT:", e);
+        return {};
+    }
+};
 
 // Centralized precision formatting using CCXT's loaded market data
 const formatToPrecision = (symbol: string, value: number, type: 'price' | 'amount'): string => {
@@ -136,6 +151,37 @@ export const placeOrder = async (
     price: parseFloat(responseData.avgPrice || responseData.price),
     timestamp: responseData.updateTime,
   };
+};
+
+export const get24hTickerStats = async (symbols: string[]): Promise<Record<string, Ticker>> => {
+  if (!symbols || symbols.length === 0) return {};
+  try {
+      const tickers = await binanceExchange.fetchTickers(symbols);
+      return tickers;
+  } catch (error: any) {
+      console.error(`Error fetching tickers via CCXT:`, error);
+      if (error instanceof binance.NetworkError) {
+          throw new Error("Failed to connect to Binance. Please check your network connection.");
+      } else if (error instanceof binance.ExchangeError) {
+          throw new Error(`Binance Exchange Error: ${error.message}`);
+      } else {
+          throw new Error("An unexpected error occurred while fetching ticker data.");
+      }
+  }
+};
+
+export const getDepthSnapshot = async (symbol: string, limit: number = 100): Promise<any> => {
+    try {
+        const response = await binanceExchange.fetchOrderBook(symbol, limit);
+        return {
+            lastUpdateId: response.nonce,
+            bids: response.bids,
+            asks: response.asks,
+        };
+    } catch (e: any) {
+        console.error(`Error fetching depth snapshot for ${symbol}:`, e);
+        throw new Error(`Could not fetch order book for ${symbol}.`);
+    }
 };
 
 // Public data fetching can still use CCXT directly, as it doesn't require API keys.
