@@ -125,7 +125,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
   const riskGuardianRefs = useRef<Record<string, RiskGuardian | null>>({});
   const dataBufferRef = useRef<Record<string, HistoricalData[]>>({});
-  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const updateIntervalsRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [strategyRecommendation, setStrategyRecommendation] = useState<RankedTradeSignal | null>(null);
@@ -200,6 +200,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (liveWsRefs.current[botId]) {
       liveWsRefs.current[botId]?.close();
       delete liveWsRefs.current[botId];
+    }
+     if (updateIntervalsRef.current[botId]) {
+      clearInterval(updateIntervalsRef.current[botId]);
+      delete updateIntervalsRef.current[botId];
     }
     delete riskGuardianRefs.current[botId];
     delete dataBufferRef.current[botId];
@@ -337,18 +341,18 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     setLiveBotState(prev => ({
         ...prev, bots: { ...prev.bots, [botId]: { status: 'running', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
     }));
-
-    if (!updateIntervalRef.current) {
-        updateIntervalRef.current = setInterval(() => {
-            setLiveBotState(prev => {
-                const updatedBots = { ...prev.bots };
-                Object.keys(dataBufferRef.current).forEach(id => {
-                    if (updatedBots[id]) updatedBots[id] = { ...updatedBots[id], chartData: dataBufferRef.current[id] };
-                });
-                return { bots: updatedBots };
-            });
-        }, 1000);
+    
+    // Set up a dedicated UI update interval for this bot
+    if (updateIntervalsRef.current[botId]) {
+        clearInterval(updateIntervalsRef.current[botId]);
     }
+    updateIntervalsRef.current[botId] = setInterval(() => {
+        setLiveBotState(prev => {
+            if (!prev.bots[botId]) return prev;
+            const updatedBotState = { ...prev.bots[botId], chartData: dataBufferRef.current[botId] || [] };
+            return { ...prev, bots: { ...prev.bots, [botId]: updatedBotState }};
+        });
+    }, 1000); // Update UI every second
 
     try {
       if (!config.isManual) {
@@ -686,7 +690,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (liveBotIntervalRef.current) clearInterval(liveBotIntervalRef.current);
+      Object.values(liveWsRefs.current).forEach(ws => ws?.close());
+      Object.values(updateIntervalsRef.current).forEach(interval => clearInterval(interval));
       if (simulationWsRef.current) simulationWsRef.current.close();
     }
   }, []);
