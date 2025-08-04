@@ -1,79 +1,65 @@
 
-'use server';
+'use client';
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
 import type { Ticker } from 'ccxt';
-import crypto from 'crypto';
-import ccxt from 'ccxt';
+// Import only the specific exchange class we need
+import { binance } from 'ccxt';
 
-const BINANCE_API_URL = 'https://fapi.binance.com';
+// This function is now the single point of contact for all client-side requests to our proxy.
+async function callProxy<T>(
+    path: string, 
+    method: 'GET' | 'POST' = 'GET', 
+    body?: Record<string, any>,
+    keys?: { apiKey: string, secretKey: string }
+): Promise<{ data: T, usedWeight: number }> {
+    try {
+        const requestBody: any = { path, method, body };
+        if (keys) {
+            requestBody.apiKey = keys.apiKey;
+            requestBody.secretKey = keys.secretKey;
+        }
 
-// CCXT instance for public market data (no API keys needed here)
-const binance = new ccxt.binance({
+        const response = await fetch('/api/binance-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            // Handle specific geo-blocking errors coming from our proxy
+            if (result.error?.includes('restricted location')) {
+                throw new Error(result.error);
+            }
+            throw new Error(result.error || `Proxy Error: ${response.statusText}`);
+        }
+        return result;
+    } catch (error: any) {
+        console.error(`Error calling proxy for path ${path}:`, error);
+        // Re-throw the error so it can be caught by the calling function and displayed in the UI
+        throw error;
+    }
+}
+
+
+// CCXT instance for public market data - this does not go through our proxy
+const binanceExchange = new binance({
     options: { defaultType: 'future' },
+    enableRateLimit: true, 
 });
 
-// Cache for markets to avoid repeated API calls
-let marketsCache: ccxt.Markets | null = null;
-let marketsCacheTime: number = 0;
-
-export const getMarkets = async (forceRefresh = false): Promise<ccxt.Markets> => {
-    const now = Date.now();
-    // Refresh cache every hour
-    if (forceRefresh || !marketsCache || (now - marketsCacheTime > 3600 * 1000)) {
-        console.log('Fetching and caching markets from Binance...');
-        try {
-            marketsCache = await binance.loadMarkets();
-            marketsCacheTime = now;
-        } catch (error) {
-            console.error('Failed to fetch/cache markets:', error);
-            // In case of error, return the stale cache if it exists, otherwise throw
-            if (marketsCache) return marketsCache;
-            throw error;
-        }
+// Centralized precision formatting using CCXT's loaded market data
+const formatToPrecision = (symbol: string, value: number, type: 'price' | 'amount'): string => {
+    if (type === 'price') {
+        return binanceExchange.priceToPrecision(symbol, value);
     }
-    return marketsCache;
-};
+    return binanceExchange.amountToPrecision(symbol, value);
+}
 
-// Helper for authenticated Binance API calls
-const callAuthenticatedApi = async <T>(path: string, queryString: string, apiKey: string, secretKey: string): Promise<{ data: T, usedWeight: number }> => {
-  const signature = crypto
-    .createHmac('sha256', secretKey)
-    .update(queryString)
-    .digest('hex');
-
-  const url = `${BINANCE_API_URL}${path}?${queryString}&signature=${signature}`;
-
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'X-MBX-APIKEY': apiKey, 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-
-    const usedWeight = parseInt(response.headers.get('x-fapi-used-weight-1m') || '0', 10);
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(`Binance API Error: ${data.msg || `Failed to fetch from ${path}`} (Code: ${data.code})`);
-    }
-    return { data: data as T, usedWeight };
-  } catch (error: any) {
-    console.error(`Error fetching from Binance API (${path}):`, error);
-    if (error.message.includes('Binance API Error')) {
-      throw error;
-    }
-    throw new Error("Failed to connect to Binance. Please check your network connection and API keys.");
-  }
-};
-
-
-export const getAccountBalance = async (apiKey: string, secretKey: string): Promise<{ data: Portfolio, usedWeight: number }> => {
-  console.log("Fetching real account balance from Binance...");
-  const timestamp = Date.now();
-  const queryString = `timestamp=${timestamp}`;
-  const { data, usedWeight } = await callAuthenticatedApi<any>('/fapi/v2/account', queryString, apiKey, secretKey);
-
+export const getAccountBalance = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Portfolio, usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
   const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
     totalPnl: parseFloat(data.totalUnrealizedProfit),
@@ -82,12 +68,8 @@ export const getAccountBalance = async (apiKey: string, secretKey: string): Prom
   return { data: portfolioData, usedWeight };
 };
 
-export const getOpenPositions = async (apiKey: string, secretKey: string): Promise<{ data: Position[], usedWeight: number }> => {
-  console.log("Fetching open positions from Binance...");
-  const timestamp = Date.now();
-  const queryString = `timestamp=${timestamp}`;
-  const { data, usedWeight } = await callAuthenticatedApi<any[]>('/fapi/v2/positionRisk', queryString, apiKey, secretKey);
-
+export const getOpenPositions = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Position[], usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys);
   const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
     .map((pos: any): Position => {
@@ -105,25 +87,58 @@ export const getOpenPositions = async (apiKey: string, secretKey: string): Promi
   return { data: positionsData, usedWeight };
 };
 
-export const getTradeHistory = async (symbol: string, apiKey: string, secretKey: string): Promise<{ data: Trade[], usedWeight: number }> => {
-    console.log(`Fetching trade history for ${symbol} from Binance...`);
-    const timestamp = Date.now();
-    const queryString = `symbol=${symbol}&timestamp=${timestamp}&limit=50`;
-    const { data, usedWeight } = await callAuthenticatedApi<any[]>(`/fapi/v1/userTrades`, queryString, apiKey, secretKey);
+export const setLeverage = async (
+  symbol: string,
+  leverage: number,
+  keys: { apiKey: string, secretKey: string }
+): Promise<any> => {
+  const body = {
+    symbol,
+    leverage,
+  };
+  const { data } = await callProxy<any>('/fapi/v1/leverage', 'POST', body, keys);
+  return data;
+}
 
-    const tradesData = data.map((trade: any): Trade => ({
-        id: String(trade.id),
-        symbol: trade.symbol,
-        side: trade.isBuyer ? 'BUY' : 'SELL',
-        size: parseFloat(trade.qty),
-        price: parseFloat(trade.price),
-        time: new Date(trade.time).toLocaleString(),
-        timestamp: trade.time,
-    }));
-    return { data: tradesData, usedWeight };
+export const placeOrder = async (
+  symbol: string, 
+  side: OrderSide, 
+  quantity: number,
+  keys: { apiKey: string, secretKey: string },
+  reduceOnly: boolean = false
+): Promise<OrderResult> => {
+  
+  const market = binanceExchange.market(symbol);
+  if (!market) {
+      throw new Error(`Could not find market data for symbol: ${symbol}`);
+  }
+
+  const formattedQuantity = formatToPrecision(symbol, quantity, 'amount');
+  
+  const body: any = {
+    symbol,
+    side,
+    type: 'MARKET',
+    quantity: formattedQuantity,
+  };
+  
+  if (reduceOnly) {
+      body.reduceOnly = 'true';
+  }
+
+  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body, keys);
+
+  return {
+    orderId: String(responseData.orderId),
+    symbol: responseData.symbol,
+    side: responseData.side,
+    quantity: parseFloat(responseData.origQty),
+    price: parseFloat(responseData.avgPrice || responseData.price),
+    timestamp: responseData.updateTime,
+  };
 };
 
-// Public endpoint, using CCXT for robustness
+// Public data fetching can still use CCXT directly, as it doesn't require API keys.
 export const getHistoricalKlines = async (
     symbol: string, 
     interval: string, 
@@ -134,35 +149,27 @@ export const getHistoricalKlines = async (
         console.error("getHistoricalKlines was called without a symbol.");
         return [];
     }
-    const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching klines for ${upperSymbol} (${interval}) from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-    
-    const limit = 1500;
+    if (typeof startTime !== 'number' || typeof endTime !== 'number' || isNaN(startTime) || isNaN(endTime)) {
+        console.error(`getHistoricalKlines called with invalid time values for ${symbol}. startTime: ${startTime}, endTime: ${endTime}`);
+        return [];
+    }
 
     try {
-        await binance.loadMarkets();
-        // Use CCXT's unified method to fetch OHLCV data
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, startTime, limit);
-
+        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500);
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
         }
-
-        // Map CCXT's array format [time, open, high, low, close, volume] to our HistoricalData object format
-        return ohlcv.map((kline: number[]): HistoricalData => ({
-            time: kline[0],
-            open: kline[1],
-            high: kline[2],
-            low: kline[3],
-            close: kline[4],
-            volume: kline[5],
+        return ohlcv.map((k: number[]): HistoricalData => ({
+            time: k[0], open: k[1], high: k[2], low: k[3], close: k[4], volume: k[5],
         }));
-
     } catch (error: any) {
         console.error(`Error fetching klines via CCXT:`, error);
-        if (error instanceof ccxt.NetworkError) {
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+             throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        }
+        if (error instanceof binance.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof ccxt.ExchangeError) {
+        } else if (error instanceof binance.ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
@@ -175,130 +182,29 @@ export const getLatestKlinesByLimit = async (
     interval: string,
     limit: number
 ): Promise<HistoricalData[]> => {
-    if (!symbol) {
+     if (!symbol) {
         console.error("getLatestKlinesByLimit was called without a symbol.");
         return [];
     }
-    const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching latest ${limit} klines for ${upperSymbol} (${interval})`);
-
     try {
-        await binance.loadMarkets();
-        // Use CCXT's unified method to fetch OHLCV data.
-        // Providing 'undefined' for 'since' fetches the most recent candles.
-        const ohlcv = await binance.fetchOHLCV(upperSymbol, interval, undefined, limit);
-
+        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit);
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
         }
-
-        // Map CCXT's array format [time, open, high, low, close, volume] to our HistoricalData object format
-        return ohlcv.map((kline: number[]): HistoricalData => ({
-            time: kline[0],
-            open: kline[1],
-            high: kline[2],
-            low: kline[3],
-            close: kline[4],
-            volume: kline[5],
+        return ohlcv.map((k: number[]): HistoricalData => ({
+            time: k[0], open: k[1], high: k[2], low: k[3], close: k[4], volume: k[5],
         }));
-
     } catch (error: any) {
         console.error(`Error fetching latest klines via CCXT:`, error);
-        if (error instanceof ccxt.NetworkError) {
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+             throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        }
+        if (error instanceof binance.NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof ccxt.ExchangeError) {
+        } else if (error instanceof binance.ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
         }
-    }
-}
-
-export const get24hTickerStats = async (symbols: string[]): Promise<Record<string, Ticker>> => {
-    if (symbols.length === 0) return {};
-    console.log(`Fetching 24h ticker stats for ${symbols.length} symbols...`);
-    try {
-        const tickers = await binance.fetchTickers(symbols);
-        return tickers;
-    } catch (error: any) {
-        console.error(`Error fetching tickers via CCXT:`, error);
-        if (error instanceof ccxt.NetworkError) {
-             throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof ccxt.ExchangeError) {
-            // Some exchanges don't support fetchTickers for multiple symbols, or have other constraints.
-            // Fallback to individual calls.
-            if (error.message.includes('not support') || error.message.includes('of the same type')) {
-                console.log('Batch fetchTickers failed, falling back to individual calls. Reason:', error.message);
-                const tickersObject: Record<string, Ticker> = {};
-                await Promise.all(symbols.map(async (symbol) => {
-                    try {
-                        const ticker = await binance.fetchTicker(symbol);
-                        tickersObject[ticker.symbol] = ticker;
-                    } catch (e) {
-                        console.warn(`Could not fetch individual ticker for ${symbol}`, e);
-                    }
-                }));
-                return tickersObject;
-            }
-            throw new Error(`Binance Exchange Error: ${error.message}`);
-        } else {
-            throw new Error("An unexpected error occurred while fetching ticker data.");
-        }
-    }
-}
-
-export const placeOrder = async (
-  symbol: string, 
-  side: OrderSide, 
-  quantity: number, 
-  apiKey: string, 
-  secretKey: string
-): Promise<OrderResult> => {
-  console.log(`--- SIMULATING TRADE EXECUTION ---`);
-  console.log(`- Profile: Active`);
-  console.log(`- Timestamp: ${new Date().toISOString()}`);
-  console.log(`- Symbol: ${symbol}`);
-  console.log(`- Side: ${side}`);
-  console.log(`- Quantity: ${quantity.toFixed(5)}`);
-  console.log(`---------------------------------`);
-
-  // In a real application, this would make an authenticated POST request to /fapi/v1/order
-  // For this prototype, we'll just return a mock success response.
-  
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 1500));
-
-  if (!apiKey || !secretKey) {
-      throw new Error("API keys are not configured. Cannot place order.");
-  }
-  
-  return {
-    orderId: `mock_${Date.now()}`,
-    symbol,
-    side,
-    quantity,
-    price: 12345.67, // This would be the actual fill price in a real response
-    timestamp: Date.now(),
-  };
-};
-
-export const getDepthSnapshot = async (symbol: string): Promise<any> => {
-    if (!symbol) {
-        throw new Error("getDepthSnapshot was called without a symbol.");
-    }
-    const upperSymbol = symbol.toUpperCase();
-    console.log(`Fetching depth snapshot for ${upperSymbol}`);
-    const url = `${BINANCE_API_URL}/fapi/v1/depth?symbol=${upperSymbol}&limit=500`;
-
-    try {
-        const response = await fetch(url, { cache: 'no-store' });
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(`Binance API Error: ${errorData.msg || `Failed to fetch depth for ${upperSymbol}`} (Code: ${errorData.code})`);
-        }
-        return await response.json();
-    } catch (error: any) {
-        console.error(`Error fetching depth snapshot from Binance API:`, error);
-        throw new Error("Failed to connect to Binance for order book data.");
     }
 }
