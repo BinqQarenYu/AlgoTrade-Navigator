@@ -2,7 +2,7 @@
 'use client';
 
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
-import { getStrategyById } from './all-strategies';
+import { getStrategyById } from '@/lib/strategies';
 
 export interface CodeBasedConsensusParams {
   strategies: string[]; // Array of strategy IDs
