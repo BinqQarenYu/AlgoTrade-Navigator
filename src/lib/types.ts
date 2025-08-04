@@ -31,6 +31,14 @@ export type Trade = {
   timestamp: number; // Raw for sorting
 };
 
+export type DisciplineParams = {
+  enableDiscipline: boolean;
+  maxConsecutiveLosses: number;
+  cooldownPeriodMinutes: number;
+  dailyDrawdownLimit: number;
+  onFailure: 'Cooldown' | 'Adapt';
+};
+
 export type HistoricalData = {
   time: number;
   open: number;
@@ -38,8 +46,8 @@ export type HistoricalData = {
   low: number;
   close: number;
   volume: number;
-  buySignal?: number;
-  sellSignal?: number;
+  bullish_event?: boolean; // Neutral event flag
+  bearish_event?: boolean; // Neutral event flag
   sma_short?: number | null;
   sma_long?: number | null;
   ema_short?: number | null;
@@ -47,6 +55,7 @@ export type HistoricalData = {
   ema_long?: number | null;
   rsi?: number | null;
   stopLossLevel?: number;
+  takeProfitLevel?: number; // Added for dynamic TP
   peakPrice?: number;
   poc?: number;
   volumeDelta?: number;
@@ -100,10 +109,16 @@ export type HistoricalData = {
   // For Liquidity & Order Flow Strategy
   fvg_top?: number | null;
   fvg_bottom?: number | null;
+  // For SMI MFI Supertrend
+  smi?: number | null;
+  smi_signal?: number | null;
+  mfi?: number | null;
   // For AI Consensus strategy
   aiReasoning?: string;
   aiConfidence?: number;
+  isProjected?: boolean;
 };
+
 
 export type Portfolio = {
   balance: number;
@@ -164,8 +179,8 @@ export type TradeSignal = {
   takeProfit: number;
   confidence: number;
   reasoning: string;
-  timestamp: Date;
-  exitTimestamp?: Date;
+  timestamp: number; 
+  exitTimestamp?: number;
   strategy: string;
   peakPrice?: number;
   asset: string;
@@ -177,68 +192,24 @@ export type RankedTradeSignal = TradeSignal & {
 };
     
 export type LiveBotConfig = {
-    symbol: string;
+    id: string; // Unique identifier for this bot instance
+    asset: string;
     interval: string;
-    strategy: string;
-    strategyParams: any;
-    initialCapital: number;
+    capital: number;
     leverage: number;
     takeProfit: number;
     stopLoss: number;
-    marginType: string;
-    useAIPrediction: boolean;
-    fee: number;
+    strategy: string;
+    strategyParams: any;
+    isManual?: boolean; // New flag to distinguish between live and manual bots
 };
 
-export type ManualTraderConfig = {
-    symbol: string;
-    interval: string;
-    strategy: string;
-    strategyParams: any;
-    initialCapital: number;
-    leverage: number;
-    takeProfit: number;
-    stopLoss: number;
-    useAIPrediction: boolean;
-    fee: number;
-}
-
-export interface ManualTraderState {
-  isAnalyzing: boolean;
-  isExecuting: boolean;
-  logs: string[];
-  signal: TradeSignal | null;
+export type LiveBotStateForAsset = {
+  status: 'idle' | 'running' | 'analyzing' | 'position_open' | 'error' | 'cooldown';
+  config: LiveBotConfig & { id: string };
+  activePosition: TradeSignal | null;
   chartData: HistoricalData[];
-}
-
-export type MultiSignalConfig = {
-    assets: string[];
-    interval: string;
-    strategy: string;
-    strategyParams: any;
-    takeProfit: number;
-    stopLoss: number;
-    useAIPrediction: boolean;
-};
-
-export interface SignalResult {
-    signal: TradeSignal | null;
-    status: 'idle' | 'monitoring' | 'analyzing' | 'error' | 'no_signal';
-    log: string;
-}
-
-export interface MultiSignalState {
-  isRunning: boolean;
-  config: MultiSignalConfig | null;
-  results: Record<string, SignalResult>; // Keyed by asset symbol
   logs: string[];
-}
-
-export type ScreenerConfig = {
-  asset: string;
-  strategies: string[];
-  strategyParams: Record<string, any>;
-  interval: string;
 };
 
 export type PricePredictionOutput = {
@@ -255,50 +226,11 @@ export type StrategyAnalysisInput = {
     indicatorValues: Record<string, any>;
 };
 
-
-export interface ScreenerState {
-  isRunning: boolean;
-  config: ScreenerConfig | null;
-  prediction: PricePredictionOutput | null;
-  strategyInputs: StrategyAnalysisInput[];
-  logs: string[];
-}
-
-export type SimulationConfig = LiveBotConfig;
-export type SimulatedTrade = BacktestResult;
-
-export type SimulatedPosition = {
-    id: string;
-    asset: string;
-    side: 'long' | 'short';
-    entryPrice: number;
-    entryTime: number;
-    size: number;
-    stopLoss: number;
-    takeProfit: number;
-};
-
-export type SimulationState = {
-    isRunning: boolean;
-    config: SimulationConfig | null;
-    logs: string[];
-    chartData: HistoricalData[];
-    portfolio: {
-        initialCapital: number;
-        balance: number;
-        pnl: number;
-    };
-    openPositions: SimulatedPosition[];
-    tradeHistory: SimulatedTrade[];
-    summary: BacktestSummary | null;
-};
-
-
 export interface Strategy {
   id: string;
   name: string;
   description: string;
-  calculate: (data: HistoricalData[], params?: any) => Promise<HistoricalData[]>;
+  calculate: (data: HistoricalData[], params?: any, symbol?: string) => Promise<HistoricalData[]>;
 }
 
 export type CoinSentimentData = {
@@ -309,10 +241,15 @@ export type CoinSentimentData = {
   image?: string;
 };
 
-export type CoinDetails = CoinSentimentData & {
+export type CoinDetails = {
+  id: string;
+  symbol: string;
+  name: string;
+  image?: string;
+  sentimentUp?: number; // Only from CoinGecko
   description: string | null;
   marketCapRank: number | null;
-  publicInterestScore?: number;
+  publicInterestScore?: number; // Only from CoinGecko
   marketCap: number;
   priceChange24h: number;
   volume24h: number;
@@ -366,6 +303,7 @@ export type SavedManipulationScan = {
   type: 'manipulation-scan';
   input: {
     symbol: string;
+    interval: string; // Add interval to match the query key
   };
   output: {
     isManipulationSuspected: boolean;
@@ -380,63 +318,11 @@ export type SavedManipulationScan = {
 
 export type SavedReport = SavedMarketReport | SavedManipulationScan;
 
-export interface ApiContextType {
-  profiles: ApiProfile[];
-  activeProfile: ApiProfile | null;
-  apiKey: string | null;
-  secretKey: string | null;
-  coingeckoApiKey: string | null;
-  coinmarketcapApiKey: string | null;
-  
-  addProfile: (profile: ApiProfile) => void;
-  updateProfile: (profile: ApiProfile) => void;
-  deleteProfile: (profileId: string) => void;
-  setActiveProfile: (profileId: string | null) => void;
-  setCoingeckoApiKey: (key: string | null) => void;
-  setCoinmarketcapApiKey: (key: string | null) => void;
-  
-  isConnected: boolean;
-  setIsConnected: (status: boolean) => void;
-  apiLimit: { used: number; limit: number };
-  setApiLimit: (limit: { used: number; limit: number }) => void;
-  rateLimitThreshold: number;
-  setRateLimitThreshold: (limit: number) => void;
-
-  aiQuota: {
-    used: number;
-    limit: number;
-    lastReset: string; // YYYY-MM-DD
-  };
-  setAiQuotaLimit: (newLimit: number) => void;
-  canUseAi: () => boolean;
-}
-
-
-export interface BotContextType {
-  liveBotState: any;
-  manualTraderState: ManualTraderState;
-  multiSignalState: MultiSignalState;
-  screenerState: ScreenerState;
-  simulationState: SimulationState;
-  strategyParams: Record<string, any>;
-  setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
-  isTradingActive: boolean;
-  startLiveBot: (config: LiveBotConfig) => void;
-  stopLiveBot: () => void;
-  runManualAnalysis: (config: ManualTraderConfig) => void;
-  cancelManualAnalysis: () => void;
-  resetManualSignal: () => void;
-  cleanManualChart: () => void;
-  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
-  setManualChartData: (symbol: string, interval: string) => void;
-  startMultiSignalMonitor: (config: MultiSignalConfig) => void;
-  stopMultiSignalMonitor: () => void;
-  startScreener: (config: ScreenerConfig) => void;
-  stopScreener: () => void;
-  closePosition: (position: Position) => void;
-  startSimulation: (config: SimulationConfig) => void;
-  stopSimulation: () => void;
-}
+export type OrderBookData = {
+    bids: { price: number; quantity: number }[];
+    asks: { price: number; quantity: number }[];
+    totalDepth: number;
+};
 
 export type Wall = {
   price: number;
@@ -477,4 +363,21 @@ export type ScreenAssetsOutput = {
     assets: RankedScreenedAsset[];
 };
 
-    
+export type DetectManipulationOutput = {
+  isManipulationSuspected: boolean;
+  confidence: number;
+  currentPhase: 'Accumulation' | 'Pump' | 'Distribution' | 'None';
+  reasoning: string;
+  accumulationPeriod?: { startTime: number; endTime: number; };
+  pumpPeriod?: { startTime: number; endTime: number; };
+  distributionPeriod?: { startTime: number; endTime: number; };
+};
+
+// Types for Grid Trading - REMOVED
+
+export type MatchedGridTrade = {
+  id: string;
+  buy: { price: number, time: number };
+  sell: { price: number, time: number };
+  pnl: number;
+};
