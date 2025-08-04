@@ -4,89 +4,78 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, ManualTraderConfig, MultiSignalConfig, MultiSignalState, SignalResult, ScreenerConfig, ScreenerState, RankedTradeSignal, FearAndGreedIndex, StrategyAnalysisInput, OrderSide, Position, PricePredictionOutput, SimulationState, SimulationConfig, SimulatedPosition, SimulatedTrade, BacktestSummary } from '@/lib/types';
-import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
-import { predictPrice } from "@/ai/flows/predict-price-flow";
-import { getHistoricalKlines, getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
-import { getFearAndGreedIndex } from "@/lib/fear-greed-service";
-import { addDays } from 'date-fns';
+import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, LiveBotStateForAsset, SimulationConfig, SimulationState, SimulatedPosition, SimulatedTrade, BacktestSummary } from '@/lib/types';
+import { getLatestKlinesByLimit, placeOrder, setLeverage, getOpenPositions } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
-import { intervalToMs } from '@/lib/utils';
+import { RiskGuardian } from '@/lib/risk-guardian';
+import { usePersistentState } from '@/hooks/use-persistent-state';
 
-import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
-import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands"
-import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion"
-import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow"
-import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve"
-import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels"
-import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
-import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
-import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
-import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
-import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
-import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
-import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross"
-import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence"
-import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip"
-import { defaultPffParams } from "@/lib/strategies/peak-formation-fib"
-import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal"
-import { defaultReversePffParams } from "@/lib/strategies/reverse-pff"
-import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
-import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover"
-import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
-import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
-import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
-import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
-import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
-import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow"
+import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator";
+import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands";
+import { defaultCciReversionParams } from "@/lib/strategies/cci-reversion";
+import { defaultChaikinMoneyFlowParams } from "@/lib/strategies/chaikin-money-flow";
+import { defaultCoppockCurveParams } from "@/lib/strategies/coppock-curve";
+import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channels";
+import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index";
+import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover";
+import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation";
+import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud";
+import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels";
+import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover";
+import { defaultMomentumCrossParams } from "@/lib/strategies/momentum-cross";
+import { defaultObvDivergenceParams } from "@/lib/strategies/obv-divergence";
+import { defaultParabolicSarFlipParams } from "@/lib/strategies/parabolic-sar-flip";
+import { defaultPffParams } from "@/lib/strategies/peak-formation-fib";
+import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-reversal";
+import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence";
+import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover";
+import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover";
+import { defaultSupertrendParams } from "@/lib/strategies/supertrend";
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-delta";
+import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross";
+import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r";
+import { defaultLiquidityOrderFlowParams } from "@/lib/strategies/liquidity-order-flow";
 import { defaultLiquidityGrabParams } from '@/lib/strategies/liquidity-grab';
 import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
-import { defaultAiConsensusParams } from '@/lib/strategies/ai-consensus';
+import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-consensus';
+import { defaultMtfEngulfingParams } from '@/lib/strategies/mtf-engulfing';
+import { defaultSmiMfiSupertrendParams } from '@/lib/strategies/smi-mfi-supertrend';
+import { defaultSmiMfiScalpParams } from '@/lib/strategies/smi-mfi-scalp';
+import { defaultOrderFlowScalpParams } from '@/lib/strategies/order-flow-scalp';
+import { defaultForcedActionScalpParams } from '@/lib/strategies/forced-action-scalp';
 
 
-// --- State Types ---
-interface LiveBotState {
-  isRunning: boolean;
-  isPredicting: boolean;
-  logs: string[];
-  prediction: PredictMarketOutput | null;
-  config: LiveBotConfig | null;
-  chartData: HistoricalData[];
-}
+type BotInstance = LiveBotConfig & {
+    id: string;
+};
 
-interface ManualTraderState {
-  isAnalyzing: boolean;
-  isExecuting: boolean;
-  logs: string[];
-  signal: TradeSignal | null;
-  chartData: HistoricalData[];
-}
+type BotListType = 'live' | 'manual';
 
-// --- Context Type ---
 interface BotContextType {
-  liveBotState: LiveBotState;
-  manualTraderState: ManualTraderState;
-  multiSignalState: MultiSignalState;
-  screenerState: ScreenerState;
+  liveBotState: { bots: Record<string, LiveBotStateForAsset> };
   simulationState: SimulationState;
   strategyParams: Record<string, any>;
   setStrategyParams: React.Dispatch<React.SetStateAction<Record<string, any>>>;
   isTradingActive: boolean;
-  startLiveBot: (config: LiveBotConfig) => void;
-  stopLiveBot: () => void;
-  runManualAnalysis: (config: ManualTraderConfig) => void;
-  cancelManualAnalysis: () => void;
-  resetManualSignal: () => void;
-  cleanManualChart: () => void;
-  executeManualTrade: (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => void;
-  setManualChartData: (symbol: string, interval: string) => void;
-  startMultiSignalMonitor: (config: MultiSignalConfig) => void;
-  stopMultiSignalMonitor: () => void;
-  startScreener: (config: ScreenerConfig) => void;
-  stopScreener: () => void;
+  startBotInstance: (config: LiveBotConfig & { id: string, isManual?: boolean }) => void;
+  stopBotInstance: (botId: string) => void;
   closePosition: (position: Position) => void;
-  startSimulation: (config: SimulationConfig) => void;
+  showRecommendation: boolean;
+  strategyRecommendation: RankedTradeSignal | null;
+  activateRecommendedStrategy: (strategyId: string) => void;
+  dismissRecommendation: () => void;
+  executeTestTrade: (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => void;
+  closeTestPosition: (symbol: string) => void;
+  
+  // State for live and manual bots are now separate
+  liveBotInstances: BotInstance[];
+  manualBotInstances: BotInstance[];
+  setBotInstances: (type: BotListType, instances: React.SetStateAction<BotInstance[]>) => void;
+  addBotInstance: (type: BotListType, config?: Partial<LiveBotConfig>) => void;
+  getBotInstances: (type: BotListType) => BotInstance[];
+
+  startSimulation: (config: Omit<SimulationConfig, 'useAIPrediction'>) => void;
   stopSimulation: () => void;
 }
 
@@ -110,7 +99,6 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'parabolic-sar-flip': defaultParabolicSarFlipParams,
     'peak-formation-fib': defaultPffParams,
     'pivot-point-reversal': defaultPivotPointReversalParams,
-    'reverse-pff': defaultReversePffParams,
     'rsi-divergence': defaultRsiDivergenceParams,
     'sma-crossover': defaultSmaCrossoverParams,
     'stochastic-crossover': defaultStochasticCrossoverParams,
@@ -121,673 +109,296 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'liquidity-order-flow': defaultLiquidityOrderFlowParams,
     'liquidity-grab': defaultLiquidityGrabParams,
     'ema-cci-macd': defaultEmaCciMacdParams,
-    'ai-consensus': defaultAiConsensusParams,
+    'code-based-consensus': defaultCodeBasedConsensusParams,
+    'mtf-engulfing': defaultMtfEngulfingParams,
+    'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'smi-mfi-scalp': defaultSmiMfiScalpParams,
+    'order-flow-scalp': defaultOrderFlowScalpParams,
+    'forced-action-scalp': defaultForcedActionScalpParams,
 };
 
-const KNOWN_INDICATORS = [
-    'sma_short', 'sma_long', 'ema_short', 'ema_long', 'rsi', 'stopLossLevel',
-    'peakPrice', 'poc', 'volumeDelta', 'cumulativeVolumeDelta', 'bb_upper', 'bb_middle',
-    'bb_lower', 'macd', 'macd_signal', 'macd_hist', 'supertrend', 'supertrend_direction',
-    'atr', 'donchian_upper', 'donchian_middle', 'donchian_lower', 'tenkan_sen',
-    'kijun_sen', 'senkou_a', 'senkou_b', 'chikou_span',
-    // New indicators
-    'stoch_k', 'stoch_d', 'keltner_upper', 'keltner_middle', 'keltner_lower', 'vwap',
-    'psar', 'psar_direction', 'momentum', 'awesome_oscillator', 'williams_r', 'cci',
-    'ha_close', 'pivot_point', 's1', 'r1', 'obv', 'cmf', 'coppock', 'bull_power', 'bear_power'
-];
-
-
-// --- Provider Component ---
 export const BotProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const { apiKey, secretKey, activeProfile, canUseAi } = useApi();
+  const { activeProfile } = useApi();
   
-  // --- Live Bot State ---
-  const [liveBotState, setLiveBotState] = useState<LiveBotState>({
-    isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: []
-  });
-  const liveBotIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [liveBotState, setLiveBotState] = useState<{ bots: Record<string, LiveBotStateForAsset> }>({ bots: {} });
+  const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
+  const riskGuardianRefs = useRef<Record<string, RiskGuardian | null>>({});
+  const dataBufferRef = useRef<Record<string, HistoricalData[]>>({});
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- Manual Trader State ---
-  const [manualTraderState, setManualTraderState] = useState<ManualTraderState>({
-    isAnalyzing: false, isExecuting: false, logs: [], signal: null, chartData: []
-  });
-  const manualWsRef = useRef<WebSocket | null>(null);
-  const manualAnalysisCancelRef = useRef(false);
-  const manualReevalIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const manualConfigRef = useRef<ManualTraderConfig | null>(null);
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [strategyRecommendation, setStrategyRecommendation] = useState<RankedTradeSignal | null>(null);
 
-  // --- Multi-Signal State ---
-  const [multiSignalState, setMultiSignalState] = useState<MultiSignalState>({
-    isRunning: false, config: null, results: {}, logs: []
-  });
-  const multiSignalIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const multiSignalRunningRef = useRef(false);
-  const multiSignalConfigRef = useRef<MultiSignalConfig | null>(null);
-
-  // --- Screener State ---
-  const [screenerState, setScreenerState] = useState<ScreenerState>({
-    isRunning: false, config: null, prediction: null, strategyInputs: [], logs: []
-  });
-  const screenerRunningRef = useRef(false);
-  
-  // --- Simulation State ---
-   const [simulationState, setSimulationState] = useState<SimulationState>({
+  const [simulationState, setSimulationState] = useState<SimulationState>({
     isRunning: false, config: null, logs: [], chartData: [],
     portfolio: { initialCapital: 0, balance: 0, pnl: 0 },
     openPositions: [], tradeHistory: [], summary: null
   });
   const simulationWsRef = useRef<WebSocket | null>(null);
 
-  // --- Global State ---
+
+  const dismissRecommendation = () => { setShowRecommendation(false); setStrategyRecommendation(null); };
+  const activateRecommendedStrategy = (strategyId: string) => { console.log(`Activating recommended strategy: ${strategyId}`); dismissRecommendation(); };
+  
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
 
+  // --- SEPARATED BOT INSTANCE STATE ---
+  const [liveBotInstances, setLiveBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
+  const [manualBotInstances, setManualBotInstances] = usePersistentState<BotInstance[]>('manual-bot-instances', []);
+
+  const getBotInstances = (type: BotListType) => {
+    return type === 'live' ? liveBotInstances : manualBotInstances;
+  }
+  
+  const setBotInstances = (type: BotListType, instances: React.SetStateAction<BotInstance[]>) => {
+    if (type === 'live') {
+      setLiveBotInstances(instances);
+    } else {
+      setManualBotInstances(instances);
+    }
+  }
+
+  const addBotInstance = useCallback((type: BotListType, config?: Partial<LiveBotConfig>) => {
+    const newId = `bot_${Date.now()}`;
+    const newBot: BotInstance = {
+      id: newId,
+      asset: config?.asset || 'BTCUSDT',
+      interval: config?.interval || '1h',
+      capital: config?.capital || 100,
+      leverage: config?.leverage || 10,
+      takeProfit: config?.takeProfit || 1.5,
+      stopLoss: config?.stopLoss || 1,
+      strategy: config?.strategy || 'ema-crossover',
+      strategyParams: config?.strategyParams || defaultEmaCrossoverParams,
+      isManual: type === 'manual',
+    };
+    
+    const setter = type === 'live' ? setLiveBotInstances : setManualBotInstances;
+    setter(prev => [...prev, newBot]);
+  }, [setLiveBotInstances, setManualBotInstances]);
+  
   useEffect(() => {
-    // A "trading session" is now defined as any activity that can actively manage or place real trades.
-    // Simulation, monitoring, and one-off analysis are excluded to allow them to run in the background.
-    const liveTradingBotRunning = liveBotState.isRunning;
-    const manualTradePending = manualTraderState.signal !== null || manualTraderState.isExecuting;
+    const liveBotRunning = Object.values(liveBotState.bots).some(bot => !bot.config.isManual && bot.status !== 'idle' && bot.status !== 'error');
+    setIsTradingActive(liveBotRunning);
+  }, [liveBotState.bots]);
 
-    setIsTradingActive(liveTradingBotRunning || manualTradePending);
-  }, [liveBotState.isRunning, manualTraderState.signal, manualTraderState.isExecuting]);
-
-
-  // --- Helper Functions ---
-  const addLog = useCallback((setter: React.Dispatch<React.SetStateAction<any>>, message: string) => {
+  const addLog = useCallback((setter: React.Dispatch<React.SetStateAction<any>>, message: string, botId?: string) => {
     const timestamp = new Date().toLocaleTimeString();
-    // Defensive check to prevent crash if logs array becomes undefined
-    setter((prev: any) => ({ ...prev, logs: [`[${timestamp}] ${message}`, ...(prev.logs || [])].slice(0, 100) }));
+    if (botId) {
+        setter((prev: any) => ({
+            ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], logs: [`[${timestamp}] ${message}`, ...(prev.bots[botId]?.logs || [])].slice(0, 100) } }
+        }));
+    }
   }, []);
 
-  const addLiveLog = useCallback((message: string) => addLog(setLiveBotState, message), [addLog]);
-  const addManualLog = useCallback((message: string) => addLog(setManualTraderState, message), [addLog]);
-  const addMultiLog = useCallback((message: string) => addLog(setMultiSignalState, message), [addLog]);
-  const addScreenerLog = useCallback((message: string) => addLog(setScreenerState, message), [addLog]);
+  const addLiveLog = useCallback((botId: string, message: string) => addLog(setLiveBotState, message, botId), [addLog]);
   const addSimLog = useCallback((message: string) => addLog(setSimulationState, message), [addLog]);
   
-  const cleanManualChart = useCallback(() => {
-    setManualTraderState(prev => {
-        if (!prev.chartData) return prev;
-        const cleaned = prev.chartData.map(({ time, open, high, low, close, volume }) => ({ time, open, high, low, close, volume }));
-        return { ...prev, chartData: cleaned };
+  const stopBotInstance = useCallback((botId: string) => {
+    if (liveWsRefs.current[botId]) {
+      liveWsRefs.current[botId]?.close();
+      delete liveWsRefs.current[botId];
+    }
+    delete riskGuardianRefs.current[botId];
+    delete dataBufferRef.current[botId];
+
+    setLiveBotState(prev => {
+        const newBots = { ...prev.bots };
+        if (newBots[botId]) {
+            newBots[botId] = { ...newBots[botId], status: 'idle', activePosition: null, logs: [`[${new Date().toLocaleTimeString()}] Bot stopped.`] };
+        }
+        return { bots: newBots };
     });
-    addManualLog("Cleared indicators from chart.");
-  }, [addManualLog]);
-
-  // --- Reusable Analysis Logic ---
-  const analyzeAsset = useCallback(async (
-    config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean },
-    existingData?: HistoricalData[]
-  ): Promise<SignalResult> => {
-    try {
-        const dataToAnalyze = existingData && existingData.length > 50 
-            ? existingData
-            : await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-
-        if (dataToAnalyze.length < 50) {
-            return { status: 'error', log: 'Not enough data.', signal: null };
-        }
-
-        const strategy = getStrategyById(config.strategy);
-        if (!strategy) {
-          return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
-        }
-
-        const dataWithSignals = await strategy.calculate(dataToAnalyze, config.strategyParams);
-        const latestCandleWithSignal = [...dataWithSignals].reverse().find(d => d.buySignal || d.sellSignal);
-
-        if (!latestCandleWithSignal) {
-             return { status: 'no_signal', log: 'No actionable trade setup found. Waiting for market conditions to align with strategy rules.', signal: null };
-        }
-        
-        const signalAge = (dataWithSignals.length - 1) - dataWithSignals.indexOf(latestCandleWithSignal);
-        if (signalAge > 5) { // Only consider signals in the last 5 candles
-            return { status: 'no_signal', log: 'A valid signal was found in the past, but the entry window has closed. The signal is now considered stale.', signal: null };
-        }
-        
-        const strategySignal: 'BUY' | 'SELL' = latestCandleWithSignal.buySignal ? 'BUY' : 'SELL';
-
-        const prediction = config.useAIPrediction ? (
-            canUseAi() ? await predictMarket({
-                symbol: config.symbol,
-                recentData: JSON.stringify(dataWithSignals.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))),
-                strategySignal
-            }) : null
-        ) : {
-            prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN',
-            confidence: 1,
-            reasoning: `Signal from '${config.strategy}' without AI validation.`
-        };
-
-        if (!prediction) { // This will be true if canUseAi returned false
-            return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
-        }
-        
-        const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
-        
-        if (aiConfirms) {
-            const currentPrice = latestCandleWithSignal.close;
-            const stopLossPrice = latestCandleWithSignal?.stopLossLevel ? latestCandleWithSignal.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
-            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
-            
-            const newSignal: TradeSignal = {
-                asset: config.symbol,
-                action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice,
-                stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-                confidence: prediction.confidence, reasoning: prediction.reasoning,
-                timestamp: new Date(latestCandleWithSignal.time), strategy: config.strategy,
-                peakPrice: latestCandleWithSignal?.peakPrice
-            };
-            return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
-        } else {
-            return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
-        }
-    } catch (e: any) {
-        console.error(`Analysis failed for ${config.symbol}:`, e);
-        return { status: 'error', log: e.message || 'Unknown error', signal: null };
-    }
-  }, [canUseAi]);
-
-  // --- Live Bot Logic ---
-  const runLiveBotPrediction = useCallback(async () => {
-    const currentConfig = liveBotState.config;
-    if (!liveBotState.isRunning || !currentConfig) return;
-
-    setLiveBotState(prev => ({ ...prev, isPredicting: true, prediction: null }));
-    
-    const result = await analyzeAsset(currentConfig);
-    
-    if (result.signal) {
-        const aiPrediction: PredictMarketOutput = {
-            prediction: result.signal.action,
-            confidence: result.signal.confidence,
-            reasoning: result.signal.reasoning,
-        };
-        setLiveBotState(prev => ({ ...prev, prediction: aiPrediction }));
-        addLiveLog(`AI Prediction: ${aiPrediction.prediction} (Confidence: ${(aiPrediction.confidence * 100).toFixed(1)}%).`);
-    } else {
-        addLiveLog(`No actionable signal found. Reason: ${result.log}`);
-    }
-
-    setLiveBotState(prev => ({ ...prev, isPredicting: false }));
-
-  }, [liveBotState.isRunning, liveBotState.config, addLiveLog, analyzeAsset]);
-
-  const startLiveBot = async (config: LiveBotConfig) => {
-    addLiveLog("Starting bot...");
-    
-    setLiveBotState(prev => ({...prev, isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: []}));
-    try {
-      const klines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-      setLiveBotState(prev => ({ ...prev, chartData: klines }));
-      addLiveLog(`Loaded ${klines.length} initial candles for ${config.symbol}.`);
-      
-      runLiveBotPrediction(); // Initial run
-      liveBotIntervalRef.current = setInterval(runLiveBotPrediction, 30000); // 30 seconds
-      toast({ title: "Live Bot Started", description: `Monitoring ${config.symbol} on the ${config.interval} interval.`});
-
-    } catch (error: any) {
-        addLiveLog(`Error starting bot: ${error.message}`);
-        toast({ title: "Failed to Start Bot", description: error.message, variant: "destructive"});
-        stopLiveBot();
-    }
-  };
-
-  const stopLiveBot = () => {
-    if (liveBotIntervalRef.current) {
-        clearInterval(liveBotIntervalRef.current);
-        liveBotIntervalRef.current = null;
-    }
-    setLiveBotState({ isRunning: false, isPredicting: false, logs: [], prediction: null, config: null, chartData: [] });
-    addLiveLog("Bot stopped by user.");
-    toast({ title: "Live Bot Stopped" });
-  };
-  
-
-  // --- Manual Trader Logic ---
-  const resetManualSignal = useCallback(() => {
-    if (manualWsRef.current) {
-        manualWsRef.current.close(1000, "Signal reset by user");
-        manualWsRef.current = null;
-    }
-    if (manualReevalIntervalRef.current) { // Clear interval on reset
-        clearInterval(manualReevalIntervalRef.current);
-        manualReevalIntervalRef.current = null;
-    }
-    manualConfigRef.current = null; // Clear stored config
-    setManualTraderState(prev => ({
-        ...prev,
-        isAnalyzing: false,
-        signal: null,
-        logs: [`[${new Date().toLocaleTimeString()}] Signal monitoring has been reset.`, ...(prev.logs || [])].slice(0, 100)
-    }));
-    toast({ title: "Signal Reset", description: "You can now run a new analysis." });
+    toast({ title: `Bot ${botId} Stopped` });
   }, [toast]);
-
-  const executeManualTrade = useCallback(async (signal: TradeSignal, capital: number, leverage: number, isSimulation: boolean) => {
-    if (!activeProfile || !apiKey || !secretKey) {
-      toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
-      return;
-    }
-    if (!signal) {
-        toast({ title: "Execution Failed", description: "No valid signal to execute.", variant: "destructive" });
-        return;
-    }
-
-    setManualTraderState(prev => ({ ...prev, isExecuting: true }));
-
-    if (isSimulation) {
-        addManualLog(`SIMULATION: Starting simulated trade for ${signal.asset}...`);
-        toast({
-            title: "Simulation Started",
-            description: "The signal will remain on the chart. Dismiss it manually when you're done."
-        });
-        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
-        return; // End here for simulation
-    }
-
-    // --- Real Execution Logic ---
-    if (activeProfile.permissions === 'ReadOnly') {
-        addManualLog(`Read-only key detected. Simulating trade locally for ${signal.asset}...`);
-        toast({
-            title: "Read-Only API Key",
-            description: "Simulating trade execution locally. No real order will be placed."
-        });
-    } else {
-        addManualLog(`Futures key detected. Executing ${signal.action === 'UP' ? 'BUY' : 'SELL'} order for ${signal.asset}...`);
-    }
-
+  
+  const runLiveBotCycle = useCallback(async (botId: string, isCandleClose: boolean = false) => {
+    const botState = liveBotState.bots[botId];
+    const data = dataBufferRef.current[botId];
+  
+    if (!botState || !data || (botState.status !== 'running' && botState.status !== 'position_open')) return;
+    if (!activeProfile) return;
+  
+    const config = botState.config;
+    let currentPosition = botState.activePosition;
+    const strategy = getStrategyById(config.strategy);
+    if (!strategy) return;
+  
+    const riskGuardian = riskGuardianRefs.current[botId];
+  
     try {
-        const positionValue = capital * leverage;
-        const quantity = positionValue / signal.entryPrice;
-        const side = signal.action === 'UP' ? 'BUY' : 'SELL';
+        const latestCandle = data[data.length - 1];
+  
+        // --- EXIT LOGIC (runs on every tick) ---
+        if (currentPosition) {
+            let closePosition = false;
+            let closeReason = '';
+            const currentPrice = latestCandle.close;
+  
+            if (currentPosition.action === 'UP') {
+                if (currentPrice <= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; }
+                else if (currentPrice >= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
+            } else { // DOWN
+                if (currentPrice >= currentPosition.stopLoss) { closePosition = true; closeReason = 'Stop Loss'; }
+                else if (currentPrice <= currentPosition.takeProfit) { closePosition = true; closeReason = 'Take Profit'; }
+            }
+  
+            if (closePosition) {
+                addLiveLog(botId, `Exit signal: ${closeReason} hit at price ${currentPrice}.`);
+                if (!config.isManual) {
+                    const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
+                    const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
+                    const orderResult = await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
+                    toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
+                    const pnl = side === 'SELL' ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
+                    riskGuardian?.registerTrade(pnl);
+                }
+                setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], activePosition: null, status: 'running' } } }));
+                return; // Exit cycle after closing position
+            }
+        }
+  
+        // --- ENTRY LOGIC (runs ONLY on candle close) ---
+        if (isCandleClose && !currentPosition) {
+            if (riskGuardian) {
+                const { allowed, reason } = riskGuardian.canTrade();
+                if (!allowed) {
+                  addLiveLog(botId, `Discipline action: ${reason}`);
+                  setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'cooldown' } } }));
+                  return;
+                }
+            }
+            const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
+            const signalCandle = dataWithIndicators[dataWithIndicators.length - 2]; // The candle that just closed
+  
+            const isBullishEvent = !!signalCandle.bullish_event;
+            const isBearishEvent = !!signalCandle.bearish_event;
 
-        const orderResult = await placeOrder(signal.asset, side, quantity, apiKey, secretKey);
-        
-        toast({
-            title: "Order Placed (Simulated)",
-            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${signal.asset} submitted. Order ID: ${orderResult.orderId}`
-        });
-
-        // Reset the signal only after successful REAL execution
-        resetManualSignal();
-
-    } catch (e: any) {
-        toast({ title: "Execution Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
-        addManualLog(`Execution failed: ${e.message}`);
-    } finally {
-        setManualTraderState(prev => ({ ...prev, isExecuting: false }));
-    }
-  }, [apiKey, secretKey, toast, addManualLog, resetManualSignal, activeProfile]);
-
-  const setManualChartData = useCallback(async (symbol: string, interval: string) => {
-    // This function is for loading the initial chart data on the manual page.
-    setManualTraderState(prev => ({...prev, logs: [], chartData: []}));
-    addManualLog(`Fetching chart data for ${symbol} (${interval})...`);
-    try {
-        const klines = await getLatestKlinesByLimit(symbol, interval, 500);
-        setManualTraderState(prev => ({ ...prev, chartData: klines, logs: [`[${new Date().toLocaleTimeString()}] Loaded ${klines.length} historical candles.`] }));
-    } catch (error: any) {
-        toast({ title: "Failed to load data", description: error.message, variant: "destructive" });
-        addManualLog(`Error loading data: ${error.message}`);
-    }
-  }, [addManualLog, toast]);
-
-  const connectManualWebSocket = useCallback((symbol: string, interval: string) => {
-    if (manualWsRef.current) manualWsRef.current.close();
-    
-    addManualLog("Connecting to WebSocket for live invalidation monitoring...");
-    const ws = new WebSocket(`wss://fstream.binance.com/ws/${symbol.toLowerCase()}@kline_${interval}`);
-    manualWsRef.current = ws;
-
-    ws.onopen = () => addManualLog("Monitoring connection established.");
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data);
-      if (message.e !== 'kline') return;
-
-      const kline = message.k;
-      const newCandle: HistoricalData = {
-        time: kline.t, open: parseFloat(kline.o), high: parseFloat(kline.h),
-        low: parseFloat(kline.l), close: parseFloat(kline.c), volume: parseFloat(kline.v),
-      };
-
-      setManualTraderState(current => {
-        const currentLogs = current.logs || [];
-        let newChartData = current.chartData;
-
-        if (newChartData.length > 0) {
-            const lastCandle = newChartData[newChartData.length - 1];
-            if (lastCandle.time === newCandle.time) {
-              newChartData[newChartData.length - 1] = newCandle;
+            let strategySignal: 'BUY' | 'SELL' | null = null;
+            if (config.strategyParams.reverse) {
+                if (isBullishEvent) strategySignal = 'SELL';
+                if (isBearishEvent) strategySignal = 'BUY';
             } else {
-              newChartData.push(newCandle);
+                if (isBullishEvent) strategySignal = 'BUY';
+                if (isBearishEvent) strategySignal = 'SELL';
             }
-            const sortedData = newChartData.sort((a, b) => a.time - b.time);
-            newChartData = sortedData.filter((candle, index, self) => index === 0 || candle.time > self[index - 1].time).slice(-1500);
-        } else {
-            newChartData = [newCandle];
-        }
-
-        if (current.signal && current.signal.peakPrice) {
-          let invalidated = false;
-          let invalidationReason = '';
-          if (current.signal.action === 'DOWN' && newCandle.high > current.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.high.toFixed(4)}) broke above the structural peak high of ${current.signal.peakPrice.toFixed(4)}.`;
-          } else if (current.signal.action === 'UP' && newCandle.low < current.signal.peakPrice) {
-            invalidated = true;
-            invalidationReason = `Price (${newCandle.low.toFixed(4)}) broke below the structural peak low of ${current.signal.peakPrice.toFixed(4)}.`;
-          }
-
-          if (invalidated) {
-             setTimeout(() => {
-                toast({
-                  title: "Trade Signal Invalidated",
-                  description: "Market structure has changed. The trade idea is now void.",
-                  variant: "default"
-                });
-             }, 0);
-            
-            const timestamp = new Date().toLocaleTimeString();
-            const newLog = `[${timestamp}] SIGNAL INVALIDATED: ${invalidationReason}`;
-            const newLogs = [newLog, ...currentLogs].slice(0, 100);
-
-            manualWsRef.current?.close();
-            return { ...current, signal: null, chartData: newChartData, logs: newLogs };
-          }
-        }
-        
-        return { ...current, chartData: newChartData, logs: currentLogs };
-      });
-    };
-    
-    ws.onclose = (event) => {
-        const reason = event.reason || 'No reason given';
-        const code = event.wasClean ? `(Code: ${event.code})` : `(Code: ${event.code}, unclean closure)`;
-        addManualLog(`Monitoring WebSocket closed. ${reason} ${code}`);
-        manualWsRef.current = null;
-    }
-
-    ws.onerror = () => {
-        addManualLog("WebSocket error occurred. See browser console for details.");
-    };
-  }, [addManualLog, toast]);
-
-  const cancelManualAnalysis = useCallback(() => {
-    manualAnalysisCancelRef.current = true;
-    addManualLog("Analysis canceled by user.");
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
-  }, [addManualLog]);
-
-  const runManualAnalysis = useCallback(async (config: ManualTraderConfig) => {
-    manualAnalysisCancelRef.current = false;
-    manualConfigRef.current = config;
-    // 1. Set analyzing state and clear previous data
-    setManualTraderState(prev => ({ ...prev, isAnalyzing: true, logs: [], signal: null, chartData: [] }));
-    addManualLog("Running analysis...");
-    
-    // 2. Perform all async operations first
-    let chartDataForAnalysis: HistoricalData[];
-    try {
-        addManualLog(`Fetching chart data for ${config.symbol}...`);
-        chartDataForAnalysis = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
-    } catch (e: any) {
-        addManualLog(`Failed to load chart data: ${e.message}`);
-        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] })); // End analysis on error
-        toast({ title: "Analysis Failed", description: "Could not load market data.", variant: "destructive" });
-        return;
-    }
-
-    // Update state with fetched chart data
-    setManualTraderState(prev => ({ ...prev, chartData: chartDataForAnalysis, logs: prev.logs || [] }));
-    addManualLog(`Loaded ${chartDataForAnalysis.length} historical candles.`);
-
-    if (manualAnalysisCancelRef.current) {
-        addManualLog("Analysis canceled before execution.");
-        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
-        return;
-    }
-
-    const result = await analyzeAsset({ ...config }, chartDataForAnalysis);
-
-    if (manualAnalysisCancelRef.current) {
-        addManualLog("Analysis canceled, results discarded.");
-        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
-        return;
-    }
-    
-    // 3. Update state based on async result
-    if (result.signal) {
-        addManualLog(`NEW SIGNAL: ${result.signal.action} at $${result.signal.entryPrice.toFixed(4)}. SL: $${result.signal.stopLoss.toFixed(4)}, TP: $${result.signal.takeProfit.toFixed(4)}`);
-        toast({ title: "Trade Signal Generated!", description: "Monitoring for invalidation and re-evaluation." });
-        connectManualWebSocket(config.symbol, config.interval);
-
-        // Re-evaluation Logic
-        if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-        const reevalTime = intervalToMs(config.interval);
-        addManualLog(`Signal found. Re-evaluating every ${config.interval}.`);
-        
-        manualReevalIntervalRef.current = setInterval(() => {
-            const currentConfig = manualConfigRef.current;
-            if (!currentConfig) return;
-
-            addManualLog("Re-evaluating signal...");
-            setManualTraderState(current => {
-                const preservedLogs = current.logs || [];
-                const originalSignal = current.signal;
-                if (!originalSignal) {
-                    if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
-                    return { ...current, logs: preservedLogs };
+  
+            if (strategySignal) {
+                const signalAction = strategySignal === 'BUY' ? 'UP' : 'DOWN';
+                const currentPrice = signalCandle.close; // Use the closing price of the signal candle
+                
+                const stopLossPrice = signalCandle.stopLossLevel || (signalAction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100)));
+                const takeProfitPrice = signalCandle.takeProfitLevel || (signalAction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100)));
+                
+                const newSignal: TradeSignal = {
+                  asset: config.asset,
+                  action: signalAction,
+                  entryPrice: currentPrice,
+                  stopLoss: stopLossPrice,
+                  takeProfit: takeProfitPrice,
+                  confidence: 1,
+                  reasoning: `Signal from '${config.strategy}' on candle close.`,
+                  timestamp: signalCandle.time,
+                  strategy: config.strategy,
+                  peakPrice: signalCandle.peakPrice,
+                };
+  
+                addLiveLog(botId, `New trade signal: ${newSignal.action} at ${newSignal.entryPrice}`);
+                if (!config.isManual) {
+                    const side = newSignal.action === 'UP' ? 'BUY' : 'SELL';
+                    const quantity = (config.capital * config.leverage) / newSignal.entryPrice;
+                    await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+                    toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
                 }
-                analyzeAsset({ ...currentConfig }, current.chartData).then(reevalResult => {
-                    if (!manualReevalIntervalRef.current) return;
-                    if (reevalResult.signal) {
-                        if (reevalResult.signal.action !== originalSignal.action) {
-                            addManualLog(`SIGNAL REVERSED: Original was ${originalSignal.action}, new analysis suggests ${reevalResult.signal.action}.`);
-                            setTimeout(() => {
-                                toast({
-                                    title: "CANCEL TRADE: Signal Reversed",
-                                    description: "Market conditions have changed, and the analysis now suggests the opposite direction.",
-                                    variant: "destructive",
-                                });
-                            }, 0);
-                            resetManualSignal();
-                        } else {
-                            setManualTraderState(prev => ({ ...prev, signal: reevalResult.signal, logs: prev.logs || [] }));
-                            addManualLog(`Signal updated. New entry: $${reevalResult.signal.entryPrice.toFixed(4)}`);
-                        }
-                    } else {
-                        addManualLog(`Signal no longer valid. Reason: ${reevalResult.log}.`);
-                        setTimeout(() => {
-                           toast({ title: "Signal Invalidated", description: `Setup no longer valid: ${reevalResult.log}` });
-                        }, 0);
-                        resetManualSignal();
-                    }
+                setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], activePosition: newSignal, status: 'position_open' } } }));
+            }
+        }
+    } catch (e: any) {
+        addLiveLog(botId, `CRITICAL ERROR: ${e.message}`);
+        setLiveBotState(prev => ({ ...prev, bots: { ...prev.bots, [botId]: { ...prev.bots[botId], status: 'error' } } }));
+        if (e.message.includes('-2015') || e.message.toLowerCase().includes('invalid api-key')) {
+            toast({ title: "API Key Failed!", description: "Bot stopped for safety.", variant: "destructive" });
+            stopBotInstance(botId);
+        }
+    }
+  }, [liveBotState.bots, addLiveLog, toast, stopBotInstance, activeProfile]);
+
+  const startBotInstance = useCallback(async (config: LiveBotConfig & { id: string, isManual?: boolean }) => {
+    const botId = config.id;
+    if (!activeProfile) {
+        toast({ title: "Bot Start Failed", description: "No active API profile found.", variant: "destructive" });
+        return;
+    }
+    addLiveLog(botId, `Starting bot for ${config.asset}...`);
+    riskGuardianRefs.current[botId] = new RiskGuardian(config.strategyParams.discipline, config.capital);
+    
+    setLiveBotState(prev => ({
+        ...prev, bots: { ...prev.bots, [botId]: { status: 'running', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
+    }));
+
+    if (!updateIntervalRef.current) {
+        updateIntervalRef.current = setInterval(() => {
+            setLiveBotState(prev => {
+                const updatedBots = { ...prev.bots };
+                Object.keys(dataBufferRef.current).forEach(id => {
+                    if (updatedBots[id]) updatedBots[id] = { ...updatedBots[id], chartData: dataBufferRef.current[id] };
                 });
-                return { ...current, logs: preservedLogs };
+                return { bots: updatedBots };
             });
-        }, reevalTime);
-
-        setManualTraderState(prev => ({ ...prev, signal: result.signal, isAnalyzing: false, logs: prev.logs || [] }));
-    } else {
-        addManualLog(result.log);
-        if(result.status === 'error') {
-             setTimeout(() => toast({ title: "Analysis Failed", description: result.log, variant: "destructive" }), 0);
-        } else {
-            setTimeout(() => toast({ title: "No Signal Found", description: result.log }), 0);
-        }
-        setManualTraderState(prev => ({ ...prev, isAnalyzing: false, logs: prev.logs || [] }));
-    }
-  }, [addManualLog, toast, connectManualWebSocket, analyzeAsset, resetManualSignal]);
-
-  // --- Multi-Signal Monitor Logic ---
-  const runMultiSignalCheck = useCallback(async () => {
-    if (!multiSignalRunningRef.current || !multiSignalConfigRef.current) return;
-    const config = multiSignalConfigRef.current;
-    
-    addMultiLog("Running sequential analysis for all assets...");
-
-    for (const asset of config.assets) {
-        if (!multiSignalRunningRef.current) {
-            addMultiLog("Monitor stopped during cycle. Aborting.");
-            break;
-        }
-
-        setMultiSignalState(prev => ({
-            ...prev,
-            results: { ...prev.results, [asset]: { ...prev.results[asset], status: 'analyzing' } }
-        }));
-
-        try {
-            const result = await analyzeAsset({ ...config, symbol: asset });
-            
-            if (!multiSignalRunningRef.current) break;
-
-            setMultiSignalState(prev => ({
-                ...prev,
-                results: { ...prev.results, [asset]: result }
-            }));
-
-        } catch (e: any) {
-            console.error(`Unhandled error analyzing ${asset}:`, e);
-            if (!multiSignalRunningRef.current) break;
-            setMultiSignalState(prev => ({
-                ...prev,
-                results: { ...prev.results, [asset]: { status: 'error', log: 'An unexpected error occurred.', signal: null } }
-            }));
-        }
+        }, 1000);
     }
 
-    if (multiSignalRunningRef.current) {
-        addMultiLog("Analysis cycle complete.");
-    }
-  }, [analyzeAsset, addMultiLog]);
-
-
-  const startMultiSignalMonitor = useCallback((config: MultiSignalConfig) => {
-    if (multiSignalIntervalRef.current) {
-        clearInterval(multiSignalIntervalRef.current);
-    }
-    
-    multiSignalRunningRef.current = true;
-    multiSignalConfigRef.current = config;
-    addMultiLog("Starting multi-signal monitor...");
-    
-    const initialResults: Record<string, SignalResult> = {};
-    config.assets.forEach(asset => {
-        initialResults[asset] = { status: 'monitoring', log: 'Waiting for first cycle.', signal: null };
-    });
-
-    setMultiSignalState({ isRunning: true, config, results: initialResults, logs: [] });
-    
-    runMultiSignalCheck(); // Initial run
-    multiSignalIntervalRef.current = setInterval(runMultiSignalCheck, 60000); // 1 minute interval
-
-    toast({ title: "Multi-Signal Monitor Started", description: `Monitoring ${config.assets.length} assets.` });
-  }, [addMultiLog, toast, runMultiSignalCheck]);
-
-  const stopMultiSignalMonitor = useCallback(() => {
-    multiSignalRunningRef.current = false;
-    multiSignalConfigRef.current = null;
-    if (multiSignalIntervalRef.current) {
-        clearInterval(multiSignalIntervalRef.current);
-        multiSignalIntervalRef.current = null;
-    }
-    setMultiSignalState({ isRunning: false, config: null, results: {}, logs: [] });
-    addMultiLog("Multi-signal monitor stopped by user.");
-    toast({ title: "Multi-Signal Monitor Stopped" });
-  }, [addMultiLog, toast]);
-
-  // --- Screener Logic ---
-  const startScreener = useCallback(async (config: ScreenerConfig) => {
-    if (!canUseAi()) return;
-    
-    screenerRunningRef.current = true;
-    setScreenerState({ isRunning: true, config, prediction: null, logs: [], strategyInputs: [] });
-    addScreenerLog(`Starting AI consensus analysis for ${config.asset}...`);
-    toast({ title: "AI Consensus Analysis Started", description: "This will use an AI credit." });
-    
     try {
-        addScreenerLog("Fetching historical data...");
-        const data = await getLatestKlinesByLimit(config.asset, config.interval, 500);
+      if (!config.isManual) {
+        await setLeverage(config.asset, config.leverage, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+        addLiveLog(botId, `Leverage set to ${config.leverage}x for ${config.asset}.`);
+      }
 
-        if (!screenerRunningRef.current) return;
-        
-        const lastCandle = data[data.length - 1];
-        if (!lastCandle) {
-            throw new Error('Could not get latest candle to determine current price.');
+      const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
+      dataBufferRef.current[botId] = klines;
+      addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
+      
+      runLiveBotCycle(botId, true);
+      
+      if (liveWsRefs.current[botId]) liveWsRefs.current[botId]?.close();
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.asset.toLowerCase()}@kline_${config.interval}`);
+      liveWsRefs.current[botId] = ws;
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.e === 'kline') {
+          const newCandle: HistoricalData = { time: data.k.t, open: parseFloat(data.k.o), high: parseFloat(data.k.h), low: parseFloat(data.k.l), close: parseFloat(data.k.c), volume: parseFloat(data.k.v) };
+          const buffer = dataBufferRef.current[botId] || [];
+          
+          const isCandleClose = data.k.x;
+
+          if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) {
+            buffer[buffer.length - 1] = newCandle;
+          } else {
+             buffer.push(newCandle);
+          }
+          dataBufferRef.current[botId] = buffer.slice(-1000);
+          
+          runLiveBotCycle(botId, isCandleClose); 
         }
-
-        addScreenerLog(`Analyzing with ${config.strategies.length} strategies...`);
-        const strategyOutputs: StrategyAnalysisInput[] = [];
-
-        for (const strategyId of config.strategies) {
-             if (!screenerRunningRef.current) break;
-            const strategy = getStrategyById(strategyId);
-            if (!strategy) continue;
-
-            const paramsForStrategy = config.strategyParams[strategyId];
-            const dataWithIndicators = await strategy.calculate(data, paramsForStrategy);
-            const lastCandleWithIndicators = dataWithIndicators[dataWithIndicators.length - 1];
-            
-            let signal: 'BUY' | 'SELL' | 'HOLD' | null = null;
-            if (lastCandleWithIndicators.buySignal) signal = 'BUY';
-            else if (lastCandleWithIndicators.sellSignal) signal = 'SELL';
-            else signal = 'HOLD';
-
-            const indicators: Record<string, any> = {};
-            for (const key of KNOWN_INDICATORS) {
-                if (key in lastCandleWithIndicators && lastCandleWithIndicators[key as keyof HistoricalData] !== null && lastCandleWithIndicators[key as keyof HistoricalData] !== undefined) {
-                    indicators[key] = lastCandleWithIndicators[key as keyof HistoricalData];
-                }
-            }
-
-            strategyOutputs.push({ strategyName: strategy.name, signal, indicatorValues: indicators });
-            setScreenerState(prev => ({...prev, strategyInputs: [...strategyOutputs]}));
-        }
-        
-        if (!screenerRunningRef.current) return;
-
-        addScreenerLog("All strategies analyzed. Sending to AI for final prediction...");
-        
-        const fng = await getFearAndGreedIndex();
-        const marketContext = fng ? `The current Fear & Greed Index is ${fng.value} (${fng.valueClassification}).` : "Market context is neutral.";
-
-        const prediction = await predictPrice({
-            asset: config.asset,
-            interval: config.interval,
-            currentPrice: lastCandle.close,
-            recentData: JSON.stringify(data.slice(-100).map(k => ({t: k.time, o: k.open, h: k.high, l: k.low, c:k.close, v:k.volume}))),
-            strategyOutputs,
-            marketContext
-        });
-
-        if (!screenerRunningRef.current) return;
-        
-        setScreenerState(prev => ({...prev, prediction, isRunning: false}));
-        addScreenerLog(`AI prediction received: ${prediction.predictedDirection}`);
-        toast({ title: "Prediction Complete", description: `The AI consensus predicts a direction of ${prediction.predictedDirection}.` });
-
-    } catch (e: any) {
-        addScreenerLog(`Analysis failed: ${e.message}`);
-        toast({ title: "Analysis Failed", description: e.message, variant: "destructive" });
-        setScreenerState(prev => ({...prev, isRunning: false}));
-    } finally {
-        screenerRunningRef.current = false;
+      };
+      
+      ws.onopen = () => addLiveLog(botId, "Live data stream connected.");
+      ws.onerror = () => addLiveLog(botId, "Live data stream error.");
+      ws.onclose = () => addLiveLog(botId, "Live data stream closed.");
+      
+      toast({ title: "Bot Started", description: `Monitoring ${config.asset} on ${config.interval}.`});
+    } catch (error: any) {
+        addLiveLog(botId, `Error starting bot: ${error.message}`);
+        toast({ title: "Failed to Start Bot", description: error.message, variant: "destructive"});
+        stopBotInstance(botId);
     }
-
-  }, [addScreenerLog, toast, canUseAi]);
-
-  const stopScreener = useCallback(() => {
-    addScreenerLog("Stopping analysis...");
-    screenerRunningRef.current = false;
-    setScreenerState(prev => ({...prev, isRunning: false}));
-  }, [addScreenerLog]);
+  }, [addLiveLog, toast, stopBotInstance, runLiveBotCycle, activeProfile]);
   
   const closePosition = useCallback(async (position: Position) => {
-    if (!activeProfile || !apiKey || !secretKey) {
+    if (!activeProfile) {
       toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
       return;
     }
@@ -796,24 +407,92 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    const side: OrderSide = position.side === 'LONG' ? 'SELL' : 'BUY';
+    const side = position.side === 'LONG' ? 'SELL' : 'BUY';
     const symbol = position.symbol;
     const quantity = position.size;
 
     toast({ title: `Submitting close order...`, description: `${side} ${quantity} ${symbol}` });
 
     try {
-        const orderResult = await placeOrder(symbol, side, quantity, apiKey, secretKey);
-        
-        toast({
-            title: "Close Order Submitted (Simulated)",
-            description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. Order ID: ${orderResult.orderId}`
-        });
+        const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
+        toast({ title: "Close Order Submitted", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. ID: ${orderResult.orderId}` });
     } catch (e: any) {
-        toast({ title: "Close Order Failed", description: e.message || "An unknown error occurred.", variant: "destructive" });
+        toast({ title: "Close Order Failed", description: e.message || "An unknown error.", variant: "destructive" });
     }
-  }, [apiKey, secretKey, toast, activeProfile]);
+  }, [toast, activeProfile]);
   
+  const executeTestTrade = useCallback(async (symbol: string, side: 'BUY' | 'SELL', capital: number, leverage: number) => {
+    if (!activeProfile) {
+        toast({ title: "Execution Failed", description: "An active API profile is required.", variant: "destructive" });
+        return;
+    }
+     if (activeProfile.permissions !== 'FuturesTrading') {
+        toast({ title: "Permission Denied", description: "Active API key does not have Futures Trading permission.", variant: "destructive" });
+        return;
+    }
+    
+    // Find a running bot for this symbol to check its RiskGuardian
+    const runningBotId = Object.keys(liveBotState.bots).find(id => liveBotState.bots[id].config.asset === symbol && liveBotState.bots[id].status !== 'idle');
+    if (runningBotId) {
+        const riskGuardian = riskGuardianRefs.current[runningBotId];
+        if (riskGuardian) {
+            const { allowed, reason } = riskGuardian.canTrade();
+            if (!allowed) {
+                toast({ title: "Manual Trade Blocked", description: `Discipline rules for the running ${symbol} bot prevent this action: ${reason}`, variant: "destructive", duration: 5000 });
+                return;
+            }
+        }
+    }
+    
+    const logId = 'test-trade';
+    addLiveLog(logId, `Executing manual order: ${side} ${capital}x${leverage} on ${symbol}...`);
+    
+    try {
+        await setLeverage(symbol, leverage, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+        const klines = await getLatestKlinesByLimit(symbol, '1m', 1);
+        if (klines.length === 0) throw new Error("Could not fetch current price.");
+        
+        const currentPrice = klines[0].close;
+        const quantity = (capital * leverage) / currentPrice;
+        const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+        toast({ title: "Manual Order Placed", description: `${side} order for ${orderResult.quantity} ${symbol} submitted.` });
+        addLiveLog(logId,`Manual order successful. ID: ${orderResult.orderId}`);
+    } catch (e: any) {
+        toast({ title: "Manual Order Failed", description: e.message, variant: "destructive" });
+        addLiveLog(logId, `Manual order failed: ${e.message}`);
+    }
+  }, [addLiveLog, toast, activeProfile, liveBotState.bots]);
+
+  const closeTestPosition = useCallback(async (symbol: string) => {
+    if (!activeProfile) {
+      toast({ title: "Action Failed", description: "An active API profile is required.", variant: "destructive" });
+      return;
+    }
+    
+    const logId = 'test-trade';
+    addLiveLog(logId, `Attempting to close any open position for ${symbol}...`);
+    
+    const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
+
+    try { 
+      const {data: positions} = await getOpenPositions(keys);
+      const openPosition = positions.find(p => p.symbol === symbol);
+
+      if (openPosition) {
+        const side = openPosition.side === 'LONG' ? 'SELL' : 'BUY';
+        await placeOrder(symbol, side, openPosition.size, keys, true); 
+        toast({title: "Close Signal Sent", description: `Sent ${side} order for ${openPosition.size} ${symbol}.`}); 
+        addLiveLog(logId, `Close order for ${symbol} sent successfully.`);
+      } else {
+        toast({title: "No Position Found", description: `No open position found for ${symbol} to close.`});
+        addLiveLog(logId, `No position found for ${symbol}.`);
+      }
+    } catch (e: any) { 
+      toast({title: "Close Failed", description: `Failed to close position: ${e.message}`, variant: "destructive"});
+      addLiveLog(logId, `Failed to close position for ${symbol}: ${e.message}`);
+    }
+  }, [addLiveLog, toast, activeProfile]);
+
   // --- Simulation Logic ---
   const stopSimulation = useCallback(() => {
     if (simulationWsRef.current) {
@@ -831,6 +510,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
       let { chartData, openPositions, tradeHistory, portfolio } = current;
       const config = current.config;
+      
+      const strategy = getStrategyById(config.strategy);
+      if (!strategy) {
+        console.error(`Strategy ${config.strategy} not found during simulation tick.`);
+        return current;
+      }
 
       // Update chart data
       if (chartData.length > 0 && chartData[chartData.length - 1].time === newCandle.time) {
@@ -877,27 +562,46 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       }
 
       // Filter out closed positions
-      const stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
+      let stillOpenPositions = updatedPositions.filter(p => !newTrades.find(t => t.id === p.id));
       
       // Look for new trades if no position is open
       if (stillOpenPositions.length === 0) {
-        analyzeAsset(config, chartData).then(result => {
-          if (result.signal) {
-            const newPosSize = (portfolio.balance * config.leverage) / result.signal.entryPrice;
-            const newPosition: SimulatedPosition = {
-              id: `sim_${Date.now()}`, asset: config.symbol, side: result.signal.action === 'UP' ? 'long' : 'short',
-              entryPrice: result.signal.entryPrice, entryTime: result.signal.timestamp.getTime(), size: newPosSize,
-              stopLoss: result.signal.stopLoss, takeProfit: result.signal.takeProfit,
-            };
+        strategy.calculate(chartData, config.strategyParams, config.symbol).then(dataWithIndicators => {
+            const latestCandleWithSignal = dataWithIndicators[dataWithIndicators.length - 1];
             
-            addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
+            const isBullishEvent = !!latestCandleWithSignal.bullish_event;
+            const isBearishEvent = !!latestCandleWithSignal.bearish_event;
 
-            // This needs to be done in a setter to correctly update state
-            setSimulationState(prev => ({
-                ...prev,
-                openPositions: [...prev.openPositions, newPosition]
-            }));
-          }
+            let strategySignal: 'BUY' | 'SELL' | null = null;
+            if (config.strategyParams.reverse) {
+                if (isBullishEvent) strategySignal = 'SELL';
+                if (isBearishEvent) strategySignal = 'BUY';
+            } else {
+                if (isBullishEvent) strategySignal = 'BUY';
+                if (isBearishEvent) strategySignal = 'SELL';
+            }
+
+            if(strategySignal) {
+                const signalAction = strategySignal === 'BUY' ? 'long' : 'short';
+                const currentPrice = latestCandleWithSignal.close;
+                const newPosSize = (portfolio.balance * config.leverage) / currentPrice;
+
+                const stopLossPrice = latestCandleWithSignal.stopLossLevel || (signalAction === 'long' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100)));
+                const takeProfitPrice = latestCandleWithSignal.takeProfitLevel || (signalAction === 'long' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100)));
+
+                const newPosition: SimulatedPosition = {
+                  id: `sim_${Date.now()}`, asset: config.symbol, side: signalAction,
+                  entryPrice: currentPrice, entryTime: latestCandleWithSignal.time, size: newPosSize,
+                  stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
+                };
+                
+                addSimLog(`Opening new ${newPosition.side.toUpperCase()} position for ${newPosition.asset} at $${newPosition.entryPrice.toFixed(4)}.`);
+
+                setSimulationState(prev => ({
+                    ...prev,
+                    openPositions: [...prev.openPositions, newPosition]
+                }));
+            }
         });
       }
       
@@ -932,15 +636,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         summary,
       };
     });
-  }, [addSimLog, analyzeAsset]);
+  }, [addSimLog]);
 
-  const startSimulation = useCallback(async (config: SimulationConfig) => {
+
+  const startSimulation = useCallback(async (config: Omit<SimulationConfig, 'useAIPrediction'>) => {
     addSimLog("Starting simulation...");
     stopSimulation(); // Ensure any previous simulation is stopped
     
     // Reset state
     setSimulationState({
-        isRunning: true, config, logs: [`[${new Date().toLocaleTimeString()}] Simulation starting...`],
+        isRunning: true, config: {...config, useAIPrediction: false}, logs: [`[${new Date().toLocaleTimeString()}] Simulation starting...`],
         chartData: [],
         portfolio: { initialCapital: config.initialCapital, balance: config.initialCapital, pnl: 0 },
         openPositions: [], tradeHistory: [], summary: null
@@ -981,12 +686,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      screenerRunningRef.current = false;
-      multiSignalRunningRef.current = false;
       if (liveBotIntervalRef.current) clearInterval(liveBotIntervalRef.current);
-      if (manualWsRef.current) manualWsRef.current.close();
-      if (multiSignalIntervalRef.current) clearInterval(multiSignalIntervalRef.current);
-      if (manualReevalIntervalRef.current) clearInterval(manualReevalIntervalRef.current);
       if (simulationWsRef.current) simulationWsRef.current.close();
     }
   }, []);
@@ -994,26 +694,24 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   return (
     <BotContext.Provider value={{ 
       liveBotState, 
-      manualTraderState,
-      multiSignalState,
-      screenerState,
       simulationState,
       strategyParams,
       setStrategyParams,
       isTradingActive,
-      startLiveBot,
-      stopLiveBot,
-      runManualAnalysis,
-      cancelManualAnalysis,
-      resetManualSignal,
-      cleanManualChart,
-      executeManualTrade,
-      setManualChartData,
-      startMultiSignalMonitor,
-      stopMultiSignalMonitor,
-      startScreener,
-      stopScreener,
+      startBotInstance,
+      stopBotInstance,
       closePosition,
+      showRecommendation, 
+      strategyRecommendation, 
+      activateRecommendedStrategy, 
+      dismissRecommendation,
+      executeTestTrade,
+      closeTestPosition,
+      liveBotInstances,
+      manualBotInstances,
+      addBotInstance,
+      setBotInstances,
+      getBotInstances,
       startSimulation,
       stopSimulation,
     }}>
@@ -1029,3 +727,5 @@ export const useBot = () => {
   }
   return context;
 };
+
+    
