@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, UserCheck, LogIn, LogOut } from "lucide-react"
+import { BarChart2, BrainCircuit, Database, LayoutDashboard, Settings, Bot, ClipboardCheck, LayoutGrid, Sparkles, FlaskConical, TestTube, Grid3x3, Sigma, UserCheck, LogIn, LogOut } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
