@@ -1,3 +1,4 @@
+
 'use client';
 import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
 import { calculateSupertrend, calculateMFI, calculateSMI } from '@/lib/indicators';
@@ -56,6 +57,7 @@ const smiMfiSupertrendStrategy: Strategy = {
       d.supertrend_direction = supertrendDirection[i];
       d.smi = smi[i];
       d.smi_signal = smiSignal[i];
+      d.mfi = mfi[i];
 
       if (i < 1) return;
 

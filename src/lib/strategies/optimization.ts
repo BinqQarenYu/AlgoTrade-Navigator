@@ -49,9 +49,7 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
     'liquidity-grab': {
         swingLookaround: { min: 5, max: 15, step: 2 },
         confirmationCandles: { min: 1, max: 5, step: 1 },
-        maxSweepLookahead: { min: 10, max: 50, step: 10 },
     },
-    // Adding the rest of the strategies
     'peak-formation-fib': {
         peakLookaround: { min: 3, max: 10, step: 1 },
         swingLookaround: { min: 2, max: 5, step: 1 },
@@ -59,6 +57,7 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         emaLongPeriod: { min: 40, max: 60, step: 5 },
         fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
+        signalStaleness: { min: 10, max: 50, step: 5 },
     },
     'hyper-peak-formation': { // Same as PFF
         peakLookaround: { min: 3, max: 10, step: 1 },
@@ -67,11 +66,20 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         emaLongPeriod: { min: 40, max: 60, step: 5 },
         fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
         fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
+        signalStaleness: { min: 10, max: 50, step: 5 },
+    },
+     'hyper-peak-formation-old': { // For the old repainting version
+        peakLookaround: { min: 3, max: 10, step: 1 },
+        swingLookaround: { min: 2, max: 5, step: 1 },
+        emaShortPeriod: { min: 10, max: 20, step: 3 },
+        emaLongPeriod: { min: 40, max: 60, step: 5 },
+        fibLevel1: { min: 0.382, max: 0.5, step: 0.118 },
+        fibLevel2: { min: 0.618, max: 0.786, step: 0.168 },
+        maxLookahead: { min: 50, max: 150, step: 25 },
     },
     'liquidity-order-flow': {
         swingLookaround: { min: 3, max: 10, step: 1 },
         emaTrendPeriod: { min: 100, max: 200, step: 50 },
-        maxLookahead: { min: 25, max: 75, step: 25 },
     },
     'volume-delta': {
         pocLookback: { min: 100, max: 300, step: 50 },
@@ -130,8 +138,35 @@ export const optimizationConfigs: Record<string, StrategyOptimizationConfig> = {
         oversold: { min: -90, max: -70, step: 5 },
     },
     'ema-cci-macd': {
-        emaPeriod: { min: 50, max: 200, step: 25 },
+        emaFastPeriod: { min: 5, max: 15, step: 3 },
+        emaMediumPeriod: { min: 16, max: 30, step: 5 },
+        emaSlowPeriod: { min: 40, max: 60, step: 10 },
         cciPeriod: { min: 14, max: 28, step: 7 },
         cciLevel: { min: 100, max: 150, step: 25 },
-    }
+        macdShortPeriod: { min: 9, max: 15, step: 3 },
+        macdLongPeriod: { min: 20, max: 30, step: 5 },
+        macdSignalPeriod: { min: 7, max: 12, step: 2 },
+    },
+    'mtf-engulfing': {
+        emaLength: { min: 14, max: 50, step: 7 },
+        atrLength: { min: 10, max: 20, step: 2 },
+        slAtrMultiplier: { min: 1.0, max: 2.5, step: 0.5 },
+        rrRatio: { min: 1.5, max: 3.0, step: 0.5 },
+    },
+    'smi-mfi-supertrend': {
+        supertrendPeriod: { min: 7, max: 14, step: 1 },
+        supertrendMultiplier: { min: 2, max: 4, step: 1 },
+        mfiPeriod: { min: 10, max: 20, step: 2 },
+        smiPeriod: { min: 5, max: 10, step: 1 },
+        smiEmaPeriod: { min: 3, max: 7, step: 1 },
+    },
+    'smi-mfi-scalp': {
+        supertrendPeriod: { min: 7, max: 14, step: 1 },
+        supertrendMultiplier: { min: 2, max: 4, step: 1 },
+    },
+    'order-flow-scalp': {
+        pocLookback: { min: 100, max: 300, step: 50 },
+        deltaLookback: { min: 3, max: 10, step: 2 },
+        pocProximityPercent: { min: 0.002, max: 0.01, step: 0.002 },
+    },
 };
