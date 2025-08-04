@@ -11,6 +11,11 @@ import type { HistoricalData } from './types';
  * @returns An array of SMA values, with initial values as null.
  */
 export const calculateSMA = (data: number[], period: number): (number | null)[] => {
+  // Guard against invalid period to prevent crashes
+  if (period <= 0 || !Number.isInteger(period)) {
+    console.error(`Invalid period (${period}) provided to calculateSMA.`);
+    return Array(data.length).fill(null);
+  }
   if (data.length < period) return Array(data.length).fill(null);
   
   const sma: (number | null)[] = Array(period - 1).fill(null);
@@ -148,39 +153,34 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
 };
 
 export const calculateATR = (data: HistoricalData[], period: number): (number | null)[] => {
-    if (data.length <= period) return Array(data.length).fill(null);
-    const atr: (number | null)[] = [];
-    let prevAtr: number | null = null;
-    
-    // Calculate initial ATR
-    let initialTrSum = 0;
-    for (let i = 1; i <= period; i++) {
-        const high = data[i].high;
-        const low = data[i].low;
-        const prevClose = data[i-1].close;
-        const tr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-        initialTrSum += tr;
-    }
-    prevAtr = initialTrSum / period;
-    
-    for (let i = 0; i < data.length; i++) {
-        if(i < period) {
-            atr.push(null);
-            continue;
-        }
-        if(i === period) {
-            atr.push(prevAtr);
-            continue;
-        }
+    if (data.length < period) return Array(data.length).fill(null);
 
+    const trValues: number[] = [];
+    for (let i = 0; i < data.length; i++) {
         const high = data[i].high;
         const low = data[i].low;
-        const prevClose = data[i-1].close;
-        const currentTr = Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose));
-        
-        const currentAtr = ((prevAtr! * (period - 1)) + currentTr) / period;
-        atr.push(currentAtr);
-        prevAtr = currentAtr;
+        if (i === 0) {
+            trValues.push(high - low);
+        } else {
+            const prevClose = data[i - 1].close;
+            trValues.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
+        }
+    }
+
+    const atr: (number | null)[] = [];
+    let currentAtr: number | null = null;
+
+    for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) {
+            atr.push(null);
+        } else if (i === period - 1) {
+            const initialTrSum = trValues.slice(0, period).reduce((acc, val) => acc + val, 0);
+            currentAtr = initialTrSum / period;
+            atr.push(currentAtr);
+        } else {
+            currentAtr = (currentAtr! * (period - 1) + trValues[i]) / period;
+            atr.push(currentAtr);
+        }
     }
     return atr;
 };
@@ -497,6 +497,13 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             Object.keys(result).forEach(k => result[k].push(null));
         } else {
             const slice = data.slice(i - period, i); // Use previous period's data
+            
+            // Add a guard clause to ensure the slice is not empty
+            if (slice.length === 0 || !slice[slice.length - 1]) {
+                 Object.keys(result).forEach(k => result[k].push(null));
+                 continue;
+            }
+
             const high = Math.max(...slice.map(d => d.high));
             const low = Math.min(...slice.map(d => d.low));
             const close = slice[slice.length - 1].close;
@@ -611,3 +618,93 @@ export const findFVGs = (data: HistoricalData[]): { index: number, top: number, 
   }
   return fvgs;
 }
+
+export const calculateMFI = (data: HistoricalData[], period: number): (number | null)[] => {
+    if (data.length < period + 1) return Array(data.length).fill(null);
+
+    const mfi: (number | null)[] = Array(period).fill(null);
+    let positiveMoneyFlow: number[] = [];
+    let negativeMoneyFlow: number[] = [];
+
+    for (let i = 1; i <= period; i++) {
+        const typicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
+        const prevTypicalPrice = (data[i-1].high + data[i-1].low + data[i-1].close) / 3;
+        const rawMoneyFlow = typicalPrice * data[i].volume;
+
+        if (typicalPrice > prevTypicalPrice) {
+            positiveMoneyFlow.push(rawMoneyFlow);
+            negativeMoneyFlow.push(0);
+        } else if (typicalPrice < prevTypicalPrice) {
+            positiveMoneyFlow.push(0);
+            negativeMoneyFlow.push(rawMoneyFlow);
+        } else {
+            positiveMoneyFlow.push(0);
+            negativeMoneyFlow.push(0);
+        }
+    }
+
+    for (let i = period; i < data.length; i++) {
+        const posSum = positiveMoneyFlow.reduce((a, b) => a + b, 0);
+        const negSum = negativeMoneyFlow.reduce((a, b) => a + b, 0);
+        const moneyRatio = negSum === 0 ? Infinity : posSum / negSum;
+        const mfiValue = 100 - (100 / (1 + moneyRatio));
+        mfi.push(mfiValue);
+
+        // Slide the window for the next calculation
+        if (i < data.length - 1) {
+            positiveMoneyFlow.shift();
+            negativeMoneyFlow.shift();
+            
+            const typicalPrice = (data[i+1].high + data[i+1].low + data[i+1].close) / 3;
+            const prevTypicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
+            const rawMoneyFlow = typicalPrice * data[i+1].volume;
+
+            if (typicalPrice > prevTypicalPrice) {
+                positiveMoneyFlow.push(rawMoneyFlow);
+                negativeMoneyFlow.push(0);
+            } else if (typicalPrice < prevTypicalPrice) {
+                positiveMoneyFlow.push(0);
+                negativeMoneyFlow.push(rawMoneyFlow);
+            } else {
+                positiveMoneyFlow.push(0);
+                negativeMoneyFlow.push(0);
+            }
+        }
+    }
+    return mfi;
+};
+
+export const calculateSMI = (
+    data: (number|null)[], 
+    smiPeriod: number, 
+    emaPeriod: number
+): { smi: (number | null)[], signal: (number | null)[] } => {
+    const validData = data.filter((d): d is number => d !== null);
+    if (validData.length < smiPeriod) return { smi: Array(data.length).fill(null), signal: Array(data.length).fill(null) };
+    
+    const padding = data.length - validData.length;
+
+    let smiValues: (number|null)[] = [];
+    for (let i = smiPeriod - 1; i < validData.length; i++) {
+        const slice = validData.slice(i - smiPeriod + 1, i + 1);
+        const highest = Math.max(...slice);
+        const lowest = Math.min(...slice);
+        const range = highest - lowest;
+        const smi = range > 0 ? ((validData[i] - (highest + lowest) / 2) / (range / 2)) * 100 : 0;
+        smiValues.push(smi);
+    }
+    
+    const validSmiValues = smiValues.filter((v): v is number => v !== null);
+    const smiPadding = smiValues.length - validSmiValues.length;
+
+    const emaOfSmi = calculateEMA(validSmiValues, emaPeriod);
+    const emaOfEma = calculateEMA(emaOfSmi.filter((v): v is number => v !== null), emaPeriod);
+
+    const finalSmi = [...Array(padding + smiPadding).fill(null), ...emaOfEma];
+    const signalLine = calculateSMA(finalSmi.filter((v): v is number => v !== null), 4);
+    
+    return {
+        smi: finalSmi,
+        signal: [...Array(finalSmi.length - signalLine.length).fill(null), ...signalLine]
+    };
+};
