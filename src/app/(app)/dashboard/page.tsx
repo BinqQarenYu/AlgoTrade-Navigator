@@ -7,25 +7,21 @@ import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
 import { OpenPositions } from "@/components/dashboard/open-positions";
 import { TradeHistory } from "@/components/dashboard/trade-history";
 import { getAccountBalance, getOpenPositions, getTradeHistory } from "@/lib/binance-service";
-import { getSentimentForTickers } from "@/lib/coingecko-service";
 import { useApi } from "@/context/api-context";
 import { useBot } from "@/context/bot-context";
 import type { Portfolio, Position, Trade, CoinSentimentData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MarketSentiment } from "@/components/dashboard/market-sentiment";
 import { AIAnalyticsCard } from "@/components/dashboard/ai-analytics-card";
 
 export default function DashboardPage() {
-  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold, coingeckoApiKey, coinmarketcapApiKey } = useApi();
+  const { isConnected, apiKey, secretKey, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
   const { isTradingActive, closePosition } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [history, setHistory] = useState<Trade[]>([]);
-  const [sentiments, setSentiments] = useState<CoinSentimentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSentimentLoading, setIsSentimentLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -33,30 +29,14 @@ export default function DashboardPage() {
     const fetchData = async () => {
       if (isTradingActive) {
         setIsLoading(false);
-        setIsSentimentLoading(false);
         setPortfolio(null);
         setPositions([]);
         setHistory([]);
-        setSentiments([]);
         return;
       }
 
       setIsLoading(true);
-      setIsSentimentLoading(true);
       setError(null);
-
-      // Fetch CoinGecko sentiment data regardless of Binance connection
-      try {
-        const sentimentData = await getSentimentForTickers(['BTC', 'ETH', 'SOL'], coingeckoApiKey);
-        setSentiments(sentimentData);
-      } catch (e) {
-        console.error("Failed to fetch sentiment data", e);
-        // Don't show a toast for this, it's a non-critical feature
-        setSentiments([]);
-      } finally {
-        setIsSentimentLoading(false);
-      }
-
 
       if (isConnected && apiKey && secretKey) {
         if (apiLimit.used >= rateLimitThreshold) {
@@ -120,7 +100,7 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive, coingeckoApiKey, coinmarketcapApiKey]);
+  }, [isConnected, apiKey, secretKey, toast, activeProfile, setApiLimit, rateLimitThreshold, isTradingActive]);
 
   const handleClearHistory = () => {
     setHistory([]);
@@ -137,7 +117,7 @@ export default function DashboardPage() {
             <Bot className="h-4 w-4" />
             <AlertTitle>Trading Session Active</AlertTitle>
             <AlertDescription>
-                Live data fetching on the dashboard is paused to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link>, <Link href="/manual" className="font-bold underline">Manual</Link>, or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
+                Live data fetching on the dashboard is paused to prioritize an active trading session. Check the <Link href="/live" className="font-bold underline">Live</Link> or <Link href="/multi-signal" className="font-bold underline">Multi-Signal</Link> pages.
             </AlertDescription>
         </Alert>
       )}
@@ -179,7 +159,6 @@ export default function DashboardPage() {
         </div>
         <div className="lg:col-span-1 space-y-6">
             <AIAnalyticsCard />
-            <MarketSentiment sentiments={sentiments} isLoading={isSentimentLoading} />
         </div>
         <div className="lg:col-span-3">
             <TradeHistory trades={history} onClear={handleClearHistory} />
