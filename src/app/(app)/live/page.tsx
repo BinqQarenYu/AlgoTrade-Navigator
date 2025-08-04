@@ -1,4 +1,5 @@
 
+
 "use client"
 
 import React, { useState, useEffect, memo, useCallback } from "react"
@@ -12,11 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, ClipboardCheck, TrendingUp, TrendingDown } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, ClipboardCheck, TrendingUp, TrendingDown, Activity } from "lucide-react"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { cn } from "@/lib/utils"
+import { cn, formatPrice } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/lib/types"
@@ -462,6 +463,8 @@ export default function LiveTradingPage() {
                                     <TableHead className="w-[50px]">#</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Asset</TableHead>
+                                    <TableHead>Live Price</TableHead>
+                                    <TableHead>Strategy Entry/Exit</TableHead>
                                     <TableHead>Capital ($)</TableHead>
                                     <TableHead>Leverage (x)</TableHead>
                                     <TableHead>Interval</TableHead>
@@ -538,6 +541,10 @@ const BotInstanceRow = memo(({
     canTrade: boolean,
     onManualTrade: (bot: BotInstance, side: 'BUY' | 'SELL') => void;
 }) => {
+    const lastSignal = botState?.activePosition;
+    const chartData = botState?.chartData || [];
+    const lastPrice = chartData.length > 0 ? chartData[chartData.length - 1].close : null;
+
     return (
         <>
             <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
@@ -554,6 +561,37 @@ const BotInstanceRow = memo(({
                             {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
                         </SelectContent>
                     </Select>
+                </TableCell>
+                <TableCell>
+                    {isBotRunning && lastPrice !== null ? (
+                         <div className="flex items-center gap-1">
+                            <Activity className="h-3 w-3 text-muted-foreground animate-pulse" />
+                            <span className="font-mono text-xs text-muted-foreground">
+                                ${formatPrice(lastPrice)}
+                            </span>
+                        </div>
+                    ) : <span className="text-xs text-muted-foreground">--</span>}
+                </TableCell>
+                <TableCell>
+                    {lastSignal ? (
+                        <div className="flex flex-col text-xs font-mono">
+                           <span className={cn(
+                                "flex items-center font-semibold", 
+                                lastSignal.action === 'UP' ? 'text-green-500' : 'text-red-500'
+                            )}>
+                                {lastSignal.action === 'UP' 
+                                    ? <><TrendingUp className="mr-1 h-4 w-4"/> LONG</> 
+                                    : <><TrendingDown className="mr-1 h-4 w-4"/> SHORT</>
+                                }
+                            </span>
+                            <span className="text-muted-foreground mt-1">
+                                Entry: {formatPrice(lastSignal.entryPrice)}
+                            </span>
+                            <span className="text-muted-foreground">
+                                SL: {formatPrice(lastSignal.stopLoss)} / TP: {formatPrice(lastSignal.takeProfit)}
+                            </span>
+                        </div>
+                    ) : <span className="text-xs text-muted-foreground">--</span>}
                 </TableCell>
                 <TableCell>
                     <Input
@@ -655,7 +693,7 @@ const BotInstanceRow = memo(({
             </TableRow>
             {openParams[bot.id] && (
                 <TableRow>
-                    <TableCell colSpan={10} className="p-0">
+                    <TableCell colSpan={12} className="p-0">
                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30">
                             <div className="md:col-span-2">
                                 <StrategyParamsCard
@@ -688,4 +726,4 @@ const BotInstanceRow = memo(({
 });
 BotInstanceRow.displayName = 'BotInstanceRow';
 
-    
+```
