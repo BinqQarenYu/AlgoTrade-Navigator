@@ -58,7 +58,7 @@ Start the local development server:
 ```bash
 npm run dev
 ```
-
+http://100.120.168.121:3001/dashboard
 The application should now be running on [http://localhost:3000](http://localhost:3000).
 
 ## Deployment
