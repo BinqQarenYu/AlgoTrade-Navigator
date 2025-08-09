@@ -60,27 +60,20 @@ const forcedActionScalpStrategy: Strategy = {
       const standardBuy = isInUptrend;
       const standardSell = isInDowntrend;
 
+      d.signal = null;
       if (params.reverse) {
         if (standardBuy) {
-            d.bearish_event = true;
-            d.stopLossLevel = d.close + (atr * params.atrMultiplierSL);
-            d.takeProfitLevel = d.close - (atr * params.atrMultiplierTP);
+            d.signal = 'SELL';
         }
         if (standardSell) {
-            d.bullish_event = true;
-            d.stopLossLevel = d.close - (atr * params.atrMultiplierSL);
-            d.takeProfitLevel = d.close + (atr * params.atrMultiplierTP);
+            d.signal = 'BUY';
         }
       } else {
         if (standardBuy) {
-            d.bullish_event = true;
-            d.stopLossLevel = d.close - (atr * params.atrMultiplierSL);
-            d.takeProfitLevel = d.close + (atr * params.atrMultiplierTP);
+            d.signal = 'BUY';
         }
         if (standardSell) {
-            d.bearish_event = true;
-            d.stopLossLevel = d.close + (atr * params.atrMultiplierSL);
-            d.takeProfitLevel = d.close - (atr * params.atrMultiplierTP);
+            d.signal = 'SELL';
         }
       }
     });

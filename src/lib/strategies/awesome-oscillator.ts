@@ -25,14 +25,15 @@ const awesomeOscillatorStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.awesome_oscillator = ao[i];
+      d.signal = null;
       if (i > 0 && ao[i-1] !== null && ao[i] !== null) {
         // Bullish Crossover (from below zero to above zero)
         if (ao[i-1]! <= 0 && ao[i]! > 0) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Bearish Crossover (from above zero to below zero)
         if (ao[i-1]! >= 0 && ao[i]! < 0) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

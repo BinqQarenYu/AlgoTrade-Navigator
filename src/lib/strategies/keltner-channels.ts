@@ -27,17 +27,18 @@ const keltnerChannelsStrategy: Strategy = {
       d.keltner_upper = upper[i];
       d.keltner_middle = middle[i];
       d.keltner_lower = lower[i];
+      d.signal = null;
       
       if (i > 0 && upper[i-1] && upper[i]) {
         // Buy signal: close breaks above the upper channel
         if (data[i-1].close <= upper[i-1]! && data[i].close > upper[i]!) {
-            d.buySignal = d.low;
+            d.signal = 'BUY';
         }
       }
       if (i > 0 && lower[i-1] && lower[i]) {
         // Sell signal: close breaks below the lower channel
         if (data[i-1].close >= lower[i-1]! && data[i].close < lower[i]!) {
-            d.sellSignal = d.high;
+            d.signal = 'SELL';
         }
       }
     });

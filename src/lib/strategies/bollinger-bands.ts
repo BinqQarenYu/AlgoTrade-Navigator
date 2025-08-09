@@ -28,6 +28,7 @@ const bollingerBandsStrategy: Strategy = {
       d.bb_upper = upper[i];
       d.bb_middle = middle[i];
       d.bb_lower = lower[i];
+      d.signal = null;
       
       if (i > 0 && upper[i-1] && lower[i-1] && upper[i] && lower[i]) {
         const prevBar = data[i-1];
@@ -35,12 +36,12 @@ const bollingerBandsStrategy: Strategy = {
 
         // Buy Signal: Price touched or crossed below the lower band, then closed above it.
         if (prevBar.low <= lower[i-1]! && currentBar.close > lower[i]!) {
-            d.buySignal = currentBar.low;
+            d.signal = 'BUY';
         }
 
         // Sell Signal: Price touched or crossed above the upper band, then closed below it.
         if (prevBar.high >= upper[i-1]! && currentBar.close < upper[i]!) {
-            d.sellSignal = currentBar.high;
+            d.signal = 'SELL';
         }
       }
     });

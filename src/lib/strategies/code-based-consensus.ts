@@ -48,21 +48,24 @@ const codeBasedConsensusStrategy: Strategy = {
         let sellVotes = 0;
         
         for (const resultData of results) {
-            if (resultData[i]?.bullish_event) {
+            if (resultData[i]?.signal === 'BUY') {
                 buyVotes++;
             }
-            if (resultData[i]?.bearish_event) {
+            if (resultData[i]?.signal === 'SELL') {
                 sellVotes++;
             }
         }
 
         const hasConsensus = buyVotes !== sellVotes;
-        if (!hasConsensus) continue;
+        if (!hasConsensus) {
+            dataWithIndicators[i].signal = null;
+            continue;
+        };
 
         if (buyVotes > sellVotes) {
-            dataWithIndicators[i].bullish_event = true;
+            dataWithIndicators[i].signal = 'BUY';
         } else {
-            dataWithIndicators[i].bearish_event = true;
+            dataWithIndicators[i].signal = 'SELL';
         }
     }
 

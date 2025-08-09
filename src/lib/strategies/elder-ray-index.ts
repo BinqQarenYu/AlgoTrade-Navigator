@@ -28,18 +28,19 @@ const elderRayStrategy: Strategy = {
       d.bull_power = bullPower[i];
       d.bear_power = bearPower[i];
 
+      d.signal = null;
       if (i > 0 && ema[i-1] && ema[i] && bullPower[i-1] && bearPower[i-1] && bullPower[i] && bearPower[i]) {
         const trendUp = ema[i]! > ema[i-1]!;
         const trendDown = ema[i]! < ema[i-1]!;
 
         // Buy Signal: EMA is rising and Bear Power crosses above zero
         if (trendUp && bearPower[i-1]! <= 0 && bearPower[i]! > 0) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
 
         // Sell Signal: EMA is falling and Bull Power crosses below zero
         if (trendDown && bullPower[i-1]! >= 0 && bullPower[i]! < 0) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

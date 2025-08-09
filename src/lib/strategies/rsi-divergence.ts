@@ -27,9 +27,10 @@ const rsiDivergenceStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.rsi = rsi[i];
+      d.signal = null;
        if (i > 0 && rsi[i-1] && rsi[i]) {
-        if (rsi[i-1] <= params.oversold && rsi[i] > params.oversold) d.buySignal = d.low;
-        if (rsi[i-1] >= params.overbought && rsi[i] < params.overbought) d.sellSignal = d.high;
+        if (rsi[i-1] <= params.oversold && rsi[i] > params.oversold) d.signal = 'BUY';
+        if (rsi[i-1] >= params.overbought && rsi[i] < params.overbought) d.signal = 'SELL';
       }
     });
 

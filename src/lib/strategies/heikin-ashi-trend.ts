@@ -29,14 +29,15 @@ const heikinAshiTrendStrategy: Strategy = {
         const currentIsBullish = currentHa.ha_close! > currentHa.ha_open!;
         const currentIsBearish = currentHa.ha_close! < currentHa.ha_open!;
 
+        d.signal = null;
         // Buy Signal: Trend flips from bearish to bullish
         if (prevIsBearish && currentIsBullish) {
-            d.buySignal = d.low;
+            d.signal = 'BUY';
         }
 
         // Sell Signal: Trend flips from bullish to bearish
         if (prevIsBullish && currentIsBearish) {
-            d.sellSignal = d.high;
+            d.signal = 'SELL';
         }
       }
     });

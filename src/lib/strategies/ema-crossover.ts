@@ -27,9 +27,10 @@ const emaCrossoverStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.ema_short = ema_short[i];
       d.ema_long = ema_long[i];
+      d.signal = null;
       if (i > 0 && ema_short[i-1] && ema_long[i-1] && ema_short[i] && ema_long[i]) {
-        if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) d.buySignal = d.low;
-        if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) d.sellSignal = d.high;
+        if (ema_short[i-1] <= ema_long[i-1] && ema_short[i] > ema_long[i]) d.signal = 'BUY';
+        if (ema_short[i-1] >= ema_long[i-1] && ema_short[i] < ema_long[i]) d.signal = 'SELL';
       }
     });
 

@@ -24,14 +24,15 @@ const momentumCrossStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.momentum = momentum[i];
+      d.signal = null;
       if (i > 0 && momentum[i-1] !== null && momentum[i] !== null) {
         // Buy Signal: Momentum crosses above zero
         if (momentum[i-1]! <= 0 && momentum[i]! > 0) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell Signal: Momentum crosses below zero
         if (momentum[i-1]! >= 0 && momentum[i]! < 0) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

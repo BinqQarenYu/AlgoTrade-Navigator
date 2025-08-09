@@ -26,15 +26,16 @@ const supertrendStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.supertrend = supertrend[i];
       d.supertrend_direction = direction[i];
+      d.signal = null;
 
       if (i > 0 && direction[i-1] && direction[i]) {
         // Trend changed from downtrend to uptrend
         if (direction[i-1]! === -1 && direction[i]! === 1) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Trend changed from uptrend to downtrend
         if (direction[i-1]! === 1 && direction[i]! === -1) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

@@ -89,7 +89,7 @@ const liquidityOrderFlowStrategy: Strategy = {
                 if (relevantFvg) {
                   for (let l = k + 1; l < k + params.maxLookahead && l < data.length; l++) {
                     if (data[l].high >= relevantFvg.bottom && data[l].high <= relevantFvg.top) { // 3. Entry on FVG pullback
-                      dataWithIndicators[l].sellSignal = data[l].high;
+                      dataWithIndicators[l].signal = 'SELL';
                       dataWithIndicators[l].stopLossLevel = swingHighPrice;
                       break; // Found entry, break inner loop
                     }
@@ -126,7 +126,7 @@ const liquidityOrderFlowStrategy: Strategy = {
                 if (relevantFvg) {
                   for (let l = k + 1; l < k + params.maxLookahead && l < data.length; l++) {
                     if (data[l].low <= relevantFvg.top && data[l].low >= relevantFvg.bottom) { // 3. Entry
-                      dataWithIndicators[l].buySignal = data[l].low;
+                      dataWithIndicators[l].signal = 'BUY';
                       dataWithIndicators[l].stopLossLevel = swingLowPrice;
                       break;
                     }

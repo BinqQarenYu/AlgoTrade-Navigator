@@ -26,6 +26,7 @@ const pivotPointReversalStrategy: Strategy = {
         d.s1=s1[i]; d.s2=s2[i]; d.s3=s3[i];
         d.r1=r1[i]; d.r2=r2[i]; d.r3=r3[i];
 
+        d.signal = null;
         if (i > 0) {
             const current = d;
             const prev = dataWithIndicators[i-1];
@@ -34,14 +35,14 @@ const pivotPointReversalStrategy: Strategy = {
             if ((s1[i] && prev.low > s1[i]! && current.low <= s1[i]! && current.close > s1[i]!) ||
                 (s2[i] && prev.low > s2[i]! && current.low <= s2[i]! && current.close > s2[i]!) ||
                 (s3[i] && prev.low > s3[i]! && current.low <= s3[i]! && current.close > s3[i]!)) {
-                d.buySignal = d.low;
+                d.signal = 'BUY';
             }
 
             // Sell conditions (rejection from any resistance level)
             if ((r1[i] && prev.high < r1[i]! && current.high >= r1[i]! && current.close < r1[i]!) ||
                 (r2[i] && prev.high < r2[i]! && current.high >= r2[i]! && current.close < r2[i]!) ||
                 (r3[i] && prev.high < r3[i]! && current.high >= r3[i]! && current.close < r3[i]!)) {
-                d.sellSignal = d.high;
+                d.signal = 'SELL';
             }
         }
     });

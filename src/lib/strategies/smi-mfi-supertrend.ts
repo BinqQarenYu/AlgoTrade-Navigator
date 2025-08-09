@@ -82,11 +82,12 @@ const smiMfiSupertrendStrategy: Strategy = {
       const standardBuy = isInUptrend && bullishSmiCross && isOversold;
       const standardSell = isInDowntrend && bearishSmiCross && isOverbought;
       
+      d.signal = null;
       if (standardBuy) {
-        d.bullish_event = true;
+        d.signal = 'BUY';
       }
       if (standardSell) {
-        d.bearish_event = true;
+        d.signal = 'SELL';
       }
     });
 

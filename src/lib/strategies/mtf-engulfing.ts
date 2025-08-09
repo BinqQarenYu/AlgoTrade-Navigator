@@ -114,29 +114,20 @@ const mtfEngulfingStrategy: Strategy = {
       const standardBuy = isUptrend && isBullishEngulfing;
       const standardSell = isDowntrend && isBearishEngulfing;
 
-      const atr = atrValues[i]!;
-
+      d.signal = null;
       if (params.reverse) {
         if (standardBuy) {
-            d.bearish_event = true;
-            d.stopLossLevel = d.close + (atr * params.slAtrMultiplier);
-            d.takeProfitLevel = d.close - (atr * params.rrRatio * params.slAtrMultiplier);
+            d.signal = 'SELL';
         }
         if (standardSell) {
-            d.bullish_event = true;
-            d.stopLossLevel = d.close - (atr * params.slAtrMultiplier);
-            d.takeProfitLevel = d.close + (atr * params.rrRatio * params.slAtrMultiplier);
+            d.signal = 'BUY';
         }
       } else {
         if (standardBuy) {
-            d.bullish_event = true;
-            d.stopLossLevel = d.close - (atr * params.slAtrMultiplier);
-            d.takeProfitLevel = d.close + (atr * params.rrRatio * params.slAtrMultiplier);
+            d.signal = 'BUY';
         }
         if (standardSell) {
-            d.bearish_event = true;
-            d.stopLossLevel = d.close + (atr * params.slAtrMultiplier);
-            d.takeProfitLevel = d.close - (atr * params.rrRatio * params.slAtrMultiplier);
+            d.signal = 'SELL';
         }
       }
     });

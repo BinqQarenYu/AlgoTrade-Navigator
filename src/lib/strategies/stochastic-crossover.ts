@@ -28,15 +28,16 @@ const stochasticCrossoverStrategy: Strategy = {
     dataWithIndicators.forEach((dItem: HistoricalData, i: number) => {
       dItem.stoch_k = k[i];
       dItem.stoch_d = stochD[i];
+      dItem.signal = null;
 
       if (i > 0 && k[i-1] !== null && stochD[i-1] !== null && k[i] !== null && stochD[i] !== null) {
         // Bullish Crossover
         if (k[i-1]! <= stochD[i-1]! && k[i]! > stochD[i]!) {
-          dItem.buySignal = dItem.low;
+          dItem.signal = 'BUY';
         }
         // Bearish Crossover
         if (k[i-1]! >= stochD[i-1]! && k[i]! < stochD[i]!) {
-          dItem.sellSignal = dItem.high;
+          dItem.signal = 'SELL';
         }
       }
     });

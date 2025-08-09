@@ -30,15 +30,16 @@ const macdCrossoverStrategy: Strategy = {
       d.macd = macd[i];
       d.macd_signal = signal[i];
       d.macd_hist = histogram[i];
+      d.signal = null;
 
       if (i > 0 && macd[i-1] && signal[i-1] && macd[i] && signal[i]) {
         // Bullish Crossover
         if (macd[i-1]! <= signal[i-1]! && macd[i]! > signal[i]!) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Bearish Crossover
         if (macd[i-1]! >= signal[i-1]! && macd[i]! < signal[i]!) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

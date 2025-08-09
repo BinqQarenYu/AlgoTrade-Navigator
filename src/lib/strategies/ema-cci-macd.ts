@@ -70,8 +70,9 @@ const emaCciMacdStrategy: Strategy = {
       // Momentum Confirmation: MACD histogram is positive.
       const wasMacdBullish = prevMacdHist > 0;
       
+      d.signal = null;
       if (wasInUptrend && cciBuyCross && wasMacdBullish) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
       }
       
       // --- SELL Trade Logic ---
@@ -83,7 +84,7 @@ const emaCciMacdStrategy: Strategy = {
       const wasMacdBearish = prevMacdHist < 0;
 
       if (wasInDowntrend && cciSellCross && wasMacdBearish) {
-        d.sellSignal = d.high;
+        d.signal = 'SELL';
       }
     });
 

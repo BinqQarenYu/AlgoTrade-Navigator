@@ -23,14 +23,15 @@ const vwapCrossStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.vwap = vwap[i];
+      d.signal = null;
       if (i > 0 && vwap[i-1] !== null && vwap[i] !== null) {
         // Buy signal: close crosses above VWAP
         if (data[i-1].close <= vwap[i-1]! && data[i].close > vwap[i]!) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell signal: close crosses below VWAP
         if (data[i-1].close >= vwap[i-1]! && data[i].close < vwap[i]!) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

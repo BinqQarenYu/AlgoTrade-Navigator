@@ -27,14 +27,15 @@ const williamsRStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.williams_r = williamsR[i];
+      d.signal = null;
       if (i > 0 && williamsR[i-1] !== null && williamsR[i] !== null) {
         // Buy signal: %R crosses back above oversold level
         if (williamsR[i-1]! <= params.oversold && williamsR[i]! > params.oversold) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell signal: %R crosses back below overbought level
         if (williamsR[i-1]! >= params.overbought && williamsR[i]! < params.overbought) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

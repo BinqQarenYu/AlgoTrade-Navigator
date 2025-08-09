@@ -25,18 +25,19 @@ const obvDivergenceStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.obv = obv[i];
+      d.signal = null;
       if (i > 0 && obv[i-1] !== null && obv[i] !== null && obvSmaPadded[i-1] !== null && obvSmaPadded[i] !== null) {
         const obvCrossesUp = obv[i]! > obvSmaPadded[i]! && obv[i-1]! <= obvSmaPadded[i-1]!;
         const obvCrossesDown = obv[i]! < obvSmaPadded[i]! && obv[i-1]! >= obvSmaPadded[i-1]!;
         
         // Buy signal: OBV crosses above its moving average, suggesting buying pressure is taking over
         if (obvCrossesUp) {
-            d.buySignal = d.low;
+            d.signal = 'BUY';
         }
 
         // Sell signal: OBV crosses below its moving average, suggesting selling pressure is taking over
         if (obvCrossesDown) {
-            d.sellSignal = d.high;
+            d.signal = 'SELL';
         }
       }
     });

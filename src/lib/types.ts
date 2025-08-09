@@ -46,8 +46,7 @@ export type HistoricalData = {
   low: number;
   close: number;
   volume: number;
-  bullish_event?: boolean; // Neutral event flag
-  bearish_event?: boolean; // Neutral event flag
+  signal?: 'BUY' | 'SELL' | null;
   sma_short?: number | null;
   sma_long?: number | null;
   ema_short?: number | null;

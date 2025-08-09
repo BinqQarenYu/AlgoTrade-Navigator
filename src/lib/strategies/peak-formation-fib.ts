@@ -124,13 +124,8 @@ const peakFormationFibStrategy: Strategy = {
                                 const fib50 = pullbackLow + fibRange * params.fibLevel1;
                                 const fib618 = pullbackLow + fibRange * params.fibLevel2;
                                 
-                                if (data[l].high >= fib50) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib50;
-                                    dataWithIndicators[l].stopLossLevel = peakHigh;
-                                    dataWithIndicators[l].peakPrice = peakHigh;
-                                }
-                                if (data[l].high >= fib618) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fib618;
+                                if (data[l].high >= fib50 || data[l].high >= fib618) {
+                                    dataWithIndicators[l].signal = 'SELL';
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
@@ -177,13 +172,8 @@ const peakFormationFibStrategy: Strategy = {
                                 const fib50 = pullbackHigh - fibRange * params.fibLevel1;
                                 const fib618 = pullbackHigh - fibRange * params.fibLevel2;
                                  
-                                if (data[l].low <= fib50) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib50;
-                                    dataWithIndicators[l].stopLossLevel = peakLow;
-                                    dataWithIndicators[l].peakPrice = peakLow;
-                                }
-                                 if (data[l].low <= fib618) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fib618;
+                                if (data[l].low <= fib50 || data[l].low <= fib618) {
+                                    dataWithIndicators[l].signal = 'BUY';
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                 }

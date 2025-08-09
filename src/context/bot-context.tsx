@@ -277,16 +277,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(data)), config.strategyParams, config.asset);
             const signalCandle = dataWithIndicators[dataWithIndicators.length - 2]; // The candle that just closed
   
-            const isBullishEvent = !!signalCandle.bullish_event;
-            const isBearishEvent = !!signalCandle.bearish_event;
+            let strategySignal = signalCandle.signal || null;
 
-            let strategySignal: 'BUY' | 'SELL' | null = null;
-            if (config.strategyParams.reverse) {
-                if (isBullishEvent) strategySignal = 'SELL';
-                if (isBearishEvent) strategySignal = 'BUY';
-            } else {
-                if (isBullishEvent) strategySignal = 'BUY';
-                if (isBearishEvent) strategySignal = 'SELL';
+            if (config.strategyParams.reverse && strategySignal) {
+                strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
             }
   
             if (strategySignal) {
@@ -573,16 +567,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         strategy.calculate(chartData, config.strategyParams, config.symbol).then(dataWithIndicators => {
             const latestCandleWithSignal = dataWithIndicators[dataWithIndicators.length - 1];
             
-            const isBullishEvent = !!latestCandleWithSignal.bullish_event;
-            const isBearishEvent = !!latestCandleWithSignal.bearish_event;
+            let strategySignal = latestCandleWithSignal.signal || null;
 
-            let strategySignal: 'BUY' | 'SELL' | null = null;
-            if (config.strategyParams.reverse) {
-                if (isBullishEvent) strategySignal = 'SELL';
-                if (isBearishEvent) strategySignal = 'BUY';
-            } else {
-                if (isBullishEvent) strategySignal = 'BUY';
-                if (isBearishEvent) strategySignal = 'SELL';
+            if (config.strategyParams.reverse && strategySignal) {
+                strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
             }
 
             if(strategySignal) {

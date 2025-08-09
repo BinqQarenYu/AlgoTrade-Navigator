@@ -85,8 +85,7 @@ const smoothedHeikinAshiPullbackStrategy: Strategy = {
         const supportLine = currentHa.ha_open;
         if (currentCandle.low <= supportLine) {
           if (isBullishEngulfing(currentCandle, prevCandle) || isHammer(currentCandle)) {
-            dataWithIndicators[i].buySignal = currentCandle.low;
-            dataWithIndicators[i].stopLossLevel = currentCandle.low * 0.99; // Simple SL for now
+            dataWithIndicators[i].signal = 'BUY';
             trendState = 'none'; // Reset after signal to avoid multiple entries
           }
         }
@@ -97,8 +96,7 @@ const smoothedHeikinAshiPullbackStrategy: Strategy = {
         const resistanceLine = currentHa.ha_open;
         if (currentCandle.high >= resistanceLine) {
           if (isBearishEngulfing(currentCandle, prevCandle) || isShootingStar(currentCandle)) {
-            dataWithIndicators[i].sellSignal = currentCandle.high;
-            dataWithIndicators[i].stopLossLevel = currentCandle.high * 1.01; // Simple SL for now
+            dataWithIndicators[i].signal = 'SELL';
             trendState = 'none'; // Reset after signal
           }
         }

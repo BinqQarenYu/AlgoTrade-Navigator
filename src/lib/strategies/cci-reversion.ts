@@ -27,14 +27,15 @@ const cciReversionStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.cci = cci[i];
+      d.signal = null;
       if (i > 0 && cci[i-1] !== null && cci[i] !== null) {
         // Buy signal: CCI crosses back above oversold level
         if (cci[i-1]! <= params.oversold && cci[i]! > params.oversold) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell signal: CCI crosses back below overbought level
         if (cci[i-1]! >= params.overbought && cci[i]! < params.overbought) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

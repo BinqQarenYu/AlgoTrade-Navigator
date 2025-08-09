@@ -104,14 +104,15 @@ const volumeDeltaStrategy: Strategy = {
             const prevCumulativeDelta = cumulativeVolumeDelta[i - 1]!;
             const currentCumulativeDelta = cumulativeVolumeDelta[i]!;
 
+            dataWithIndicators[i].signal = null;
             // LONG condition: Price tests POC from above and cumulative delta flips positive
             if (currentCandle.low <= poc * (1 + params.pocProximityPercent) && currentCandle.close > poc && prevCumulativeDelta <= 0 && currentCumulativeDelta > 0 && currentCandle.close > currentCandle.open) {
-                dataWithIndicators[i].bullish_event = true;
+                dataWithIndicators[i].signal = 'BUY';
             }
             
             // SHORT condition: Price tests POC from below and cumulative delta flips negative
             if (currentCandle.high >= poc * (1 - params.pocProximityPercent) && currentCandle.close < poc && prevCumulativeDelta >= 0 && currentCumulativeDelta < 0 && currentCandle.close < currentCandle.open) {
-                 dataWithIndicators[i].bearish_event = true;
+                 dataWithIndicators[i].signal = 'SELL';
             }
         }
         return dataWithIndicators;

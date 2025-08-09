@@ -28,15 +28,16 @@ const parabolicSarFlipStrategy: Strategy = {
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.psar = psar[i];
       d.psar_direction = direction[i];
+      d.signal = null;
 
       if (i > 0 && direction[i-1] !== null && direction[i] !== null) {
         // SAR flips from below to above (end of uptrend) -> Sell signal
         if (direction[i-1] === 1 && direction[i] === -1) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
         // SAR flips from above to below (end of downtrend) -> Buy signal
         if (direction[i-1] === -1 && direction[i] === 1) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
       }
     });

@@ -29,14 +29,15 @@ const coppockCurveStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.coppock = coppock[i];
+      d.signal = null;
       if (i > 0 && coppock[i-1] !== null && coppock[i] !== null) {
         // Buy Signal: Curve crosses above zero
         if (coppock[i-1]! <= 0 && coppock[i]! > 0) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell Signal: Curve crosses below zero
         if (coppock[i-1]! >= 0 && coppock[i]! < 0) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });

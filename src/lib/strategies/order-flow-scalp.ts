@@ -131,14 +131,15 @@ const orderFlowScalpStrategy: Strategy = {
 
             // --- Step 2: Look for Triggers on Valid Setups ---
 
+            dataWithIndicators[i].signal = null;
             // Check for LONG trigger
             if (longSetupIndex !== -1) {
                 // Check if delta has flipped positive SINCE the setup candle
                 if (prevCumulativeDelta <= 0 && currentCumulativeDelta > 0) {
                      if (params.reverse) {
-                        dataWithIndicators[i].sellSignal = currentCandle.high;
+                        dataWithIndicators[i].signal = 'SELL';
                     } else {
-                        dataWithIndicators[i].buySignal = currentCandle.low;
+                        dataWithIndicators[i].signal = 'BUY';
                     }
                     longSetupIndex = -1; // Consume the setup
                 }
@@ -149,9 +150,9 @@ const orderFlowScalpStrategy: Strategy = {
                 // Check if delta has flipped negative SINCE the setup candle
                 if (prevCumulativeDelta >= 0 && currentCumulativeDelta < 0) {
                      if (params.reverse) {
-                        dataWithIndicators[i].buySignal = currentCandle.low;
+                        dataWithIndicators[i].signal = 'BUY';
                     } else {
-                        dataWithIndicators[i].sellSignal = currentCandle.high;
+                        dataWithIndicators[i].signal = 'SELL';
                     }
                     shortSetupIndex = -1; // Consume the setup
                 }

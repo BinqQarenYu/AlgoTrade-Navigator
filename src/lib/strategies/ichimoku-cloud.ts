@@ -62,14 +62,15 @@ const ichimokuCloudStrategy: Strategy = {
         const isAboveKumo = price > senkou_a_current && price > senkou_b_current;
         const isBelowKumo = price < senkou_a_current && price < senkou_b_current;
 
+        d.signal = null;
         // Buy Signal: Bullish TK cross happens while price is above the Kumo
         if (bullish_tk_cross && isAboveKumo) {
-            d.buySignal = d.low;
+            d.signal = 'BUY';
         }
 
         // Sell Signal: Bearish TK cross happens while price is below the Kumo
         if (bearish_tk_cross && isBelowKumo) {
-            d.sellSignal = d.high;
+            d.signal = 'SELL';
         }
     }
 

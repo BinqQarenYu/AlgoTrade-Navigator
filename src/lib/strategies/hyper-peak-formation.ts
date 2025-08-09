@@ -112,13 +112,8 @@ const hyperPeakFormationStrategy: Strategy = {
                                 const fibLevel1 = pullbackLow + fibRange * params.fibLevel1;
                                 const fibLevel2 = pullbackLow + fibRange * params.fibLevel2;
                                 
-                                if (data[l].high >= fibLevel1) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel1;
-                                    dataWithIndicators[l].stopLossLevel = peakHigh;
-                                    dataWithIndicators[l].peakPrice = peakHigh;
-                                }
-                                if (data[l].high >= fibLevel2) {
-                                    dataWithIndicators[l].sellSignal = dataWithIndicators[l].sellSignal ?? fibLevel2;
+                                if (data[l].high >= fibLevel1 || data[l].high >= fibLevel2) {
+                                    dataWithIndicators[l].signal = 'SELL';
                                     dataWithIndicators[l].stopLossLevel = peakHigh;
                                     dataWithIndicators[l].peakPrice = peakHigh;
                                 }
@@ -162,16 +157,11 @@ const hyperPeakFormationStrategy: Strategy = {
                                 const fibLevel1 = pullbackHigh - fibRange * params.fibLevel1;
                                 const fibLevel2 = pullbackHigh - fibRange * params.fibLevel2;
                                  
-                                if (data[l].low <= fibLevel1) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel1;
+                                if (data[l].low <= fibLevel1 || data[l].low <= fibLevel2) {
+                                    dataWithIndicators[l].signal = 'BUY';
                                     dataWithIndicators[l].stopLossLevel = peakLow;
                                     dataWithIndicators[l].peakPrice = peakLow;
                                 }
-                                 if (data[l].low <= fibLevel2) {
-                                    dataWithIndicators[l].buySignal = dataWithIndicators[l].buySignal ?? fibLevel2;
-                                    dataWithIndicators[l].stopLossLevel = peakLow;
-                                    dataWithIndicators[l].peakPrice = peakLow;
-                                 }
                             }
                             break; 
                         }

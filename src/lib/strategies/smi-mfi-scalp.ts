@@ -48,10 +48,11 @@ const smiMfiScalpStrategy: Strategy = {
       const isInUptrend = trendDirection === 1;
       const isInDowntrend = trendDirection === -1;
       
+      d.signal = null;
       if (isInUptrend) {
-          d.bullish_event = true;
+          d.signal = 'BUY';
       } else if (isInDowntrend) {
-          d.bearish_event = true;
+          d.signal = 'SELL';
       }
     });
 

@@ -57,7 +57,7 @@ const liquidityGrabStrategy: Strategy = {
             // Sweep occurred at index j. Now check for a reclaim within `confirmationCandles`.
             for (let k = j + 1; k < j + 1 + confirmationCandles && k < data.length; k++) {
               if (data[k].close < swingHighPrice) {
-                dataWithIndicators[k].sellSignal = data[k].high;
+                dataWithIndicators[k].signal = 'SELL';
                 dataWithIndicators[k].stopLossLevel = data[j].high; // SL above the sweep wick
                 dataWithIndicators[k].peakPrice = swingHighPrice; // The level that was swept
                 i = k; // Move master loop index forward
@@ -77,7 +77,7 @@ const liquidityGrabStrategy: Strategy = {
             // Sweep occurred. Now check for a reclaim.
             for (let k = j + 1; k < j + 1 + confirmationCandles && k < data.length; k++) {
                if (data[k].close > swingLowPrice) {
-                  dataWithIndicators[k].buySignal = data[k].low;
+                  dataWithIndicators[k].signal = 'BUY';
                   dataWithIndicators[k].stopLossLevel = data[j].low; // SL below the sweep wick
                   dataWithIndicators[k].peakPrice = swingLowPrice; // The level that was swept
                   i = k;

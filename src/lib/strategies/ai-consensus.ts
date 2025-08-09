@@ -71,8 +71,8 @@ const aiConsensusStrategy: Strategy = {
             const candleWithIndicators = allStrategyCalculations[strategyId][i];
             
             let signal: 'BUY' | 'SELL' | 'HOLD' | null = null;
-            if (candleWithIndicators.buySignal) signal = 'BUY';
-            else if (candleWithIndicators.sellSignal) signal = 'SELL';
+            if (candleWithIndicators.signal === 'BUY') signal = 'BUY';
+            else if (candleWithIndicators.signal === 'SELL') signal = 'SELL';
             else signal = 'HOLD';
 
             const indicators: Record<string, any> = {};
@@ -99,9 +99,9 @@ const aiConsensusStrategy: Strategy = {
             // Only generate a signal if confidence is above a certain threshold
             if (prediction.confidence > 0.6) {
                 if (prediction.predictedDirection === 'UP') {
-                    dataWithIndicators[i].buySignal = data[i].low;
+                    dataWithIndicators[i].signal = 'BUY';
                 } else if (prediction.predictedDirection === 'DOWN') {
-                    dataWithIndicators[i].sellSignal = data[i].high;
+                    dataWithIndicators[i].signal = 'SELL';
                 }
             }
             

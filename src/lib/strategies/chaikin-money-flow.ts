@@ -23,14 +23,15 @@ const chaikinMoneyFlowStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.cmf = cmf[i];
+      d.signal = null;
       if (i > 0 && cmf[i-1] !== null && cmf[i] !== null) {
         // Buy Signal: CMF crosses above zero
         if (cmf[i-1]! <= 0 && cmf[i]! > 0) {
-          d.buySignal = d.low;
+          d.signal = 'BUY';
         }
         // Sell Signal: CMF crosses below zero
         if (cmf[i-1]! >= 0 && cmf[i]! < 0) {
-          d.sellSignal = d.high;
+          d.signal = 'SELL';
         }
       }
     });
