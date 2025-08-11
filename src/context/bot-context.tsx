@@ -1,9 +1,8 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, LiveBotConfig, RankedTradeSignal, Position, LiveBotStateForAsset } from '@/lib/types';
+import type { HistoricalData, TradeSignal, RankedTradeSignal, Position, LiveBotStateForAsset, LiveBotConfig } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
@@ -108,7 +107,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const liveWsRefs = useRef<Record<string, WebSocket | null>>({});
   const riskGuardianRefs = useRef<Record<string, RiskGuardian | null>>({});
   const dataBufferRef = useRef<Record<string, HistoricalData[]>>({});
-  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const analysisIntervals = useRef<Record<string, NodeJS.Timeout>>({});
 
   const [showRecommendation, setShowRecommendation] = useState(false);
   const [strategyRecommendation, setStrategyRecommendation] = useState<RankedTradeSignal | null>(null);
@@ -202,6 +201,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       liveWsRefs.current[botId]?.close();
       delete liveWsRefs.current[botId];
     }
+    if (analysisIntervals.current[botId]) {
+      clearInterval(analysisIntervals.current[botId]);
+      delete analysisIntervals.current[botId];
+    }
     delete riskGuardianRefs.current[botId];
     delete dataBufferRef.current[botId];
 
@@ -222,7 +225,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     if (!botState || !data || (botState.status !== 'running' && botState.status !== 'analyzing' && botState.status !== 'position_open')) return;
     if (!activeProfile) return;
     
-    const config = botState.config;
+    const config = botState.config as LiveBotConfig;
     let currentPosition = botState.activePosition;
     
     const riskGuardian = riskGuardianRefs.current[botId];
@@ -263,7 +266,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         if (!currentPosition) {
           setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'analyzing'}}}));
-          const { signal, log } = await analyzeAsset({symbol: config.asset, interval: config.interval, ...config}, data);
+          const { signal, log } = await analyzeAsset({
+            symbol: config.asset,
+            interval: config.interval,
+            strategy: config.strategy,
+            strategyParams: config.strategyParams,
+            takeProfit: config.takeProfit,
+            stopLoss: config.stopLoss,
+            useAIPrediction: config.useAIPrediction ?? false,
+            reverse: config.reverse ?? false,
+          }, data);
           
           if (signal) {
               addLiveLog(botId, `New trade signal: ${signal.action} at ${signal.entryPrice}`);
@@ -300,23 +312,13 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         ...prev, bots: { ...prev.bots, [botId]: { status: 'analyzing', config, logs: [`[${new Date().toLocaleTimeString()}] Bot starting...`], chartData: [], activePosition: null } }
     }));
 
-    if (!updateIntervalRef.current) {
-        updateIntervalRef.current = setInterval(() => {
-            setLiveBotState(prev => {
-                const updatedBots = { ...prev.bots };
-                Object.keys(dataBufferRef.current).forEach(id => {
-                    if (updatedBots[id]) updatedBots[id] = { ...updatedBots[id], chartData: dataBufferRef.current[id] };
-                });
-                return { bots: updatedBots };
-            });
-        }, 1000);
-    }
-
     try {
       const klines = await getLatestKlinesByLimit(config.asset, config.interval, 1000);
       dataBufferRef.current[botId] = klines;
       addLiveLog(botId, `Loaded ${klines.length} initial candles for ${config.asset}.`);
+      
       runLiveBotCycle(botId, true);
+      analysisIntervals.current[botId] = setInterval(() => runLiveBotCycle(botId, false), 15000);
       
       if (liveWsRefs.current[botId]) liveWsRefs.current[botId]?.close();
       const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.asset.toLowerCase()}@kline_${config.interval}`);
@@ -431,7 +433,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     return () => {
       Object.values(liveWsRefs.current).forEach(ws => ws?.close());
-      if (updateIntervalRef.current) clearInterval(updateIntervalRef.current);
+      Object.values(analysisIntervals.current).forEach(clearInterval);
     }
   }, []);
 
