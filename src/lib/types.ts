@@ -1,5 +1,3 @@
-
-
 export type OrderSide = 'BUY' | 'SELL';
 
 export type OrderResult = {
@@ -116,6 +114,7 @@ export type HistoricalData = {
   aiReasoning?: string;
   aiConfidence?: number;
   isProjected?: boolean;
+  debug_info?: any;
 };
 
 
@@ -200,6 +199,8 @@ export type LiveBotConfig = {
     strategy: string;
     strategyParams: any;
     isManual?: boolean;
+    useAIPrediction?: boolean;
+    reverse?: boolean;
 };
 
 export type LiveBotStateForAsset = {

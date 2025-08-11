@@ -1,8 +1,6 @@
-
-
 "use client"
 
-import React, { useState, useEffect, memo, useCallback } from "react"
+import React, { useState, useCallback, useEffect, memo, useRef } from "react";
 import Link from "next/link"
 import { useBot } from "@/context/bot-context"
 import { useToast } from "@/hooks/use-toast"
@@ -26,6 +24,49 @@ import { Badge } from "@/components/ui/badge"
 import { Tooltip, TooltipProvider, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Separator } from "@/components/ui/separator"
+
+const LogReportDialog = ({ bot, state, isOpen, onClose }: { bot: (LiveBotConfig & { id: string; }) | null, state: LiveBotStateForAsset | undefined, isOpen: boolean, onClose: () => void }) => {
+    const [currentLog, setCurrentLog] = useState<any>(null);
+
+    useEffect(() => {
+        if (isOpen && bot) {
+            const interval = setInterval(() => {
+                setCurrentLog(state);
+            }, 1000); // Update every second
+
+            return () => clearInterval(interval);
+        }
+    }, [isOpen, bot, state]);
+
+    if (!bot) return null;
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Log Report for {bot.asset}</DialogTitle>
+                    <DialogDescription>
+                        This report continuously updates.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid grid-cols-2 gap-4 py-4">
+                    <div>
+                        <h3 className="font-bold mb-2">Bot Configuration</h3>
+                        <pre className="bg-muted p-2 rounded-md text-xs overflow-auto h-96">
+                            {JSON.stringify(bot, null, 2)}
+                        </pre>
+                    </div>
+                    <div>
+                        <h3 className="font-bold mb-2">Live State (updates continuously)</h3>
+                        <pre className="bg-muted p-2 rounded-md text-xs overflow-auto h-96">
+                            {JSON.stringify(currentLog || state, null, 2)}
+                        </pre>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
 
 // Default parameter maps for resetting
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator"
@@ -58,6 +99,16 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
+// Update the import path if the file is in a different location, e.g. "@/lib/binance-api" or "./binance"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
+
+const getDecimalPlaces = (price: number): number => {
+    if (price === 0) return 2;
+    if (price >= 1000) return 2;
+    if (price >= 1) return 4;
+    if (price >= 0.001) return 6;
+    return 8;
+};
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -92,12 +143,8 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
 }
 
-type BotInstance = LiveBotConfig & {
-    id: string;
-};
-
 const StrategyParamsCard = memo(({ bot, onParamChange, onDisciplineChange, onReset, isTradingActive }: { 
-    bot: BotInstance, 
+    bot: LiveBotConfig & { id: string; }, 
     onParamChange: (param: string, value: any) => void, 
     onDisciplineChange: (param: keyof DisciplineParams, value: any) => void,
     onReset: () => void, 
@@ -238,6 +285,9 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
 StatusBadge.displayName = 'StatusBadge';
 
 
+                                // <Button variant="outline" size="icon" onClick={() => onDebugLog && onDebugLog(bot)} title="Debug Log">
+                                //     <span role="img" aria-label="bug">🐞</span>
+                                // </Button>
 const SystemCheckItem = ({ label, passed }: { label: string; passed: boolean }) => (
     <div className="flex items-center justify-between text-sm">
         <p>{label}</p>
@@ -263,6 +313,13 @@ export default function LiveTradingPage() {
     } = useBot();
     const { bots: runningBots } = liveBotState;
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
+    const [botPrices, setBotPrices] = useState<Record<string, number>>({});
+    const priceIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+    const [logBot, setLogBot] = useState<(LiveBotConfig & { id: string; }) | null>(null);
+
+    const handleOpenLogDialog = (bot: LiveBotConfig & { id: string; }) => {
+        setLogBot(bot);
+    };
 
     const addBotInstance = useCallback(() => {
         addBotContextInstance({}); // Add an empty bot config
@@ -360,6 +417,47 @@ export default function LiveTradingPage() {
     
     const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
 
+    function intervalToMs(interval: string): number {
+      switch (interval) {
+        case "1m": return 60_000;
+        case "5m": return 5 * 60_000;
+        case "15m": return 15 * 60_000;
+        case "1h": return 60 * 60_000;
+        case "4h": return 4 * 60 * 60_000;
+        case "1d": return 24 * 60 * 60_000;
+        default: return 60_000;
+      }
+    }
+
+    useEffect(() => {
+        Object.values(priceIntervals.current).forEach(clearInterval);
+        priceIntervals.current = {};
+
+        botInstances.forEach(bot => {
+            if (!bot.asset) return;
+            const fetchPrice = async () => {
+                try {
+                    // Always use 1m for the most recent price data
+                    const klines = await getLatestKlinesByLimit(bot.asset, '1m', 1);
+                    if (klines && klines.length > 0) {
+                        setBotPrices(prices => ({ ...prices, [bot.id]: klines[0].close }));
+                    }
+                } catch (e) {
+                    console.error(`Failed to fetch price for ${bot.asset}`, e);
+                    setBotPrices(prices => ({ ...prices, [bot.id]: NaN }));
+                }
+            };
+            
+            fetchPrice(); // Fetch immediately
+            // Then update every 5 seconds for a near real-time feel
+            priceIntervals.current[bot.id] = setInterval(fetchPrice, 5000); 
+        });
+
+        return () => {
+            Object.values(priceIntervals.current).forEach(clearInterval);
+        };
+    }, [botInstances]);
+
     return (
         <div className="space-y-6">
             <div className="text-left">
@@ -423,58 +521,77 @@ export default function LiveTradingPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px]">#</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Asset</TableHead>
-                                    <TableHead>Capital ($)</TableHead>
-                                    <TableHead>Leverage (x)</TableHead>
-                                    <TableHead>Interval</TableHead>
-                                    <TableHead>TP (%)</TableHead>
-                                    <TableHead>SL (%)</TableHead>
-                                    <TableHead>Strategy</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {botInstances.map((bot, index) => {
-                                    const botLiveState = runningBots[bot.id];
-                                    const isRunning = !!botLiveState && botLiveState?.status !== 'idle' && botLiveState?.status !== 'error';
-                                    
-                                    return (
-                                        <BotInstanceRow
-                                            key={bot.id}
-                                            bot={bot}
-                                            index={index}
-                                            botState={botLiveState}
-                                            openParams={openParams}
-                                            onConfigChange={handleBotConfigChange}
-                                            onParamChange={handleStrategyParamChange}
-                                            onDisciplineChange={handleDisciplineParamChange}
-                                            onResetParams={handleResetParams}
-                                            onToggleBot={handleToggleBot}
-                                            onToggleParams={toggleParams}
-                                            onRemoveBot={removeBotInstance}
-                                            isBotRunning={isRunning}
-                                            isConnected={isConnected}
-                                            canTrade={activeProfile?.permissions === 'FuturesTrading'}
-                                        />
-                                    )})}
-                            </TableBody>
-                        </Table>
-                    </div>
+                    {/* Define the number of columns in one place to keep colSpan in sync */}
+                    {/** Update this if you add/remove columns in the table header/body */}
+                    {/** This ensures colSpan always matches the number of columns */}
+                    {(() => {
+                        const TABLE_COLUMN_COUNT = 11;
+                        return (
+                            <div className="border rounded-md overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px]">#</TableHead>
+                                            <TableHead>Status</TableHead>
+                                            <TableHead>Asset</TableHead>
+                                            <TableHead>Price</TableHead>
+                                            <TableHead>Capital ($)</TableHead>
+                                            <TableHead>Leverage (x)</TableHead>
+                                            <TableHead>Interval</TableHead>
+                                            <TableHead>TP (%)</TableHead>
+                                            <TableHead>SL (%)</TableHead>
+                                            <TableHead>Strategy</TableHead>
+                                            <TableHead className="text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {botInstances.map((bot, index) => {
+                                            const botLiveState = runningBots[bot.id];
+                                            const isRunning = !!botLiveState && botLiveState?.status !== 'idle' && botLiveState?.status !== 'error';
+                                            
+                                            return (
+                                                <BotInstanceRow
+                                                    key={bot.id}
+                                                    bot={bot}
+                                                    index={index}
+                                                    price={botPrices[bot.id]}
+                                                    botState={botLiveState}
+                                                    openParams={openParams}
+                                                    onConfigChange={handleBotConfigChange}
+                                                    onParamChange={handleStrategyParamChange}
+                                                    onDisciplineChange={handleDisciplineParamChange}
+                                                    onResetParams={handleResetParams}
+                                                    onToggleBot={handleToggleBot}
+                                                    onToggleParams={toggleParams}
+                                                    onRemoveBot={removeBotInstance}
+                                                    onOpenLogDialog={handleOpenLogDialog}
+                                                    isBotRunning={isRunning}
+                                                    isConnected={isConnected}
+                                                    canTrade={activeProfile?.permissions === 'FuturesTrading'}
+                                                    tableColumnCount={TABLE_COLUMN_COUNT}
+                                                />
+                                            )})}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        );
+                    })()}
                 </CardContent>
             </Card>
+            <LogReportDialog 
+                bot={logBot}
+                state={logBot ? runningBots[logBot.id] : undefined}
+                isOpen={!!logBot}
+                onClose={() => setLogBot(null)}
+            />
         </div>
     );
 }
 
-const BotInstanceRow = memo(({
+const BotInstanceRow = ({
     bot,
     index,
+    price,
     botState,
     openParams,
     onConfigChange,
@@ -484,12 +601,15 @@ const BotInstanceRow = memo(({
     onToggleBot,
     onToggleParams,
     onRemoveBot,
+    onOpenLogDialog,
     isBotRunning,
     isConnected,
     canTrade,
+    tableColumnCount,
 }: {
-    bot: BotInstance,
+    bot: LiveBotConfig & { id: string; },
     index: number,
+    price?: number,
     botState?: LiveBotStateForAsset,
     openParams: Record<string, boolean>,
     onConfigChange: (id: string, field: keyof LiveBotConfig, value: any) => void,
@@ -499,9 +619,11 @@ const BotInstanceRow = memo(({
     onToggleBot: (botId: string) => void,
     onToggleParams: (botId: string) => void,
     onRemoveBot: (botId: string) => void,
+    onOpenLogDialog: (bot: LiveBotConfig & { id: string; }) => void,
     isBotRunning: boolean,
     isConnected: boolean,
     canTrade: boolean,
+    tableColumnCount: number,
 }) => {
     return (
         <>
@@ -519,6 +641,13 @@ const BotInstanceRow = memo(({
                             {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
                         </SelectContent>
                     </Select>
+                </TableCell>
+                <TableCell className="font-mono text-sm">
+                    {price != null && !isNaN(price) ? (
+                        `$${price.toFixed(getDecimalPlaces(price))}`
+                    ) : (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
                 </TableCell>
                 <TableCell>
                     <Input
@@ -587,6 +716,9 @@ const BotInstanceRow = memo(({
                 </TableCell>
                 <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
+                        <Button variant="outline" size="sm" onClick={() => onOpenLogDialog(bot)}>
+                            Log Report
+                        </Button>
                         <TooltipProvider>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -620,7 +752,7 @@ const BotInstanceRow = memo(({
             </TableRow>
             {openParams[bot.id] && bot.strategy && (
                 <TableRow>
-                    <TableCell colSpan={10} className="p-0">
+                    <TableCell colSpan={tableColumnCount} className="p-0">
                         <div className="p-4 bg-muted/30">
                             <StrategyParamsCard
                                 bot={bot}
@@ -635,8 +767,4 @@ const BotInstanceRow = memo(({
             )}
         </>
     );
-});
-BotInstanceRow.displayName = 'BotInstanceRow';
-
-
-    
+};

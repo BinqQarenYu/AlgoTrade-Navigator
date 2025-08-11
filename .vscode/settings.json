@@ -1,4 +1,10 @@
 {
     "IDX.aI.enableInlineCompletion": true,
-    "IDX.aI.enableCodebaseIndexing": true
+    "IDX.aI.enableCodebaseIndexing": true,
+    "github.copilot.chat.languageContext.typescript.enabled": true,
+    "github.copilot.chat.newWorkspace.useContext7": true,
+    "github.copilot.chat.notebook.followCellExecution.enabled": true,
+    "github.copilot.chat.scopeSelection": true,
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "githubPullRequests.experimental.useQuickChat": true
 }
