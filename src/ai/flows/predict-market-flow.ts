@@ -81,5 +81,9 @@ const predictMarketFlow = ai.defineFlow(
 );
 
 export async function predictMarket(input: PredictMarketInput): Promise<PredictMarketOutput> {
-  return predictMarketFlow(input);
+  const result = await predictMarketFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for market prediction returned an empty result.");
+  }
+  return result;
 }

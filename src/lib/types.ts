@@ -200,6 +200,8 @@ export type LiveBotConfig = {
     strategy: string;
     strategyParams: any;
     isManual?: boolean;
+    useAIPrediction?: boolean;
+    reverse?: boolean;
 };
 
 export type LiveBotStateForAsset = {

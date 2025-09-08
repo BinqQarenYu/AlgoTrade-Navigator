@@ -81,5 +81,9 @@ const rankSignalsFlow = ai.defineFlow(
 );
 
 export async function rankSignals(input: RankSignalsInput): Promise<RankSignalsOutput> {
-  return rankSignalsFlow(input);
+  const result = await rankSignalsFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for ranking signals returned an empty result.");
+  }
+  return result;
 }

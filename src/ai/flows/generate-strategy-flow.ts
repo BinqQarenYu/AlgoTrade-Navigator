@@ -76,5 +76,9 @@ const generateStrategyFlow = ai.defineFlow(
 );
 
 export async function generateStrategy(input: GenerateStrategyInput): Promise<GenerateStrategyOutput> {
-  return generateStrategyFlow(input);
+  const result = await generateStrategyFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for generating a strategy returned an empty result.");
+  }
+  return result;
 }

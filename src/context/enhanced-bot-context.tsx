@@ -337,7 +337,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
             throw new Error(`Invalid signal: ${signalValidation.errors.join(', ')}`);
           }
           
-          logger.logSignal(botId, newSignal.action, config.symbol, config.strategy, newSignal.confidence, newSignal.reasoning);
+          logger.logSignal(botId, newSignal.action === 'UP' ? 'BUY' : 'SELL', config.symbol, config.strategy, newSignal.confidence, newSignal.reasoning);
           
           return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
         } else {
@@ -550,9 +550,14 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
           }));
           
           const { signal, log } = await analyzeAsset({
-            symbol: config.asset, 
-            interval: config.interval, 
-            ...config
+            symbol: config.asset,
+            interval: config.interval,
+            strategy: config.strategy,
+            strategyParams: config.strategyParams,
+            takeProfit: config.takeProfit,
+            stopLoss: config.stopLoss,
+            useAIPrediction: config.useAIPrediction || false,
+            reverse: config.reverse || false,
           }, data);
           
           if (signal) {
@@ -731,7 +736,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         logger.logWebSocket(botId, 'CONNECT', 'Connection established');
       });
       
-      ws.addEventListener('error', (error) => {
+      ws.addEventListener('error', (error: any) => {
         addLiveLog(botId, "WebSocket connection error");
         logger.logWebSocket(botId, 'ERROR', 'Connection error', { error });
         botMonitor.recordError(botId, 'WebSocket connection error');

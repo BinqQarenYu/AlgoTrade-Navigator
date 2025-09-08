@@ -60,6 +60,7 @@ import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfi
 import { generateProjectedCandles } from "@/lib/projection-service"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DateRange } from "react-day-picker"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -94,12 +95,6 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
-
-interface DateRange {
-  from?: Date;
-  to?: Date;
-}
-
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -271,7 +266,7 @@ const BacktestPageContent = () => {
   const [replayIndex, setReplayIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState(500); // ms per candle. 1000=slow, 500=medium, 200=fast
-  const replayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const replayIntervalRef = useRef<number | null>(null);
   const [isProjectionCardOpen, setProjectionCardOpen] = usePersistentState<boolean>('backtest-projection-card-open', false);
   const [activeTab, setActiveTab] = useState("chart");
   const [isConfigOpen, setIsConfigOpen] = usePersistentState<boolean>('backtest-config-open', true);
@@ -850,19 +845,19 @@ const BacktestPageContent = () => {
 
   useEffect(() => {
     if (isPlaying && isReplaying) {
-      replayIntervalRef.current = setInterval(() => {
+      replayIntervalRef.current = window.setInterval(() => {
         handleReplayStep('forward');
       }, replaySpeed);
     } else {
       if (replayIntervalRef.current) {
-        clearInterval(replayIntervalRef.current);
+        window.clearInterval(replayIntervalRef.current);
         replayIntervalRef.current = null;
       }
     }
 
     return () => {
       if (replayIntervalRef.current) {
-        clearInterval(replayIntervalRef.current);
+        window.clearInterval(replayIntervalRef.current);
       }
     };
   }, [isPlaying, isReplaying, replaySpeed]);

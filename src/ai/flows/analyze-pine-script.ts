@@ -69,5 +69,9 @@ const analyzePineScriptFlow = ai.defineFlow(
 );
 
 export async function analyzePineScript(input: AnalyzePineScriptInput): Promise<AnalyzePineScriptOutput> {
-  return analyzePineScriptFlow(input);
+  const result = await analyzePineScriptFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for analyzing Pine Script returned an empty result.");
+  }
+  return result;
 }

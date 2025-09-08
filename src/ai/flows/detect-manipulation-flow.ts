@@ -94,5 +94,9 @@ const detectManipulationFlow = ai.defineFlow(
 );
 
 export async function detectManipulation(input: DetectManipulationInput): Promise<DetectManipulationOutput> {
-  return detectManipulationFlow(input);
+  const result = await detectManipulationFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for detecting market manipulation returned an empty result.");
+  }
+  return result;
 }

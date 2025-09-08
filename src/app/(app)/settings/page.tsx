@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
-import { zodResolver } from "@radix-ui/react-zod"
+import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"

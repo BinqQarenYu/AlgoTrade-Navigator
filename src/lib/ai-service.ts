@@ -1,7 +1,8 @@
 
 'use server';
 
-import type { GenkitPrompt } from 'genkit/prompt';
+// Define the type for a Genkit prompt based on its usage in the project.
+type GenkitPrompt<I, O> = (input: I) => Promise<{ output?: O | undefined }>;
 
 /**
  * A centralized wrapper for running Genkit AI flows with robust error handling and retry logic.

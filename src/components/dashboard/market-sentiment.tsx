@@ -101,7 +101,7 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
                         <div className="w-full bg-destructive/20 rounded-full h-2.5">
                           <div 
                             className="bg-green-500 h-2.5 rounded-full" 
-                            style={{ width: `${coin.sentimentUp}%` }}
+                            style={{ width: `${coin.sentimentUp || 0}%` }}
                           ></div>
                         </div>
                       </div>

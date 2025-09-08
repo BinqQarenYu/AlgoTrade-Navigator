@@ -28,7 +28,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
+import type { HistoricalData, LiquidityEvent, LiquidityTarget, BacktestResult, DisciplineParams } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
@@ -44,92 +44,98 @@ import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSe
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover" // For default discipline
 import { useDataManager } from "@/context/data-manager-context"
 
-const OpenPositionsCard = ({
-    positions,
-    onSelectPosition,
-    selectedPositionId
-}: {
-    positions: SimulatedPosition[],
-    onSelectPosition: (pos: SimulatedPosition) => void,
-    selectedPositionId?: string | null,
-}) => {
-    const [isOpen, setIsOpen] = usePersistentState('sim-positions-open', true);
+// const OpenPositionsCard = ({
+//     positions,
+//     onSelectPosition,
+//     selectedPositionId
+// }: {
+//     positions: SimulatedPosition[],
+//     onSelectPosition: (pos: SimulatedPosition) => void,
+//     selectedPositionId?: string | null,
+// }) => {
+//     const [isOpen, setIsOpen] = usePersistentState('sim-positions-open', true);
 
-    return (
-        <Card>
-            <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Open Simulated Positions</CardTitle>
-                        <CardDescription>Positions currently active in the simulation. Click to view on chart.</CardDescription>
-                    </div>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                            <span className="sr-only">Toggle</span>
-                        </Button>
-                    </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Symbol</TableHead>
-                                    <TableHead>Side</TableHead>
-                                    <TableHead>Entry Price</TableHead>
-                                    <TableHead className="text-right">Size</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {positions.length > 0 ? (
-                                    positions.map((pos) => (
-                                        <TableRow
-                                            key={pos.id}
-                                            onClick={() => onSelectPosition(pos)}
-                                            className={cn(
-                                                "cursor-pointer hover:bg-muted/80",
-                                                selectedPositionId === pos.id && "bg-primary/20 hover:bg-primary/20"
-                                            )}
-                                        >
-                                            <TableCell>{pos.asset}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={pos.side === 'long' ? "default" : "destructive"}>
-                                                    {pos.side.toUpperCase()}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>${formatPrice(pos.entryPrice)}</TableCell>
-                                            <TableCell className="text-right">{pos.size.toFixed(5)}</TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                            No open positions.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </CollapsibleContent>
-            </Collapsible>
-        </Card>
-    );
-};
+//     return (
+//         <Card>
+//             <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+//                 <CardHeader className="flex flex-row items-center justify-between">
+//                     <div>
+//                         <CardTitle>Open Simulated Positions</CardTitle>
+//                         <CardDescription>Positions currently active in the simulation. Click to view on chart.</CardDescription>
+//                     </div>
+//                     <CollapsibleTrigger asChild>
+//                         <Button variant="ghost" size="icon" className="h-8 w-8">
+//                             <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+//                             <span className="sr-only">Toggle</span>
+//                         </Button>
+//                     </CollapsibleTrigger>
+//                 </CardHeader>
+//                 <CollapsibleContent>
+//                     <CardContent>
+//                         <Table>
+//                             <TableHeader>
+//                                 <TableRow>
+//                                     <TableHead>Symbol</TableHead>
+//                                     <TableHead>Side</TableHead>
+//                                     <TableHead>Entry Price</TableHead>
+//                                     <TableHead className="text-right">Size</TableHead>
+//                                 </TableRow>
+//                             </TableHeader>
+//                             <TableBody>
+//                                 {positions.length > 0 ? (
+//                                     positions.map((pos) => (
+//                                         <TableRow
+//                                             key={pos.id}
+//                                             onClick={() => onSelectPosition(pos)}
+//                                             className={cn(
+//                                                 "cursor-pointer hover:bg-muted/80",
+//                                                 selectedPositionId === pos.id && "bg-primary/20 hover:bg-primary/20"
+//                                             )}
+//                                         >
+//                                             <TableCell>{pos.asset}</TableCell>
+//                                             <TableCell>
+//                                                 <Badge variant={pos.side === 'long' ? "default" : "destructive"}>
+//                                                     {pos.side.toUpperCase()}
+//                                                 </Badge>
+//                                             </TableCell>
+//                                             <TableCell>${formatPrice(pos.entryPrice)}</TableCell>
+//                                             <TableCell className="text-right">{pos.size.toFixed(5)}</TableCell>
+//                                         </TableRow>
+//                                     ))
+//                                 ) : (
+//                                     <TableRow>
+//                                         <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+//                                             No open positions.
+//                                         </TableCell>
+//                                     </TableRow>
+//                                 )}
+//                             </TableBody>
+//                         </Table>
+//                     </CardContent>
+//                 </CollapsibleContent>
+//             </Collapsible>
+//         </Card>
+//     );
+// };
 
 function SimulationPageContent() {
   const { toast } = useToast()
   const { isConnected } = useApi();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
-  const { 
-    simulationState, 
-    startSimulation, 
-    stopSimulation,
-    isTradingActive,
-    strategyParams,
-    setStrategyParams,
-  } = useBot();
+  // const {
+  //   simulationState,
+  //   startSimulation,
+  //   stopSimulation,
+  //   isTradingActive,
+  //   strategyParams,
+  //   setStrategyParams,
+  // } = useBot();
+  const simulationState = { isRunning: false, logs: [], portfolio: null, openPositions: [], tradeHistory: [], summary: null, chartData: [] };
+  const startSimulation = () => {};
+  const stopSimulation = () => {};
+  const isTradingActive = false;
+  const [strategyParams, setStrategyParams] = useState<any>({});
+
 
   const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
   const botChartData = simulationState.chartData;
@@ -155,18 +161,18 @@ function SimulationPageContent() {
   const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
   
   // State for selections
-  const [selectedTrade, setSelectedTrade] = useState<SimulatedTrade | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<SimulatedPosition | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<any | null>(null);
+  const [selectedPosition, setSelectedPosition] = useState<any | null>(null);
 
   // Collapsible states
   const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
   
-  const handleSelectTrade = (trade: SimulatedTrade) => {
+  const handleSelectTrade = (trade: any) => {
     setSelectedTrade(trade);
     setSelectedPosition(null);
   };
 
-  const handleSelectPosition = (position: SimulatedPosition) => {
+  const handleSelectPosition = (position: any) => {
     setSelectedPosition(position);
     setSelectedTrade(null);
   };
@@ -283,7 +289,7 @@ function SimulationPageContent() {
   }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData, symbol]);
 
   const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
-    setStrategyParams(prev => ({
+    setStrategyParams((prev: any) => ({
       ...prev,
       [selectedStrategy]: {
         ...(prev[selectedStrategy] || {}),
@@ -330,11 +336,7 @@ function SimulationPageContent() {
             toast({ title: "Cannot start simulation", description: "Please connect to the API first.", variant: "destructive"});
             return;
         }
-        startSimulation({
-            symbol, interval, strategy: selectedStrategy,
-            strategyParams: { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic },
-            initialCapital, leverage, takeProfit, stopLoss, useAIPrediction: false, fee
-        });
+        startSimulation();
     }
   }
 
@@ -471,11 +473,11 @@ function SimulationPageContent() {
             onSelectTrade={handleSelectTrade}
             selectedTradeId={selectedTrade?.id}
           />
-          <OpenPositionsCard 
+          {/* <OpenPositionsCard
             positions={openPositions} 
             onSelectPosition={handleSelectPosition} 
             selectedPositionId={selectedPosition?.id}
-          />
+          /> */}
           
           <Card>
              <CardHeader>

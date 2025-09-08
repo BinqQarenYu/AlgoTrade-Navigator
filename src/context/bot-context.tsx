@@ -263,7 +263,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         if (!currentPosition) {
           setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'analyzing'}}}));
-          const { signal, log } = await analyzeAsset({symbol: config.asset, interval: config.interval, ...config}, data);
+          const { signal, log } = await analyzeAsset({
+            symbol: config.asset,
+            interval: config.interval,
+            strategy: config.strategy,
+            strategyParams: config.strategyParams,
+            takeProfit: config.takeProfit,
+            stopLoss: config.stopLoss,
+            useAIPrediction: config.useAIPrediction || false,
+            reverse: config.reverse || false,
+          }, data);
           
           if (signal) {
               addLiveLog(botId, `New trade signal: ${signal.action} at ${signal.entryPrice}`);

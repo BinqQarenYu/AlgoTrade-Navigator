@@ -93,5 +93,9 @@ const predictPriceFlow = ai.defineFlow(
 );
 
 export async function predictPrice(input: PredictPriceInput): Promise<PredictPriceOutput> {
-  return predictPriceFlow(input);
+  const result = await predictPriceFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for price prediction returned an empty result.");
+  }
+  return result;
 }

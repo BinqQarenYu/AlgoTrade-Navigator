@@ -144,7 +144,7 @@ export function TradingChart({
     const lineSeriesContainer: Record<string, any> = {};
     Object.keys(seriesConfig).forEach(key => {
         lineSeriesContainer[key] = chart.addLineSeries({
-            lineWidth: seriesConfig[key].lineWidth || 2,
+            lineWidth: (seriesConfig[key].lineWidth || 2) as any,
             lineStyle: seriesConfig[key].lineStyle || LineStyle.Solid,
             color: seriesConfig[key].color,
             priceScaleId: 'left',

@@ -48,7 +48,7 @@ import { defaultPivotPointReversalParams } from "@/lib/strategies/pivot-point-re
 import { defaultRsiDivergenceParams } from "@/lib/strategies/rsi-divergence"
 import { defaultStochasticCrossoverParams } from "@/lib/strategies/stochastic-crossover"
 import { defaultSupertrendParams } from "@/lib/strategies/supertrend"
-import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-profile-delta"
+import { defaultVolumeDeltaParams } from "@/lib/strategies/volume-delta"
 import { defaultVwapCrossParams } from "@/lib/strategies/vwap-cross"
 import { defaultWilliamsRParams } from "@/lib/strategies/williams-percent-r"
 import { defaultLiquidityGrabParams } from "@/lib/strategies/liquidity-grab"

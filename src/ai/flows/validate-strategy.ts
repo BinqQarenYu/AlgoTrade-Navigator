@@ -54,5 +54,9 @@ const validateStrategyFlow = ai.defineFlow(
 );
 
 export async function validateStrategy(input: ValidateStrategyInput): Promise<ValidateStrategyOutput> {
-  return validateStrategyFlow(input);
+  const result = await validateStrategyFlow(input);
+  if (!result) {
+    throw new Error("The AI flow for validating a strategy returned an empty result.");
+  }
+  return result;
 }
