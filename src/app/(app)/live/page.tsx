@@ -303,13 +303,14 @@ const SystemCheckItem = ({ label, passed }: { label: string; passed: boolean }) 
 export default function LiveTradingPage() {
     const { toast } = useToast();
     const { isConnected, activeProfile, telegramBotToken, telegramChatId } = useApi();
-    const { 
-        startBotInstance, 
-        stopBotInstance, 
+    const {
+        startBotInstance,
+        stopBotInstance,
         liveBotState,
         botInstances,
         setBotInstances,
         addBotInstance: addBotContextInstance,
+        executeTestTrade,
     } = useBot();
     const { bots: runningBots } = liveBotState;
     const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
