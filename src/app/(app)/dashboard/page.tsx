@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
+import { SentimentsCarousel } from "@/components/dashboard/sentiments-carousel";
 import { OpenPositions } from "@/components/dashboard/open-positions";
 import { getAccountBalance, getOpenPositions } from "@/lib/binance-service";
 import { useApi } from "@/context/api-context";
@@ -102,6 +103,8 @@ export default function DashboardPage() {
           </AlertDescription>
         </Alert>
       )}
+
+      <SentimentsCarousel />
 
       <PortfolioSummary 
         isLoading={isLoading && isConnected && !isTradingActive}

@@ -1,52 +1,21 @@
-
 "use client";
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Smile, Frown, ChevronDown } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import { getSentimentForTickers } from '@/lib/coingecko-service';
 import type { CoinSentimentData } from "@/lib/types";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
-import { Button } from '../ui/button';
-import { cn } from '@/lib/utils';
-
-interface MarketSentimentProps {
-  sentiments: CoinSentimentData[];
-  isLoading: boolean;
-}
-
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        if (isMounted) {
-          setState(JSON.parse(item));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [state, setState];
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Smile, Frown, TrendingUp } from "lucide-react";
+import { TopAssets } from './top-assets';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const SentimentSkeleton = () => (
     <div className="space-y-4">
@@ -62,30 +31,17 @@ const SentimentSkeleton = () => (
     </div>
 );
 
-export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps) {
-  const [isOpen, setIsOpen] = usePersistentState<boolean>('dashboard-sentiment-open', true);
-
-  return (
-    <Card>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
+const MarketSentimentCard = ({ sentiments, isLoading }: { sentiments: CoinSentimentData[], isLoading: boolean }) => (
+    <Card className="h-full flex flex-col">
+        <CardHeader>
             <CardTitle className="flex items-center gap-2"><Smile /> Market Sentiment</CardTitle>
             <CardDescription>Community sentiment from CoinGecko.</CardDescription>
-          </div>
-          <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                  <span className="sr-only">Toggle</span>
-              </Button>
-          </CollapsibleTrigger>
         </CardHeader>
-        <CollapsibleContent>
-          <CardContent>
+        <CardContent className="flex-grow">
             {isLoading ? (
               <SentimentSkeleton />
             ) : sentiments.length > 0 ? (
-              <div className="space-y-6">
+              <div className="space-y-6 h-80 overflow-y-auto">
                 {sentiments.map(coin => (
                   <div key={coin.id}>
                     <div className="flex items-center gap-3">
@@ -116,9 +72,55 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
                 <p className="text-xs">This may be due to CoinGecko's API rate limits.</p>
               </div>
             )}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
+        </CardContent>
     </Card>
+);
+
+export function SentimentsCarousel() {
+  const [sentiments, setSentiments] = useState<CoinSentimentData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSentiments = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const sentimentData = await getSentimentForTickers(['BTC', 'ETH', 'SOL', 'DOGE']);
+        setSentiments(sentimentData);
+      } catch (e) {
+        setError("Failed to fetch sentiment data.");
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSentiments();
+  }, []);
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <TrendingUp className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  return (
+    <Carousel className="w-full">
+      <CarouselContent>
+        <CarouselItem>
+          <MarketSentimentCard sentiments={sentiments} isLoading={isLoading} />
+        </CarouselItem>
+        <CarouselItem>
+          <TopAssets />
+        </CarouselItem>
+      </CarouselContent>
+      <CarouselPrevious />
+      <CarouselNext />
+    </Carousel>
   );
 }
