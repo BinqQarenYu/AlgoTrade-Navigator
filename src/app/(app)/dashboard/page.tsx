@@ -5,10 +5,12 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PortfolioSummary } from "@/components/dashboard/portfolio-summary";
 import { OpenPositions } from "@/components/dashboard/open-positions";
+import { MarketSentiment } from "@/components/dashboard/market-sentiment";
 import { getAccountBalance, getOpenPositions } from "@/lib/binance-service";
+import { getSentimentForTickers } from "@/lib/coingecko-service";
 import { useApi } from "@/context/api-context";
 import { useBot } from "@/context/bot-context";
-import type { Portfolio, Position } from "@/lib/types";
+import type { Portfolio, Position, CoinSentimentData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Bot, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -18,9 +20,28 @@ export default function DashboardPage() {
   const { isTradingActive, closePosition } = useBot();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [sentiments, setSentiments] = useState<CoinSentimentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSentimentLoading, setIsSentimentLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchSentimentData = async () => {
+      setIsSentimentLoading(true);
+      try {
+        const topTickers = ['BTC', 'ETH', 'SOL', 'BNB', 'DOGE', 'AVAX', 'LINK', 'MATIC'];
+        const sentimentData = await getSentimentForTickers(topTickers);
+        setSentiments(sentimentData);
+      } catch (error) {
+        console.error("Failed to fetch sentiment data", error);
+        setSentiments([]);
+      }
+      setIsSentimentLoading(false);
+    };
+
+    fetchSentimentData();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -116,6 +137,8 @@ export default function DashboardPage() {
         onClosePosition={closePosition}
         permissions={activeProfile?.permissions}
       />
+
+      <MarketSentiment sentiments={sentiments} isLoading={isSentimentLoading} />
     </div>
   );
 }
