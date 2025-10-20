@@ -39,6 +39,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { topAssets } from "@/lib/assets"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
+import { createDualApiService } from "@/lib/dual-coin-api-service"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -79,6 +81,11 @@ export default function SettingsPage() {
   const [isProfilesOpen, setProfilesOpen] = useState(true);
   const [isFeesOpen, setIsFeesOpen] = useState(false);
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
+  const [isApiManagementOpen, setIsApiManagementOpen] = useState(true);
+
+  // API Management states
+  const [apiUsageStats, setApiUsageStats] = useState<any>(null);
+  const [dualApiService, setDualApiService] = useState<any>(null);
 
   useEffect(() => { setCgKeyValue(coingeckoApiKey || ""); }, [coingeckoApiKey]);
   useEffect(() => { setGeminiKeyValue(geminiApiKey || ""); }, [geminiApiKey]);
@@ -105,6 +112,26 @@ export default function SettingsPage() {
     };
     fetchIps();
   }, []);
+
+  // Initialize dual API service
+  useEffect(() => {
+    const service = createDualApiService(coingeckoApiKey, coinmarketcapApiKey);
+    setDualApiService(service);
+    
+    // Update API usage stats
+    const updateStats = () => {
+      if (service) {
+        const usageStats = service.getUsageStats();
+        setApiUsageStats(usageStats);
+      }
+    };
+    
+    updateStats();
+    
+    // Update stats every 5 seconds
+    const interval = setInterval(updateStats, 5000);
+    return () => clearInterval(interval);
+  }, [coingeckoApiKey, coinmarketcapApiKey]);
 
   const handleConnectToggle = async () => {
     if (!activeProfile) {
@@ -160,11 +187,24 @@ export default function SettingsPage() {
     setEditingProfile(null);
   };
 
-  const handleSaveCgKey = () => { setCoingeckoApiKey(cgKeyValue); toast({ title: "CoinGecko API Key Saved" }); };
-  const handleSaveGeminiKey = () => { setGeminiApiKey(geminiKeyValue); toast({ title: "Google AI API Key Saved" }); };
-  const handleSaveCmcKey = () => { setCoinmarketcapApiKey(cmcKeyValue); toast({ title: "CoinMarketCap API Key Saved" }); };
+  const handleSaveCgKey = () => { setCoingeckoApiKey(cgKeyValue); toast({ title: "CoinGecko API Key Saved", description: "API key saved and persisted across sessions!" }); };
+  const handleSaveGeminiKey = () => { setGeminiApiKey(geminiKeyValue); toast({ title: "Google AI API Key Saved", description: "API key saved and persisted across sessions!" }); };
+  const handleSaveCmcKey = () => { setCoinmarketcapApiKey(cmcKeyValue); toast({ title: "CoinMarketCap API Key Saved", description: "API key saved and persisted across sessions!" }); };
   const handleSaveAiQuota = () => { setAiQuotaLimit(aiQuotaLimitInput); toast({ title: "AI Quota Limit Updated", description: `New daily limit is ${aiQuotaLimitInput}.` }); }
-  const handleSaveTelegramConfig = () => { setTelegramBotToken(telegramTokenInput); setTelegramChatId(telegramChatIdInput); toast({ title: "Telegram Settings Saved" }); };
+  const handleSaveTelegramConfig = () => { setTelegramBotToken(telegramTokenInput); setTelegramChatId(telegramChatIdInput); toast({ title: "Telegram Settings Saved", description: "Settings saved and persisted across sessions!" }); };
+
+  // Auto-save function for all API keys
+  const handleSaveAllApiKeys = () => {
+    setCoingeckoApiKey(cgKeyValue);
+    setCoinmarketcapApiKey(cmcKeyValue);
+    setGeminiApiKey(geminiKeyValue);
+    setTelegramBotToken(telegramTokenInput);
+    setTelegramChatId(telegramChatIdInput);
+    toast({ 
+      title: "🎉 All API Keys Saved!", 
+      description: "All API keys have been saved and will persist across page reloads and browser sessions!" 
+    });
+  };
 
   const openEditForm = (profile: ApiProfile) => { setEditingProfile(profile); setIsFormOpen(true); }
   const openAddForm = () => { setEditingProfile(null); setIsFormOpen(true); }
@@ -254,6 +294,138 @@ export default function SettingsPage() {
         </Collapsible>
     </Card>
 
+    {/* API Rate Limit Management Panel */}
+    <Card>
+      <Collapsible open={isApiManagementOpen} onOpenChange={setIsApiManagementOpen}>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              🛡️ API Rate Limit Management
+            </CardTitle>
+            <CardDescription>
+              Real-time monitoring of API usage to prevent hitting rate limits
+            </CardDescription>
+          </div>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <ChevronDown className={cn("h-4 w-4 transition-transform", isApiManagementOpen && "rotate-180")} />
+              <span className="sr-only">Toggle</span>
+            </Button>
+          </CollapsibleTrigger>
+        </CardHeader>
+        <CollapsibleContent>
+          <CardContent>
+            {apiUsageStats ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  {/* CoinGecko Status */}
+                  <div className="p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-gray-800">🟢 CoinGecko</h4>
+                      <Badge variant={apiUsageStats.coingecko.used < apiUsageStats.coingecko.limit * 0.9 ? "default" : "destructive"}>
+                        {Math.round((apiUsageStats.coingecko.used / apiUsageStats.coingecko.limit) * 100)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Daily Usage:</span>
+                        <span className="font-mono">{apiUsageStats.coingecko.used}/{apiUsageStats.coingecko.limit}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.coingecko.used / apiUsageStats.coingecko.limit) * 100} className="h-2" />
+                      <div className="flex justify-between">
+                        <span>Per Minute:</span>
+                        <span className="font-mono">{apiUsageStats.coingecko.callsInCurrentMinute}/{apiUsageStats.coingecko.rateLimitPerMinute}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.coingecko.callsInCurrentMinute / apiUsageStats.coingecko.rateLimitPerMinute) * 100} className="h-2" />
+                    </div>
+                  </div>
+
+                  {/* CoinMarketCap Status */}
+                  <div className="p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-gray-800">🔵 CoinMarketCap</h4>
+                      <Badge variant={apiUsageStats.coinmarketcap.used < apiUsageStats.coinmarketcap.limit * 0.9 ? "default" : "destructive"}>
+                        {Math.round((apiUsageStats.coinmarketcap.used / apiUsageStats.coinmarketcap.limit) * 100)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Daily Usage:</span>
+                        <span className="font-mono">{apiUsageStats.coinmarketcap.used}/{apiUsageStats.coinmarketcap.limit}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.coinmarketcap.used / apiUsageStats.coinmarketcap.limit) * 100} className="h-2" />
+                      <div className="flex justify-between">
+                        <span>Per Minute:</span>
+                        <span className="font-mono">{apiUsageStats.coinmarketcap.callsInCurrentMinute}/{apiUsageStats.coinmarketcap.rateLimitPerMinute}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.coinmarketcap.callsInCurrentMinute / apiUsageStats.coinmarketcap.rateLimitPerMinute) * 100} className="h-2" />
+                    </div>
+                  </div>
+
+                  {/* Binance Status */}
+                  <div className="p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-gray-800">🟡 Binance</h4>
+                      <Badge variant={apiUsageStats.binance.used < apiUsageStats.binance.limit * 0.9 ? "default" : "destructive"}>
+                        {Math.round((apiUsageStats.binance.used / apiUsageStats.binance.limit) * 100)}%
+                      </Badge>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Weight Used:</span>
+                        <span className="font-mono">{apiUsageStats.binance.used}/{apiUsageStats.binance.limit}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.binance.used / apiUsageStats.binance.limit) * 100} className="h-2" />
+                      <div className="flex justify-between">
+                        <span>Per Minute:</span>
+                        <span className="font-mono">{apiUsageStats.binance.callsInCurrentMinute}/{apiUsageStats.binance.rateLimitPerMinute}</span>
+                      </div>
+                      <Progress value={(apiUsageStats.binance.callsInCurrentMinute / apiUsageStats.binance.rateLimitPerMinute) * 100} className="h-2" />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* API Health Summary */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm">
+                      <span className="font-semibold">🎯 Intelligent Rate Limiting:</span>
+                      <span className="ml-2 text-muted-foreground">
+                        Automatic request queuing • Smart fallback switching • Prevents API exhaustion
+                      </span>
+                    </div>
+                    {dualApiService && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => {
+                          dualApiService.resetAllCounters();
+                          toast({ 
+                            title: "🔄 Counters Reset", 
+                            description: "All API usage counters have been reset." 
+                          });
+                        }}
+                        className="text-xs"
+                      >
+                        🔄 Reset Counters
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-2" />
+                  <p className="text-muted-foreground">Loading API usage statistics...</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+
     <Card>
       <Collapsible open={isIntegrationsOpen} onOpenChange={setIntegrationsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -262,33 +434,136 @@ export default function SettingsPage() {
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">
+            {/* API Key Status & Quick Save Section */}
+            <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-blue-800 mb-2">💾 API Key Management Center</h4>
+                  <p className="text-sm text-blue-700 mb-3">All API keys are automatically saved to localStorage and persist across browser sessions!</p>
+                  
+                  {/* API Status Grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div className={`p-3 rounded-lg border-2 ${geminiApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        {geminiApiKey ? '✅' : '❌'} 
+                        <span className="font-semibold">Google AI (Gemini)</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {geminiApiKey ? 'Ready for AI features' : 'Required for AI analysis'}
+                      </p>
+                    </div>
+                    
+                    <div className={`p-3 rounded-lg border-2 ${coingeckoApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        {coingeckoApiKey ? '✅' : '❌'} 
+                        <span className="font-semibold">CoinGecko</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {coingeckoApiKey ? 'Higher rate limits active' : 'Using free tier (limited)'}
+                      </p>
+                    </div>
+                    
+                    <div className={`p-3 rounded-lg border-2 ${coinmarketcapApiKey ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        {coinmarketcapApiKey ? '✅' : '❌'} 
+                        <span className="font-semibold">CoinMarketCap</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {coinmarketcapApiKey ? 'Fallback API ready' : 'No fallback available'}
+                      </p>
+                    </div>
+                    
+                    <div className={`p-3 rounded-lg border-2 ${telegramBotToken ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center gap-2">
+                        {telegramBotToken ? '✅' : '❌'} 
+                        <span className="font-semibold">Telegram Bot</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {telegramBotToken ? 'Notifications enabled' : 'No notifications'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <Button onClick={handleSaveAllApiKeys} className="bg-blue-600 hover:bg-blue-700">
+                  <Save className="mr-2 h-4 w-4"/>Save All Keys
+                </Button>
+              </div>
+            </div>
+            <Separator/>
              <div className="space-y-2">
                 <Label htmlFor="gemini-key">Google AI (Gemini) API Key</Label>
-                <div className="flex items-center gap-2"><Input id="gemini-key" type="password" value={geminiKeyValue} onChange={(e) => setGeminiKeyValue(e.target.value)} placeholder="Enter your Google AI API Key"/><Button onClick={handleSaveGeminiKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
-                <p className="text-xs text-muted-foreground">Required for all AI-powered features. Get a key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>.</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    id="gemini-key" 
+                    type="password" 
+                    value={geminiKeyValue} 
+                    onChange={(e) => setGeminiKeyValue(e.target.value)}
+                    onBlur={() => geminiKeyValue !== geminiApiKey && setGeminiApiKey(geminiKeyValue)}
+                    placeholder="Enter your Google AI API Key"
+                  />
+                  <Button onClick={handleSaveGeminiKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Required for all AI-powered features. Get a key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>. <span className="text-green-600">💾 Auto-saves on blur</span></p>
             </div>
             <Separator/>
              <div className="space-y-2">
                 <Label htmlFor="telegram-token">Telegram Bot Token (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="telegram-token" type="password" value={telegramTokenInput} onChange={(e) => setTelegramTokenInput(e.target.value)} placeholder="Enter your Telegram Bot Token"/></div>
-                <p className="text-xs text-muted-foreground">Create a bot with BotFather on Telegram to get a token.</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    id="telegram-token" 
+                    type="password" 
+                    value={telegramTokenInput} 
+                    onChange={(e) => setTelegramTokenInput(e.target.value)}
+                    onBlur={() => telegramTokenInput !== telegramBotToken && setTelegramBotToken(telegramTokenInput)}
+                    placeholder="Enter your Telegram Bot Token"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Create a bot with BotFather on Telegram to get a token. <span className="text-green-600">💾 Auto-saves on blur</span></p>
             </div>
              <div className="space-y-2">
                 <Label htmlFor="telegram-chat-id">Telegram Chat ID (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="telegram-chat-id" value={telegramChatIdInput} onChange={(e) => setTelegramChatIdInput(e.target.value)} placeholder="Enter your personal Chat ID"/></div>
-                <p className="text-xs text-muted-foreground">Get your Chat ID by messaging "@userinfobot" on Telegram.</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    id="telegram-chat-id" 
+                    value={telegramChatIdInput} 
+                    onChange={(e) => setTelegramChatIdInput(e.target.value)}
+                    onBlur={() => telegramChatIdInput !== telegramChatId && setTelegramChatId(telegramChatIdInput)}
+                    placeholder="Enter your personal Chat ID"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Get your Chat ID by messaging "@userinfobot" on Telegram. <span className="text-green-600">💾 Auto-saves on blur</span></p>
             </div>
             <Button onClick={handleSaveTelegramConfig}><Save className="mr-2 h-4 w-4"/>Save Telegram Settings</Button>
             <Separator />
             <div className="space-y-2">
                 <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="coingecko-key" type="password" value={cgKeyValue} onChange={(e) => setCgKeyValue(e.target.value)} placeholder="Enter your CoinGecko API Key"/><Button onClick={handleSaveCgKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
-                <p className="text-xs text-muted-foreground">Provides asset intelligence data. Recommended for higher rate limits.</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    id="coingecko-key" 
+                    type="password" 
+                    value={cgKeyValue} 
+                    onChange={(e) => setCgKeyValue(e.target.value)}
+                    onBlur={() => cgKeyValue !== coingeckoApiKey && setCoingeckoApiKey(cgKeyValue)}
+                    placeholder="Enter your CoinGecko API Key"
+                  />
+                  <Button onClick={handleSaveCgKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Provides asset intelligence data. Recommended for higher rate limits. <span className="text-green-600">💾 Auto-saves on blur</span></p>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="coinmarketcap-key">CoinMarketCap API Key (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="coinmarketcap-key" type="password" value={cmcKeyValue} onChange={(e) => setCmcKeyValue(e.target.value)} placeholder="Enter your CoinMarketCap API Key"/><Button onClick={handleSaveCmcKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
-                <p className="text-xs text-muted-foreground">An alternative source for market and asset data.</p>
+                <div className="flex items-center gap-2">
+                  <Input 
+                    id="coinmarketcap-key" 
+                    type="password" 
+                    value={cmcKeyValue} 
+                    onChange={(e) => setCmcKeyValue(e.target.value)}
+                    onBlur={() => cmcKeyValue !== coinmarketcapApiKey && setCoinmarketcapApiKey(cmcKeyValue)}
+                    placeholder="Enter your CoinMarketCap API Key"
+                  />
+                  <Button onClick={handleSaveCmcKey}><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+                <p className="text-xs text-muted-foreground">An alternative source for market and asset data. <span className="text-green-600">💾 Auto-saves on blur</span></p>
             </div>
           </CardContent>
         </CollapsibleContent>

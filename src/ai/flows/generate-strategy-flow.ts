@@ -72,13 +72,25 @@ const generateStrategyFlow = ai.defineFlow(
     inputSchema: GenerateStrategyInputSchema,
     outputSchema: GenerateStrategyOutputSchema,
   },
-  async (input) => runAiFlow(generateStrategyPrompt, input)
+  async (input) => {
+    const result = await runAiFlow(generateStrategyPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function generateStrategy(input: GenerateStrategyInput): Promise<GenerateStrategyOutput> {
-  const result = await generateStrategyFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for generating a strategy returned an empty result.");
+export async function generateStrategy(input: GenerateStrategyInput): Promise<GenerateStrategyOutput | null> {
+  try {
+    const result = await generateStrategyFlow(input);
+    if (!result) {
+      console.error("The AI flow for generating a strategy returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in generateStrategy:", error);
+    return null;
   }
-  return result;
 }

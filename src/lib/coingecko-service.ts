@@ -249,4 +249,48 @@ export const getCoinDetailsByTicker = async (
     }
 };
 
-    
+/**
+ * Get simple price data for a coin
+ */
+export const getCoinPrice = async (
+    coinId: string,
+    apiKey?: string | null
+): Promise<{ price: number; change24h: number; volume24h: number } | null> => {
+    try {
+        const url = new URL(`${COINGECKO_API_URL}/simple/price`);
+        url.searchParams.append('ids', coinId);
+        url.searchParams.append('vs_currencies', 'usd');
+        url.searchParams.append('include_24hr_change', 'true');
+        url.searchParams.append('include_24hr_vol', 'true');
+
+        if (apiKey) {
+            url.searchParams.append('x_cg_demo_api_key', apiKey);
+        }
+
+        const response = await fetch(url.toString(), {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+        });
+
+        if (!response.ok) {
+            throw new Error(`CoinGecko price API error: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        const coinData = data[coinId];
+        
+        if (!coinData) {
+            return null;
+        }
+
+        return {
+            price: coinData.usd || 0,
+            change24h: coinData.usd_24h_change || 0,
+            volume24h: coinData.usd_24h_vol || 0
+        };
+    } catch (error) {
+        console.error(`Failed to fetch price for ${coinId}:`, error);
+        return null;
+    }
+};

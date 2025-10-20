@@ -89,13 +89,25 @@ const predictPriceFlow = ai.defineFlow(
     inputSchema: PredictPriceInputSchema,
     outputSchema: PredictPriceOutputSchema,
   },
-  async input => runAiFlow(predictPricePrompt, input)
+  async input => {
+    const result = await runAiFlow(predictPricePrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function predictPrice(input: PredictPriceInput): Promise<PredictPriceOutput> {
-  const result = await predictPriceFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for price prediction returned an empty result.");
+export async function predictPrice(input: PredictPriceInput): Promise<PredictPriceOutput | null> {
+  try {
+    const result = await predictPriceFlow(input);
+    if (!result) {
+      console.error("The AI flow for price prediction returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in predictPrice:", error);
+    return null;
   }
-  return result;
 }

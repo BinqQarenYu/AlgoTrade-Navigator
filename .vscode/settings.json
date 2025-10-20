@@ -1,4 +1,8 @@
 {
     "IDX.aI.enableInlineCompletion": true,
-    "IDX.aI.enableCodebaseIndexing": true
+    "IDX.aI.enableCodebaseIndexing": true,
+    "workbench.editor.autoLockGroups": {
+        "default": true,
+        "imagePreview.previewEditor": true
+    }
 }

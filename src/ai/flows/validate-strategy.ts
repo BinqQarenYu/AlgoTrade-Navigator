@@ -50,13 +50,25 @@ const validateStrategyFlow = ai.defineFlow(
     inputSchema: ValidateStrategyInputSchema,
     outputSchema: ValidateStrategyOutputSchema,
   },
-  async input => runAiFlow(validateStrategyPrompt, input)
+  async input => {
+    const result = await runAiFlow(validateStrategyPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function validateStrategy(input: ValidateStrategyInput): Promise<ValidateStrategyOutput> {
-  const result = await validateStrategyFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for validating a strategy returned an empty result.");
+export async function validateStrategy(input: ValidateStrategyInput): Promise<ValidateStrategyOutput | null> {
+  try {
+    const result = await validateStrategyFlow(input);
+    if (!result) {
+      console.error("The AI flow for validating a strategy returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in validateStrategy:", error);
+    return null;
   }
-  return result;
 }

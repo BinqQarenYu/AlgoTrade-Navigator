@@ -65,13 +65,25 @@ const analyzePineScriptFlow = ai.defineFlow(
     inputSchema: AnalyzePineScriptInputSchema,
     outputSchema: AnalyzePineScriptOutputSchema,
   },
-  async input => runAiFlow(analyzePineScriptPrompt, input)
+  async input => {
+    const result = await runAiFlow(analyzePineScriptPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function analyzePineScript(input: AnalyzePineScriptInput): Promise<AnalyzePineScriptOutput> {
-  const result = await analyzePineScriptFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for analyzing Pine Script returned an empty result.");
+export async function analyzePineScript(input: AnalyzePineScriptInput): Promise<AnalyzePineScriptOutput | null> {
+  try {
+    const result = await analyzePineScriptFlow(input);
+    if (!result) {
+      console.error("The AI flow for analyzing Pine Script returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in analyzePineScript:", error);
+    return null;
   }
-  return result;
 }

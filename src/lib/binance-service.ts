@@ -187,3 +187,39 @@ export const getLatestKlinesByLimit = async (
         }
     }
 }
+
+export const getTicker = async (symbol: string): Promise<Ticker> => {
+    try {
+        const ticker = await binanceExchange.fetchTicker(symbol.toUpperCase());
+        return ticker;
+    } catch (error: any) {
+        console.error(`Error fetching ticker for ${symbol} via CCXT:`, error);
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+            throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        } else {
+            throw new Error("An unexpected error occurred while fetching ticker data.");
+        }
+    }
+};
+
+// Add getKlines function for fetching candlestick data
+export const getKlines = async (symbol: string, interval: string = '1h', limit: number = 100): Promise<any[]> => {
+    try {
+        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit);
+        return ohlcv.map(candle => ({
+            openTime: candle[0],
+            open: candle[1],
+            high: candle[2],
+            low: candle[3],
+            close: candle[4],
+            volume: candle[5]
+        }));
+    } catch (error: any) {
+        console.error(`Error fetching klines for ${symbol} via CCXT:`, error);
+        if (error.message.includes('451') || error.message.includes('restricted location')) {
+            throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
+        } else {
+            throw new Error("An unexpected error occurred while fetching klines data.");
+        }
+    }
+};

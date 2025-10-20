@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { 
   AlertTriangle, 
   TrendingDown, 
@@ -24,9 +25,29 @@ import {
   LayoutDashboard,
   HelpCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  BarChart3
 } from "lucide-react";
+import { useApi } from "@/context/api-context";
+import { createDualApiService, enhancedOrderFlowAnalyzer, type EnhancedOrderFlowData } from "@/lib/dual-coin-api-service";
 import { orderFlowAnalyzer, OrderData, ManipulationFlags } from "@/lib/order-flow-analyzer";
+import { getTicker, getKlines } from "@/lib/binance-service";
+import { binanceWebSocketService, type OrderFlowData as BinanceOrderFlowData } from "@/lib/binance-websocket-service";
+
+interface VeryLargeActivity {
+  id: string;
+  startTime: number;
+  endTime?: number;
+  symbol: string;
+  type: 'massive_buy' | 'massive_sell' | 'whale_activity' | 'coordinated_attack';
+  totalVolume: number;
+  orderCount: number;
+  avgPrice: number;
+  maxOrderSize: number;
+  description: string;
+  isActive: boolean;
+  riskLevel: 'extreme' | 'critical';
+}
 
 interface OrderFlowData {
   symbol: string;
@@ -37,6 +58,10 @@ interface OrderFlowData {
   suspiciousFlags: string[];
   riskScore: number;
   flags: ManipulationFlags;
+  marketSource?: {
+    coinApi: string;
+    priceApi: string;
+  };
 }
 
 interface ManipulationPattern {
@@ -48,25 +73,209 @@ interface ManipulationPattern {
 }
 
 export default function OrderFlowPage() {
+  const { coingeckoApiKey, coinmarketcapApiKey } = useApi();
+  
   const [orderFlowData, setOrderFlowData] = useState<OrderFlowData[]>([]);
   const [manipulationPatterns, setManipulationPatterns] = useState<ManipulationPattern[]>([]);
   const [isMonitoring, setIsMonitoring] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string>("BTCUSDT");
   const [stats, setStats] = useState<any>(null);
   const [hasHighRiskDetected, setHasHighRiskDetected] = useState(false);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [selectedTimeInterval, setSelectedTimeInterval] = useState<string>("30s");
+  const [marketData, setMarketData] = useState<any>(null);
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+  const [realTimeOrders, setRealTimeOrders] = useState<BinanceOrderFlowData[]>([]);
+  
+  // Initialize dual API service
+  const dualApiService = createDualApiService(coingeckoApiKey, coinmarketcapApiKey);
+  
+  // Very Large Activity tracking
+  const [veryLargeActivities, setVeryLargeActivities] = useState<VeryLargeActivity[]>([]);
+  const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
+  const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
 
   // Initialize with mock data and start analysis
   useEffect(() => {
     loadMockData();
+    fetchMarketData();
+  }, [selectedSymbol, selectedTimeInterval]);
+
+  // WebSocket connection and real-time order flow management
+  useEffect(() => {
+    console.log(`🔗 Setting up WebSocket connection for ${selectedSymbol}`);
+    
+    // Connect to Binance WebSocket
+    binanceWebSocketService.connect();
+    
+    // Set up connection status callback
+    binanceWebSocketService.onConnection((connected) => {
+      setIsWebSocketConnected(connected);
+      console.log(`📡 Binance WebSocket ${connected ? 'connected' : 'disconnected'}`);
+    });
+    
+    // Set up error callback
+    binanceWebSocketService.onError((error) => {
+      console.error('❌ Binance WebSocket error:', error);
+    });
+    
+    // Subscribe to trade stream for the selected symbol
+    binanceWebSocketService.subscribeToAggTrades(selectedSymbol, (orderData) => {
+      console.log(`📊 New order received:`, orderData);
+      
+      // Add to real-time orders list (keep last 1000 orders)
+      setRealTimeOrders(prev => {
+        const updated = [orderData, ...prev];
+        return updated.slice(0, 1000); // Keep only last 1000 orders
+      });
+      
+      // Convert to OrderData format for analysis
+      const analysisOrder: OrderData = {
+        symbol: orderData.symbol,
+        timestamp: orderData.timestamp,
+        side: orderData.side,
+        size: orderData.quantity,
+        price: orderData.price,
+        orderId: orderData.id,
+        venue: 'binance-ws'
+      };
+      
+      // Analyze the new order
+      const analyzed = orderFlowAnalyzer.analyzeOrder(analysisOrder);
+      
+      // Create OrderFlowData object combining order and analysis
+      const orderFlowItem: OrderFlowData = {
+        symbol: orderData.symbol,
+        timestamp: orderData.timestamp,
+        orderType: orderData.side,
+        size: orderData.quantity,
+        price: orderData.price,
+        suspiciousFlags: analyzed.reasons,
+        riskScore: analyzed.riskScore,
+        flags: analyzed,
+        marketSource: {
+          coinApi: 'binance-ws',
+          priceApi: 'binance-ws'
+        }
+      };
+      
+      // Update order flow data with the new analyzed order
+      setOrderFlowData(prev => {
+        const updated = [orderFlowItem, ...prev];
+        const limited = updated.slice(0, 500); // Keep last 500 analyzed orders
+        
+        // Update stats based on new data
+        setTimeout(() => {
+          const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
+          setStats(currentStats);
+          
+          // Check for high risk
+          const hasHighRisk = analyzed.riskScore >= 8 || currentStats.averageRiskScore >= 7;
+          setHasHighRiskDetected(hasHighRisk);
+        }, 100);
+        
+        return limited;
+      });
+    });
+    
+    // Cleanup function
+    return () => {
+      console.log(`🔌 Cleaning up WebSocket for ${selectedSymbol}`);
+      binanceWebSocketService.unsubscribe(selectedSymbol);
+    };
   }, [selectedSymbol]);
 
-  const loadMockData = () => {
-    // Generate mock orders
-    const mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
+  // Cleanup WebSocket on component unmount
+  useEffect(() => {
+    return () => {
+      binanceWebSocketService.disconnect();
+    };
+  }, []);
+
+  // Fetch real market data from APIs
+  const fetchMarketData = async () => {
+    try {
+      console.log(`🔍 Fetching market data for ${selectedSymbol} using multi-API approach...`);
+      
+      // Fetch coin details from dual API service (CoinGecko/CoinMarketCap with fallback)
+      const ticker = selectedSymbol.replace('USDT', '').toLowerCase();
+      const coinDetails = await dualApiService.getCoinDetails(ticker);
+      
+      // Fetch price data from Binance API
+      let binanceData = null;
+      try {
+        console.log(`📡 Fetching ${selectedSymbol} ticker from Binance...`);
+        const tickerData = await getTicker(selectedSymbol);
+        binanceData = tickerData;
+        
+        // Track Binance usage (ticker requests typically have weight of 1)
+        dualApiService.trackBinanceUsage(1);
+        
+        console.log(`✅ Binance ticker data received for ${selectedSymbol}`);
+      } catch (binanceError) {
+        console.warn(`⚠️ Binance API failed for ${selectedSymbol}:`, binanceError);
+      }
+      
+      // Combine market data
+      const combinedMarketData = {
+        symbol: selectedSymbol,
+        coinDetails: coinDetails,
+        binanceData: binanceData,
+        timestamp: Date.now(),
+        dataSource: {
+          coinApi: coinDetails ? dualApiService.getApiStatus().activeApi : 'None',
+          priceApi: binanceData ? 'Binance' : 'None'
+        }
+      };
+      
+      setMarketData(combinedMarketData);
+      console.log(`🎯 Market data fetched:`, combinedMarketData);
+      
+    } catch (error) {
+      console.error('❌ Error fetching market data:', error);
+    }
+  };
+
+  const loadMockData = async () => {
+    // Generate enhanced mock orders using the dual API service analyzer
+    let mockOrders: OrderData[];
     
-    // Analyze each order
+    if (marketData?.binanceData) {
+      // Use real market data to generate more realistic mock orders
+      console.log('📊 Generating enhanced mock orders with real market data...');
+      const enhancedOrders = await enhancedOrderFlowAnalyzer.generateEnhancedOrders(
+        selectedSymbol, 
+        100, 
+        dualApiService
+      );
+      // Convert enhanced orders to standard OrderData format
+      mockOrders = enhancedOrders.map(order => ({
+        symbol: order.symbol,
+        timestamp: order.timestamp,
+        side: order.type,
+        size: order.volume,
+        price: order.price,
+        orderId: order.id,
+        venue: order.source
+      }));
+    } else {
+      // Fallback to standard mock orders
+      console.log('📊 Generating standard mock orders...');
+      mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
+    }
+    
+    // Analyze each order using the appropriate analyzer
     const analyzedOrders: OrderFlowData[] = mockOrders.map(order => {
-      const flags = orderFlowAnalyzer.analyzeOrder(order);
+      let flags: ManipulationFlags;
+      
+      if (marketData?.binanceData && 'enhancedFlags' in order) {
+        // Use enhanced analysis for orders with market data
+        flags = (order as any).enhancedFlags;
+      } else {
+        // Use standard analysis
+        flags = orderFlowAnalyzer.analyzeOrder(order);
+      }
+      
       return {
         symbol: order.symbol,
         timestamp: order.timestamp,
@@ -75,7 +284,8 @@ export default function OrderFlowPage() {
         price: order.price,
         suspiciousFlags: flags.reasons,
         riskScore: flags.riskScore,
-        flags
+        flags,
+        marketSource: marketData?.dataSource // Add data source info
       };
     });
 
@@ -119,14 +329,108 @@ export default function OrderFlowPage() {
     ];
 
     setManipulationPatterns(patterns);
+
+    // Generate chart data for order flow visualization
+    updateChartData(analyzedOrders);
+  };
+
+  const updateChartData = (orders: OrderFlowData[]) => {
+    // Get interval duration in milliseconds based on selected time interval
+    const getIntervalMs = (interval: string) => {
+      switch (interval) {
+        case '30s': return 30000; // 30 seconds
+        case '5m': return 300000; // 5 minutes
+        case '1h': return 3600000; // 1 hour
+        case '4h': return 14400000; // 4 hours
+        default: return 30000;
+      }
+    };
+
+    const intervalMs = getIntervalMs(selectedTimeInterval);
+    const timeGroups: { [key: number]: { buyVolume: number; sellVolume: number; buyCount: number; sellCount: number; avgRisk: number; timestamp: number } } = {};
+    
+    orders.forEach(order => {
+      // Round timestamp to selected intervals
+      const intervalTime = Math.floor(order.timestamp / intervalMs) * intervalMs;
+      
+      if (!timeGroups[intervalTime]) {
+        timeGroups[intervalTime] = {
+          buyVolume: 0,
+          sellVolume: 0,
+          buyCount: 0,
+          sellCount: 0,
+          avgRisk: 0,
+          timestamp: intervalTime
+        };
+      }
+      
+      if (order.orderType === 'buy') {
+        timeGroups[intervalTime].buyVolume += order.size;
+        timeGroups[intervalTime].buyCount += 1;
+      } else {
+        timeGroups[intervalTime].sellVolume += order.size;
+        timeGroups[intervalTime].sellCount += 1;
+      }
+      
+      timeGroups[intervalTime].avgRisk = (timeGroups[intervalTime].avgRisk + order.riskScore) / 2;
+    });
+
+    // Convert to array and sort by time
+    const chartDataArray = Object.entries(timeGroups)
+      .map(([timestampStr, data]) => ({
+        time: parseInt(timestampStr), // Use timestamp as time key
+        timestamp: data.timestamp,
+        buyVolume: data.buyVolume,
+        sellVolume: data.sellVolume,
+        buyCount: data.buyCount,
+        sellCount: data.sellCount,
+        avgRisk: data.avgRisk,
+        netFlow: data.buyVolume - data.sellVolume,
+        totalVolume: data.buyVolume + data.sellVolume,
+        orderImbalance: ((data.buyCount - data.sellCount) / Math.max(data.buyCount + data.sellCount, 1)) * 100
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .slice(-20); // Keep last 20 data points
+
+    setChartData(chartDataArray);
   };
 
   const startMonitoring = () => {
     setIsMonitoring(true);
+    
+    // Fetch market data more frequently when monitoring
+    const marketDataInterval = setInterval(() => {
+      fetchMarketData();
+    }, 30000); // Update market data every 30 seconds
+    
     // Simulate real-time order flow updates
-    const interval = setInterval(() => {
+    const orderInterval = setInterval(async () => {
       if (Math.random() > 0.7) { // 30% chance of new order
-        const newOrder = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 1)[0];
+        let newOrder: OrderData;
+        
+        if (marketData?.binanceData) {
+          // Generate enhanced order with real market data
+          const enhancedOrders = await enhancedOrderFlowAnalyzer.generateEnhancedOrders(
+            selectedSymbol,
+            1,
+            dualApiService
+          );
+          // Convert enhanced order to standard OrderData format
+          const enhancedOrder = enhancedOrders[0];
+          newOrder = {
+            symbol: enhancedOrder.symbol,
+            timestamp: enhancedOrder.timestamp,
+            side: enhancedOrder.type,
+            size: enhancedOrder.volume,
+            price: enhancedOrder.price,
+            orderId: enhancedOrder.id,
+            venue: enhancedOrder.source
+          };
+        } else {
+          // Generate standard mock order
+          newOrder = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 1)[0];
+        }
+        
         const flags = orderFlowAnalyzer.analyzeOrder(newOrder);
         
         const analyzedOrder: OrderFlowData = {
@@ -137,10 +441,20 @@ export default function OrderFlowPage() {
           price: newOrder.price,
           suspiciousFlags: flags.reasons,
           riskScore: flags.riskScore,
-          flags
+          flags,
+          marketSource: marketData?.dataSource // Add data source info
         };
 
-        setOrderFlowData(prev => [analyzedOrder, ...prev.slice(0, 99)]);
+        setOrderFlowData(prev => {
+          const newData = [analyzedOrder, ...prev.slice(0, 99)];
+          // Update chart data with new order flow
+          updateChartData(newData.slice(0, 50)); // Use last 50 orders for chart
+          
+          // Check for very large activity
+          detectVeryLargeActivity(newData.slice(0, 20)); // Check last 20 orders
+          
+          return newData;
+        });
         
         // Update stats
         const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
@@ -154,8 +468,9 @@ export default function OrderFlowPage() {
       }
     }, 2000);
 
-    // Store interval ID for cleanup
-    (window as any).orderFlowInterval = interval;
+    // Store interval IDs for cleanup
+    (window as any).orderFlowInterval = orderInterval;
+    (window as any).marketDataInterval = marketDataInterval;
   };
 
   const stopMonitoring = () => {
@@ -164,6 +479,10 @@ export default function OrderFlowPage() {
       clearInterval((window as any).orderFlowInterval);
       (window as any).orderFlowInterval = null;
     }
+    if ((window as any).marketDataInterval) {
+      clearInterval((window as any).marketDataInterval);
+      (window as any).marketDataInterval = null;
+    }
   };
 
   // Cleanup on unmount
@@ -171,6 +490,9 @@ export default function OrderFlowPage() {
     return () => {
       if ((window as any).orderFlowInterval) {
         clearInterval((window as any).orderFlowInterval);
+      }
+      if ((window as any).marketDataInterval) {
+        clearInterval((window as any).marketDataInterval);
       }
     };
   }, []);
@@ -265,6 +587,121 @@ export default function OrderFlowPage() {
     return 'neutral';
   };
 
+  // Very Large Activity Detection System
+  function detectVeryLargeActivity(recentOrders: OrderFlowData[]) {
+    const currentTime = Date.now();
+    const timeWindow = 30000; // 30 second window
+    const windowOrders = recentOrders.filter(order => 
+      currentTime - order.timestamp < timeWindow
+    );
+
+    // Define thresholds for very large activity
+    const totalVolume = windowOrders.reduce((sum, order) => sum + order.size, 0);
+    const averageOrderSize = totalVolume / Math.max(windowOrders.length, 1);
+    const maxOrderSize = Math.max(...windowOrders.map(o => o.size), 0);
+    const buyOrders = windowOrders.filter(o => o.orderType === 'buy');
+    const sellOrders = windowOrders.filter(o => o.orderType === 'sell');
+    
+    // Very Large Activity Criteria
+    const isVeryLargeVolume = totalVolume > 50; // Extremely high volume
+    const isWhaleActivity = maxOrderSize > 25; // Single very large order
+    const isMassiveBuying = buyOrders.length > 8 && buyOrders.reduce((s, o) => s + o.size, 0) > 40;
+    const isMassiveSelling = sellOrders.length > 8 && sellOrders.reduce((s, o) => s + o.size, 0) > 40;
+    const isCoordinatedAttack = windowOrders.length > 12 && windowOrders.filter(o => o.riskScore >= 7).length > 6;
+
+    // Check if we should start a new very large activity
+    if (!activeVeryLargeActivity && (isVeryLargeVolume || isWhaleActivity || isMassiveBuying || isMassiveSelling || isCoordinatedAttack)) {
+      let activityType: VeryLargeActivity['type'] = 'whale_activity';
+      let description = '';
+      let riskLevel: 'extreme' | 'critical' = 'critical';
+
+      if (isCoordinatedAttack) {
+        activityType = 'coordinated_attack';
+        description = `🚨 COORDINATED ATTACK DETECTED! ${windowOrders.length} orders with ${windowOrders.filter(o => o.riskScore >= 7).length} high-risk orders in 30 seconds`;
+        riskLevel = 'extreme';
+      } else if (isMassiveBuying) {
+        activityType = 'massive_buy';
+        description = `🐋 MASSIVE BUYING SPREE! ${buyOrders.length} buy orders totaling ${buyOrders.reduce((s, o) => s + o.size, 0).toFixed(2)} ${selectedSymbol.replace('USDT', '')}`;
+        riskLevel = 'extreme';
+      } else if (isMassiveSelling) {
+        activityType = 'massive_sell';
+        description = `📉 MASSIVE SELLING PRESSURE! ${sellOrders.length} sell orders totaling ${sellOrders.reduce((s, o) => s + o.size, 0).toFixed(2)} ${selectedSymbol.replace('USDT', '')}`;
+        riskLevel = 'extreme';
+      } else if (isWhaleActivity) {
+        activityType = 'whale_activity';
+        description = `🐋 WHALE ACTIVITY! Single order of ${maxOrderSize.toFixed(2)} ${selectedSymbol.replace('USDT', '')}`;
+      } else {
+        description = `⚡ VERY HIGH VOLUME! ${totalVolume.toFixed(2)} ${selectedSymbol.replace('USDT', '')} traded in 30 seconds`;
+      }
+
+      const newActivity: VeryLargeActivity = {
+        id: `vla-${currentTime}`,
+        startTime: currentTime,
+        symbol: selectedSymbol,
+        type: activityType,
+        totalVolume: totalVolume,
+        orderCount: windowOrders.length,
+        avgPrice: windowOrders.reduce((sum, o) => sum + o.price, 0) / windowOrders.length,
+        maxOrderSize: maxOrderSize,
+        description: description,
+        isActive: true,
+        riskLevel: riskLevel
+      };
+
+      setActiveVeryLargeActivity(newActivity);
+      setVeryLargeActivities(prev => [newActivity, ...prev.slice(0, 9)]); // Keep last 10
+      
+      // Log the start
+      const startLog = `🚨 ${new Date().toLocaleTimeString()} - VERY LARGE ACTIVITY STARTED: ${description}`;
+      setVeryLargeActivityLog(prev => [startLog, ...prev.slice(0, 49)]); // Keep last 50 logs
+      
+      console.log(startLog);
+    }
+
+    // Check if current activity should end (no significant activity for 10 seconds)
+    if (activeVeryLargeActivity && !isVeryLargeVolume && !isWhaleActivity && !isMassiveBuying && !isMassiveSelling && !isCoordinatedAttack) {
+      const inactiveTime = currentTime - activeVeryLargeActivity.startTime;
+      if (inactiveTime > 10000) { // 10 seconds of low activity
+        const updatedActivity = {
+          ...activeVeryLargeActivity,
+          endTime: currentTime,
+          isActive: false
+        };
+
+        setActiveVeryLargeActivity(null);
+        setVeryLargeActivities(prev => prev.map(act => 
+          act.id === updatedActivity.id ? updatedActivity : act
+        ));
+
+        // Log the end
+        const duration = ((updatedActivity.endTime! - updatedActivity.startTime) / 1000).toFixed(1);
+        const endLog = `✅ ${new Date().toLocaleTimeString()} - VERY LARGE ACTIVITY ENDED: Duration ${duration}s, Total Volume: ${updatedActivity.totalVolume.toFixed(2)}`;
+        setVeryLargeActivityLog(prev => [endLog, ...prev.slice(0, 49)]);
+        
+        console.log(endLog);
+      }
+    }
+  };
+
+  // Save very large activity log
+  const saveActivityLog = () => {
+    const logData = {
+      timestamp: new Date().toISOString(),
+      symbol: selectedSymbol,
+      activities: veryLargeActivities,
+      logs: veryLargeActivityLog
+    };
+    
+    const dataStr = JSON.stringify(logData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `very-large-activity-log-${selectedSymbol}-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -303,6 +740,18 @@ export default function OrderFlowPage() {
           </div>
         </div>
         <div className="flex gap-2 items-center">
+          
+          {/* Market Data Status */}
+          {marketData && (
+            <div className="text-xs mr-4">
+              <span className="font-semibold">📊 Data Sources:</span>
+              <div className="text-muted-foreground">
+                Coin: {marketData.dataSource?.coinApi || 'None'} | 
+                Price: {marketData.dataSource?.priceApi || 'None'}
+              </div>
+            </div>
+          )}
+          
           <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="Select Symbol" />
@@ -379,13 +828,36 @@ export default function OrderFlowPage() {
               <SelectItem value="ALGOUSDT">ALGO/USDT - Algorand</SelectItem>
             </SelectContent>
           </Select>
+          
+          {/* WebSocket Connection Status */}
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+            isWebSocketConnected 
+              ? 'bg-green-100 text-green-800 border border-green-200' 
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}>
+            <div className={`w-2 h-2 rounded-full ${
+              isWebSocketConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+            }`} />
+            <span className="font-medium">
+              {isWebSocketConnected ? '🔴 Live Stream' : '🔌 Disconnected'}
+            </span>
+            {isWebSocketConnected && (
+              <span className="text-xs opacity-75">
+                {realTimeOrders.length} orders
+              </span>
+            )}
+          </div>
+          
           <Button
             variant="outline"
             size="sm"
-            onClick={loadMockData}
+            onClick={() => {
+              loadMockData();
+              fetchMarketData();
+            }}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
+            Refresh Data
           </Button>
           <Button
             variant={isMonitoring ? "destructive" : "default"}
@@ -405,6 +877,64 @@ export default function OrderFlowPage() {
           </Button>
         </div>
       </div>
+
+      {/* Very Large Activity Alert */}
+      {activeVeryLargeActivity && (
+        <Alert className={`border-2 animate-pulse ${
+          activeVeryLargeActivity.riskLevel === 'extreme' 
+            ? 'border-red-500 bg-red-50' 
+            : 'border-orange-500 bg-orange-50'
+        }`}>
+          <AlertTriangle className={`h-6 w-6 animate-bounce ${
+            activeVeryLargeActivity.riskLevel === 'extreme' ? 'text-red-600' : 'text-orange-600'
+          }`} />
+          <AlertTitle className={`text-lg font-bold ${
+            activeVeryLargeActivity.riskLevel === 'extreme' ? 'text-red-800' : 'text-orange-800'
+          }`}>
+            🚨 VERY LARGE ACTIVITY DETECTED!
+          </AlertTitle>
+          <AlertDescription className="mt-2">
+            <div className={`font-semibold ${
+              activeVeryLargeActivity.riskLevel === 'extreme' ? 'text-red-700' : 'text-orange-700'
+            }`}>
+              {activeVeryLargeActivity.description}
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Duration:</span> {
+                  Math.floor((Date.now() - activeVeryLargeActivity.startTime) / 1000)
+                }s
+              </div>
+              <div>
+                <span className="font-medium">Total Volume:</span> {activeVeryLargeActivity.totalVolume.toFixed(2)}
+              </div>
+              <div>
+                <span className="font-medium">Order Count:</span> {activeVeryLargeActivity.orderCount}
+              </div>
+              <div>
+                <span className="font-medium">Risk Level:</span> 
+                <Badge className={`ml-1 ${
+                  activeVeryLargeActivity.riskLevel === 'extreme' 
+                    ? 'bg-red-600 text-white' 
+                    : 'bg-orange-600 text-white'
+                }`}>
+                  {activeVeryLargeActivity.riskLevel.toUpperCase()}
+                </Badge>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="outline" onClick={saveActivityLog}>
+                💾 Save Log
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => {
+                navigator.clipboard.writeText(activeVeryLargeActivity.description);
+              }}>
+                📋 Copy Alert
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Status Alert */}
       {isMonitoring && (
@@ -468,10 +998,14 @@ export default function OrderFlowPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="chart" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Flow Chart
           </TabsTrigger>
           <TabsTrigger value="signals" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -484,6 +1018,10 @@ export default function OrderFlowPage() {
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             Live Orders
+          </TabsTrigger>
+          <TabsTrigger value="whale" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            🐋 Whale Activity
           </TabsTrigger>
           <TabsTrigger value="alerts" className="flex items-center gap-2">
             <AlertTriangle className="h-4 w-4" />
@@ -564,6 +1102,131 @@ export default function OrderFlowPage() {
             </div>
           )}
           
+          {/* Summarized Analysis */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                <BarChart3 className="h-5 w-5" />
+                📊 Market Analysis Summary
+              </CardTitle>
+              <CardDescription>
+                Intuitive overview of what's happening in the {selectedSymbol} order flow
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Market Sentiment */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    {calculateMarketSentiment() > 0.6 ? '🟢' : calculateMarketSentiment() < 0.4 ? '🔴' : '🟡'}
+                    Market Sentiment
+                  </h4>
+                  <div className="text-lg font-bold mb-1">
+                    {calculateMarketSentiment() > 0.6 ? 'Bullish 📈' : 
+                     calculateMarketSentiment() < 0.4 ? 'Bearish 📉' : 'Neutral ⚖️'}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {calculateMarketSentiment() > 0.6 ? 
+                      'Strong buying pressure detected. More buy orders than sell orders.' :
+                      calculateMarketSentiment() < 0.4 ? 
+                      'Heavy selling pressure. Sell orders dominating the market.' :
+                      'Balanced market with roughly equal buy/sell activity.'}
+                  </p>
+                  <Progress 
+                    value={calculateMarketSentiment() * 100} 
+                    className="mt-2 h-2"
+                  />
+                </div>
+
+                <div className="bg-white p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                    {getVolumeIndicator()} Volume Activity
+                  </h4>
+                  <div className="text-lg font-bold mb-1">
+                    {getVolumeDescription()}
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {getVolumeExplanation()}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                        style={{width: `${Math.min(100, (stats?.averageVolume || 0) * 10)}%`}}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-600">
+                      {(stats?.averageVolume || 0).toFixed(2)} avg
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Assessment */}
+              <div className="bg-white p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  🛡️ Risk Assessment
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <div className={`text-2xl font-bold ${getRiskLevelColor()}`}>
+                      {getRiskLevel()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Overall Risk</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {isWebSocketConnected ? '🟢 LIVE' : '🔴 OFFLINE'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Data Source</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      {stats?.highRiskCount === 0 ? '✅ SAFE' : '⚠️ ALERT'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Threat Status</div>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-gray-50 rounded text-sm">
+                  <strong>💡 What this means:</strong> {getRiskExplanation()}
+                </div>
+              </div>
+
+              {/* Key Insights */}
+              <div className="bg-white p-4 rounded-lg border border-blue-200">
+                <h4 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  ⚡ Key Insights
+                </h4>
+                <div className="space-y-2">
+                  {getKeyInsights().map((insight, index) => (
+                    <div key={index} className="flex items-start gap-2 text-sm">
+                      <span className="text-blue-500 mt-0.5">•</span>
+                      <span className="text-gray-700">{insight}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Actions */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
+                <h4 className="font-semibold text-green-800 mb-3 flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  🎯 Recommended Actions
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {getRecommendedActions().map((action, index) => (
+                    <div key={index} className="bg-white p-3 rounded border border-green-200 text-sm">
+                      <div className="font-semibold text-green-800 mb-1">{action.title}</div>
+                      <div className="text-gray-700">{action.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
           {/* Manipulation Patterns */}
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -609,6 +1272,944 @@ export default function OrderFlowPage() {
               ))}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Flow Chart Tab */}
+        <TabsContent value="chart" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
+            <h3 className="font-semibold text-gray-800 mb-2">📊 Order Flow Visualization</h3>
+            <p className="text-sm text-gray-700">
+              Real-time charts showing buy/sell flow, volume patterns, and risk levels for {selectedSymbol}
+            </p>
+          </div>
+
+          {/* Time Interval Selector */}
+          <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-indigo-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-semibold text-indigo-800">⏰ Time Interval:</label>
+                <select 
+                  value={selectedTimeInterval}
+                  onChange={(e) => setSelectedTimeInterval(e.target.value)}
+                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                  style={{ 
+                    color: '#1f2937', 
+                    backgroundColor: '#ffffff',
+                    fontWeight: '600'
+                  }}
+                >
+                  <option value="30s" className="text-gray-800 font-semibold bg-white">30 Seconds</option>
+                  <option value="5m" className="text-gray-800 font-semibold bg-white">5 Minutes</option>
+                  <option value="1h" className="text-gray-800 font-semibold bg-white">1 Hour</option>
+                  <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
+                </select>
+              </div>
+              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
+                Charts update automatically on interval change
+              </span>
+            </div>
+          </Card>
+
+          {/* Order Flow Chart */}
+          <Card className="border-2 border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-800">
+                📈 Buy vs Sell Flow Over Time
+                {isMonitoring && (
+                  <Badge className="bg-green-500 animate-pulse text-xs">LIVE</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Green areas show buying pressure, red areas show selling pressure
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Chart Guide */}
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span className="font-semibold">Green Area ↑</span>
+                    </div>
+                    <span className="text-muted-foreground">High buying pressure = Bullish sentiment</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded"></div>
+                      <span className="font-semibold">Red Area ↓</span>
+                    </div>
+                    <span className="text-muted-foreground">High selling pressure = Bearish sentiment</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <TrendingUp className="w-3 h-3 text-blue-500" />
+                      <span className="font-semibold">Look for:</span>
+                    </div>
+                    <span className="text-muted-foreground">Green &gt; Red for buy signals</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-80 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                    <XAxis 
+                      dataKey="time" 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      interval="preserveStartEnd"
+                      type="number"
+                      scale="time"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(value) => {
+                        // Format X-axis based on selected time interval using timestamp
+                        const date = new Date(value);
+                        
+                        if (selectedTimeInterval === '30s') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false 
+                          });
+                        } else if (selectedTimeInterval === '5m') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          });
+                        } else if (selectedTimeInterval === '1h') {
+                          // For 1h, show date and hour
+                          return date.toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit' 
+                          }) + ' ' + date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit',
+                            hour12: false 
+                          }) + 'h';
+                        } else if (selectedTimeInterval === '4h') {
+                          // For 4h, show date and hour
+                          return date.toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit' 
+                          }) + ' ' + date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit',
+                            hour12: false 
+                          }) + 'h';
+                        }
+                        return date.toLocaleTimeString();
+                      }}
+                    />
+                    <YAxis 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      label={{ 
+                        value: `Volume (${selectedSymbol.replace('USDT', '')})`, 
+                        angle: -90, 
+                        position: 'insideLeft', 
+                        style: { textAnchor: 'middle' } 
+                      }}
+                      tickFormatter={(value) => {
+                        // Format Y-axis volume based on magnitude
+                        if (value >= 1000000) {
+                          return `${(value / 1000000).toFixed(1)}M`;
+                        } else if (value >= 1000) {
+                          return `${(value / 1000).toFixed(1)}K`;
+                        } else if (value >= 1) {
+                          return value.toFixed(1);
+                        } else {
+                          return value.toFixed(3);
+                        }
+                      }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: any, name: any) => {
+                        const formattedValue = Number(value) >= 1000000 
+                          ? `${(Number(value) / 1000000).toFixed(2)}M`
+                          : Number(value) >= 1000 
+                          ? `${(Number(value) / 1000).toFixed(2)}K`
+                          : Number(value).toFixed(2);
+                        
+                        return [
+                          `${formattedValue} ${selectedSymbol.replace('USDT', '')}`,
+                          name === 'buyVolume' ? '🟢 Buy Volume (Bullish)' :
+                          name === 'sellVolume' ? '🔴 Sell Volume (Bearish)' : name
+                        ];
+                      }}
+                      labelFormatter={(label) => {
+                        // Format tooltip label using the timestamp
+                        const date = new Date(label);
+                        
+                        if (selectedTimeInterval === '30s') {
+                          return `Time: ${date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false 
+                          })}`;
+                        } else if (selectedTimeInterval === '5m') {
+                          return `Time: ${date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })}`;
+                        } else {
+                          return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          })}`;
+                        }
+                      }}
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '10px' }}
+                      formatter={(value) => value === 'buyVolume' ? '🟢 Buy Pressure (Good for Entry)' : '🔴 Sell Pressure (Consider Exit)'}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="buyVolume"
+                      stackId="1"
+                      stroke="#10b981"
+                      fill="#10b981"
+                      fillOpacity={0.6}
+                      name="buyVolume"
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="sellVolume"
+                      stackId="1"
+                      stroke="#ef4444"
+                      fill="#ef4444"
+                      fillOpacity={0.6}
+                      name="sellVolume"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                
+                {/* Floating annotations */}
+                {chartData.length > 0 && (
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="font-semibold">Current Trend ({selectedTimeInterval}):</span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-muted-foreground">
+                        {chartData[chartData.length - 1]?.buyVolume > chartData[chartData.length - 1]?.sellVolume ? 
+                          '📈 Bullish (More Buying)' : 
+                          '📉 Bearish (More Selling)'}
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-medium">Buy Volume:</span> {
+                          (() => {
+                            const vol = chartData[chartData.length - 1]?.buyVolume || 0;
+                            return vol >= 1000000 ? `${(vol / 1000000).toFixed(1)}M` :
+                                   vol >= 1000 ? `${(vol / 1000).toFixed(1)}K` :
+                                   vol.toFixed(2);
+                          })()
+                        } {selectedSymbol.replace('USDT', '')}
+                      </div>
+                      <div className="text-xs">
+                        <span className="font-medium">Sell Volume:</span> {
+                          (() => {
+                            const vol = chartData[chartData.length - 1]?.sellVolume || 0;
+                            return vol >= 1000000 ? `${(vol / 1000000).toFixed(1)}M` :
+                                   vol >= 1000 ? `${(vol / 1000).toFixed(1)}K` :
+                                   vol.toFixed(2);
+                          })()
+                        } {selectedSymbol.replace('USDT', '')}
+                      </div>
+                      <div className="text-xs border-t pt-1 mt-1">
+                        <span className="font-medium">Interval:</span> {
+                          selectedTimeInterval === '30s' ? '30 Seconds' :
+                          selectedTimeInterval === '5m' ? '5 Minutes' :
+                          selectedTimeInterval === '1h' ? '1 Hour' :
+                          selectedTimeInterval === '4h' ? '4 Hours' : selectedTimeInterval
+                        }
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Quick Analysis */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-red-50 rounded-lg">
+                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  Quick Analysis Guide
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 font-semibold">✅ Buy Signal:</span>
+                      <span>Green area consistently above red</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-600 font-semibold">❌ Sell Signal:</span>
+                      <span>Red area dominates over green</span>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-yellow-600 font-semibold">⚠️ Caution:</span>
+                      <span>Equal areas = sideways market</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-blue-600 font-semibold">💡 Tip:</span>
+                      <span>Watch for trend changes at peaks</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Risk Level Chart */}
+          <Card className="border-2 border-red-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-800">
+                ⚠️ Risk Level Tracking
+              </CardTitle>
+              <CardDescription>
+                Average risk score over time intervals (0-10 scale)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Risk Guide */}
+              <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span className="font-semibold">0-3 Safe ✅</span>
+                    </div>
+                    <span className="text-muted-foreground">Low manipulation risk</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-yellow-500 rounded"></div>
+                      <span className="font-semibold">4-6 Caution ⚠️</span>
+                    </div>
+                    <span className="text-muted-foreground">Moderate risk - be careful</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded animate-pulse"></div>
+                      <span className="font-semibold">7-10 Danger 🚨</span>
+                    </div>
+                    <span className="text-muted-foreground">High risk - avoid trading</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-60 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    {/* Risk zone backgrounds */}
+                    <defs>
+                      <linearGradient id="riskGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.1} />
+                        <stop offset="30%" stopColor="#f59e0b" stopOpacity={0.1} />
+                        <stop offset="70%" stopColor="#10b981" stopOpacity={0.1} />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#fecaca" />
+                    <XAxis 
+                      dataKey="time" 
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      type="number"
+                      scale="time"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        if (selectedTimeInterval === '30s' || selectedTimeInterval === '5m') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          });
+                        } else {
+                          return date.toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit' 
+                          }) + ' ' + date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit',
+                            hour12: false 
+                          });
+                        }
+                      }}
+                    />
+                    <YAxis 
+                      domain={[0, 10]}
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      label={{ value: 'Risk Score', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{
+                        backgroundColor: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: any) => {
+                        const score = Number(value);
+                        const level = score <= 3 ? '🟢 Safe' : score <= 6 ? '🟡 Caution' : '🔴 Danger';
+                        return [`${score.toFixed(1)}/10 (${level})`, 'Risk Level'];
+                      }}
+                      labelFormatter={(label) => {
+                        const date = new Date(label);
+                        return `Time: ${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false 
+                        })}`;
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="avgRisk"
+                      stroke="#ef4444"
+                      strokeWidth={3}
+                      dot={{ fill: '#ef4444', strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, fill: '#dc2626' }}
+                    />
+                    {/* Risk threshold lines */}
+                    <Line
+                      type="monotone"
+                      dataKey={() => 3}
+                      stroke="#10b981"
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      activeDot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey={() => 7}
+                      stroke="#ef4444"
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      activeDot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+                
+                {/* Risk level indicator */}
+                {chartData.length > 0 && (
+                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={`w-2 h-2 rounded-full ${
+                        chartData[chartData.length - 1]?.avgRisk <= 3 ? 'bg-green-500' :
+                        chartData[chartData.length - 1]?.avgRisk <= 6 ? 'bg-yellow-500' :
+                        'bg-red-500 animate-pulse'
+                      }`}></div>
+                      <span className="font-semibold">Current Risk:</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {chartData[chartData.length - 1]?.avgRisk <= 3 ? '🟢 Safe to Trade' :
+                       chartData[chartData.length - 1]?.avgRisk <= 6 ? '🟡 Use Caution' :
+                       '🔴 High Risk - Avoid'}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Risk threshold annotations */}
+                <div className="absolute left-16 top-12 text-xs text-red-600 font-semibold">
+                  ← Danger Zone (7+)
+                </div>
+                <div className="absolute left-16 bottom-16 text-xs text-green-600 font-semibold">
+                  ← Safe Zone (0-3)
+                </div>
+              </div>
+              
+              {/* Risk Analysis Guide */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-red-50 to-green-50 rounded-lg">
+                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Risk Analysis Guide
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-green-600 font-semibold">🟢 Safe (0-3):</span>
+                      <span>Normal trading, low manipulation</span>
+                    </div>
+                    <div className="text-muted-foreground">Good time to enter positions</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-yellow-600 font-semibold">🟡 Caution (4-6):</span>
+                      <span>Some suspicious activity detected</span>
+                    </div>
+                    <div className="text-muted-foreground">Reduce position sizes, monitor closely</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-600 font-semibold">🔴 Danger (7-10):</span>
+                      <span>High manipulation risk</span>
+                    </div>
+                    <div className="text-muted-foreground">Exit positions, avoid new trades</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Order Count and Net Flow */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-2 border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-800">
+                  📊 Order Count Distribution
+                </CardTitle>
+                <CardDescription>
+                  Number of buy vs sell orders per time interval
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Order Count Guide */}
+                <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-green-500 rounded"></div>
+                        <span className="font-semibold">Green Bars ↑</span>
+                      </div>
+                      <span className="text-muted-foreground">More buy orders = Bullish interest</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 bg-red-500 rounded"></div>
+                        <span className="font-semibold">Red Bars ↓</span>
+                      </div>
+                      <span className="text-muted-foreground">More sell orders = Bearish pressure</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-60 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e9d5ff" />
+                      <XAxis 
+                        dataKey="time" 
+                        stroke="#6b7280"
+                        fontSize={12}
+                        tickLine={false}
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(value) => {
+                          const date = new Date(value);
+                          if (selectedTimeInterval === '30s' || selectedTimeInterval === '5m') {
+                            return date.toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: false 
+                            });
+                          } else {
+                            return date.toLocaleDateString('en-US', { 
+                              month: '2-digit', 
+                              day: '2-digit' 
+                            }) + ' ' + date.toLocaleTimeString('en-US', { 
+                              hour: '2-digit',
+                              hour12: false 
+                            });
+                          }
+                        }}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        fontSize={12}
+                        tickLine={false}
+                        label={{ value: 'Order Count', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{
+                          backgroundColor: '#faf5ff',
+                          border: '1px solid #e9d5ff',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        formatter={(value: any, name: any) => [
+                          value,
+                          name === 'buyCount' ? '🟢 Buy Orders (Demand)' : '🔴 Sell Orders (Supply)'
+                        ]}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      <Legend 
+                        formatter={(value) => value === 'buyCount' ? '🟢 Buy Orders (Demand)' : '🔴 Sell Orders (Supply)'}
+                      />
+                      <Bar dataKey="buyCount" fill="#10b981" name="buyCount" />
+                      <Bar dataKey="sellCount" fill="#ef4444" name="sellCount" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  
+                  {/* Order imbalance indicator */}
+                  {chartData.length > 0 && (
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                          (chartData[chartData.length - 1]?.buyCount || 0) > (chartData[chartData.length - 1]?.sellCount || 0) ? 
+                          'bg-green-500' : 'bg-red-500'
+                        }`}></div>
+                        <span className="font-semibold">Order Flow:</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        {(chartData[chartData.length - 1]?.buyCount || 0) > (chartData[chartData.length - 1]?.sellCount || 0) ? 
+                          '🟢 Buy Dominated' : 
+                          '🔴 Sell Dominated'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Order Analysis */}
+                <div className="mt-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Activity className="w-4 h-4" />
+                    Order Flow Analysis
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600 font-semibold">🟢 High Green Bars:</span>
+                        <span>Strong buying interest</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-600 font-semibold">🔴 High Red Bars:</span>
+                        <span>Heavy selling pressure</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600 font-semibold">📊 Equal Bars:</span>
+                        <span>Balanced market</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-purple-600 font-semibold">💡 Watch:</span>
+                        <span>Sudden changes indicate shifts</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-indigo-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-indigo-800">
+                  🌊 Net Order Flow
+                </CardTitle>
+                <CardDescription>
+                  Net flow (buy volume - sell volume) over time
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Net Flow Guide */}
+                <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <TrendingUp className="w-3 h-3 text-blue-500" />
+                        <span className="font-semibold">Above Zero ↑</span>
+                      </div>
+                      <span className="text-muted-foreground">More buying volume = Bullish flow</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <TrendingDown className="w-3 h-3 text-blue-500" />
+                        <span className="font-semibold">Below Zero ↓</span>
+                      </div>
+                      <span className="text-muted-foreground">More selling volume = Bearish flow</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="h-60 w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="netFlowGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.6} />
+                          <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                      <XAxis 
+                        dataKey="time" 
+                        stroke="#6b7280"
+                        fontSize={12}
+                        tickLine={false}
+                        type="number"
+                        scale="time"
+                        domain={['dataMin', 'dataMax']}
+                        tickFormatter={(value) => {
+                          const date = new Date(value);
+                          if (selectedTimeInterval === '30s' || selectedTimeInterval === '5m') {
+                            return date.toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit',
+                              hour12: false 
+                            });
+                          } else {
+                            return date.toLocaleDateString('en-US', { 
+                              month: '2-digit', 
+                              day: '2-digit' 
+                            }) + ' ' + date.toLocaleTimeString('en-US', { 
+                              hour: '2-digit',
+                              hour12: false 
+                            });
+                          }
+                        }}
+                      />
+                      <YAxis 
+                        stroke="#6b7280"
+                        fontSize={12}
+                        tickLine={false}
+                        label={{ value: 'Net Flow', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle' } }}
+                      />
+                      <RechartsTooltip 
+                        contentStyle={{
+                          backgroundColor: '#f0f9ff',
+                          border: '1px solid #e0e7ff',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        formatter={(value: any) => {
+                          const flow = Number(value);
+                          const trend = flow > 0 ? '🟢 Bullish' : '🔴 Bearish';
+                          return [`${flow.toFixed(2)} (${trend})`, 'Net Flow'];
+                        }}
+                        labelFormatter={(label) => `Time: ${label}`}
+                      />
+                      {/* Zero line reference */}
+                      <Area
+                        type="monotone"
+                        dataKey={() => 0}
+                        stroke="#6b7280"
+                        strokeWidth={1}
+                        strokeDasharray="3 3"
+                        fill="transparent"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="netFlow"
+                        stroke="#3b82f6"
+                        fill="url(#netFlowGradient)"
+                        name="Net Flow"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  
+                  {/* Flow direction indicator */}
+                  {chartData.length > 0 && (
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                          (chartData[chartData.length - 1]?.netFlow || 0) > 0 ? 'bg-green-500' : 'bg-red-500'
+                        }`}></div>
+                        <span className="font-semibold">Current Flow:</span>
+                      </div>
+                      <div className="text-muted-foreground">
+                        {(chartData[chartData.length - 1]?.netFlow || 0) > 0 ? 
+                          '🟢 Bullish Flow' : 
+                          '🔴 Bearish Flow'}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Zero line annotation */}
+                  <div className="absolute left-16 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 font-semibold">
+                    ← Zero Line (Neutral)
+                  </div>
+                </div>
+                
+                {/* Net Flow Analysis */}
+                <div className="mt-4 p-3 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg">
+                  <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4" />
+                    Net Flow Trading Guide
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-green-600 font-semibold">🟢 Positive Flow:</span>
+                        <span>Buy volume &gt; Sell volume</span>
+                      </div>
+                      <div className="text-muted-foreground">Indicates bullish sentiment, consider buying</div>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-600 font-semibold">🔴 Negative Flow:</span>
+                        <span>Sell volume &gt; Buy volume</span>
+                      </div>
+                      <div className="text-muted-foreground">Indicates bearish sentiment, consider selling</div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Chart Analytics Summary */}
+          <Card className="border-2 border-green-200 bg-green-50">
+            <CardHeader>
+              <CardTitle className="text-green-800 flex items-center gap-2">
+                📊 Flow Analytics Summary
+                <Badge variant="outline" className="text-xs">
+                  Real-time Analysis
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Key metrics and trading insights from order flow analysis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-green-600 flex items-center justify-center gap-1">
+                    {chartData.reduce((sum, d) => sum + d.buyVolume, 0).toFixed(1)}
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div className="text-sm font-semibold">Total Buy Volume</div>
+                  <div className="text-xs text-muted-foreground">
+                    Last {chartData.length} intervals
+                  </div>
+                  <div className="text-xs text-green-600 mt-1 font-semibold">
+                    💪 Buying Power
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className="text-2xl font-bold text-red-600 flex items-center justify-center gap-1">
+                    {chartData.reduce((sum, d) => sum + d.sellVolume, 0).toFixed(1)}
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                  <div className="text-sm font-semibold">Total Sell Volume</div>
+                  <div className="text-xs text-muted-foreground">
+                    Last {chartData.length} intervals
+                  </div>
+                  <div className="text-xs text-red-600 mt-1 font-semibold">
+                    📉 Selling Pressure
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className={`text-2xl font-bold flex items-center justify-center gap-1 ${
+                    chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? '+' : ''}{chartData.reduce((sum, d) => sum + d.netFlow, 0).toFixed(1)}
+                    {chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? 
+                      <TrendingUp className="w-4 h-4" /> : 
+                      <TrendingDown className="w-4 h-4" />}
+                  </div>
+                  <div className="text-sm font-semibold">Net Flow</div>
+                  <div className="text-xs text-muted-foreground">
+                    {chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? 'Bullish' : 'Bearish'}
+                  </div>
+                  <div className={`text-xs mt-1 font-semibold ${
+                    chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 ? '🚀 Momentum Up' : '⬇️ Momentum Down'}
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-white rounded-lg border">
+                  <div className={`text-2xl font-bold flex items-center justify-center gap-1 ${
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 3 ? 'text-green-600' :
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {(chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1)).toFixed(1)}
+                    <Shield className="w-4 h-4" />
+                  </div>
+                  <div className="text-sm font-semibold">Avg Risk Score</div>
+                  <div className="text-xs text-muted-foreground">
+                    {chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 3 ? 'Low Risk' :
+                     chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6 ? 'Medium Risk' : 'High Risk'}
+                  </div>
+                  <div className={`text-xs mt-1 font-semibold ${
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 3 ? 'text-green-600' :
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6 ? 'text-yellow-600' : 'text-red-600'
+                  }`}>
+                    {chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 3 ? '✅ Safe Zone' :
+                     chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6 ? '⚠️ Caution Zone' : '🚨 Danger Zone'}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Trading Decision Box */}
+              <div className="mt-6 p-4 bg-white rounded-lg border-2 border-dashed border-green-300">
+                <h4 className="font-semibold text-lg mb-3 flex items-center gap-2 text-green-800">
+                  🎯 Current Trading Decision
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`text-center p-3 rounded-lg border-2 ${
+                    chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 && 
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 4 ?
+                    'bg-green-100 border-green-300' : 'bg-gray-100 border-gray-300'
+                  }`}>
+                    <div className="text-2xl mb-2">🟢</div>
+                    <div className="font-semibold text-green-800">BUY SIGNAL</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Positive net flow + Low risk
+                    </div>
+                    {chartData.reduce((sum, d) => sum + d.netFlow, 0) > 0 && 
+                     chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 4 && (
+                      <Badge className="bg-green-600 mt-2 text-xs">ACTIVE</Badge>
+                    )}
+                  </div>
+                  <div className={`text-center p-3 rounded-lg border-2 ${
+                    Math.abs(chartData.reduce((sum, d) => sum + d.netFlow, 0)) <= 5 ||
+                    (chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) > 4 &&
+                     chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6) ?
+                    'bg-yellow-100 border-yellow-300' : 'bg-gray-100 border-gray-300'
+                  }`}>
+                    <div className="text-2xl mb-2">🟡</div>
+                    <div className="font-semibold text-yellow-800">WAIT</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Neutral flow or medium risk
+                    </div>
+                    {(Math.abs(chartData.reduce((sum, d) => sum + d.netFlow, 0)) <= 5 ||
+                      (chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) > 4 &&
+                       chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) <= 6)) && (
+                      <Badge className="bg-yellow-600 mt-2 text-xs">ACTIVE</Badge>
+                    )}
+                  </div>
+                  <div className={`text-center p-3 rounded-lg border-2 ${
+                    chartData.reduce((sum, d) => sum + d.netFlow, 0) < -5 || 
+                    chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) > 6 ?
+                    'bg-red-100 border-red-300' : 'bg-gray-100 border-gray-300'
+                  }`}>
+                    <div className="text-2xl mb-2">🔴</div>
+                    <div className="font-semibold text-red-800">SELL SIGNAL</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Negative net flow or high risk
+                    </div>
+                    {(chartData.reduce((sum, d) => sum + d.netFlow, 0) < -5 || 
+                      chartData.reduce((sum, d) => sum + d.avgRisk, 0) / Math.max(chartData.length, 1) > 6) && (
+                      <Badge className="bg-red-600 mt-2 text-xs">ACTIVE</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Buy/Sell Signals Tab */}
@@ -1143,12 +2744,22 @@ export default function OrderFlowPage() {
                     <p>No orders yet. Start monitoring to see live data.</p>
                   </div>
                 ) : (
-                  orderFlowData.slice(0, 10).map((order, index) => (
-                    <div key={index} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                  orderFlowData.slice(0, 10).map((order, index) => {
+                    // Check if this order is part of very large activity
+                    const isVeryLargeOrder = activeVeryLargeActivity && 
+                      (order.size > 25 || // Whale order
+                       (activeVeryLargeActivity.startTime <= order.timestamp && 
+                        order.timestamp <= Date.now() && 
+                        Date.now() - activeVeryLargeActivity.startTime < 30000)); // Within 30s window
+
+                    return (
+                    <div key={index} className={`relative flex items-center justify-between p-3 rounded-lg border transition-all ${
+                      isVeryLargeOrder ? 
+                        'bg-gradient-to-r from-purple-100 to-indigo-100 border-purple-400 border-2 animate-pulse shadow-lg' :
                       order.riskScore >= 7 ? 'bg-red-50 border-red-200' :
                       order.riskScore >= 4 ? 'bg-yellow-50 border-yellow-200' :
                       'bg-green-50 border-green-200'
-                    }`}>
+                    } ${isVeryLargeOrder ? 'animate-pulse' : ''}`}>
                       <div className="flex items-center gap-4">
                         <Badge variant={order.orderType === 'buy' ? 'default' : 'secondary'} 
                                className={`${order.orderType === 'buy' ? 'bg-green-100 text-green-800 hover:bg-green-200' : 
@@ -1185,8 +2796,17 @@ export default function OrderFlowPage() {
                           {new Date(order.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
+                      {/* Very Large Activity Indicator */}
+                      {isVeryLargeOrder && (
+                        <div className="absolute -top-1 -right-1">
+                          <Badge className="bg-purple-600 text-white text-xs animate-bounce">
+                            🐋 WHALE
+                          </Badge>
+                        </div>
+                      )}
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
               {orderFlowData.length > 10 && (
@@ -1273,8 +2893,335 @@ export default function OrderFlowPage() {
             )}
           </div>
         </TabsContent>
+
+        {/* Whale Activity Tab */}
+        <TabsContent value="whale" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg border border-purple-200">
+            <h3 className="font-semibold text-purple-800 mb-2">🐋 Very Large Activity Monitor</h3>
+            <p className="text-sm text-purple-700">
+              Track whale movements, massive order flows, and coordinated attacks. All activities are logged with timestamps.
+            </p>
+          </div>
+
+          {/* Current Active Activity */}
+          {activeVeryLargeActivity && (
+            <Card className="border-2 border-purple-400 bg-gradient-to-r from-purple-50 to-indigo-50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-purple-800">
+                  <Zap className="h-5 w-5 animate-pulse" />
+                  🚨 ACTIVE VERY LARGE ACTIVITY
+                </CardTitle>
+                <CardDescription>
+                  Live monitoring of current whale activity
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="p-4 bg-white rounded-lg border animate-pulse">
+                    <div className="text-lg font-bold text-purple-800 mb-2">
+                      {activeVeryLargeActivity.description}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Type:</span> {activeVeryLargeActivity.type.replace('_', ' ').toUpperCase()}
+                      </div>
+                      <div>
+                        <span className="font-medium">Duration:</span> {
+                          Math.floor((Date.now() - activeVeryLargeActivity.startTime) / 1000)
+                        }s
+                      </div>
+                      <div>
+                        <span className="font-medium">Total Volume:</span> {activeVeryLargeActivity.totalVolume.toFixed(2)}
+                      </div>
+                      <div>
+                        <span className="font-medium">Order Count:</span> {activeVeryLargeActivity.orderCount}
+                      </div>
+                      <div>
+                        <span className="font-medium">Max Order Size:</span> {activeVeryLargeActivity.maxOrderSize.toFixed(2)}
+                      </div>
+                      <div>
+                        <span className="font-medium">Risk Level:</span> 
+                        <Badge className={`ml-1 ${
+                          activeVeryLargeActivity.riskLevel === 'extreme' 
+                            ? 'bg-red-600 text-white animate-bounce' 
+                            : 'bg-orange-600 text-white'
+                        }`}>
+                          {activeVeryLargeActivity.riskLevel.toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Activity History */}
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Timer className="h-5 w-5" />
+                    Activity History
+                  </CardTitle>
+                  <CardDescription>
+                    Recent very large activities • {veryLargeActivities.length} total tracked
+                  </CardDescription>
+                </div>
+                <Button size="sm" onClick={saveActivityLog} disabled={veryLargeActivities.length === 0}>
+                  💾 Export Log
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {veryLargeActivities.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Zap className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No very large activities detected yet.</p>
+                  </div>
+                ) : (
+                  veryLargeActivities.map((activity, index) => (
+                    <div key={activity.id} className={`p-4 rounded-lg border ${
+                      activity.isActive 
+                        ? 'bg-gradient-to-r from-purple-100 to-indigo-100 border-purple-400 border-2' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <Badge className={`${
+                            activity.riskLevel === 'extreme' 
+                              ? 'bg-red-600 text-white' 
+                              : 'bg-orange-600 text-white'
+                          }`}>
+                            {activity.riskLevel.toUpperCase()}
+                          </Badge>
+                          <Badge variant="outline">
+                            {activity.type.replace('_', ' ').toUpperCase()}
+                          </Badge>
+                          {activity.isActive && (
+                            <Badge className="bg-green-600 text-white animate-pulse">
+                              ACTIVE
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(activity.startTime).toLocaleString()}
+                          {activity.endTime && (
+                            <> - {new Date(activity.endTime).toLocaleTimeString()}</>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="text-sm font-medium mb-2">
+                        {activity.description}
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-4 text-xs text-muted-foreground">
+                        <div>
+                          <span className="font-medium">Volume:</span> {activity.totalVolume.toFixed(2)}
+                        </div>
+                        <div>
+                          <span className="font-medium">Orders:</span> {activity.orderCount}
+                        </div>
+                        <div>
+                          <span className="font-medium">Duration:</span> {
+                            activity.endTime 
+                              ? `${((activity.endTime - activity.startTime) / 1000).toFixed(1)}s`
+                              : `${Math.floor((Date.now() - activity.startTime) / 1000)}s (ongoing)`
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Activity Log */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                📝 Activity Log
+              </CardTitle>
+              <CardDescription>
+                Detailed log of all very large activity events • {veryLargeActivityLog.length} entries
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="max-h-64 overflow-y-auto space-y-2">
+                {veryLargeActivityLog.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-4">No log entries yet.</p>
+                ) : (
+                  veryLargeActivityLog.map((logEntry, index) => (
+                    <div key={index} className="p-2 bg-gray-50 rounded text-xs font-mono border">
+                      {logEntry}
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
     </TooltipProvider>
   );
+
+  // Helper functions for market analysis summary
+  function calculateMarketSentiment(): number {
+    if (!stats || stats.totalOrders === 0) return 0.5;
+    
+    const recentOrders = orderFlowData.slice(-20); // Last 20 orders
+    const buyOrders = recentOrders.filter(order => order.orderType === 'buy').length;
+    const sellOrders = recentOrders.filter(order => order.orderType === 'sell').length;
+    
+    if (buyOrders + sellOrders === 0) return 0.5;
+    return buyOrders / (buyOrders + sellOrders);
+  }
+
+  function getVolumeIndicator(): string {
+    const avgVolume = stats?.averageVolume || 0;
+    if (avgVolume > 5) return '🔥';
+    if (avgVolume > 2) return '📈';
+    return '📊';
+  }
+
+  function getVolumeDescription(): string {
+    const avgVolume = stats?.averageVolume || 0;
+    if (avgVolume > 5) return 'Very High 🚀';
+    if (avgVolume > 2) return 'High 📈';
+    if (avgVolume > 1) return 'Moderate 📊';
+    return 'Low 📉';
+  }
+
+  function getVolumeExplanation(): string {
+    const avgVolume = stats?.averageVolume || 0;
+    if (avgVolume > 5) return 'Exceptionally high trading volume suggests major market events or institutional activity.';
+    if (avgVolume > 2) return 'Above-average volume indicates increased market interest and potential price movements.';
+    if (avgVolume > 1) return 'Normal trading volume with standard market participation.';
+    return 'Below-average volume suggests quiet market conditions with low trader interest.';
+  }
+
+  function getRiskLevel(): string {
+    const riskScore = stats?.averageRiskScore || 0;
+    if (riskScore > 7) return 'HIGH ⚠️';
+    if (riskScore > 4) return 'MEDIUM 🟡';
+    return 'LOW 🟢';
+  }
+
+  function getRiskLevelColor(): string {
+    const riskScore = stats?.averageRiskScore || 0;
+    if (riskScore > 7) return 'text-red-600';
+    if (riskScore > 4) return 'text-yellow-600';
+    return 'text-green-600';
+  }
+
+  function getRiskExplanation(): string {
+    const riskScore = stats?.averageRiskScore || 0;
+    const highRiskCount = stats?.highRiskCount || 0;
+    
+    if (riskScore > 7 || highRiskCount > 5) {
+      return 'High manipulation risk detected. Multiple suspicious patterns found. Exercise extreme caution and consider avoiding trades until conditions improve.';
+    } else if (riskScore > 4 || highRiskCount > 2) {
+      return 'Moderate risk environment with some concerning patterns. Monitor closely and use smaller position sizes. Wait for clearer market conditions.';
+    } else {
+      return 'Low risk environment with normal trading patterns. Market appears healthy with minimal manipulation signs. Good conditions for trading.';
+    }
+  }
+
+  function getKeyInsights(): string[] {
+    const insights: string[] = [];
+    const sentiment = calculateMarketSentiment();
+    const avgVolume = stats?.averageVolume || 0;
+    const riskScore = stats?.averageRiskScore || 0;
+    const highRiskCount = stats?.highRiskCount || 0;
+
+    // Sentiment insights
+    if (sentiment > 0.7) {
+      insights.push('Strong bullish sentiment with ' + Math.round(sentiment * 100) + '% buy orders dominating');
+    } else if (sentiment < 0.3) {
+      insights.push('Bearish sentiment with ' + Math.round((1-sentiment) * 100) + '% sell orders in control');
+    } else {
+      insights.push('Balanced market with roughly equal buy/sell pressure (' + Math.round(sentiment * 100) + '% buys)');
+    }
+
+    // Volume insights
+    if (avgVolume > 5) {
+      insights.push('Extremely high volume activity suggests major market events or whale movements');
+    } else if (avgVolume < 1) {
+      insights.push('Low volume indicates quiet market conditions - breakouts may be more significant');
+    }
+
+    // Risk insights
+    if (highRiskCount === 0) {
+      insights.push('No high-risk manipulation patterns detected - market appears clean');
+    } else if (highRiskCount > 3) {
+      insights.push(highRiskCount + ' suspicious patterns detected - be cautious of potential manipulation');
+    }
+
+    // Data source insight
+    if (isWebSocketConnected) {
+      insights.push('Real-time Binance data feed active - analysis based on live market data');
+    } else {
+      insights.push('Using simulated data - connect to live feed for real market insights');
+    }
+
+    return insights.length > 0 ? insights : ['Market analysis updating... Please wait for more data.'];
+  }
+
+  function getRecommendedActions(): Array<{title: string, description: string}> {
+    const actions: Array<{title: string, description: string}> = [];
+    const sentiment = calculateMarketSentiment();
+    const riskScore = stats?.averageRiskScore || 0;
+    const highRiskCount = stats?.highRiskCount || 0;
+
+    // Risk-based actions
+    if (riskScore > 7 || highRiskCount > 5) {
+      actions.push({
+        title: '🛑 Avoid Trading',
+        description: 'High manipulation risk detected. Wait for market conditions to improve before entering positions.'
+      });
+      actions.push({
+        title: '📊 Monitor Closely',
+        description: 'Keep watching the order flow for signs of manipulation clearing up before considering trades.'
+      });
+    } else if (riskScore > 4 || highRiskCount > 2) {
+      actions.push({
+        title: '⚖️ Use Smaller Positions',
+        description: 'Moderate risk detected. Reduce position sizes and use tight stop losses if trading.'
+      });
+      actions.push({
+        title: '⏰ Wait for Confirmation',
+        description: 'Look for additional confirmation signals before entering trades in this environment.'
+      });
+    } else {
+      // Sentiment-based actions for low risk
+      if (sentiment > 0.7) {
+        actions.push({
+          title: '📈 Consider Long Positions',
+          description: 'Strong buying pressure suggests potential upward movement. Look for entry opportunities.'
+        });
+      } else if (sentiment < 0.3) {
+        actions.push({
+          title: '📉 Consider Short Positions',
+          description: 'Heavy selling pressure suggests potential downward movement. Look for short opportunities.'
+        });
+      } else {
+        actions.push({
+          title: '⚖️ Wait for Direction',
+          description: 'Balanced market conditions. Wait for clear directional signals before entering trades.'
+        });
+      }
+
+      actions.push({
+        title: '✅ Safe to Trade',
+        description: 'Low manipulation risk detected. Normal trading strategies can be applied safely.'
+      });
+    }
+
+    return actions;
+  }
 }

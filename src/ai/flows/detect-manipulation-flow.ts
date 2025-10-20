@@ -90,13 +90,25 @@ const detectManipulationFlow = ai.defineFlow(
     inputSchema: DetectManipulationInputSchema,
     outputSchema: DetectManipulationOutputSchema,
   },
-  async input => runAiFlow(detectManipulationPrompt, input)
+  async input => {
+    const result = await runAiFlow(detectManipulationPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function detectManipulation(input: DetectManipulationInput): Promise<DetectManipulationOutput> {
-  const result = await detectManipulationFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for detecting market manipulation returned an empty result.");
+export async function detectManipulation(input: DetectManipulationInput): Promise<DetectManipulationOutput | null> {
+  try {
+    const result = await detectManipulationFlow(input);
+    if (!result) {
+      console.error("The AI flow for detecting market manipulation returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in detectManipulation:", error);
+    return null;
   }
-  return result;
 }

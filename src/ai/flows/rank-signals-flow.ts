@@ -77,13 +77,25 @@ const rankSignalsFlow = ai.defineFlow(
     inputSchema: RankSignalsInputSchema,
     outputSchema: RankSignalsOutputSchema,
   },
-  async input => runAiFlow(rankSignalsPrompt, input)
+  async input => {
+    const result = await runAiFlow(rankSignalsPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function rankSignals(input: RankSignalsInput): Promise<RankSignalsOutput> {
-  const result = await rankSignalsFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for ranking signals returned an empty result.");
+export async function rankSignals(input: RankSignalsInput): Promise<RankSignalsOutput | null> {
+  try {
+    const result = await rankSignalsFlow(input);
+    if (!result) {
+      console.error("The AI flow for ranking signals returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in rankSignals:", error);
+    return null;
   }
-  return result;
 }

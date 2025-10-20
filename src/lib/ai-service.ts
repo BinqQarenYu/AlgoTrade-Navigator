@@ -16,14 +16,15 @@ export async function runAiFlow<I, O>(
     prompt: GenkitPrompt<I, O>,
     input: I,
     maxRetries: number = 3
-): Promise<O> {
+): Promise<O | null> {
     let lastError: Error | null = null;
     for (let i = 0; i < maxRetries; i++) {
         try {
             const { output } = await prompt(input);
             if (!output) {
                 // This can happen due to safety filters or other content generation issues.
-                throw new Error("The AI model did not return a valid response. This could be due to safety filters or an internal error.");
+                console.error("The AI model did not return a valid response. This could be due to safety filters or an internal error.");
+                return null;
             }
             return output;
         } catch (e: any) {
@@ -33,7 +34,7 @@ export async function runAiFlow<I, O>(
             // Check for non-retriable quota errors first. If it's a quota error, stop immediately.
             if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
                 console.error("AI quota exceeded. Not retrying.", e);
-                throw new Error("You have exceeded your daily AI quota. Please check your plan and billing details.");
+                return null;
             }
 
             // For any other error, log it and retry with exponential backoff.
@@ -43,7 +44,7 @@ export async function runAiFlow<I, O>(
             }
         }
     }
-    // If all retries failed, throw the final user-friendly error.
+    // If all retries failed, return null instead of throwing.
     console.error("All AI flow retries failed.", lastError);
-    throw new Error("The AI service is currently overloaded or unavailable. Please try again in a few minutes.");
+    return null;
 }

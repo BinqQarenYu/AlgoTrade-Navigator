@@ -77,13 +77,25 @@ const predictMarketFlow = ai.defineFlow(
     inputSchema: PredictMarketInputSchema,
     outputSchema: PredictMarketOutputSchema,
   },
-  async input => runAiFlow(predictMarketPrompt, input)
+  async input => {
+    const result = await runAiFlow(predictMarketPrompt, input);
+    if (!result) {
+      throw new Error("AI flow returned no result");
+    }
+    return result;
+  }
 );
 
-export async function predictMarket(input: PredictMarketInput): Promise<PredictMarketOutput> {
-  const result = await predictMarketFlow(input);
-  if (!result) {
-    throw new Error("The AI flow for market prediction returned an empty result.");
+export async function predictMarket(input: PredictMarketInput): Promise<PredictMarketOutput | null> {
+  try {
+    const result = await predictMarketFlow(input);
+    if (!result) {
+      console.error("The AI flow for market prediction returned an empty result.");
+      return null;
+    }
+    return result;
+  } catch (error) {
+    console.error("Error in predictMarket:", error);
+    return null;
   }
-  return result;
 }
