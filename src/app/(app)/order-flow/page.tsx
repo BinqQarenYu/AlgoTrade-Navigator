@@ -251,7 +251,8 @@ const Tabs = ({ children, defaultValue, className = '', ...props }: any) => {
     </div>
   );
 };
-const TabsList = ({ children, className = '', ...props }: any) => (
+const TabsList = ({ children, className = '', activeTab, setActiveTab, ...props }: any) => (
+  // Consume activeTab/setActiveTab so they are not forwarded to the DOM element
   <div className={`inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground ${className}`} {...props}>
     {children}
   </div>
