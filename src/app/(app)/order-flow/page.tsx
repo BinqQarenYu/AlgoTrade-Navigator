@@ -91,35 +91,91 @@ const orderFlowAnalyzer = {
     },
     orders: []
   }),
-  analyzeOrder: (order: OrderData) => ({ 
-    spoofing: false, 
-    layering: false, 
-    washTrading: false,
-    reasons: ['Normal trading pattern'],
-    riskScore: Math.random() * 10
-  }),
-  getManipulationStats: (symbol?: string) => ({ 
-    total: 0, 
-    spoofing: 0, 
-    layering: 0, 
-    washTrading: 0,
-    averageRiskScore: 3,
-    paddingCount: 0,
-    scamCount: 0,
-    ragCount: 0
-  }),
+  analyzeOrder: (order: OrderData) => {
+    // Generate more realistic risk scores and patterns
+    const baseRisk = Math.random() * 10;
+    const isLargeOrder = order.size > 5;
+    const isRapidOrder = Date.now() - order.timestamp < 1000;
+    
+    let riskScore = baseRisk;
+    let reasons = ['Normal trading pattern'];
+    let flags = { spoofing: false, layering: false, washTrading: false, isPadding: false, isScam: false, isRag: false };
+    
+    // Detect manipulation patterns
+    if (isLargeOrder && baseRisk > 7) {
+      flags.spoofing = true;
+      reasons = ['Large order with suspicious timing'];
+      riskScore = Math.min(9, riskScore + 2);
+    }
+    
+    if (order.size < 0.1 && Math.random() > 0.8) {
+      flags.isPadding = true;
+      reasons = ['Small order - potential volume padding'];
+      riskScore = Math.min(8, riskScore + 1);
+    }
+    
+    if (isRapidOrder && Math.random() > 0.9) {
+      flags.isRag = true;
+      reasons = ['Rapid aggressive trading detected'];
+      riskScore = Math.min(9, riskScore + 2);
+    }
+    
+    if (Math.random() > 0.95) {
+      flags.isScam = true;
+      reasons = ['Potential scam pattern detected'];
+      riskScore = 9;
+    }
+    
+    return { 
+      spoofing: flags.spoofing, 
+      layering: flags.layering, 
+      washTrading: flags.washTrading,
+      reasons: reasons,
+      riskScore: riskScore,
+      ...flags
+    };
+  },
+  getManipulationStats: (symbol?: string) => {
+    const paddingCount = Math.floor(Math.random() * 10);
+    const scamCount = Math.floor(Math.random() * 3);
+    const ragCount = Math.floor(Math.random() * 15);
+    
+    return { 
+      total: paddingCount + scamCount + ragCount, 
+      spoofing: Math.floor(Math.random() * 5), 
+      layering: Math.floor(Math.random() * 5), 
+      washTrading: Math.floor(Math.random() * 3),
+      averageRiskScore: 2 + Math.random() * 6, // Range 2-8
+      paddingCount: paddingCount,
+      scamCount: scamCount,
+      ragCount: ragCount
+    };
+  },
   generateMockOrders: (symbolOrCount: string | number, count?: number) => {
     const actualCount = typeof symbolOrCount === 'number' ? symbolOrCount : (count || 10);
     const symbol = typeof symbolOrCount === 'string' ? symbolOrCount : 'BTCUSDT';
-    return Array.from({ length: actualCount }, (_, i) => ({
-      id: `order-${i}`,
-      timestamp: Date.now() + i * 1000,
-      price: Math.random() * 50000 + 20000,
-      quantity: Math.random() * 10,
-      side: Math.random() > 0.5 ? 'buy' as const : 'sell' as const,
-      symbol: symbol,
-      size: Math.random() * 10
-    }));
+    const now = Date.now();
+    
+    return Array.from({ length: actualCount }, (_, i) => {
+      const timestamp = now - (i * 2000) + Math.random() * 1000; // Spread over time
+      const isBuy = Math.random() > 0.5;
+      const baseSize = Math.random() * 10;
+      
+      // Create more varied order sizes
+      let size = baseSize;
+      if (Math.random() > 0.9) size *= 5; // Some large orders
+      if (Math.random() > 0.8) size *= 0.1; // Some micro orders
+      
+      return {
+        id: `order-${timestamp}-${i}`,
+        timestamp: timestamp,
+        price: 45000 + Math.random() * 10000, // Realistic BTC price range
+        quantity: size,
+        side: isBuy ? 'buy' as const : 'sell' as const,
+        symbol: symbol,
+        size: size
+      };
+    });
   }
 };
 
@@ -268,7 +324,7 @@ const TabsTrigger = ({ children, value, className = '', activeTab, setActiveTab,
     {children}
   </button>
 );
-const TabsContent = ({ children, value, className = '', activeTab, ...props }: any) => (
+const TabsContent = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => (
   activeTab === value ? (
     <div className={`mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`} {...props}>
       {children}
@@ -335,6 +391,39 @@ export default function OrderFlowPage() {
   useEffect(() => {
     loadMockData();
     fetchMarketData();
+    
+    // Generate additional data for flow chart and signals
+    const generateRealTimeData = () => {
+      const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
+      const analyzed = newOrders.map(order => {
+        const flags = orderFlowAnalyzer.analyzeOrder(order);
+        return {
+          symbol: order.symbol,
+          timestamp: order.timestamp,
+          orderType: order.side,
+          size: order.size,
+          price: order.price,
+          suspiciousFlags: flags.reasons || [],
+          riskScore: flags.riskScore || 0,
+          flags,
+          marketSource: { coinApi: 'mock', priceApi: 'mock' }
+        };
+      });
+
+      setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
+      updateChartData(analyzed);
+      
+      const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
+      setStats(currentStats);
+    };
+
+    // Generate initial data immediately
+    generateRealTimeData();
+    
+    // Set up periodic data generation every 10 seconds
+    const interval = setInterval(generateRealTimeData, 10000);
+    
+    return () => clearInterval(interval);
   }, [selectedSymbol, selectedTimeInterval]);
 
   // WebSocket connection and real-time order flow management
@@ -588,32 +677,52 @@ export default function OrderFlowPage() {
     };
 
     const intervalMs = getIntervalMs(selectedTimeInterval);
+    const now = Date.now();
     const timeGroups: { [key: number]: { buyVolume: number; sellVolume: number; buyCount: number; sellCount: number; avgRisk: number; timestamp: number } } = {};
     
-    orders.forEach(order => {
+    // Generate time slots for the last 20 intervals to ensure continuous data
+    const numIntervals = 20;
+    for (let i = numIntervals - 1; i >= 0; i--) {
+      const intervalTime = Math.floor((now - (i * intervalMs)) / intervalMs) * intervalMs;
+      timeGroups[intervalTime] = {
+        buyVolume: 0,
+        sellVolume: 0,
+        buyCount: 0,
+        sellCount: 0,
+        avgRisk: 0,
+        timestamp: intervalTime
+      };
+    }
+    
+    // Process existing orders into time groups
+    [...orders, ...orderFlowData].forEach(order => {
       // Round timestamp to selected intervals
       const intervalTime = Math.floor(order.timestamp / intervalMs) * intervalMs;
       
-      if (!timeGroups[intervalTime]) {
-        timeGroups[intervalTime] = {
-          buyVolume: 0,
-          sellVolume: 0,
-          buyCount: 0,
-          sellCount: 0,
-          avgRisk: 0,
-          timestamp: intervalTime
-        };
+      if (timeGroups[intervalTime]) {
+        if (order.orderType === 'buy') {
+          timeGroups[intervalTime].buyVolume += order.size;
+          timeGroups[intervalTime].buyCount += 1;
+        } else {
+          timeGroups[intervalTime].sellVolume += order.size;
+          timeGroups[intervalTime].sellCount += 1;
+        }
+        
+        timeGroups[intervalTime].avgRisk = (timeGroups[intervalTime].avgRisk + order.riskScore) / 2;
       }
-      
-      if (order.orderType === 'buy') {
-        timeGroups[intervalTime].buyVolume += order.size;
-        timeGroups[intervalTime].buyCount += 1;
-      } else {
-        timeGroups[intervalTime].sellVolume += order.size;
-        timeGroups[intervalTime].sellCount += 1;
+    });
+
+    // Add some realistic baseline data for empty time slots
+    Object.values(timeGroups).forEach(group => {
+      if (group.buyVolume === 0 && group.sellVolume === 0) {
+        // Add some baseline trading activity
+        const baseVolume = Math.random() * 5 + 1;
+        group.buyVolume = baseVolume * (0.4 + Math.random() * 0.2);
+        group.sellVolume = baseVolume * (0.4 + Math.random() * 0.2);
+        group.buyCount = Math.floor(Math.random() * 3) + 1;
+        group.sellCount = Math.floor(Math.random() * 3) + 1;
+        group.avgRisk = Math.random() * 3 + 1; // Low baseline risk
       }
-      
-      timeGroups[intervalTime].avgRisk = (timeGroups[intervalTime].avgRisk + order.riskScore) / 2;
     });
 
     // Convert to array and sort by time
@@ -630,8 +739,7 @@ export default function OrderFlowPage() {
         totalVolume: data.buyVolume + data.sellVolume,
         orderImbalance: ((data.buyCount - data.sellCount) / Math.max(data.buyCount + data.sellCount, 1)) * 100
       }))
-      .sort((a, b) => a.timestamp - b.timestamp)
-      .slice(-20); // Keep last 20 data points
+      .sort((a, b) => a.timestamp - b.timestamp);
 
     setChartData(chartDataArray);
   };
