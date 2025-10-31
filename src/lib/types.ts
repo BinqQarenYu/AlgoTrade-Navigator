@@ -29,6 +29,69 @@ export type Trade = {
   timestamp: number; // Raw for sorting
 };
 
+export type SimulatedPosition = {
+  id: string;
+  symbol: string;
+  asset: string; // Added for table display
+  side: 'LONG' | 'SHORT';
+  size: number;
+  entryPrice: number;
+  currentPrice: number;
+  pnl: number;
+  percentage: number;
+  entryTime: number;
+  leverage: number;
+  status: 'open' | 'closed';
+  stopLoss?: number; // Added for chart display
+  takeProfit?: number; // Added for chart display
+};
+
+export type SimulatedTrade = {
+  id: string;
+  symbol: string;
+  side: 'BUY' | 'SELL';
+  size: number;
+  price: number;
+  time: string;
+  timestamp: number;
+  pnl?: number;
+  fee: number;
+  type: 'entry' | 'exit';
+};
+
+export type SimulationState = {
+  isRunning: boolean;
+  logs: string[];
+  portfolio: {
+    totalValue: number;
+    availableBalance: number;
+    unrealizedPnl: number;
+    totalPnl: number;
+  };
+  openPositions: SimulatedPosition[];
+  tradeHistory: SimulatedTrade[];
+  summary: {
+    totalTrades: number;
+    winRate: number;
+    totalPnl: number;
+    maxDrawdown: number;
+  };
+  chartData: HistoricalData[] | null;
+};
+
+export type SimulationConfig = {
+  symbol: string;
+  interval: string;
+  strategy: string;
+  strategyParams: any;
+  initialCapital: number;
+  leverage: number;
+  takeProfit: number;
+  stopLoss: number;
+  useAIPrediction: boolean;
+  fee: number;
+};
+
 export type DisciplineParams = {
   enableDiscipline: boolean;
   maxConsecutiveLosses: number;

@@ -94,8 +94,8 @@ const OpenPositionsCard = ({
                                         >
                                             <TableCell>{pos.asset}</TableCell>
                                             <TableCell>
-                                                <Badge variant={pos.side === 'long' ? "default" : "destructive"}>
-                                                    {pos.side.toUpperCase()}
+                                                <Badge variant={pos.side === 'LONG' ? "default" : "destructive"}>
+                                                    {pos.side}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>${formatPrice(pos.entryPrice)}</TableCell>
@@ -117,6 +117,37 @@ const OpenPositionsCard = ({
         </Card>
     );
 };
+
+// Conversion functions for BacktestResults component compatibility
+const convertSimulatedTradeToBacktestResult = (trade: SimulatedTrade): BacktestResult => ({
+  id: trade.id,
+  entryTime: trade.timestamp,
+  entryPrice: trade.price,
+  exitTime: trade.timestamp, // For simulation, entry and exit are the same trade record
+  exitPrice: trade.price,
+  pnl: trade.pnl || 0,
+  pnlPercent: 0, // Could calculate this if needed
+  closeReason: 'signal' as const,
+  type: trade.side === 'BUY' ? 'long' : 'short',
+  stopLoss: 0, // Would need to track this in simulation
+  takeProfit: 0, // Would need to track this in simulation
+  fee: trade.fee,
+});
+
+const convertSimulationSummaryToBacktestSummary = (simSummary: {
+  totalTrades: number;
+  winRate: number;
+  totalPnl: number;
+  maxDrawdown: number;
+}): any => ({
+  ...simSummary,
+  averageWin: 0,
+  averageLoss: 0,
+  profitFactor: 1,
+  initialCapital: 100,
+  finalCapital: 100,
+  maxDrawdownPercent: simSummary.maxDrawdown,
+});
 
 function SimulationPageContent() {
   const { toast } = useToast()
@@ -173,28 +204,28 @@ function SimulationPageContent() {
   
   const highlightedTradeForChart = useMemo<BacktestResult | null>(() => {
     if (selectedTrade) {
-      return selectedTrade;
+      return convertSimulatedTradeToBacktestResult(selectedTrade);
     }
     if (selectedPosition) {
       // Convert SimulatedPosition to a BacktestResult-like object for the chart
       const lastTime = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].time : selectedPosition.entryTime;
       const lastClose = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].close : selectedPosition.entryPrice;
-      const pnl = selectedPosition.side === 'long' 
+      const pnl = selectedPosition.side === 'LONG' 
         ? (lastClose - selectedPosition.entryPrice) * selectedPosition.size
         : (selectedPosition.entryPrice - lastClose) * selectedPosition.size;
       
       return {
         id: selectedPosition.id,
-        type: selectedPosition.side,
+        type: selectedPosition.side === 'LONG' ? 'long' : 'short',
         entryTime: selectedPosition.entryTime,
         entryPrice: selectedPosition.entryPrice,
         exitTime: lastTime, // Highlight up to the latest candle
         exitPrice: lastClose,
         pnl: pnl,
         pnlPercent: 0, // Not relevant for this temporary object
-        closeReason: 'signal', // placeholder
-        stopLoss: selectedPosition.stopLoss,
-        takeProfit: selectedPosition.takeProfit,
+        closeReason: 'signal' as const, // placeholder
+        stopLoss: selectedPosition.stopLoss || 0,
+        takeProfit: selectedPosition.takeProfit || 0,
         fee: 0,
       };
     }
@@ -261,7 +292,7 @@ function SimulationPageContent() {
   // Effect to calculate and display indicators when data or strategy changes
   useEffect(() => {
     if (isRunning) {
-        setChartDataWithIndicators(botChartData);
+        setChartDataWithIndicators(botChartData || []);
         return;
     }
     const calculateAndSetIndicators = async () => {
@@ -466,9 +497,13 @@ function SimulationPageContent() {
           </Card>
           
           <BacktestResults 
-            results={tradeHistory} 
-            summary={summary} 
-            onSelectTrade={handleSelectTrade}
+            results={tradeHistory.map(convertSimulatedTradeToBacktestResult)} 
+            summary={convertSimulationSummaryToBacktestSummary(summary)} 
+            onSelectTrade={(trade: BacktestResult) => {
+              // Find the original SimulatedTrade for compatibility
+              const originalTrade = tradeHistory.find(t => t.id === trade.id);
+              if (originalTrade) handleSelectTrade(originalTrade);
+            }}
             selectedTradeId={selectedTrade?.id}
           />
           <OpenPositionsCard 
