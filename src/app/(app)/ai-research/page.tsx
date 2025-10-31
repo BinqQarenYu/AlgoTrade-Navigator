@@ -16,7 +16,7 @@ import {
   Zap, Shield, DollarSign, Percent, ArrowUpRight, ArrowDownRight
 } from "lucide-react"
 import { topAssets } from "@/lib/assets"
-import { getHistoricalData } from "@/lib/binance-service"
+import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import type { HistoricalData } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -75,8 +75,8 @@ export default function AIResearchPage() {
     setIsAnalyzing(true)
     
     try {
-      const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }
-      const { data } = await getHistoricalData(selectedAsset, selectedInterval, 100, keys)
+      // Note: getLatestKlinesByLimit doesn't use API keys, it uses public data
+      const data = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
       
       setChartData(data)
       

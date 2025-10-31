@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, RankedTradeSignal, Position, LiveBotStateForAsset, LiveBotConfig } from '@/lib/types';
+import type { HistoricalData, TradeSignal, RankedTradeSignal, Position, LiveBotStateForAsset, LiveBotConfig, SimulationState, SimulationConfig } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
@@ -62,6 +62,10 @@ interface BotContextType {
   botInstances: BotInstance[];
   setBotInstances: React.Dispatch<React.SetStateAction<BotInstance[]>>;
   addBotInstance: (config: Partial<LiveBotConfig>) => void;
+  // Simulation properties
+  simulationState: SimulationState;
+  startSimulation: (config: SimulationConfig) => void;
+  stopSimulation: () => void;
 }
 
 const BotContext = createContext<BotContextType | undefined>(undefined);
@@ -118,6 +122,27 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
   const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
+  
+  // Simulation state
+  const [simulationState, setSimulationState] = useState<SimulationState>({
+    isRunning: false,
+    logs: [],
+    portfolio: {
+      totalValue: 100,
+      availableBalance: 100,
+      unrealizedPnl: 0,
+      totalPnl: 0,
+    },
+    openPositions: [],
+    tradeHistory: [],
+    summary: {
+      totalTrades: 0,
+      winRate: 0,
+      totalPnl: 0,
+      maxDrawdown: 0,
+    },
+    chartData: null,
+  });
   
   const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
     const newId = `bot_${Date.now()}`;
@@ -430,6 +455,48 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addLiveLog, toast, activeProfile]);
 
+  // Simulation functions
+  const startSimulation = useCallback((config: SimulationConfig) => {
+    setSimulationState(prev => ({
+      ...prev,
+      isRunning: true,
+      logs: [...prev.logs, `Starting simulation with ${config.symbol} using ${config.strategy} strategy`],
+      portfolio: {
+        totalValue: config.initialCapital,
+        availableBalance: config.initialCapital,
+        unrealizedPnl: 0,
+        totalPnl: 0,
+      },
+      openPositions: [],
+      tradeHistory: [],
+      summary: {
+        totalTrades: 0,
+        winRate: 0,
+        totalPnl: 0,
+        maxDrawdown: 0,
+      },
+      chartData: null,
+    }));
+    
+    toast({
+      title: "Simulation Started",
+      description: `Paper trading simulation started for ${config.symbol}`,
+    });
+  }, [toast]);
+
+  const stopSimulation = useCallback(() => {
+    setSimulationState(prev => ({
+      ...prev,
+      isRunning: false,
+      logs: [...prev.logs, "Simulation stopped"],
+    }));
+    
+    toast({
+      title: "Simulation Stopped",
+      description: "Paper trading simulation has been stopped",
+    });
+  }, [toast]);
+
   useEffect(() => {
     return () => {
       Object.values(liveWsRefs.current).forEach(ws => ws?.close());
@@ -444,6 +511,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       showRecommendation, strategyRecommendation, activateRecommendedStrategy, dismissRecommendation,
       executeTestTrade, closeTestPosition,
       botInstances, setBotInstances, addBotInstance,
+      simulationState, startSimulation, stopSimulation,
     }}>
       {children}
     </BotContext.Provider>
