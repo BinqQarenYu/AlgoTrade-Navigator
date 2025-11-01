@@ -25,35 +25,13 @@ import {
   TrendingUp as ChartIcon
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
+import { orderFlowAnalyzer, enhancedOrderFlowAnalyzer, type OrderData, type ManipulationFlags } from "@/lib/order-flow-analyzer";
 
 // Mock implementations for missing services
 const getTicker = async (symbol: string) => ({ price: Math.random() * 50000 + 20000 });
 const getKlines = async (symbol: string, interval: string) => ([]);
 
 // Mock types and interfaces
-interface OrderData {
-  id: string;
-  timestamp: number;
-  price: number;
-  quantity: number;
-  side: 'buy' | 'sell';
-  symbol: string;
-  size: number;
-  orderId?: string;
-  venue?: string;
-}
-
-interface ManipulationFlags {
-  spoofing: boolean;
-  layering: boolean;
-  washTrading: boolean;
-  reasons?: string[];
-  riskScore?: number;
-  isPadding?: boolean;
-  isScam?: boolean;
-  isRag?: boolean;
-}
-
 interface EnhancedOrderFlowData {
   orders: OrderData[];
   manipulation: ManipulationFlags;
@@ -80,107 +58,25 @@ interface BinanceOrderFlowData {
   symbol: string;
 }
 
-// Mock services
-const orderFlowAnalyzer = {
-  analyze: (data: any[]) => ({ 
-    manipulation: { 
-      spoofing: false, 
-      layering: false, 
-      washTrading: false,
-      reasons: [],
-      riskScore: 0
-    },
-    orders: []
-  }),
-  analyzeOrder: (order: OrderData) => {
-    // Generate more realistic risk scores and patterns
-    const baseRisk = Math.random() * 10;
-    const isLargeOrder = order.size > 5;
-    const isRapidOrder = Date.now() - order.timestamp < 1000;
-    
-    let riskScore = baseRisk;
-    let reasons = ['Normal trading pattern'];
-    let flags = { spoofing: false, layering: false, washTrading: false, isPadding: false, isScam: false, isRag: false };
-    
-    // Detect manipulation patterns
-    if (isLargeOrder && baseRisk > 7) {
-      flags.spoofing = true;
-      reasons = ['Large order with suspicious timing'];
-      riskScore = Math.min(9, riskScore + 2);
-    }
-    
-    if (order.size < 0.1 && Math.random() > 0.8) {
-      flags.isPadding = true;
-      reasons = ['Small order - potential volume padding'];
-      riskScore = Math.min(8, riskScore + 1);
-    }
-    
-    if (isRapidOrder && Math.random() > 0.9) {
-      flags.isRag = true;
-      reasons = ['Rapid aggressive trading detected'];
-      riskScore = Math.min(9, riskScore + 2);
-    }
-    
-    if (Math.random() > 0.95) {
-      flags.isScam = true;
-      reasons = ['Potential scam pattern detected'];
-      riskScore = 9;
-    }
-    
-    return { 
-      spoofing: flags.spoofing, 
-      layering: flags.layering, 
-      washTrading: flags.washTrading,
-      reasons: reasons,
-      riskScore: riskScore,
-      ...flags
-    };
-  },
-  getManipulationStats: (symbol?: string) => {
-    const paddingCount = Math.floor(Math.random() * 10);
-    const scamCount = Math.floor(Math.random() * 3);
-    const ragCount = Math.floor(Math.random() * 15);
-    
-    return { 
-      total: paddingCount + scamCount + ragCount, 
-      spoofing: Math.floor(Math.random() * 5), 
-      layering: Math.floor(Math.random() * 5), 
-      washTrading: Math.floor(Math.random() * 3),
-      averageRiskScore: 2 + Math.random() * 6, // Range 2-8
-      paddingCount: paddingCount,
-      scamCount: scamCount,
-      ragCount: ragCount
-    };
-  },
-  generateMockOrders: (symbolOrCount: string | number, count?: number) => {
-    const actualCount = typeof symbolOrCount === 'number' ? symbolOrCount : (count || 10);
-    const symbol = typeof symbolOrCount === 'string' ? symbolOrCount : 'BTCUSDT';
-    const now = Date.now();
-    
-    return Array.from({ length: actualCount }, (_, i) => {
-      const timestamp = now - (i * 2000) + Math.random() * 1000; // Spread over time
-      const isBuy = Math.random() > 0.5;
-      const baseSize = Math.random() * 10;
-      
-      // Create more varied order sizes
-      let size = baseSize;
-      if (Math.random() > 0.9) size *= 5; // Some large orders
-      if (Math.random() > 0.8) size *= 0.1; // Some micro orders
-      
-      return {
-        id: `order-${timestamp}-${i}`,
-        timestamp: timestamp,
-        price: 45000 + Math.random() * 10000, // Realistic BTC price range
-        quantity: size,
-        side: isBuy ? 'buy' as const : 'sell' as const,
-        symbol: symbol,
-        size: size
-      };
-    });
-  }
-};
+interface VeryLargeActivity {
+  id: string;
+  timestamp: number;
+  type: 'large_order' | 'whale_movement' | 'anomaly';
+  amount: number;
+  symbol: string;
+  description: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  metadata?: any;
+}
 
-const enhancedOrderFlowAnalyzer = {
+interface ManipulationPattern {
+  type: 'padding' | 'scam' | 'rag';
+  severity: 'low' | 'medium' | 'high';
+  count: number;
+  examples: OrderFlowData[];
+}
+
+const localEnhancedOrderFlowAnalyzer = {
   analyze: (data: any[]) => ({ 
     manipulation: { 
       spoofing: false, 
@@ -433,6 +329,7 @@ export default function OrderFlowPage() {
     
     // Generate additional data for flow chart and signals
     const generateRealTimeData = () => {
+      console.log('🔄 generateRealTimeData() started for', selectedSymbol);
       const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
       const analyzed = newOrders.map(order => {
         const flags = orderFlowAnalyzer.analyzeOrder(order);
@@ -449,22 +346,25 @@ export default function OrderFlowPage() {
         };
       });
 
+      console.log('📋 Generated analyzed orders:', analyzed.length);
       setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
       updateChartData(analyzed);
       
       const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
       setStats(currentStats);
+      console.log('✅ Real-time data generation completed');
     };
 
     // Generate initial data immediately
     generateRealTimeData();
     generateTradingChartData();
     
-    // Set up periodic data generation every 10 seconds
+    // Set up periodic data generation every 1 minute (60 seconds)
     const interval = setInterval(() => {
+      console.log('🔄 Generating new data (1-minute interval)...');
       generateRealTimeData();
       generateTradingChartData();
-    }, 10000);
+    }, 60000); // Changed from 10000 to 60000 (1 minute)
     
     return () => clearInterval(interval);
   }, [selectedSymbol, selectedTimeInterval]);
@@ -708,6 +608,9 @@ export default function OrderFlowPage() {
   };
 
   const updateChartData = (orders: OrderFlowData[]) => {
+    console.log('📈 updateChartData called with orders:', orders.length);
+    console.log('📅 Selected time interval:', selectedTimeInterval);
+    
     // Get interval duration in milliseconds based on selected time interval
     const getIntervalMs = (interval: string) => {
       switch (interval) {
@@ -736,6 +639,8 @@ export default function OrderFlowPage() {
         timestamp: intervalTime
       };
     }
+    
+    console.log('⏱️ Generated time groups:', Object.keys(timeGroups).length);
     
     // Process existing orders into time groups
     [...orders, ...orderFlowData].forEach(order => {
@@ -783,6 +688,12 @@ export default function OrderFlowPage() {
         orderImbalance: ((data.buyCount - data.sellCount) / Math.max(data.buyCount + data.sellCount, 1)) * 100
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
+
+    console.log('📊 Generated chart data:', chartDataArray.length, 'data points');
+    if (chartDataArray.length > 0) {
+      console.log('🔗 First data point:', chartDataArray[0]);
+      console.log('🔗 Last data point:', chartDataArray[chartDataArray.length - 1]);
+    }
 
     setChartData(chartDataArray);
   };
@@ -1465,6 +1376,7 @@ export default function OrderFlowPage() {
           <TabsTrigger value="chart" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Flow Chart
+            <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">📊</span>
           </TabsTrigger>
           <TabsTrigger value="trading-chart" className="flex items-center gap-2">
             <ChartIcon className="h-4 w-4" />
@@ -1765,6 +1677,18 @@ export default function OrderFlowPage() {
             <p className="text-sm text-gray-700">
               Real-time charts showing buy/sell flow, volume patterns, and risk levels for {selectedSymbol}
             </p>
+            <div className="text-xs bg-yellow-100 p-2 rounded mt-2 border border-yellow-300">
+              🔍 Debug Info: Chart data length: {chartData.length} | Selected interval: {selectedTimeInterval}
+              {chartData.length > 0 && (
+                <div className="mt-1">
+                  Latest data: Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)} | 
+                  Sell Vol: {chartData[chartData.length - 1]?.sellVolume?.toFixed(2)}
+                </div>
+              )}
+              {chartData.length === 0 && (
+                <div className="mt-1 text-red-600 font-semibold">⚠️ No chart data available! Check console for data generation logs.</div>
+              )}
+            </div>
           </div>
 
           {/* Time Interval Selector */}
@@ -1788,9 +1712,36 @@ export default function OrderFlowPage() {
                   <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
                 </select>
               </div>
-              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
-                Charts update automatically on interval change
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Manual data generation triggered');
+                    const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
+                    const analyzed = newOrders.map(order => {
+                      const flags = orderFlowAnalyzer.analyzeOrder(order);
+                      return {
+                        symbol: order.symbol,
+                        timestamp: order.timestamp,
+                        orderType: order.side,
+                        size: order.size,
+                        price: order.price,
+                        suspiciousFlags: flags.reasons || [],
+                        riskScore: flags.riskScore || 0,
+                        flags,
+                        marketSource: { coinApi: 'manual', priceApi: 'manual' }
+                      };
+                    });
+                    setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
+                    updateChartData(analyzed);
+                  }}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 transition-colors"
+                >
+                  🔄 Generate Data
+                </button>
+                <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
+                  Updates every 1 minute
+                </span>
+              </div>
             </div>
           </Card>
 
@@ -1836,7 +1787,16 @@ export default function OrderFlowPage() {
               </div>
 
               <div className="h-80 w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartData.length === 0 ? (
+                  <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <div className="text-center">
+                      <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <p className="text-gray-600 font-semibold">Loading chart data...</p>
+                      <p className="text-xs text-gray-500 mt-1">Generating real-time order flow data</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
                     <XAxis 
@@ -1981,6 +1941,7 @@ export default function OrderFlowPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                )}
                 
                 {/* Floating annotations */}
                 {chartData.length > 0 && (
