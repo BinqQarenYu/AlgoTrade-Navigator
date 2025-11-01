@@ -310,28 +310,34 @@ const Tabs = ({ children, defaultValue, className = '', ...props }: any) => {
 };
 const TabsList = ({ children, className = '', activeTab, setActiveTab, ...props }: any) => (
   // Consume activeTab/setActiveTab so they are not forwarded to the DOM element
-  <div className={`inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground ${className}`} {...props}>
+  <div className={`inline-flex h-12 items-center justify-center rounded-md bg-gray-100 p-1 text-gray-600 w-full ${className}`} {...props}>
     {children}
   </div>
 );
 const TabsTrigger = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => (
   <button
-    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
-      activeTab === value ? 'bg-background text-foreground shadow-sm' : ''
+    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+      activeTab === value ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
     } ${className}`}
-    onClick={() => setActiveTab && setActiveTab(value)}
+    onClick={() => {
+      console.log('🔀 Tab clicked:', value);
+      setActiveTab && setActiveTab(value);
+    }}
     {...props}
   >
     {children}
   </button>
 );
-const TabsContent = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => (
-  activeTab === value ? (
-    <div className={`mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`} {...props}>
+const TabsContent = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => {
+  const isActive = activeTab === value;
+  console.log(`📋 TabsContent for "${value}": ${isActive ? 'ACTIVE' : 'inactive'} (activeTab: ${activeTab})`);
+  
+  return isActive ? (
+    <div className={`mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`} {...props}>
       {children}
     </div>
-  ) : null
-);
+  ) : null;
+};
 // Local lightweight Progress replacement (fallback) to avoid missing module during build
 const Progress = ({ value = 0, className = '', ...props }: any) => (
   <div className={`relative w-full bg-gray-200 rounded-full overflow-hidden ${className}`} style={{ height: '8px' }} {...props}>
@@ -388,6 +394,37 @@ export default function OrderFlowPage() {
   const [veryLargeActivities, setVeryLargeActivities] = useState<VeryLargeActivity[]>([]);
   const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
   const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
+
+  // Generate initial data immediately when component mounts
+  React.useEffect(() => {
+    console.log('🚀 Component mounted, generating initial data...');
+    
+    // Generate some initial data immediately to show tabs are working
+    const initialOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 20);
+    const initialAnalyzed = initialOrders.map(order => {
+      const flags = orderFlowAnalyzer.analyzeOrder(order);
+      return {
+        symbol: order.symbol,
+        timestamp: order.timestamp,
+        orderType: order.side,
+        size: order.size,
+        price: order.price,
+        suspiciousFlags: flags.reasons || [],
+        riskScore: flags.riskScore || 0,
+        flags,
+        marketSource: { coinApi: 'initial', priceApi: 'initial' }
+      };
+    });
+    
+    setOrderFlowData(initialAnalyzed);
+    const initialStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
+    setStats(initialStats);
+    
+    console.log('✅ Initial data generated:', {
+      orders: initialAnalyzed.length,
+      stats: initialStats
+    });
+  }, []);
 
   // Initialize with mock data and start analysis
   useEffect(() => {
@@ -1457,6 +1494,27 @@ export default function OrderFlowPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
+            <h3 className="font-semibold text-gray-800 mb-2">📊 Order Flow Analysis Overview</h3>
+            <p className="text-sm text-gray-700">
+              Monitor real-time order flow patterns and detect manipulation for {selectedSymbol}
+            </p>
+          </div>
+
+          {/* Debug Info */}
+          <Card className="mb-4 bg-yellow-50 border-yellow-200">
+            <CardContent className="p-4">
+              <div className="text-sm text-gray-600">
+                <div>🔍 Debug Info:</div>
+                <div>• Order Flow Data: {orderFlowData.length} items</div>
+                <div>• Chart Data: {chartData.length} points</div>
+                <div>• Stats Available: {stats ? 'Yes' : 'No'}</div>
+                <div>• Symbol: {selectedSymbol}</div>
+                <div>• Monitoring: {isMonitoring ? 'Active' : 'Inactive'}</div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Statistics Summary */}
           {stats && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
