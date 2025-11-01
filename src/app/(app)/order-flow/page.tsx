@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import * as React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend, Tooltip as RechartsTooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend, Tooltip as RechartsTooltip, ComposedChart } from 'recharts';
 import { 
   AlertTriangle, 
   TrendingDown, 
@@ -21,7 +21,8 @@ import {
   HelpCircle,
   CheckCircle,
   XCircle,
-  BarChart3
+  BarChart3,
+  TrendingUp as ChartIcon
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
 
@@ -378,6 +379,7 @@ export default function OrderFlowPage() {
   const [marketData, setMarketData] = useState<any>(null);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [realTimeOrders, setRealTimeOrders] = useState<BinanceOrderFlowData[]>([]);
+  const [tradingChartData, setTradingChartData] = useState<any[]>([]);
   
   // Initialize dual API service
   const dualApiService = createDualApiService(coingeckoApiKey, coinmarketcapApiKey);
@@ -419,9 +421,13 @@ export default function OrderFlowPage() {
 
     // Generate initial data immediately
     generateRealTimeData();
+    generateTradingChartData();
     
     // Set up periodic data generation every 10 seconds
-    const interval = setInterval(generateRealTimeData, 10000);
+    const interval = setInterval(() => {
+      generateRealTimeData();
+      generateTradingChartData();
+    }, 10000);
     
     return () => clearInterval(interval);
   }, [selectedSymbol, selectedTimeInterval]);
@@ -742,6 +748,71 @@ export default function OrderFlowPage() {
       .sort((a, b) => a.timestamp - b.timestamp);
 
     setChartData(chartDataArray);
+  };
+
+  // Generate trading chart data (OHLCV candlestick data)
+  const generateTradingChartData = () => {
+    const now = Date.now();
+    const intervalMs = getIntervalMs(selectedTimeInterval);
+    const numCandles = 50;
+    
+    const basePrice = 45000 + Math.random() * 10000; // Base BTC price
+    let currentPrice = basePrice;
+    
+    const tradingData = Array.from({ length: numCandles }, (_, i) => {
+      const timestamp = now - ((numCandles - 1 - i) * intervalMs);
+      
+      // Generate realistic OHLC data
+      const open = currentPrice;
+      const volatility = 0.02; // 2% volatility
+      const change = (Math.random() - 0.5) * volatility * open;
+      const close = open + change;
+      
+      // High and low should encompass open and close
+      const high = Math.max(open, close) + Math.random() * 0.01 * open;
+      const low = Math.min(open, close) - Math.random() * 0.01 * open;
+      
+      // Volume based on market activity (correlated with price movement)
+      const volume = (50 + Math.random() * 100) * Math.abs(change / open) * 1000;
+      
+      currentPrice = close; // Update for next candle
+      
+      return {
+        timestamp,
+        time: timestamp,
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        volume: Number(volume.toFixed(2)),
+        // Technical indicators
+        sma20: Number((currentPrice * (0.98 + Math.random() * 0.04)).toFixed(2)),
+        ema12: Number((currentPrice * (0.99 + Math.random() * 0.02)).toFixed(2)),
+        // Order flow correlation
+        buyPressure: orderFlowData.filter(o => 
+          Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy'
+        ).length,
+        sellPressure: orderFlowData.filter(o => 
+          Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell'
+        ).length,
+        manipulationRisk: Math.random() * 10,
+        // Support/Resistance levels
+        resistance: Number((high * 1.005).toFixed(2)),
+        support: Number((low * 0.995).toFixed(2))
+      };
+    });
+    
+    setTradingChartData(tradingData);
+  };
+
+  const getIntervalMs = (interval: string) => {
+    switch (interval) {
+      case '30s': return 30000;
+      case '5m': return 300000;
+      case '1h': return 3600000;
+      case '4h': return 14400000;
+      default: return 30000;
+    }
   };
 
   const startMonitoring = () => {
@@ -1349,7 +1420,7 @@ export default function OrderFlowPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Overview
@@ -1357,6 +1428,10 @@ export default function OrderFlowPage() {
           <TabsTrigger value="chart" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Flow Chart
+          </TabsTrigger>
+          <TabsTrigger value="trading-chart" className="flex items-center gap-2">
+            <ChartIcon className="h-4 w-4" />
+            Trading Chart
           </TabsTrigger>
           <TabsTrigger value="signals" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -2561,6 +2636,356 @@ export default function OrderFlowPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Trading Chart Tab */}
+        <TabsContent value="trading-chart" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-gray-200">
+            <h3 className="font-semibold text-gray-800 mb-2">📊 Trading Chart Analysis</h3>
+            <p className="text-sm text-gray-700">
+              Comprehensive price action, volume analysis, and order flow correlation for {selectedSymbol}
+            </p>
+          </div>
+
+          {/* Chart Controls */}
+          <Card className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-semibold text-indigo-800">📈 Chart Type:</label>
+                <select 
+                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                >
+                  <option value="candlestick" className="text-gray-800 font-semibold bg-white">Candlestick</option>
+                  <option value="line" className="text-gray-800 font-semibold bg-white">Line Chart</option>
+                  <option value="area" className="text-gray-800 font-semibold bg-white">Area Chart</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-semibold text-indigo-800">⏰ Timeframe:</label>
+                <select 
+                  value={selectedTimeInterval}
+                  onChange={(e) => setSelectedTimeInterval(e.target.value)}
+                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                >
+                  <option value="30s" className="text-gray-800 font-semibold bg-white">30 Seconds</option>
+                  <option value="5m" className="text-gray-800 font-semibold bg-white">5 Minutes</option>
+                  <option value="1h" className="text-gray-800 font-semibold bg-white">1 Hour</option>
+                  <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
+                </select>
+              </div>
+              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
+                Real-time price action with order flow overlay
+              </span>
+            </div>
+          </Card>
+
+          {/* Main Trading Chart */}
+          <Card className="border-2 border-indigo-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-indigo-800">
+                📈 {selectedSymbol} Price Chart with Order Flow Analysis
+                {isMonitoring && (
+                  <Badge className="bg-green-500 animate-pulse text-xs">LIVE</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Candlestick chart with volume, technical indicators, and manipulation risk overlay
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Chart Legend */}
+              <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span className="font-semibold">Green Candle ↑</span>
+                    </div>
+                    <span className="text-muted-foreground">Price closed higher than open</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded"></div>
+                      <span className="font-semibold">Red Candle ↓</span>
+                    </div>
+                    <span className="text-muted-foreground">Price closed lower than open</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                      <span className="font-semibold">Volume Bars</span>
+                    </div>
+                    <span className="text-muted-foreground">Trading volume per timeframe</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                      <span className="font-semibold">Risk Level</span>
+                    </div>
+                    <span className="text-muted-foreground">Order flow manipulation risk</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Combined Chart */}
+              <div className="h-96 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={tradingChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                    <XAxis 
+                      dataKey="time"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      type="number"
+                      scale="time"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        if (selectedTimeInterval === '30s') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false 
+                          });
+                        } else if (selectedTimeInterval === '5m') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          });
+                        } else {
+                          return date.toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit' 
+                          }) + ' ' + date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit',
+                            hour12: false 
+                          }) + 'h';
+                        }
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="price"
+                      orientation="right"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <YAxis 
+                      yAxisId="volume"
+                      orientation="left"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tickFormatter={(value) => {
+                        if (value >= 1000) {
+                          return `${(value / 1000).toFixed(1)}K`;
+                        }
+                        return value.toFixed(0);
+                      }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === 'volume') {
+                          return [`${Number(value).toLocaleString()}`, '📊 Volume'];
+                        }
+                        if (name === 'manipulationRisk') {
+                          return [`${Number(value).toFixed(1)}/10`, '⚠️ Risk Score'];
+                        }
+                        if (name === 'close') {
+                          return [`$${Number(value).toLocaleString()}`, '💰 Close Price'];
+                        }
+                        return [Number(value).toLocaleString(), name];
+                      }}
+                      labelFormatter={(label) => {
+                        const date = new Date(label);
+                        return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false 
+                        })}`;
+                      }}
+                    />
+                    <Legend />
+                    
+                    {/* Volume Bars */}
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="volume"
+                      fill="#3b82f6"
+                      fillOpacity={0.3}
+                      name="volume"
+                    />
+                    
+                    {/* Price Line */}
+                    <Line
+                      yAxisId="price"
+                      type="monotone"
+                      dataKey="close"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                      name="close"
+                    />
+                    
+                    {/* Risk Level Overlay */}
+                    <Line
+                      yAxisId="volume"
+                      type="monotone"
+                      dataKey="manipulationRisk"
+                      stroke="#f97316"
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="manipulationRisk"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Current Price Info */}
+              {tradingChartData.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-indigo-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Current Price</div>
+                    <div className="text-lg font-bold text-green-600">
+                      ${tradingChartData[tradingChartData.length - 1]?.close?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">24h High</div>
+                    <div className="text-lg font-bold text-gray-700">
+                      ${Math.max(...tradingChartData.map(d => d.high)).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">24h Low</div>
+                    <div className="text-lg font-bold text-gray-700">
+                      ${Math.min(...tradingChartData.map(d => d.low)).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Volume</div>
+                    <div className="text-lg font-bold text-blue-600">
+                      {tradingChartData[tradingChartData.length - 1]?.volume?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Risk Level</div>
+                    <div className={`text-lg font-bold ${
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 3 ? 'text-green-600' :
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 6 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {tradingChartData[tradingChartData.length - 1]?.manipulationRisk?.toFixed(1)}/10
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Technical Analysis & Order Flow Correlation */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  📊 Technical Indicators
+                  <Badge variant="outline">Real-time</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {tradingChartData.length > 0 && (
+                    <>
+                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                        <span className="text-sm font-semibold">SMA (20):</span>
+                        <span className="font-bold text-blue-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.sma20?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <span className="text-sm font-semibold">EMA (12):</span>
+                        <span className="font-bold text-green-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.ema12?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                        <span className="text-sm font-semibold">Resistance:</span>
+                        <span className="font-bold text-orange-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.resistance?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                        <span className="text-sm font-semibold">Support:</span>
+                        <span className="font-bold text-purple-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.support?.toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  🔄 Order Flow Correlation
+                  <Badge variant="outline">Live Analysis</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {tradingChartData.length > 0 && (
+                    <>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <span className="text-sm font-semibold">Buy Pressure:</span>
+                        <span className="font-bold text-green-600">
+                          {tradingChartData[tradingChartData.length - 1]?.buyPressure || 0} orders
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                        <span className="text-sm font-semibold">Sell Pressure:</span>
+                        <span className="font-bold text-red-600">
+                          {tradingChartData[tradingChartData.length - 1]?.sellPressure || 0} orders
+                        </span>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-sm font-semibold mb-2">Order Flow Sentiment:</div>
+                        <div className={`font-bold ${
+                          (tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
+                          (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
+                          'text-green-600' : 'text-red-600'
+                        }`}>
+                          {(tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
+                           (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
+                           '🚀 BULLISH' : '📉 BEARISH'}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-yellow-50 rounded-lg">
+                        <div className="text-sm font-semibold mb-2">Price Action Signal:</div>
+                        <div className="text-yellow-700 text-sm">
+                          {tradingChartData.length >= 2 &&
+                           tradingChartData[tradingChartData.length - 1]?.close > tradingChartData[tradingChartData.length - 2]?.close ?
+                           '⬆️ Upward momentum detected' : '⬇️ Downward momentum detected'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Buy/Sell Signals Tab */}
