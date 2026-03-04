@@ -10,6 +10,13 @@ import type { HistoricalData } from './types';
  * @param period The number of periods to average over.
  * @returns An array of SMA values, with initial values as null.
  */
+/**
+ * Calculates the Simple Moving Average (SMA) for a given set of data.
+ * Optimized with a sliding window approach (O(n) complexity).
+ * @param data An array of numbers (e.g., closing prices).
+ * @param period The number of periods to average over.
+ * @returns An array of SMA values, with initial values as null.
+ */
 export const calculateSMA = (data: number[], period: number): (number | null)[] => {
   // Guard against invalid period to prevent crashes
   if (period <= 0 || !Number.isInteger(period)) {
@@ -18,11 +25,19 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   }
   if (data.length < period) return Array(data.length).fill(null);
   
-  const sma: (number | null)[] = Array(period - 1).fill(null);
-  for (let i = period - 1; i < data.length; i++) {
-    const slice = data.slice(i - period + 1, i + 1);
-    const sum = slice.reduce((acc, val) => acc + val, 0);
-    sma.push(sum / period);
+  const sma: (number | null)[] = new Array(data.length).fill(null);
+  let sum = 0;
+
+  // Initial window sum
+  for (let i = 0; i < period; i++) {
+    sum += data[i];
+  }
+  sma[period - 1] = sum / period;
+
+  // Slide the window: add new value, subtract old value
+  for (let i = period; i < data.length; i++) {
+    sum = sum - data[i - period] + data[i];
+    sma[i] = sum / period;
   }
   return sma;
 };
@@ -105,16 +120,41 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
 };
 
 
+/**
+ * Calculates the standard deviation for a given set of data.
+ * Optimized with a sliding window approach using sum of squares (O(n) complexity).
+ */
 export const calculateStandardDeviation = (data: number[], period: number): (number | null)[] => {
-    if (data.length < period) return Array(data.length).fill(null);
-    const stdDev: (number | null)[] = Array(period - 1).fill(null);
-    for (let i = period - 1; i < data.length; i++) {
-        const slice = data.slice(i - period + 1, i + 1);
-        const mean = slice.reduce((acc, val) => acc + val, 0) / period;
-        const variance = slice.reduce((acc, val) => acc + (val - mean) ** 2, 0) / period;
-        stdDev.push(Math.sqrt(variance));
-    }
-    return stdDev;
+  if (data.length < period) return Array(data.length).fill(null);
+  const stdDev: (number | null)[] = new Array(data.length).fill(null);
+
+  let sum = 0;
+  let sumSq = 0;
+
+  // Initial window sums
+  for (let i = 0; i < period; i++) {
+    const val = data[i];
+    sum += val;
+    sumSq += val * val;
+  }
+
+  // Variance = (Sum(x^2) - (Sum(x)^2 / N)) / N
+  const calculateVariance = (s: number, sSq: number, p: number) => {
+    const variance = (sSq - (s * s) / p) / p;
+    return variance > 0 ? variance : 0; // Guard against precision errors
+  };
+
+  stdDev[period - 1] = Math.sqrt(calculateVariance(sum, sumSq, period));
+
+  // Slide the window: update sum and sumSq
+  for (let i = period; i < data.length; i++) {
+    const valOut = data[i - period];
+    const valIn = data[i];
+    sum = sum - valOut + valIn;
+    sumSq = sumSq - (valOut * valOut) + (valIn * valIn);
+    stdDev[i] = Math.sqrt(calculateVariance(sum, sumSq, period));
+  }
+  return stdDev;
 };
 
 export const calculateBollingerBands = (data: number[], period: number, stdDevMultiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
@@ -357,17 +397,38 @@ export const calculateKeltnerChannels = (data: HistoricalData[], period: number,
     return { upper, middle, lower };
 };
 
+/**
+ * Calculates the Volume Weighted Average Price (VWAP) for a given set of data.
+ * Optimized with a sliding window approach (O(n) complexity).
+ */
 export const calculateVWAP = (data: HistoricalData[], period: number): (number | null)[] => {
-    const vwap: (number | null)[] = [];
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-            vwap.push(null);
-            continue;
-        }
-        const slice = data.slice(i - period + 1, i + 1);
-        const totalPV = slice.reduce((sum, d) => sum + ((d.high + d.low + d.close) / 3) * d.volume, 0);
-        const totalVolume = slice.reduce((sum, d) => sum + d.volume, 0);
-        vwap.push(totalVolume > 0 ? totalPV / totalVolume : null);
+    const vwap: (number | null)[] = new Array(data.length).fill(null);
+    if (data.length < period) return vwap;
+
+    let totalPV = 0;
+    let totalVolume = 0;
+
+    // Initial window totals
+    for (let i = 0; i < period; i++) {
+        const d = data[i];
+        const typicalPrice = (d.high + d.low + d.close) / 3;
+        totalPV += typicalPrice * d.volume;
+        totalVolume += d.volume;
+    }
+    vwap[period - 1] = totalVolume > 0 ? totalPV / totalVolume : null;
+
+    // Slide the window
+    for (let i = period; i < data.length; i++) {
+        const dOut = data[i - period];
+        const dIn = data[i];
+
+        const typicalPriceOut = (dOut.high + dOut.low + dOut.close) / 3;
+        const typicalPriceIn = (dIn.high + dIn.low + dIn.close) / 3;
+
+        totalPV = totalPV - (typicalPriceOut * dOut.volume) + (typicalPriceIn * dIn.volume);
+        totalVolume = totalVolume - dOut.volume + dIn.volume;
+
+        vwap[i] = totalVolume > 0 ? totalPV / totalVolume : null;
     }
     return vwap;
 };
