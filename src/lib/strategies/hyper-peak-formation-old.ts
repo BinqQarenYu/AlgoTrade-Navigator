@@ -109,7 +109,7 @@ const hyperPeakFormationOldStrategy: Strategy = {
                 if (relevantSwingLowIndex !== null) {
                     for (let k = i + 1; k < Math.min(i + maxLookahead, data.length); k++) {
                         if (!emaShort[k-1] || !emaLong[k-1] || !emaShort[k] || !emaLong[k]) continue;
-                        if (emaShort[k-1] >= emaLong[k-1] && emaShort[k] < emaLong[k] && data[k].close < data[relevantSwingLowIndex].low) {
+                        if (emaShort[k-1]! >= emaLong[k-1]! && emaShort[k]! < emaLong[k]! && data[k].close < data[relevantSwingLowIndex].low) {
                             // ... rest of the logic
                         }
                     }
@@ -128,7 +128,7 @@ const hyperPeakFormationOldStrategy: Strategy = {
                 if (relevantSwingHighIndex !== null) {
                     for (let k = i + 1; k < Math.min(i + maxLookahead, data.length); k++) {
                          if (!emaShort[k-1] || !emaLong[k-1] || !emaShort[k] || !emaLong[k]) continue;
-                         if (emaShort[k-1] <= emaLong[k-1] && emaShort[k] > emaLong[k] && data[k].close > data[relevantSwingHighIndex].high) {
+                         if (emaShort[k-1]! <= emaLong[k-1]! && emaShort[k]! > emaLong[k]! && data[k].close > data[relevantSwingHighIndex].high) {
                             // ... rest of the logic
                          }
                     }

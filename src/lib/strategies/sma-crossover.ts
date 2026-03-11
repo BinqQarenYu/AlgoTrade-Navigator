@@ -36,10 +36,10 @@ const smaCrossoverStrategy: Strategy = {
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.sma_short = sma_short[i];
-      d.sma_long = sma_long[i];
-      if (i > 0 && sma_short[i-1] && sma_long[i-1] && sma_short[i] && sma_long[i]) {
-        const standardBuy = sma_short[i-1] <= sma_long[i-1] && sma_short[i] > sma_long[i];
-        const standardSell = sma_short[i-1] >= sma_long[i-1] && sma_short[i] < sma_long[i];
+      d.sma_long = sma_long[i]!;
+      if (i > 0 && sma_short[i-1] && sma_long[i-1]! && sma_short[i] && sma_long[i]!) {
+        const standardBuy = sma_short[i-1]! <= sma_long[i-1]! && sma_short[i]! > sma_long[i]!;
+        const standardSell = sma_short[i-1]! >= sma_long[i-1]! && sma_short[i]! < sma_long[i]!;
 
         if (params.reverse) {
             if (standardBuy) d.sellSignal = d.high;

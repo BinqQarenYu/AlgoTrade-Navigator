@@ -96,7 +96,7 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
                             <span className="font-medium text-sm">{coin.name}</span>
-                            <span className="font-mono text-sm">{coin.sentimentUp.toFixed(1)}% Up</span>
+                            <span className="font-mono text-sm">{(coin.sentimentUp ?? 0).toFixed(1)}% Up</span>
                         </div>
                         <div className="w-full bg-destructive/20 rounded-full h-2.5">
                           <div 

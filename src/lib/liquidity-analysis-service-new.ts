@@ -34,11 +34,11 @@ export class LiquidityAnalysisService {
     // Mock implementation
     const mockPools: AnalyzedPool[] = [
       {
-        reserveInUsd: 1500000,
-        volume24h: 250000,
-        buys24h: 120,
+        liquidity: "1500000", token0: { symbol: "A", address: "", balance: "" }, token1: { symbol: "B", address: "", balance: "" }, fee: 0, verified: true,
+        volume24h: "250000",
+
         address: '0x123...abc',
-        dex: 'Uniswap V3',
+
         safetyScore: 85,
         riskFactors: ['Medium liquidity'],
         isRecommended: true

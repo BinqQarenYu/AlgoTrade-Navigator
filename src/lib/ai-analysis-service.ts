@@ -16,6 +16,10 @@ export interface MarketAnalysisRequest {
 }
 
 export interface AIAnalysisResult {
+  direction?: string;
+  strength?: string;
+  summary?: string;
+  level?: string;
   recommendation: 'BUY' | 'SELL' | 'HOLD' | 'NEUTRAL';
   confidence: number;
   reasoning: string;
@@ -27,6 +31,7 @@ export interface AIAnalysisResult {
   riskAssessment: {
     factors: string[];
     score: number;
+    level?: string;
   };
   timeHorizon: string;
   lastUpdated: Date;

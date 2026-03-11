@@ -850,9 +850,7 @@ const BacktestPageContent = () => {
 
   useEffect(() => {
     if (isPlaying && isReplaying) {
-      replayIntervalRef.current = setInterval(() => {
-        handleReplayStep('forward');
-      }, replaySpeed);
+      replayIntervalRef.current = (window as any).setInterval(() => handleReplayStep('forward'), replaySpeed) as any;
     } else {
       if (replayIntervalRef.current) {
         clearInterval(replayIntervalRef.current);
@@ -1456,7 +1454,7 @@ const BacktestPageContent = () => {
                             <TabsContent value="core" className="pt-4 space-y-4">
                                 <div className="space-y-2">
                                     <Label>Date Range</Label>
-                                    <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!date && "text-muted-foreground")} disabled={anyLoading}><CalendarIcon className="mr-2 h-4 w-4"/>{isClient && date?.from?(date.to?(`${format(date.from,"LLL dd, y")} - ${format(date.to,"LLL dd, y")}`):format(date.from,"LLL dd, y")):<span>Pick a date range</span>}</Button></PopoverTrigger><PopoverContent className="w-auto flex p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date} onSelect={setDate} numberOfMonths={1}/></PopoverContent></Popover>
+                                    <Popover><PopoverTrigger asChild><Button variant={"outline"} className={cn("w-full justify-start text-left font-normal",!date && "text-muted-foreground")} disabled={anyLoading}><CalendarIcon className="mr-2 h-4 w-4"/>{isClient && date?.from?(date.to?(`${format(date.from,"LLL dd, y")} - ${format(date.to,"LLL dd, y")}`):format(date.from,"LLL dd, y")):<span>Pick a date range</span>}</Button></PopoverTrigger><PopoverContent className="w-auto flex p-0" align="start"><Calendar initialFocus mode="range" defaultMonth={date?.from} selected={date as any} onSelect={setDate as any} numberOfMonths={1}/></PopoverContent></Popover>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2"><Label htmlFor="initial-capital">Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={e=>setInitialCapital(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>

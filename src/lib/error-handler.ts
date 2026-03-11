@@ -64,7 +64,7 @@ export class TradingErrorHandler {
     originalError?: Error, 
     context?: Record<string, any>
   ): TradingError {
-    let errorInfo = { type: 'SYSTEM_ERROR' as ErrorType, retryable: false, severity: 'medium' as const };
+    let errorInfo = { type: 'SYSTEM_ERROR' as ErrorType, retryable: false, severity: 'medium' as 'high' | 'low' | 'medium' | 'critical' };
     let code: string | number | undefined;
 
     // Try to extract error code from message
