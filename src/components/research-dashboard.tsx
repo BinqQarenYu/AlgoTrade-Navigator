@@ -161,9 +161,10 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
       // Perform AI analysis
       const analysisRequest: MarketAnalysisRequest = {
         symbol: baseSymbol,
+        timeframe: "1d",
         ohlcData: [], // Would need to fetch OHLC data
         priceChange24h: marketData.priceChange24h,
-        volume24h: marketData.volume24h,
+        volume: marketData.volume24h,
         marketCap: marketData.marketCap,
       };
 
@@ -472,7 +473,7 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                     <CardContent>
                       <div className="flex items-center gap-2 mb-3">
                         <span className="text-sm text-muted-foreground">Risk Level:</span>
-                        <Badge className={getRiskColor(researchData.aiAnalysis.riskAssessment.level)}>
+                        <Badge className={getRiskColor(researchData.aiAnalysis.riskAssessment.level || "")}>
                           {researchData.aiAnalysis.riskAssessment.level}
                         </Badge>
                       </div>
@@ -600,7 +601,7 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
-                          {researchData.liquidityAnalysis.pools.slice(0, 5).map((pool: Pool, index: number) => (
+                          {researchData.liquidityAnalysis.pools.slice(0, 5).map((pool: any, index: number) => (
                             <div key={index} className="border rounded-lg p-3">
                               <div className="flex justify-between items-start mb-2">
                                 <div>

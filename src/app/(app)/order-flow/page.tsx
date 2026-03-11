@@ -127,9 +127,6 @@ const orderFlowAnalyzer = {
     }
     
     return { 
-      spoofing: flags.spoofing, 
-      layering: flags.layering, 
-      washTrading: flags.washTrading,
       reasons: reasons,
       riskScore: riskScore,
       ...flags

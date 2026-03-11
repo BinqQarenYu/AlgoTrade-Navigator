@@ -1,7 +1,6 @@
 
 'use server';
 
-import type { GenkitPrompt } from 'genkit/prompt';
 
 /**
  * A centralized wrapper for running Genkit AI flows with robust error handling and retry logic.
@@ -12,7 +11,7 @@ import type { GenkitPrompt } from 'genkit/prompt';
  * @throws An error with a user-friendly message if the flow fails.
  */
 export async function runAiFlow<I, O>(
-    prompt: GenkitPrompt<I, O>,
+    prompt: any,
     input: I,
     maxRetries: number = 3
 ): Promise<O> {

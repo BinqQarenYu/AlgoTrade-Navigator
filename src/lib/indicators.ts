@@ -51,7 +51,7 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
       prevEma = sum / period; // Start with SMA
       ema.push(prevEma);
     } else {
-      const currentEma = (data[i] - prevEma!) * multiplier + prevEma!;
+      const currentEma: number = (data[i] - prevEma!) * multiplier + prevEma!;
       ema.push(currentEma);
       prevEma = currentEma;
     }
@@ -491,7 +491,7 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
-    const result = { pp: [], s1: [], s2: [], s3: [], r1: [], r2: [], r3: [] } as Record<string, (number|null)[]>;
+    const result = { pp: [], s1: [], s2: [], s3: [], r1: [], r2: [], r3: [] } as { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } & Record<string, (number|null)[]>;
     for (let i = 0; i < data.length; i++) {
         if (i < period) {
             Object.keys(result).forEach(k => result[k].push(null));
@@ -601,7 +601,7 @@ export const calculateElderRay = (data: HistoricalData[], period: number): { bul
 };
 
 export const findFVGs = (data: HistoricalData[]): { index: number, top: number, bottom: number, type: 'bullish' | 'bearish' }[] => {
-  const fvgs = [];
+  const fvgs: { index: number, top: number, bottom: number, type: 'bullish' | 'bearish' }[] = [];
   for (let i = 1; i < data.length - 1; i++) {
     const prev = data[i - 1];
     const curr = data[i];
