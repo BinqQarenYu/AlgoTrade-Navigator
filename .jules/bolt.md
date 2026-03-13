@@ -1,0 +1,3 @@
+## 2024-03-14 - Indicators Performance Optimization
+**Learning:** Found that core indicators (`calculateSMA`, `calculateStandardDeviation`) were recalculating overlapping windows, resulting in O(n * period) performance via `slice()` and `reduce()`. This was a hidden bottleneck for all other indicators that relied on SMA or StdDev.
+**Action:** Switched to O(n) sliding window approach. Used Sum(x) and Sum(x^2) for O(1) sliding variance calculation, which required adding `Math.max(0, ...)` before `Math.sqrt()` to protect against floating-point precision issues occasionally dropping variance slightly below zero.
