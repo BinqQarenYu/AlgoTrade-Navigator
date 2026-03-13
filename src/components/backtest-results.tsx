@@ -183,6 +183,11 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                     tooltipContent="The percentage of trades that were profitable (closed with a positive PNL). Formula: (Winning Trades / Total Trades) * 100."
                 />
                 <SummaryStat 
+                    label="Max Drawdown" 
+                    value={<span className="text-red-500">{summary.maxDrawdown !== undefined ? summary.maxDrawdown.toFixed(2) : 0}%</span>}
+                    tooltipContent="The maximum observed loss from a peak to a trough of a portfolio, before a new peak is attained."
+                />
+                <SummaryStat 
                     label="Profit Factor" 
                     value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>}
                     tooltipContent="The ratio of gross profit to gross loss. A value greater than 1 indicates a profitable system. Formula: Gross Profit / Gross Loss."
