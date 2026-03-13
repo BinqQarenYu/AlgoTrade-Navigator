@@ -146,7 +146,7 @@ const convertSimulationSummaryToBacktestSummary = (simSummary: {
   profitFactor: 1,
   initialCapital: 100,
   finalCapital: 100,
-  maxDrawdownPercent: simSummary.maxDrawdown,
+  maxDrawdown: simSummary.maxDrawdown,
 });
 
 function SimulationPageContent() {
