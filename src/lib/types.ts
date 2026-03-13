@@ -231,6 +231,7 @@ export type ApiProfile = {
   apiKey: string;
   secretKey: string;
   permissions: 'ReadOnly' | 'FuturesTrading';
+  useDirectConnection?: boolean; // Added to allow bypassing the proxy
 };
 
 export type TradeSignal = {

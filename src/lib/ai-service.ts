@@ -12,36 +12,68 @@
  */
 export async function runAiFlow<I, O>(
     prompt: any,
-    input: I,
+    input: any, // Changed to any to allow checking for apiKey
     maxRetries: number = 3
 ): Promise<O> {
+    let effectiveApiKey = input?.apiKey;
+
+    // 1. If key is missing in input, try to recovery from server-side persistence
+    if (!effectiveApiKey) {
+        try {
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            const persistencePath = path.join(process.cwd(), 'data', 'app-settings.json');
+            const stats = await fs.stat(persistencePath).catch(() => null);
+            if (stats) {
+                const data = JSON.parse(await fs.readFile(persistencePath, 'utf8'));
+                if (data.geminiApiKey) effectiveApiKey = data.geminiApiKey;
+                if (data.geminiModel) input.model = data.geminiModel;
+            }
+        } catch (e) {
+            console.error("Failed to recover API key from persistence:", e);
+        }
+    }
+
+    // 2. Inject into environment
+    if (effectiveApiKey) {
+        process.env.GOOGLE_GENAI_API_KEY = effectiveApiKey;
+        process.env.GOOGLE_API_KEY = effectiveApiKey;
+        process.env.GEMINI_API_KEY = effectiveApiKey;
+    }
+
     let lastError: Error | null = null;
     for (let i = 0; i < maxRetries; i++) {
         try {
-            const { output } = await prompt(input);
+            // 3. Pass in multiple Genkit-compatible config locations
+            const modelId = input?.model ? `googleai/${input.model}` : undefined;
+            const options: any = {
+                model: modelId,
+                config: effectiveApiKey ? { apiKey: effectiveApiKey } : {},
+                modelConfig: effectiveApiKey ? { apiKey: effectiveApiKey } : {}
+            };
+
+            const { output } = await prompt(input, options);
             if (!output) {
-                // This can happen due to safety filters or other content generation issues.
-                throw new Error("The AI model did not return a valid response. This could be due to safety filters or an internal error.");
+                throw new Error("The AI model did not return a valid response.");
             }
             return output;
         } catch (e: any) {
             lastError = e;
             const errorMessage = e.message || '';
 
-            // Check for non-retriable quota errors first. If it's a quota error, stop immediately.
             if (errorMessage.includes('429') || errorMessage.toLowerCase().includes('quota')) {
-                console.error("AI quota exceeded. Not retrying.", e);
-                throw new Error("You have exceeded your daily AI quota. Please check your plan and billing details.");
+                throw new Error("AI quota exceeded. Please check your Gemini API key and billing.");
+            }
+            
+            if (errorMessage.includes('FAILED_PRECONDITION') || errorMessage.includes('API key')) {
+                throw new Error("Gemini API Key missing or invalid. Action: Go to Settings, paste your key, and click 'Save Configuration to Server'.");
             }
 
-            // For any other error, log it and retry with exponential backoff.
-            console.log(`Attempt ${i + 1} of ${maxRetries} failed. Retrying in ${Math.pow(2, i)}s...`, e);
+            console.log(`Attempt ${i + 1} of ${maxRetries} failed. Retrying...`, e);
             if (i < maxRetries - 1) {
                 await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
             }
         }
     }
-    // If all retries failed, throw the final user-friendly error.
-    console.error("All AI flow retries failed.", lastError);
-    throw new Error("The AI service is currently overloaded or unavailable. Please try again in a few minutes.");
+    throw new Error(lastError?.message || "The AI service is currently unavailable.");
 }

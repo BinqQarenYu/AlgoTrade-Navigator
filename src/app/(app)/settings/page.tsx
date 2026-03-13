@@ -25,7 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -48,10 +48,12 @@ export default function SettingsPage() {
     rateLimitThreshold, setRateLimitThreshold, coingeckoApiKey, setCoingeckoApiKey,
     coinmarketcapApiKey, setCoinmarketcapApiKey, geminiApiKey, setGeminiApiKey,
     aiQuota, setAiQuotaLimit, telegramBotToken, setTelegramBotToken,
-    telegramChatId, setTelegramChatId,
+    telegramChatId, setTelegramChatId, geminiModel, setGeminiModel, saveToDisk
   } = useApi()
   
   const { executeTestTrade, closeTestPosition } = useBot();
+
+  const [isSaving, setIsSaving] = useState(false);
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -65,6 +67,7 @@ export default function SettingsPage() {
   const [aiQuotaLimitInput, setAiQuotaLimitInput] = useState(aiQuota.limit);
   const [telegramTokenInput, setTelegramTokenInput] = useState(telegramBotToken || "");
   const [telegramChatIdInput, setTelegramChatIdInput] = useState(telegramChatId || "");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
 
   const [isTestCardOpen, setTestCardOpen] = usePersistentState<boolean>('settings-test-card-open', true);
   const [testSymbol, setTestSymbol] = usePersistentState<string>('settings-test-symbol', 'BTCUSDT');
@@ -73,7 +76,7 @@ export default function SettingsPage() {
 
   const [isConnectionOpen, setConnectionOpen] = useState(true);
   const [isIpOpen, setIpOpen] = useState(true);
-  const [isIntegrationsOpen, setIntegrationsOpen] = useState(false);
+  const [isIntegrationsOpen, setIntegrationsOpen] = useState(true);
   const [isRateLimitOpen, setRateLimitOpen] = useState(false);
   const [isAiQuotaOpen, setAiQuotaOpen] = useState(false);
   const [isProfilesOpen, setProfilesOpen] = useState(true);
@@ -174,6 +177,35 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between bg-primary/10 border border-primary/20 p-6 rounded-3xl gap-4 shadow-xl shadow-primary/5">
+            <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                    <HardDrive className="text-primary h-6 w-6" />
+                    Global Persistence
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                    Backup your keys and profiles to the application server for permanent storage.
+                </p>
+            </div>
+            <Button 
+                onClick={async () => {
+                    setIsSaving(true);
+                    await saveToDisk();
+                    setIsSaving(false);
+                }} 
+                size="lg"
+                disabled={isSaving}
+                className="shadow-lg shadow-primary/20 rounded-2xl"
+            >
+                {isSaving ? (
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                    <CloudUpload className="mr-2 h-5 w-5" />
+                )}
+                {isSaving ? "Saving..." : "Save Configuration to Server"}
+            </Button>
+        </div>
+
        <Card>
         <Collapsible open={isConnectionOpen} onOpenChange={setConnectionOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -262,11 +294,82 @@ export default function SettingsPage() {
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">
-             <div className="space-y-2">
-                <Label htmlFor="gemini-key">Google AI (Gemini) API Key</Label>
-                <div className="flex items-center gap-2"><Input id="gemini-key" type="password" value={geminiKeyValue} onChange={(e) => setGeminiKeyValue(e.target.value)} placeholder="Enter your Google AI API Key"/><Button onClick={handleSaveGeminiKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
-                <p className="text-xs text-muted-foreground">Required for all AI-powered features. Get a key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline">Google AI Studio</a>.</p>
-            </div>
+              <div className="space-y-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
+                <div className="flex items-center gap-2 mb-1">
+                    <Brain className="h-5 w-5 text-primary" />
+                    <Label htmlFor="gemini-key" className="text-base font-bold">Google AI (Gemini) Intelligence</Label>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                    Power your AI Research Lab, trade signal validation, and automated risk assessment. 
+                    Get your key for free at the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline">Google AI Studio</a>.
+                </p>
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1">
+                        <Input 
+                            id="gemini-key" 
+                            type={showGeminiKey ? "text" : "password"} 
+                            value={geminiKeyValue} 
+                            onChange={(e) => setGeminiKeyValue(e.target.value)} 
+                            placeholder="Paste your Gemini API Key here..."
+                            className="pr-10 bg-background/50 border-primary/20 focus-visible:ring-primary"
+                        />
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowGeminiKey(!showGeminiKey)}
+                        >
+                            {showGeminiKey ? (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                            )}
+                        </Button>
+                    </div>
+                    <Button onClick={handleSaveGeminiKey} className="shrink-0 shadow-sm shadow-primary/20">
+                        <Save className="mr-2 h-4 w-4" /> Save Key
+                    </Button>
+                </div>
+                
+                <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="gemini-model" className="text-xs font-bold uppercase tracking-tighter text-muted-foreground">Select AI Model (Budget Control)</Label>
+                    <Select value={geminiModel} onValueChange={setGeminiModel}>
+                      <SelectTrigger id="gemini-model" className="w-full bg-background/50 border-primary/10">
+                        <SelectValue placeholder="Select Model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gemini-1.5-flash-latest">
+                          <div className="flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-orange-500" />
+                            <span>Gemini 1.5 Flash (Budget/Fast)</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="gemini-1.5-pro-latest">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-4 w-4 text-primary" />
+                            <span>Gemini 1.5 Pro (Precision/High-Cost)</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="p-3 bg-primary/5 border border-primary/10 rounded-2xl">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Daily Request Budget</span>
+                      <span className="text-xs font-black">{aiQuota.used} / {aiQuota.limit}</span>
+                    </div>
+                    <Progress value={(aiQuota.used / aiQuota.limit) * 100} className="h-1" />
+                    <p className="text-[10px] text-muted-foreground mt-2 italic leading-tight">
+                      {geminiModel.includes('flash') 
+                        ? "Flash is optimized for low-latency and higher quota volume." 
+                        : "Pro offers deep reasoning but consumes quota credits faster."}
+                    </p>
+                  </div>
+                </div>
+              </div>
             <Separator/>
              <div className="space-y-2">
                 <Label htmlFor="telegram-token">Telegram Bot Token (Optional)</Label>

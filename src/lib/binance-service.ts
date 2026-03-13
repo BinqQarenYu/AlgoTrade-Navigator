@@ -2,17 +2,20 @@
 'use client';
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
-import type { Ticker } from 'ccxt';
-// Import only the specific exchange class we need
-import { binance } from 'ccxt';
+import type { Ticker, Exchange } from 'ccxt';
 
 // This function is now the single point of contact for all client-side requests to our proxy.
 async function callProxy<T>(
     path: string, 
     method: 'GET' | 'POST' = 'GET', 
     body?: Record<string, any>,
-    keys?: { apiKey: string, secretKey: string }
+    keys?: { apiKey: string, secretKey: string },
+    useDirectConnection: boolean = false,
+    timeoutMs: number = 20000
 ): Promise<{ data: T, usedWeight: number }> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
         const requestBody: any = { path, method, body };
         if (keys) {
@@ -24,7 +27,9 @@ async function callProxy<T>(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(requestBody),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         const result = await response.json();
 
@@ -44,14 +49,33 @@ async function callProxy<T>(
 }
 
 
-// CCXT instance for public market data - this does not go through our proxy
-const binanceExchange = new binance({
-    options: { defaultType: 'future' },
-    enableRateLimit: true, 
-});
+// Lazy CCXT initialization to avoid blocking main thread on load
+let binanceExchangeInstance: Exchange | null = null;
+const getBinanceExchange = async () => {
+    if (!binanceExchangeInstance) {
+        const { binance } = await import('ccxt');
+        binanceExchangeInstance = new binance({
+            options: { defaultType: 'future' },
+            enableRateLimit: true, 
+        });
+    }
+    return binanceExchangeInstance;
+};
 
-export const getAccountBalance = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Portfolio, usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
+export const pingBinance = async (keys: { apiKey: string, secretKey: string }, useDirectConnection: boolean = false): Promise<boolean> => {
+    try {
+        await callProxy<any>('/fapi/v1/ping', 'GET', undefined, keys, useDirectConnection, 5000);
+        return true;
+    } catch (error) {
+        return false;
+    }
+};
+
+export const getAccountBalance = async (
+    keys: { apiKey: string, secretKey: string }, 
+    useDirectConnection: boolean = false
+): Promise<{ data: Portfolio, usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys, useDirectConnection);
   const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
     totalPnl: parseFloat(data.totalUnrealizedProfit),
@@ -60,8 +84,11 @@ export const getAccountBalance = async (keys: { apiKey: string, secretKey: strin
   return { data: portfolioData, usedWeight };
 };
 
-export const getOpenPositions = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Position[], usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys);
+export const getOpenPositions = async (
+    keys: { apiKey: string, secretKey: string },
+    useDirectConnection: boolean = false
+): Promise<{ data: Position[], usedWeight: number }> => {
+  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys, useDirectConnection);
   const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
     .map((pos: any): Position => {
@@ -84,9 +111,11 @@ export const placeOrder = async (
   side: OrderSide, 
   quantity: number,
   keys: { apiKey: string, secretKey: string },
-  reduceOnly: boolean = false
+  reduceOnly: boolean = false,
+  useDirectConnection: boolean = false
 ): Promise<OrderResult> => {
   
+  const binanceExchange = await getBinanceExchange();
   const market = binanceExchange.market(symbol);
   if (!market) {
       throw new Error(`Could not find market data for symbol: ${symbol}`);
@@ -105,7 +134,7 @@ export const placeOrder = async (
       body.reduceOnly = 'true';
   }
 
-  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body, keys);
+  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body, keys, useDirectConnection);
 
   return {
     orderId: String(responseData.orderId),
@@ -134,6 +163,7 @@ export const getHistoricalKlines = async (
     }
 
     try {
+        const binanceExchange = await getBinanceExchange();
         const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500);
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -166,6 +196,7 @@ export const getLatestKlinesByLimit = async (
         return [];
     }
     try {
+        const binanceExchange = await getBinanceExchange();
         const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit);
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');

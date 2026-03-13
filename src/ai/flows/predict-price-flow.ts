@@ -27,6 +27,9 @@ const PredictPriceInputSchema = z.object({
   recentData: z.string().describe("A JSON string of recent k-line/candlestick data."),
   strategyOutputs: z.array(StrategyOutputSchema).describe('The outputs from multiple trading strategies.'),
   marketContext: z.string().describe('General market context, like the Fear & Greed Index value.'),
+  marketDetails: z.record(z.any()).optional().describe('Consolidated asset details from CoinGecko/CoinMarketCap.'),
+  apiKey: z.string().optional().describe('Optional API key from user settings.'),
+  model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type PredictPriceInput = z.infer<typeof PredictPriceInputSchema>;
 
@@ -50,6 +53,14 @@ Your goal is to perform a regression task: predict the asset's price for the nex
 - Asset: {{{asset}}}
 - Interval: {{{interval}}}
 - Current Price: {{{currentPrice}}}
+
+**Asset Market Data (Pro Analysis):**
+{{#if marketDetails}}
+- Market Cap: \${{{marketDetails.marketCap}}}
+- FDV: \${{{marketDetails.fdv}}}
+- Circulating Supply: {{{marketDetails.circulatingSupply}}}
+- Category: {{{marketDetails.categories}}}
+{{/if}}
 
 **Current Market Context:**
 - {{marketContext}}

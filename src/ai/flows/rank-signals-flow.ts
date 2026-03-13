@@ -28,6 +28,8 @@ const TradeSignalSchema = z.object({
 const RankSignalsInputSchema = z.object({
   signals: z.array(TradeSignalSchema).describe('An array of potential trade signals to be ranked.'),
   marketContext: z.string().describe('General market context, like the Fear & Greed Index value.'),
+  apiKey: z.string().optional().describe('Optional API key from user settings.'),
+  model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type RankSignalsInput = z.infer<typeof RankSignalsInputSchema>;
 
