@@ -19,6 +19,10 @@ const DetectManipulationInputSchema = z.object({
     .describe(
       'A JSON string representing an array of recent k-line/candlestick data.'
     ),
+  apiKey: z.string().optional().describe('Optional API key from user settings.'),
+  marketDetails: z.record(z.any()).optional().describe('Consolidated asset details from CoinGecko/CoinMarketCap (market cap, supply, category, etc.).'),
+  globalContext: z.record(z.any()).optional().describe('Global market context like Fear & Greed Index.'),
+  model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type DetectManipulationInput = z.infer<typeof DetectManipulationInputSchema>;
 
@@ -42,45 +46,51 @@ const detectManipulationPrompt = ai.definePrompt({
   name: 'detectManipulationPrompt',
   input: {schema: DetectManipulationInputSchema},
   output: {schema: DetectManipulationOutputSchema},
-  prompt: `You are an expert financial analyst specializing in forensic analysis of market manipulation, specifically "Pump and Dump" schemes. Your primary task is to distinguish between legitimate high-volume trading and deceptive manipulation.
+  prompt: `You are a forensic market analyst specializing in detecting deceptive trading patterns and "Pump and Dump" schemes. You synthesize technical data with fundamental market properties to identify high-risk environments.
 
-**Distinguishing Manipulation from Legitimate High-Volume Trading:**
--   **Legitimate Trading:** High volume and sharp price moves are often caused by real news, major events, or large institutional trades. This activity is chaotic but organic, with two-sided participation (real buyers and sellers). The goal is to react to the market.
--   **Manipulation:** The goal is deception. It involves creating a false appearance of market activity to trick others. The price action looks unnatural and is designed to create FOMO, leading to a predictable collapse. The goal is to *create* the market reaction.
+**Analysis Subject:** {{{symbol}}}
 
-Your task is to analyze the provided historical price and volume data for {{{symbol}}} and determine if it exhibits the structured, deceptive characteristics of a pump and dump scheme.
+**1. Institutional & Market Context:**
+{{#if marketDetails}}
+- Market Cap: \${{{marketDetails.marketCap}}}
+- 24h Volume: \${{{marketDetails.volume24h}}}
+- Circulating Supply: {{{marketDetails.circulatingSupply}}}
+- FDV: \${{{marketDetails.fdv}}}
+- Sector: {{{marketDetails.categories}}}
+{{else}}
+- Consolidated fundamental data unavailable.
+{{/if}}
 
-A typical manipulation scheme unfolds in three phases:
-1.  **The Accumulation Phase (The Quiet Before the Storm):**
-    -   **Price:** Sideways or slightly declining trend, low volatility. Looks boring.
-    -   **Volume:** Very low or declining trading volume. Public interest is minimal.
-    -   **Goal:** The manipulator builds a large position quietly at a low price.
+**2. Global Market Environment:**
+{{#if globalContext}}
+- Fear & Greed Index: {{{globalContext.value}}} ({{{globalContext.valueClassification}}})
+{{/if}}
 
-2.  **The Pump Phase (The Artificial Rally):**
-    -   **Price:** An explosive, almost vertical, parabolic price increase. This is the active process where the manipulator is forcing the price up. The slope is unnaturally steep.
-    -   **Volume:** A massive spike in trading volume. This is a critical signal used to manufacture the appearance of intense interest and trigger FOMO.
-    -   **Goal:** To attract a crowd of unsuspecting buyers and create liquidity for the next phase.
+**3. Forensic Task:**
+Analyze the provided k-line data to identify the lifecycle of a potential manipulation scheme:
+1. **Accumulation**: Boring, low-volume, sideways action.
+2. **Pump**: Explosive, parabolic price increase on vertical volume spikes.
+3. **Distribution/Dump**: High-volume stall (rug pull preparation) followed by a crash.
 
-3.  **The Distribution (or Dump) Phase (The Rug Pull):**
-    -   **Price:** The price ascent stalls, churns sideways, or forms a "topping pattern". This is where the pumping stops. This phase is followed by a catastrophic price collapse as the manipulator's support is removed.
-    -   **Volume:** Volume remains extremely high at the peak. This is the classic sign of distribution, where the manipulator sells their accumulated shares to the FOMO buyers. After the selling is complete, the price plummets, often on declining volume as there are no buyers left.
-    -   **Goal:** To sell all accumulated shares at inflated prices.
+**Professional Nuance:**
+- **Low-Float Risk**: If Circulating Supply is a small fraction of FDV, or if Market Cap is low, the risk of manipulation is significantly higher. 
+- **Volume Correlation**: Is the volume spike proportional to the asset's normal 24h turnover (from CMC/CG data)? If a single 'pump' candle represents 20% of the usual daily volume, it is highly suspicious.
+- **Sentiment Divergence**: If the asset is pumping while global sentiment is in "Extreme Fear", it might be an isolated manipulation event rather than organic growth.
 
-**Your Analysis Task:**
-
-Based on the provided historical data, perform the following:
-1.  **Identify Phases:** Examine the data to see if you can identify any or all of the three phases described above. Provide the start and end timestamps (in milliseconds) for each phase you identify.
-2.  **Assess Suspicion (Early Detection):** Your primary goal is early detection. Set \`isManipulationSuspected\` to true even if only the Accumulation phase and the beginning of a Pump phase are visible. A clear Accumulation followed by a sharp, high-volume price spike is sufficient for a 'true' suspicion, even if the Dump has not occurred.
-3.  **Set Confidence:** Provide a confidence score (0.0 to 1.0) for your assessment. A high confidence means the pattern is a textbook example. A lower confidence might indicate an early, developing pattern.
-4.  **Identify Current Phase:** Determine which phase the asset is most likely in *at the end* of the provided data, or if the pattern has completed. Set to 'None' if no pattern is detected.
-5.  **Provide Reasoning:** Write a detailed, evidence-based reasoning for your conclusion. If you suspect manipulation early (e.g., during the Pump phase), explain why the current pattern is anomalous and what to watch for next (e.g., a high-volume stall or reversal, which would indicate the Dump). When you mention a phase, include its start and end times in a human-readable format (e.g., "The pump phase began on August 28, 2025, at 4:00 PM GMT"). **Conclude with a clear recommendation on the best course of action for a trader.**
-
-**Historical Data:**
+**Historical Data (Last 30 periods):**
 \`\`\`json
 {{{historicalData}}}
 \`\`\`
 
-Provide your analysis in the structured JSON format required. Be objective and base your analysis solely on the data provided.
+**Your Objective:**
+1. **Identify Phases**: Map the price/volume action to the Accumulation/Pump/Distribution phases.
+2. **Suspicion Level**: Set \`isManipulationSuspected\` based on structural anomalies.
+3. **Forensic Deep-Dive**: Provide a detailed analytical breakdown. Look for "Wash Trading" (high volume with no price movement) or "Painting the Tape" (slow, artificial price climbing on low volume).
+4. **Best Action Guidance**: Provide a clinical instruction. If manipulation is suspected, detail the safest exit or avoidance strategy. If organic, detail the confirmation level needed.
+
+Be suspicious. Your goal is to keep the trader from becoming "exit liquidity."
+
+Generate the output in the required JSON format.
 `,
 });
 

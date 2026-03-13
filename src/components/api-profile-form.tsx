@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Save, QrCode } from "lucide-react"
+import { Save, QrCode, Globe } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import type { ApiProfile } from "@/lib/types"
 
@@ -24,6 +25,7 @@ export const profileSchema = z.object({
   permissions: z.enum(['ReadOnly', 'FuturesTrading'], {
     required_error: "You need to select the API key permissions.",
   }),
+  useDirectConnection: z.boolean().default(false),
 })
 
 interface ApiProfileFormProps {
@@ -43,6 +45,7 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
       apiKey: defaultValues?.apiKey || "",
       secretKey: defaultValues?.secretKey || "",
       permissions: defaultValues?.permissions || "ReadOnly",
+      useDirectConnection: defaultValues?.useDirectConnection || false,
     },
   })
 
@@ -162,6 +165,29 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
                 </RadioGroup>
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="useDirectConnection"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-primary/5">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel className="flex items-center gap-2">
+                  <Globe className="h-3 w-3" />
+                  Direct Connection (Experimental)
+                </FormLabel>
+                <FormDescription>
+                  Bypass the server-side proxy for faster requests. Works only if you are NOT in a geo-blocked region (US, etc).
+                </FormDescription>
+              </div>
             </FormItem>
           )}
         />

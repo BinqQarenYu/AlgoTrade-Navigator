@@ -215,7 +215,7 @@ const BacktestPageContent = () => {
   const { toast } = useToast()
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey } = useApi();
+  const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey, geminiModel } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
   const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
 
@@ -644,7 +644,8 @@ const BacktestPageContent = () => {
                   prediction = await predictMarket({
                       symbol: symbol,
                       recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l:k.low, c:k.close, v:k.volume}))),
-                      strategySignal: potentialSignal
+                      strategySignal: potentialSignal,
+                      model: geminiModel
                   });
                   consumeAiCredit();
                   if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {

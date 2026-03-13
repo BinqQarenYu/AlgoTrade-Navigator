@@ -44,8 +44,8 @@ export default function DashboardPage() {
       try {
         const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
         const [{ data: realPortfolio, usedWeight: pnlWeight }, { data: realPositions, usedWeight: posWeight }] = await Promise.all([
-          getAccountBalance(keys),
-          getOpenPositions(keys),
+          getAccountBalance(keys, activeProfile.useDirectConnection),
+          getOpenPositions(keys, activeProfile.useDirectConnection),
         ]);
         
         setApiLimit({ used: posWeight, limit: 1200 });

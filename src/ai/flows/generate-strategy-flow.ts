@@ -12,6 +12,8 @@ import { runAiFlow } from '@/lib/ai-service';
 
 const GenerateStrategyInputSchema = z.object({
   config: z.string().describe('A JSON string representing the user\'s visual strategy configuration.'),
+  apiKey: z.string().optional().describe('Optional API key from user settings.'),
+  model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type GenerateStrategyInput = z.infer<typeof GenerateStrategyInputSchema>;
 

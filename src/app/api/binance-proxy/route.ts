@@ -56,7 +56,14 @@ export async function POST(request: NextRequest) {
     // potentially using an agent with the fetch call.
     // For example: `agent: new HttpsProxyAgent(process.env.PROXY_URL)`
     
-    const response = await fetch(url.toString(), options);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s server timeout
+
+    const response = await fetch(url.toString(), {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
     const data = await response.json();
     const usedWeight = parseInt(response.headers.get('x-fapi-used-weight-1m') || '0', 10);

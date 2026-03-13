@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import type { ApiProfile } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { getAccountBalance } from '@/lib/binance-service';
+import { getAccountBalance, pingBinance } from '@/lib/binance-service';
 
 interface ApiContextType {
   profiles: ApiProfile[];
@@ -17,6 +17,8 @@ interface ApiContextType {
   telegramBotToken: string | null;
   telegramChatId: string | null;
   geminiApiKey: string | null;
+  geminiModel: string;
+  setGeminiModel: (model: string) => void;
   
   addProfile: (profile: ApiProfile) => void;
   updateProfile: (profile: ApiProfile) => void;
@@ -46,6 +48,7 @@ interface ApiContextType {
   
   // New connection test function
   testConnection: () => Promise<boolean>;
+  saveToDisk: () => Promise<void>;
 }
 
 const ApiContext = createContext<ApiContextType | undefined>(undefined);
@@ -62,57 +65,87 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [telegramBotToken, setTelegramBotToken] = useState<string | null>(null);
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-1.5-flash-latest');
   const [aiQuota, setAiQuota] = useState({
     used: 0,
     limit: 49,
     lastReset: new Date().toISOString().split('T')[0],
   });
 
-  // Load initial state from localStorage
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Load initial state from localStorage and Server
   useEffect(() => {
-    const storedProfiles = localStorage.getItem('apiProfiles');
-    const storedActiveId = localStorage.getItem('activeProfileId');
-    const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
-    const storedThreshold = localStorage.getItem('rateLimitThreshold');
-    const storedCgKey = localStorage.getItem('coingeckoApiKey');
-    const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
-    const storedGeminiKey = localStorage.getItem('geminiApiKey');
-    const storedAiQuota = localStorage.getItem('aiQuota');
-    const storedTgToken = localStorage.getItem('telegramBotToken');
-    const storedTgChatId = localStorage.getItem('telegramChatId');
+    const loadSettings = async () => {
+      // 1. Load from localStorage
+      const storedProfiles = localStorage.getItem('apiProfiles');
+      const storedActiveId = localStorage.getItem('activeProfileId');
+      const storedIsConnected = localStorage.getItem('binance-isConnected') === 'true';
+      const storedThreshold = localStorage.getItem('rateLimitThreshold');
+      const storedCgKey = localStorage.getItem('coingeckoApiKey');
+      const storedCmcKey = localStorage.getItem('coinmarketcapApiKey');
+      const storedGeminiKey = localStorage.getItem('geminiApiKey');
+      const storedGeminiModel = localStorage.getItem('geminiModel');
+      const storedAiQuota = localStorage.getItem('aiQuota');
+      const storedTgToken = localStorage.getItem('telegramBotToken');
+      const storedTgChatId = localStorage.getItem('telegramChatId');
 
-    if (storedTgToken) setTelegramBotToken(storedTgToken);
-    if (storedTgChatId) setTelegramChatId(storedTgChatId);
-    if (storedGeminiKey) setGeminiApiKey(storedGeminiKey);
+      // 2. Load from Server (Secondary Backup)
+      let serverSettings: any = null;
+      try {
+        const res = await fetch('/api/app-persistence');
+        const data = await res.json();
+        if (data.found) serverSettings = data.settings;
+      } catch (e) { console.error("Server sync failed", e); }
 
-    if (storedAiQuota) {
-        const parsed = JSON.parse(storedAiQuota);
-        const today = new Date().toISOString().split('T')[0];
-        if (parsed.lastReset !== today) {
-            setAiQuota({ ...parsed, used: 0, lastReset: today });
-        } else {
-            setAiQuota(parsed);
-        }
-    }
+      // Merge logic: Prefer localStorage, then serverSettings
+      if (storedTgToken) setTelegramBotToken(storedTgToken);
+      else if (serverSettings?.telegramBotToken) setTelegramBotToken(serverSettings.telegramBotToken);
 
-    let loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : [];
-    loadedProfiles = loadedProfiles.map((p: any) => ({
-        ...p,
-        permissions: p.permissions || 'ReadOnly'
-    }));
+      if (storedTgChatId) setTelegramChatId(storedTgChatId);
+      else if (serverSettings?.telegramChatId) setTelegramChatId(serverSettings.telegramChatId);
 
-    setProfiles(loadedProfiles);
-    
-    if (storedCgKey) setCoingeckoApiKey(storedCgKey);
-    if (storedCmcKey) setCoinmarketcapApiKey(storedCmcKey);
-    if (storedThreshold) setRateLimitThreshold(parseInt(storedThreshold, 10));
-    
-    if (storedActiveId && loadedProfiles.some((p: ApiProfile) => p.id === storedActiveId)) {
-      setActiveProfileId(storedActiveId);
-      if (storedIsConnected) setIsConnected(true);
-    } else {
+      if (storedGeminiKey) setGeminiApiKey(storedGeminiKey);
+      else if (serverSettings?.geminiApiKey) setGeminiApiKey(serverSettings.geminiApiKey);
+
+      if (storedGeminiModel) setGeminiModel(storedGeminiModel);
+      else if (serverSettings?.geminiModel) setGeminiModel(serverSettings.geminiModel);
+
+      if (storedAiQuota) {
+          const parsed = JSON.parse(storedAiQuota);
+          const today = new Date().toISOString().split('T')[0];
+          if (parsed.lastReset !== today) setAiQuota({ ...parsed, used: 0, lastReset: today });
+          else setAiQuota(parsed);
+      } else if (serverSettings?.aiQuota) {
+          setAiQuota(serverSettings.aiQuota);
+      }
+
+      let loadedProfiles = storedProfiles ? JSON.parse(storedProfiles) : (serverSettings?.profiles || []);
+      loadedProfiles = loadedProfiles.map((p: any) => ({ ...p, permissions: p.permissions || 'ReadOnly' }));
+      setProfiles(loadedProfiles);
+      
+      if (storedCgKey) setCoingeckoApiKey(storedCgKey);
+      else if (serverSettings?.coingeckoApiKey) setCoingeckoApiKey(serverSettings.coingeckoApiKey);
+
+      if (storedCmcKey) setCoinmarketcapApiKey(storedCmcKey);
+      else if (serverSettings?.coinmarketcapApiKey) setCoinmarketcapApiKey(serverSettings.coinmarketcapApiKey);
+
+      if (storedThreshold) setRateLimitThreshold(parseInt(storedThreshold, 10));
+      else if (serverSettings?.rateLimitThreshold) setRateLimitThreshold(serverSettings.rateLimitThreshold);
+      
+      if (storedActiveId && loadedProfiles.some((p: ApiProfile) => p.id === storedActiveId)) {
+        setActiveProfileId(storedActiveId);
+        if (storedIsConnected) setIsConnected(true);
+      } else if (serverSettings?.activeProfileId && loadedProfiles.some((p: ApiProfile) => p.id === serverSettings.activeProfileId)) {
+        setActiveProfileId(serverSettings.activeProfileId);
+      } else {
         setIsConnected(false);
-    }
+      }
+
+      setIsLoaded(true);
+    };
+
+    loadSettings();
   }, []);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId) || null;
@@ -130,15 +163,44 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [activeProfileId]);
   
-  useEffect(() => { localStorage.setItem('apiProfiles', JSON.stringify(profiles)); }, [profiles]);
-  useEffect(() => { if (telegramBotToken) localStorage.setItem('telegramBotToken', telegramBotToken); else localStorage.removeItem('telegramBotToken'); }, [telegramBotToken]);
-  useEffect(() => { if (telegramChatId) localStorage.setItem('telegramChatId', telegramChatId); else localStorage.removeItem('telegramChatId'); }, [telegramChatId]);
-  useEffect(() => { if (geminiApiKey) localStorage.setItem('geminiApiKey', geminiApiKey); else localStorage.removeItem('geminiApiKey'); }, [geminiApiKey]);
-  useEffect(() => { if (coingeckoApiKey) localStorage.setItem('coingeckoApiKey', coingeckoApiKey); else localStorage.removeItem('coingeckoApiKey'); }, [coingeckoApiKey]);
-  useEffect(() => { if (coinmarketcapApiKey) localStorage.setItem('coinmarketcapApiKey', coinmarketcapApiKey); else localStorage.removeItem('coinmarketcapApiKey'); }, [coinmarketcapApiKey]);
-  useEffect(() => { localStorage.setItem('rateLimitThreshold', String(rateLimitThreshold)); }, [rateLimitThreshold]);
-  useEffect(() => { localStorage.setItem('binance-isConnected', String(isConnected)); if (!isConnected) { setApiLimit({ used: 0, limit: 1200 }); } }, [isConnected]);
-  useEffect(() => { localStorage.setItem('aiQuota', JSON.stringify(aiQuota)); }, [aiQuota]);
+  // Persistence to localStorage
+  useEffect(() => { if (isLoaded) localStorage.setItem('apiProfiles', JSON.stringify(profiles)); }, [profiles, isLoaded]);
+  useEffect(() => { if (isLoaded && telegramBotToken) localStorage.setItem('telegramBotToken', telegramBotToken); }, [telegramBotToken, isLoaded]);
+  useEffect(() => { if (isLoaded && telegramChatId) localStorage.setItem('telegramChatId', telegramChatId); }, [telegramChatId, isLoaded]);
+  useEffect(() => { if (isLoaded && geminiApiKey) localStorage.setItem('geminiApiKey', geminiApiKey); }, [geminiApiKey, isLoaded]);
+  useEffect(() => { if (isLoaded && geminiModel) localStorage.setItem('geminiModel', geminiModel); }, [geminiModel, isLoaded]);
+  useEffect(() => { if (isLoaded && coingeckoApiKey) localStorage.setItem('coingeckoApiKey', coingeckoApiKey); }, [coingeckoApiKey, isLoaded]);
+  useEffect(() => { if (isLoaded && coinmarketcapApiKey) localStorage.setItem('coinmarketcapApiKey', coinmarketcapApiKey); }, [coinmarketcapApiKey, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem('rateLimitThreshold', String(rateLimitThreshold)); }, [rateLimitThreshold, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem('binance-isConnected', String(isConnected)); if (isLoaded && !isConnected) { setApiLimit({ used: 0, limit: 1200 }); } }, [isConnected, isLoaded]);
+  useEffect(() => { if (isLoaded) localStorage.setItem('aiQuota', JSON.stringify(aiQuota)); }, [aiQuota, isLoaded]);
+
+  // Persistence to Server
+  const saveToDisk = useCallback(async () => {
+    if (!isLoaded) return;
+    try {
+      await fetch('/api/app-persistence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profiles,
+          activeProfileId,
+          telegramBotToken,
+          telegramChatId,
+          geminiApiKey,
+          geminiModel,
+          coingeckoApiKey,
+          coinmarketcapApiKey,
+          rateLimitThreshold,
+          aiQuota
+        })
+      });
+      toast({ title: "Settings Saved to Disk", description: "Your configuration is now permanently stored on the server." });
+    } catch (e) {
+      console.error("Failed to save to disk", e);
+      toast({ title: "Save Failed", description: "Could not write settings to server storage.", variant: "destructive" });
+    }
+  }, [profiles, activeProfileId, telegramBotToken, telegramChatId, geminiApiKey, geminiModel, coingeckoApiKey, coinmarketcapApiKey, rateLimitThreshold, aiQuota, isLoaded]);
 
   const addProfile = (profile: ApiProfile) => setProfiles(prev => [...prev, profile]);
   const updateProfile = (updatedProfile: ApiProfile) => setProfiles(prev => prev.map(p => p.id === updatedProfile.id ? updatedProfile : p));
@@ -176,7 +238,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const testConnection = async (): Promise<boolean> => {
     if (!activeProfile) return false;
     try {
-        const { usedWeight } = await getAccountBalance({ apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
+        // Fast ping check first
+        const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
+        const isPingSuccessful = await pingBinance(keys, activeProfile.useDirectConnection);
+        
+        if (!isPingSuccessful) return false;
+
+        // Then fetch initial balance/weight
+        const { usedWeight } = await getAccountBalance(keys, activeProfile.useDirectConnection);
         setApiLimit({ used: usedWeight, limit: 1200 });
         return true;
     } catch (error) {
@@ -188,13 +257,14 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
     <ApiContext.Provider value={{ 
       profiles, activeProfile,
       apiKey: activeProfile?.apiKey || null, secretKey: activeProfile?.secretKey || null,
-      coingeckoApiKey, coinmarketcapApiKey, telegramBotToken, telegramChatId, geminiApiKey,
+      coingeckoApiKey, coinmarketcapApiKey, telegramBotToken, telegramChatId, geminiApiKey, geminiModel,
       addProfile, updateProfile, deleteProfile, setActiveProfile,
-      setCoingeckoApiKey, setCoinmarketcapApiKey, setTelegramBotToken, setTelegramChatId, setGeminiApiKey,
+      setCoingeckoApiKey, setCoinmarketcapApiKey, setTelegramBotToken, setTelegramChatId, setGeminiApiKey, setGeminiModel,
       isConnected, setIsConnected, apiLimit, setApiLimit,
       rateLimitThreshold, setRateLimitThreshold,
       aiQuota, setAiQuotaLimit, canUseAi, consumeAiCredit,
       testConnection,
+      saveToDisk, // Exporting the new function
     }}>
       {children}
     </ApiContext.Provider>
