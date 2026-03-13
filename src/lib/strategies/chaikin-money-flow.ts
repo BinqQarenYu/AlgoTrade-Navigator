@@ -25,7 +25,7 @@ const chaikinMoneyFlowStrategy: Strategy = {
   name: 'Chaikin Money Flow',
   description: 'Measures buying and selling pressure. Signals are generated when the CMF crosses the zero line.',
   async calculate(data: HistoricalData[], params: ChaikinMoneyFlowParams = defaultChaikinMoneyFlowParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 

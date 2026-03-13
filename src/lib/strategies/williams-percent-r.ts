@@ -29,7 +29,7 @@ const williamsRStrategy: Strategy = {
   name: 'Williams %R',
   description: 'A momentum indicator that signals overbought and oversold conditions, similar to the Stochastic Oscillator.',
   async calculate(data: HistoricalData[], params: WilliamsRParams = defaultWilliamsRParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 

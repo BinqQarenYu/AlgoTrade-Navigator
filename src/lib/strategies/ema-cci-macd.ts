@@ -41,7 +41,7 @@ const emaCciMacdStrategy: Strategy = {
   description: 'A trend-following strategy combining stacked EMAs for trend, CCI for pullbacks, and MACD for momentum confirmation.',
   async calculate(data: HistoricalData[], params: Partial<EmaCciMacdParams> = {}): Promise<HistoricalData[]> {
     const fullParams = { ...defaultEmaCciMacdParams, ...params };
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     const requiredDataLength = Math.max(fullParams.emaSlowPeriod, fullParams.cciPeriod, fullParams.macdLongPeriod + fullParams.macdSignalPeriod);
 
     if (data.length < requiredDataLength) return dataWithIndicators;

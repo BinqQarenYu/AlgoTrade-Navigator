@@ -71,7 +71,7 @@ const hyperPeakFormationStrategy: Strategy = {
             return [];
         }
 
-        const dataWithIndicators = JSON.parse(JSON.stringify(data));
+        const dataWithIndicators = data.map(d => ({ ...d }));
 
         if (data.length < emaLongPeriod) {
             if (debug) console.log(`[HPF DEBUG] Not enough data: ${data.length} < ${emaLongPeriod}`);

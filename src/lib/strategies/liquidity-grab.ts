@@ -50,7 +50,7 @@ const liquidityGrabStrategy: Strategy = {
   name: 'Liquidity Grab',
   description: 'Identifies price sweeps below support or above resistance, then enters on a quick reversal, anticipating a trap.',
   async calculate(data: HistoricalData[], params: LiquidityGrabParams = defaultLiquidityGrabParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     const { swingLookaround, confirmationCandles, maxSweepLookahead } = params;
 
     if (data.length < swingLookaround * 2 + confirmationCandles) return dataWithIndicators;

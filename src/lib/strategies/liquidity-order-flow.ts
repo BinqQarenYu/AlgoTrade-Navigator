@@ -60,7 +60,7 @@ const liquidityOrderFlowStrategy: Strategy = {
   description: 'A professional-grade strategy that identifies liquidity sweeps, confirms them with volume analysis, waits for a market structure shift, and seeks entry on a pullback to a Fair Value Gap.',
   
   async calculate(data: HistoricalData[], params: LiquidityOrderFlowParams = defaultLiquidityOrderFlowParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     if (data.length < params.emaTrendPeriod) return dataWithIndicators;
 
     const closePrices = data.map(d => d.close);

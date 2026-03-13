@@ -39,7 +39,7 @@ const smiMfiSupertrendStrategy: Strategy = {
   description: 'A trend-following strategy using Pivot Point Supertrend for trend and an SMI of MFI for entry signals.',
   
   async calculate(data: HistoricalData[], params: SmiMfiSupertrendParams = defaultSmiMfiSupertrendParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     const requiredDataLength = Math.max(params.supertrendPeriod, params.mfiPeriod, params.smiPeriod + params.smiEmaPeriod);
 
     if (data.length < requiredDataLength) return dataWithIndicators;

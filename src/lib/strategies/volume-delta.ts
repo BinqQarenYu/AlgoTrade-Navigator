@@ -88,7 +88,7 @@ const volumeDeltaStrategy: Strategy = {
     name: 'Volume Delta Confirmation',
     description: 'A strategy that confirms trades by analyzing buying/selling pressure (delta) at significant price levels (POC).',
     async calculate(data: HistoricalData[], params: VolumeDeltaParams = defaultVolumeDeltaParams): Promise<HistoricalData[]> {
-        const dataWithIndicators = JSON.parse(JSON.stringify(data));
+        const dataWithIndicators = data.map(d => ({ ...d }));
         if (data.length < params.pocLookback) return dataWithIndicators;
 
         const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data, params.deltaLookback);

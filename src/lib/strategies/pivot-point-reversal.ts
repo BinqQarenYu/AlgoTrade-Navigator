@@ -25,7 +25,7 @@ const pivotPointReversalStrategy: Strategy = {
   name: 'Pivot Point Reversal',
   description: 'Trades reversals off of calculated support (S1, S2, S3) and resistance (R1, R2, R3) levels.',
   async calculate(data: HistoricalData[], params: PivotPointReversalParams = defaultPivotPointReversalParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     
     if (data.length < params.period) return dataWithIndicators;
 
