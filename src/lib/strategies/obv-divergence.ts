@@ -25,7 +25,7 @@ const obvDivergenceStrategy: Strategy = {
   name: 'OBV Divergence',
   description: 'Identifies potential reversals by comparing On-Balance Volume (OBV) trend with price trend.',
   async calculate(data: HistoricalData[], params: ObvDivergenceParams = defaultObvDivergenceParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     const period = params.period || 20; // Use the provided period or default to 20
 
     if (data.length < period) return dataWithIndicators;

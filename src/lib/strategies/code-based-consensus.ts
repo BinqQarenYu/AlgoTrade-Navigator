@@ -28,7 +28,7 @@ const codeBasedConsensusStrategy: Strategy = {
   description: 'Generates signals based on the majority vote of several selected technical strategies. Can be reversed to trade against the consensus.',
   
   async calculate(data: HistoricalData[], params: CodeBasedConsensusParams = defaultCodeBasedConsensusParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     if (data.length === 0 || params.strategies.length === 0) {
       return dataWithIndicators;
     }
@@ -40,7 +40,7 @@ const codeBasedConsensusStrategy: Strategy = {
         const strategy = getStrategyById(strategyId);
         if (strategy) {
             // Each strategy runs on a clean copy of the data
-            allStrategyCalculations.push(strategy.calculate(JSON.parse(JSON.stringify(data))));
+            allStrategyCalculations.push(strategy.calculate(data.map(d => ({ ...d }))));
         }
     }
 

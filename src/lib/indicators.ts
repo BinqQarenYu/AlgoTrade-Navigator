@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import type { HistoricalData } from './types';
@@ -11,7 +9,6 @@ import type { HistoricalData } from './types';
  * @returns An array of SMA values, with initial values as null.
  */
 export const calculateSMA = (data: number[], period: number): (number | null)[] => {
-  // Guard against invalid period to prevent crashes
   if (period <= 0 || !Number.isInteger(period)) {
     console.error(`Invalid period (${period}) provided to calculateSMA.`);
     return Array(data.length).fill(null);
@@ -19,9 +16,14 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   if (data.length < period) return Array(data.length).fill(null);
   
   const sma: (number | null)[] = Array(period - 1).fill(null);
-  for (let i = period - 1; i < data.length; i++) {
-    const slice = data.slice(i - period + 1, i + 1);
-    const sum = slice.reduce((acc, val) => acc + val, 0);
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += data[i];
+  }
+  sma.push(sum / period);
+
+  for (let i = period; i < data.length; i++) {
+    sum = sum - data[i - period] + data[i];
     sma.push(sum / period);
   }
   return sma;
@@ -46,12 +48,14 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
       continue;
     }
     if (i === period - 1) {
-      const slice = data.slice(0, period);
-      const sum = slice.reduce((acc, val) => acc + val, 0);
-      prevEma = sum / period; // Start with SMA
+      let sum = 0;
+      for (let j = 0; j < period; j++) {
+        sum += data[j];
+      }
+      prevEma = sum / period;
       ema.push(prevEma);
     } else {
-      const currentEma = (data[i] - prevEma!) * multiplier + prevEma!;
+      const currentEma: number = (data[i] - prevEma!) * multiplier + prevEma!;
       ema.push(currentEma);
       prevEma = currentEma;
     }
@@ -69,50 +73,60 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
   const rsi: (number | null)[] = Array(period).fill(null);
   if (data.length <= period) return Array(data.length).fill(null);
 
-  let gains: number[] = [];
-  let losses: number[] = [];
+  let avgGain = 0;
+  let avgLoss = 0;
 
-  // Calculate initial average gain and loss
   for (let i = 1; i <= period; i++) {
     const change = data[i] - data[i - 1];
-    if (change > 0) {
-      gains.push(change);
-      losses.push(0);
-    } else {
-      gains.push(0);
-      losses.push(Math.abs(change));
-    }
+    if (change > 0) avgGain += change;
+    else avgLoss += Math.abs(change);
   }
 
-  let avgGain = gains.reduce((a, b) => a + b, 0) / period;
-  let avgLoss = losses.reduce((a, b) => a + b, 0) / period;
+  avgGain /= period;
+  avgLoss /= period;
 
-  for (let i = period; i < data.length; i++) {
-    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss; // Prevent division by zero
+  const firstRs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+  rsi.push(100 - (100 / (1 + firstRs)));
+
+  for (let i = period + 1; i < data.length; i++) {
+    const change = data[i] - data[i - 1];
+    const currentGain = change > 0 ? change : 0;
+    const currentLoss = change < 0 ? Math.abs(change) : 0;
+
+    avgGain = (avgGain * (period - 1) + currentGain) / period;
+    avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
+
+    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
     rsi.push(100 - (100 / (1 + rs)));
-
-    // Calculate next gain/loss for smoothing
-    if (i < data.length - 1) {
-      const change = data[i + 1] - data[i];
-      const currentGain = change > 0 ? change : 0;
-      const currentLoss = change < 0 ? Math.abs(change) : 0;
-      avgGain = (avgGain * (period - 1) + currentGain) / period;
-      avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
-    }
   }
 
   return rsi;
 };
 
-
 export const calculateStandardDeviation = (data: number[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
     const stdDev: (number | null)[] = Array(period - 1).fill(null);
-    for (let i = period - 1; i < data.length; i++) {
-        const slice = data.slice(i - period + 1, i + 1);
-        const mean = slice.reduce((acc, val) => acc + val, 0) / period;
-        const variance = slice.reduce((acc, val) => acc + (val - mean) ** 2, 0) / period;
-        stdDev.push(Math.sqrt(variance));
+
+    let sum = 0;
+    let sumSq = 0;
+
+    for (let i = 0; i < period; i++) {
+        sum += data[i];
+        sumSq += data[i] * data[i];
+    }
+
+    const calcStd = (s: number, sSq: number, p: number) => {
+        const mean = s / p;
+        const variance = (sSq / p) - (mean * mean);
+        return Math.sqrt(Math.max(0, variance));
+    };
+
+    stdDev.push(calcStd(sum, sumSq, period));
+
+    for (let i = period; i < data.length; i++) {
+        sum = sum - data[i - period] + data[i];
+        sumSq = sumSq - (data[i - period] * data[i - period]) + (data[i] * data[i]);
+        stdDev.push(calcStd(sum, sumSq, period));
     }
     return stdDev;
 };
@@ -137,7 +151,6 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
     });
 
     const validMacd = macdLine.filter((v): v is number => v !== null);
-    // Pad the start of the valid macd values with nulls to align with original data length
     const padding = macdLine.length - validMacd.length;
     const signalLinePadded = [...Array(padding).fill(null), ...calculateEMA(validMacd, signalPeriod)];
     
@@ -167,20 +180,17 @@ export const calculateATR = (data: HistoricalData[], period: number): (number | 
         }
     }
 
-    const atr: (number | null)[] = [];
-    let currentAtr: number | null = null;
+    const atr: (number | null)[] = Array(period - 1).fill(null);
+    let sumTr = 0;
+    for (let i = 0; i < period; i++) {
+        sumTr += trValues[i];
+    }
+    let currentAtr = sumTr / period;
+    atr.push(currentAtr);
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-            atr.push(null);
-        } else if (i === period - 1) {
-            const initialTrSum = trValues.slice(0, period).reduce((acc, val) => acc + val, 0);
-            currentAtr = initialTrSum / period;
-            atr.push(currentAtr);
-        } else {
-            currentAtr = (currentAtr! * (period - 1) + trValues[i]) / period;
-            atr.push(currentAtr);
-        }
+    for (let i = period; i < data.length; i++) {
+        currentAtr = (currentAtr * (period - 1) + trValues[i]) / period;
+        atr.push(currentAtr);
     }
     return atr;
 };
@@ -202,58 +212,52 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
             continue;
         }
 
-        const high = data[i].high;
-        const low = data[i].low;
-        const close = data[i].close;
-        const hl2 = (high + low) / 2;
+        const atr = atrValues[i]!;
+        const basicUpperBand = (data[i].high + data[i].low) / 2 + multiplier * atr;
+        const basicLowerBand = (data[i].high + data[i].low) / 2 - multiplier * atr;
 
-        const basicUpperBand = hl2 + multiplier * atrValues[i]!;
-        const basicLowerBand = hl2 - multiplier * atrValues[i]!;
-
-        if (i > 0) {
-            const prevClose = data[i-1].close;
-            finalUpperBand = (basicUpperBand < finalUpperBand! || prevClose > finalUpperBand!) ? basicUpperBand : finalUpperBand!;
-            finalLowerBand = (basicLowerBand > finalLowerBand! || prevClose < finalLowerBand!) ? basicLowerBand : finalLowerBand!;
-
-            if (close > finalUpperBand) {
-                trendDirection = 1;
-            } else if (close < finalLowerBand) {
-                trendDirection = -1;
-            }
-        } else {
+        if (i === 0 || finalUpperBand === null || finalLowerBand === null) {
             finalUpperBand = basicUpperBand;
             finalLowerBand = basicLowerBand;
+        } else {
+            finalUpperBand = (basicUpperBand < finalUpperBand || data[i - 1].close > finalUpperBand) ? basicUpperBand : finalUpperBand;
+            finalLowerBand = (basicLowerBand > finalLowerBand || data[i - 1].close < finalLowerBand) ? basicLowerBand : finalLowerBand;
         }
 
-        if (trendDirection === 1) {
-            supertrend.push(finalLowerBand);
-        } else {
-            supertrend.push(finalUpperBand);
+        if (supertrend.length > 0 && supertrend[i - 1] !== null) {
+            const prevSupertrend = supertrend[i - 1]!;
+            if (prevSupertrend === finalUpperBand && data[i].close <= finalUpperBand) {
+                trendDirection = -1;
+            } else if (prevSupertrend === finalUpperBand && data[i].close > finalUpperBand) {
+                trendDirection = 1;
+            } else if (prevSupertrend === finalLowerBand && data[i].close >= finalLowerBand) {
+                trendDirection = 1;
+            } else if (prevSupertrend === finalLowerBand && data[i].close < finalLowerBand) {
+                trendDirection = -1;
+            }
         }
+
+        const currentSupertrend = trendDirection === 1 ? finalLowerBand : finalUpperBand;
+        supertrend.push(currentSupertrend);
         direction.push(trendDirection);
     }
     return { supertrend, direction };
 };
 
-export const calculateDonchianChannels = (
-  highs: number[],
-  lows: number[],
-  period: number
-): { upper: (number | null)[]; middle: (number | null)[]; lower: (number | null)[] } => {
+export const calculateDonchianChannels = (data: HistoricalData[], period: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
   const upper: (number | null)[] = [];
   const lower: (number | null)[] = [];
   const middle: (number | null)[] = [];
 
-  for (let i = 0; i < highs.length; i++) {
+  for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
       upper.push(null);
       lower.push(null);
       middle.push(null);
     } else {
-      const highSlice = highs.slice(i - period + 1, i + 1);
-      const lowSlice = lows.slice(i - period + 1, i + 1);
-      const upperBand = Math.max(...highSlice);
-      const lowerBand = Math.min(...lowSlice);
+      const slice = data.slice(i - period + 1, i + 1);
+      const upperBand = Math.max(...slice.map(d => d.high));
+      const lowerBand = Math.min(...slice.map(d => d.low));
       upper.push(upperBand);
       lower.push(lowerBand);
       middle.push((upperBand + lowerBand) / 2);
@@ -278,7 +282,6 @@ export const calculateIchimokuCloud = (
   };
 
   for (let i = 0; i < data.length; i++) {
-    // Tenkan-sen (Conversion Line)
     if (i >= tenkanPeriod - 1) {
       const slice = data.slice(i - tenkanPeriod + 1, i + 1);
       const highestHigh = Math.max(...slice.map(d => d.high));
@@ -286,7 +289,6 @@ export const calculateIchimokuCloud = (
       result.tenkan[i] = (highestHigh + lowestLow) / 2;
     }
 
-    // Kijun-sen (Base Line)
     if (i >= kijunPeriod - 1) {
       const slice = data.slice(i - kijunPeriod + 1, i + 1);
       const highestHigh = Math.max(...slice.map(d => d.high));
@@ -295,10 +297,7 @@ export const calculateIchimokuCloud = (
     }
   }
 
-  // This loop calculates the forward-shifted spans.
-  // It populates future indexes of the result arrays.
   for (let i = 0; i < data.length; i++) {
-    // Senkou Span A (Leading Span A)
     if (result.tenkan[i] !== null && result.kijun[i] !== null) {
       const val = (result.tenkan[i]! + result.kijun[i]!) / 2;
       if (i + displacement < data.length) {
@@ -306,7 +305,6 @@ export const calculateIchimokuCloud = (
       }
     }
 
-    // Senkou Span B (Leading Span B)
     if (i >= senkouBPeriod - 1) {
       const slice = data.slice(i - senkouBPeriod + 1, i + 1);
       const highestHigh = Math.max(...slice.map(d => d.high));
@@ -317,8 +315,6 @@ export const calculateIchimokuCloud = (
       }
     }
 
-    // Chikou Span (Lagging Span) - This value is for i, but needs to be plotted at i-displacement
-    // For simplicity in data structure, we place the current close in the chikou array at i-displacement index.
     if (i - displacement >= 0) {
        result.chikou[i-displacement] = data[i].close;
     }
@@ -327,7 +323,6 @@ export const calculateIchimokuCloud = (
   return result;
 };
 
-// New indicators
 export const calculateStochastic = (data: HistoricalData[], period: number, smoothK: number, smoothD: number): { k: (number | null)[], d: (number | null)[] } => {
     const stochK: (number | null)[] = [];
     for (let i = 0; i < data.length; i++) {
@@ -339,7 +334,7 @@ export const calculateStochastic = (data: HistoricalData[], period: number, smoo
         const lowestLow = Math.min(...slice.map(d => d.low));
         const highestHigh = Math.max(...slice.map(d => d.high));
         const k = ((data[i].close - lowestLow) / (highestHigh - lowestLow)) * 100;
-        stochK.push(isNaN(k) ? 50 : k); // Handle division by zero
+        stochK.push(isNaN(k) ? 50 : k);
     }
     const smoothedK = calculateSMA(stochK.filter(v => v !== null) as number[], smoothK);
     const kWithPadding = [...Array(data.length - smoothedK.length).fill(null), ...smoothedK];
@@ -358,15 +353,21 @@ export const calculateKeltnerChannels = (data: HistoricalData[], period: number,
 };
 
 export const calculateVWAP = (data: HistoricalData[], period: number): (number | null)[] => {
-    const vwap: (number | null)[] = [];
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-            vwap.push(null);
-            continue;
-        }
-        const slice = data.slice(i - period + 1, i + 1);
-        const totalPV = slice.reduce((sum, d) => sum + ((d.high + d.low + d.close) / 3) * d.volume, 0);
-        const totalVolume = slice.reduce((sum, d) => sum + d.volume, 0);
+    const vwap: (number | null)[] = Array(period - 1).fill(null);
+    let totalPV = 0;
+    let totalVolume = 0;
+
+    for (let i = 0; i < period; i++) {
+        totalPV += ((data[i].high + data[i].low + data[i].close) / 3) * data[i].volume;
+        totalVolume += data[i].volume;
+    }
+    vwap.push(totalVolume > 0 ? totalPV / totalVolume : null);
+
+    for (let i = period; i < data.length; i++) {
+        const outPV = ((data[i - period].high + data[i - period].low + data[i - period].close) / 3) * data[i - period].volume;
+        const inPV = ((data[i].high + data[i].low + data[i].close) / 3) * data[i].volume;
+        totalPV = totalPV - outPV + inPV;
+        totalVolume = totalVolume - data[i - period].volume + data[i].volume;
         vwap.push(totalVolume > 0 ? totalPV / totalVolume : null);
     }
     return vwap;
@@ -412,7 +413,7 @@ export const calculateParabolicSAR = (data: HistoricalData[], afStart: number, a
             }
         }
     }
-    psar.push(sar); // last value
+    psar.push(sar);
     direction.push(isRising ? 1 : -1);
     return { psar, direction };
 };
@@ -458,7 +459,7 @@ export const calculateCCI = (data: HistoricalData[], period: number): (number | 
     const smaTp = calculateSMA(typicalPrices, period);
 
     for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
+        if (i < period - 1 || smaTp[i] === null) {
             cci.push(null);
             continue;
         }
@@ -491,16 +492,33 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
-    const result = { pp: [], s1: [], s2: [], s3: [], r1: [], r2: [], r3: [] } as Record<string, (number|null)[]>;
+    const pp: (number | null)[] = [];
+    const s1: (number | null)[] = [];
+    const s2: (number | null)[] = [];
+    const s3: (number | null)[] = [];
+    const r1: (number | null)[] = [];
+    const r2: (number | null)[] = [];
+    const r3: (number | null)[] = [];
+
     for (let i = 0; i < data.length; i++) {
         if (i < period) {
-            Object.keys(result).forEach(k => result[k].push(null));
+            pp.push(null);
+            s1.push(null);
+            s2.push(null);
+            s3.push(null);
+            r1.push(null);
+            r2.push(null);
+            r3.push(null);
         } else {
-            const slice = data.slice(i - period, i); // Use previous period's data
-            
-            // Add a guard clause to ensure the slice is not empty
+            const slice = data.slice(i - period, i);
             if (slice.length === 0 || !slice[slice.length - 1]) {
-                 Object.keys(result).forEach(k => result[k].push(null));
+                 pp.push(null);
+                 s1.push(null);
+                 s2.push(null);
+                 s3.push(null);
+                 r1.push(null);
+                 r2.push(null);
+                 r3.push(null);
                  continue;
             }
 
@@ -508,24 +526,24 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             const low = Math.min(...slice.map(d => d.low));
             const close = slice[slice.length - 1].close;
 
-            const pp = (high + low + close) / 3;
-            const r1 = (2 * pp) - low;
-            const s1 = (2 * pp) - high;
-            const r2 = pp + (high - low);
-            const s2 = pp - (high - low);
-            const r3 = high + 2 * (pp - low);
-            const s3 = low - 2 * (high - pp);
+            const ppVal = (high + low + close) / 3;
+            const r1Val = (2 * ppVal) - low;
+            const s1Val = (2 * ppVal) - high;
+            const r2Val = ppVal + (high - low);
+            const s2Val = ppVal - (high - low);
+            const r3Val = high + 2 * (ppVal - low);
+            const s3Val = low - 2 * (high - ppVal);
 
-            result.pp.push(pp);
-            result.r1.push(r1);
-            result.s1.push(s1);
-            result.r2.push(r2);
-            result.s2.push(s2);
-            result.r3.push(r3);
-            result.s3.push(s3);
+            pp.push(ppVal);
+            r1.push(r1Val);
+            s1.push(s1Val);
+            r2.push(r2Val);
+            s2.push(s2Val);
+            r3.push(r3Val);
+            s3.push(s3Val);
         }
     }
-    return result;
+    return { pp, s1, s2, s3, r1, r2, r3 };
 };
 
 export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
@@ -543,26 +561,26 @@ export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
 };
 
 export const calculateCMF = (data: HistoricalData[], period: number): (number | null)[] => {
-    const cmf: (number | null)[] = [];
-    const moneyFlowVolumes: number[] = [];
-    const volumes: number[] = [];
-
-    for (let i = 0; i < data.length; i++) {
-        const d = data[i];
+    const cmf: (number | null)[] = Array(period - 1).fill(null);
+    const mfv: number[] = data.map(d => {
         const range = d.high - d.low;
         const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
-        const mfv = multiplier * d.volume;
-        
-        moneyFlowVolumes.push(mfv);
-        volumes.push(d.volume);
+        return multiplier * d.volume;
+    });
 
-        if (i < period - 1) {
-            cmf.push(null);
-        } else {
-            const sumMfv = moneyFlowVolumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-            const sumVol = volumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-            cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
-        }
+    let sumMfv = 0;
+    let sumVol = 0;
+
+    for (let i = 0; i < period; i++) {
+        sumMfv += mfv[i];
+        sumVol += data[i].volume;
+    }
+    cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
+
+    for (let i = period; i < data.length; i++) {
+        sumMfv = sumMfv - mfv[i - period] + mfv[i];
+        sumVol = sumVol - data[i - period].volume + data[i].volume;
+        cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
     }
     return cmf;
 };
@@ -578,12 +596,18 @@ export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC:
 
     const wma: (number | null)[] = [];
     if (validSumRoc.length >= wmaPeriod) {
-        for (let i = wmaPeriod - 1; i < validSumRoc.length; i++) {
-            const slice = validSumRoc.slice(i - wmaPeriod + 1, i + 1);
-            let num = 0, den = 0;
-            for (let j = 0; j < slice.length; j++) {
-                num += slice[j] * (j + 1);
-                den += (j + 1);
+        let num = 0;
+        let den = 0;
+        for (let j = 0; j < wmaPeriod; j++) {
+            num += validSumRoc[j] * (j + 1);
+            den += (j + 1);
+        }
+        wma.push(den > 0 ? num / den : null);
+
+        for (let i = wmaPeriod; i < validSumRoc.length; i++) {
+            num = 0;
+            for (let j = 0; j < wmaPeriod; j++) {
+                num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
             }
             wma.push(den > 0 ? num / den : null);
         }
@@ -601,17 +625,15 @@ export const calculateElderRay = (data: HistoricalData[], period: number): { bul
 };
 
 export const findFVGs = (data: HistoricalData[]): { index: number, top: number, bottom: number, type: 'bullish' | 'bearish' }[] => {
-  const fvgs = [];
+  const fvgs: { index: number, top: number, bottom: number, type: 'bullish' | 'bearish' }[] = [];
   for (let i = 1; i < data.length - 1; i++) {
     const prev = data[i - 1];
     const curr = data[i];
     const next = data[i + 1];
 
-    // Bearish FVG (gap between low of prev and high of next)
     if (prev.low > next.high) {
       fvgs.push({ index: i, top: prev.low, bottom: next.high, type: 'bearish' });
     }
-    // Bullish FVG (gap between high of prev and low of next)
     if (prev.high < next.low) {
       fvgs.push({ index: i, top: next.low, bottom: prev.high, type: 'bullish' });
     }
@@ -623,53 +645,33 @@ export const calculateMFI = (data: HistoricalData[], period: number): (number | 
     if (data.length < period + 1) return Array(data.length).fill(null);
 
     const mfi: (number | null)[] = Array(period).fill(null);
-    let positiveMoneyFlow: number[] = [];
-    let negativeMoneyFlow: number[] = [];
+    let posFlow = 0;
+    let negFlow = 0;
+
+    const typicalPrices = data.map(d => (d.high + d.low + d.close) / 3);
+    const rawMoneyFlows = data.map((d, i) => typicalPrices[i] * d.volume);
 
     for (let i = 1; i <= period; i++) {
-        const typicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
-        const prevTypicalPrice = (data[i-1].high + data[i-1].low + data[i-1].close) / 3;
-        const rawMoneyFlow = typicalPrice * data[i].volume;
-
-        if (typicalPrice > prevTypicalPrice) {
-            positiveMoneyFlow.push(rawMoneyFlow);
-            negativeMoneyFlow.push(0);
-        } else if (typicalPrice < prevTypicalPrice) {
-            positiveMoneyFlow.push(0);
-            negativeMoneyFlow.push(rawMoneyFlow);
-        } else {
-            positiveMoneyFlow.push(0);
-            negativeMoneyFlow.push(0);
-        }
+        if (typicalPrices[i] > typicalPrices[i - 1]) posFlow += rawMoneyFlows[i];
+        else if (typicalPrices[i] < typicalPrices[i - 1]) negFlow += rawMoneyFlows[i];
     }
 
-    for (let i = period; i < data.length; i++) {
-        const posSum = positiveMoneyFlow.reduce((a, b) => a + b, 0);
-        const negSum = negativeMoneyFlow.reduce((a, b) => a + b, 0);
-        const moneyRatio = negSum === 0 ? Infinity : posSum / negSum;
-        const mfiValue = 100 - (100 / (1 + moneyRatio));
-        mfi.push(mfiValue);
+    const calcMfiValue = (pos: number, neg: number) => {
+        const ratio = neg === 0 ? (pos === 0 ? 50 : Infinity) : pos / neg;
+        return 100 - (100 / (1 + ratio));
+    };
 
-        // Slide the window for the next calculation
-        if (i < data.length - 1) {
-            positiveMoneyFlow.shift();
-            negativeMoneyFlow.shift();
-            
-            const typicalPrice = (data[i+1].high + data[i+1].low + data[i+1].close) / 3;
-            const prevTypicalPrice = (data[i].high + data[i].low + data[i].close) / 3;
-            const rawMoneyFlow = typicalPrice * data[i+1].volume;
+    mfi.push(calcMfiValue(posFlow, negFlow));
 
-            if (typicalPrice > prevTypicalPrice) {
-                positiveMoneyFlow.push(rawMoneyFlow);
-                negativeMoneyFlow.push(0);
-            } else if (typicalPrice < prevTypicalPrice) {
-                positiveMoneyFlow.push(0);
-                negativeMoneyFlow.push(rawMoneyFlow);
-            } else {
-                positiveMoneyFlow.push(0);
-                negativeMoneyFlow.push(0);
-            }
-        }
+    for (let i = period + 1; i < data.length; i++) {
+        const outIdx = i - period;
+        if (typicalPrices[outIdx] > typicalPrices[outIdx - 1]) posFlow -= rawMoneyFlows[outIdx];
+        else if (typicalPrices[outIdx] < typicalPrices[outIdx - 1]) negFlow -= rawMoneyFlows[outIdx];
+
+        if (typicalPrices[i] > typicalPrices[i - 1]) posFlow += rawMoneyFlows[i];
+        else if (typicalPrices[i] < typicalPrices[i - 1]) negFlow += rawMoneyFlows[i];
+
+        mfi.push(calcMfiValue(posFlow, negFlow));
     }
     return mfi;
 };

@@ -27,7 +27,7 @@ const keltnerChannelsStrategy: Strategy = {
   name: 'Keltner Channels Breakout',
   description: 'A volatility-based strategy using Keltner Channels to trade breakouts.',
   async calculate(data: HistoricalData[], params: KeltnerChannelsParams = defaultKeltnerChannelsParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
     
