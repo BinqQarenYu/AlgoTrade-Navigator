@@ -17,13 +17,24 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
     return Array(data.length).fill(null);
   }
   if (data.length < period) return Array(data.length).fill(null);
-  
-  const sma: (number | null)[] = Array(period - 1).fill(null);
-  for (let i = period - 1; i < data.length; i++) {
-    const slice = data.slice(i - period + 1, i + 1);
-    const sum = slice.reduce((acc, val) => acc + val, 0);
-    sma.push(sum / period);
+
+  // ⚡ Bolt: Optimized to O(n) using a sliding window sum instead of O(n * period) with slice/reduce.
+  const sma: (number | null)[] = Array(data.length);
+  for (let i = 0; i < period - 1; i++) {
+    sma[i] = null;
   }
+  
+  let currentSum = 0;
+  for (let i = 0; i < period; i++) {
+    currentSum += data[i];
+  }
+  sma[period - 1] = currentSum / period;
+
+  for (let i = period; i < data.length; i++) {
+    currentSum += data[i] - data[i - period];
+    sma[i] = currentSum / period;
+  }
+
   return sma;
 };
 
@@ -107,13 +118,38 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
 
 export const calculateStandardDeviation = (data: number[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
-    const stdDev: (number | null)[] = Array(period - 1).fill(null);
-    for (let i = period - 1; i < data.length; i++) {
-        const slice = data.slice(i - period + 1, i + 1);
-        const mean = slice.reduce((acc, val) => acc + val, 0) / period;
-        const variance = slice.reduce((acc, val) => acc + (val - mean) ** 2, 0) / period;
-        stdDev.push(Math.sqrt(variance));
+
+    // ⚡ Bolt: Optimized to O(1) sliding window variance calculation using Sum(x) and Sum(x^2).
+    // Calculates Variance as E[x^2] - E[x]^2 which prevents O(n * period) performance from slicing.
+    const stdDev: (number | null)[] = Array(data.length);
+    for (let i = 0; i < period - 1; i++) {
+        stdDev[i] = null;
     }
+
+    let sum = 0;
+    let sumSq = 0;
+
+    for (let i = 0; i < period; i++) {
+        sum += data[i];
+        sumSq += data[i] * data[i];
+    }
+
+    let mean = sum / period;
+    let variance = Math.max(0, (sumSq / period) - (mean * mean));
+    stdDev[period - 1] = Math.sqrt(variance);
+
+    for (let i = period; i < data.length; i++) {
+        const oldVal = data[i - period];
+        const newVal = data[i];
+
+        sum += newVal - oldVal;
+        sumSq += (newVal * newVal) - (oldVal * oldVal);
+
+        mean = sum / period;
+        variance = Math.max(0, (sumSq / period) - (mean * mean));
+        stdDev[i] = Math.sqrt(variance);
+    }
+
     return stdDev;
 };
 
