@@ -29,7 +29,7 @@ const cciReversionStrategy: Strategy = {
   name: 'CCI Reversion',
   description: 'A mean-reversion strategy using the Commodity Channel Index (CCI) to find overbought/oversold conditions.',
   async calculate(data: HistoricalData[], params: CciReversionParams = defaultCciReversionParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 

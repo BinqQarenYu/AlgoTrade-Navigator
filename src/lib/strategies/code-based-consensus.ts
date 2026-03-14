@@ -29,7 +29,7 @@ const codeBasedConsensusStrategy: Strategy = {
   description: 'Pro Fade Engine: Generates signals based on the majority vote of selected technical strategies. When reversed (Contrarian Mode), it executes a true Fade Trade by detecting exhaustion, over-extension, and unanimous fakeouts.',
   
   async calculate(data: HistoricalData[], params: CodeBasedConsensusParams = defaultCodeBasedConsensusParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     if (data.length === 0 || params.strategies.length === 0) {
       return dataWithIndicators;
     }
@@ -41,7 +41,7 @@ const codeBasedConsensusStrategy: Strategy = {
         const strategy = getStrategyById(strategyId);
         if (strategy) {
             // Each strategy runs on a clean copy of the data
-            allStrategyCalculations.push(strategy.calculate(JSON.parse(JSON.stringify(data))));
+            allStrategyCalculations.push(strategy.calculate(data.map(d => ({ ...d }))));
         }
     }
 

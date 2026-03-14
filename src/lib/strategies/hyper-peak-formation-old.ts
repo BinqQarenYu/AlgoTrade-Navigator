@@ -79,7 +79,7 @@ const hyperPeakFormationOldStrategy: Strategy = {
     name: 'Hyper Peak Formation (Old)',
     description: 'The original, repainting version of the strategy that looks into the future to find signals. Useful for educational purposes.',
     async calculate(data: HistoricalData[], params: OldHyperPFFParams = defaultOldHyperPFFParams): Promise<HistoricalData[]> {
-        const dataWithIndicators = JSON.parse(JSON.stringify(data));
+        const dataWithIndicators = data.map(d => ({ ...d }));
         const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, maxLookahead, reverse } = params;
 
         if (data.length < emaLongPeriod) return dataWithIndicators;

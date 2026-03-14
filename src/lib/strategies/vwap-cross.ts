@@ -25,7 +25,7 @@ const vwapCrossStrategy: Strategy = {
   name: 'VWAP Cross',
   description: 'Uses a moving Volume-Weighted Average Price (VWAP) to generate signals when the price crosses it.',
   async calculate(data: HistoricalData[], params: VwapCrossParams = defaultVwapCrossParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 
