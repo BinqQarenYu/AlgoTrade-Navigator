@@ -29,7 +29,7 @@ const stochasticCrossoverStrategy: Strategy = {
   name: 'Stochastic Crossover',
   description: 'A momentum strategy based on the Stochastic Oscillator %K line crossing over or under the %D line.',
   async calculate(data: HistoricalData[], params: StochasticCrossoverParams = defaultStochasticCrossoverParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     
     if (data.length < params.period + params.smoothK + params.smoothD) return dataWithIndicators;
 

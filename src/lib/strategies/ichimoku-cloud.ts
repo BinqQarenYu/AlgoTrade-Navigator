@@ -31,7 +31,7 @@ const ichimokuCloudStrategy: Strategy = {
   name: 'Ichimoku Cloud',
   description: 'A comprehensive trend-following system. This strategy uses the Tenkan/Kijun cross confirmed by the Kumo (cloud).',
   async calculate(data: HistoricalData[], params: IchimokuCloudParams = defaultIchimokuCloudParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.senkouBPeriod + params.displacement) return dataWithIndicators;
     

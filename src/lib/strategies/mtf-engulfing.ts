@@ -63,7 +63,7 @@ const mtfEngulfingStrategy: Strategy = {
   description: 'Uses a Higher Timeframe EMA for trend and enters on a Lower Timeframe Engulfing candle.',
   
   async calculate(data: HistoricalData[], params: MtfEngulfingParams = defaultMtfEngulfingParams, symbol?: string): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
     // Add guard clause to prevent error on empty data
     if (!data || data.length < params.emaLength) return dataWithIndicators;
 

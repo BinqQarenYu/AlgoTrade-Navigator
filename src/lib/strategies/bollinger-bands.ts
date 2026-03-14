@@ -27,7 +27,7 @@ const bollingerBandsStrategy: Strategy = {
   name: 'Bollinger Bands Reversion',
   description: 'A mean-reversion strategy that enters trades when price touches an outer band and then reverts towards the middle band.',
   async calculate(data: HistoricalData[], params: BollingerBandsParams = defaultBollingerBandsParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 
