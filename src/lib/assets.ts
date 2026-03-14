@@ -68,14 +68,6 @@ export const getAvailableBases = (): string[] => {
     return [...new Set(bases)].sort();
 };
 
-export const pairsByBase = allPairs.reduce((acc, pair) => {
-    if (!acc[pair.base]) {
-        acc[pair.base] = [];
-    }
-    acc[pair.base].push(pair.quote);
-    acc[pair.base].sort();
-    return acc;
-}, {} as Record<string, string[]>);
 
 
 // A curated list of top assets for simpler dropdowns.
