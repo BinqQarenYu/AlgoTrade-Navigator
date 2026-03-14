@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 import { Info, ChevronDown, GripHorizontal, GitCompareArrows, AreaChart, AlertTriangle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Button } from "./ui/button";
+import { usePersistentState } from "@/hooks/use-persistent-state";
 
 type BacktestResultsProps = {
   results: BacktestResult[];
@@ -21,38 +22,6 @@ type BacktestResultsProps = {
   selectedTradeId?: string | null;
   title?: string;
   outlierTradeIds?: string[];
-};
-
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        if (isMounted) {
-          setState(JSON.parse(item));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [state, setState];
 };
 
 const SummaryStat = ({ label, value, tooltipContent }: { label: string, value: React.ReactNode, tooltipContent?: string }) => {
