@@ -3881,8 +3881,12 @@ export default function OrderFlowPage() {
     if (!stats || stats.totalOrders === 0) return 0.5;
     
     const recentOrders = orderFlowData.slice(-20); // Last 20 orders
-    const buyOrders = recentOrders.filter(order => order.orderType === 'buy').length;
-    const sellOrders = recentOrders.filter(order => order.orderType === 'sell').length;
+    let buyOrders = 0;
+    let sellOrders = 0;
+    for (let i = 0; i < recentOrders.length; i++) {
+      if (recentOrders[i].orderType === 'buy') buyOrders++;
+      else if (recentOrders[i].orderType === 'sell') sellOrders++;
+    }
     
     if (buyOrders + sellOrders === 0) return 0.5;
     return buyOrders / (buyOrders + sellOrders);
