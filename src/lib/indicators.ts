@@ -19,11 +19,20 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   if (data.length < period) return Array(data.length).fill(null);
   
   const sma: (number | null)[] = Array(period - 1).fill(null);
-  for (let i = period - 1; i < data.length; i++) {
-    const slice = data.slice(i - period + 1, i + 1);
-    const sum = slice.reduce((acc, val) => acc + val, 0);
-    sma.push(sum / period);
+
+  // Calculate initial sum for the first window
+  let currentSum = 0;
+  for (let i = 0; i < period; i++) {
+    currentSum += data[i];
   }
+  sma.push(currentSum / period);
+
+  // Use sliding window for the rest
+  for (let i = period; i < data.length; i++) {
+    currentSum = currentSum - data[i - period] + data[i];
+    sma.push(currentSum / period);
+  }
+
   return sma;
 };
 

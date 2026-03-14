@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import * as React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend, Tooltip as RechartsTooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, AreaChart, Area, BarChart, Bar, Legend, Tooltip as RechartsTooltip, ComposedChart } from 'recharts';
 import { 
   AlertTriangle, 
   TrendingDown, 
@@ -21,38 +21,17 @@ import {
   HelpCircle,
   CheckCircle,
   XCircle,
-  BarChart3
+  BarChart3,
+  TrendingUp as ChartIcon
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
+import { orderFlowAnalyzer, enhancedOrderFlowAnalyzer, type OrderData, type ManipulationFlags } from "@/lib/order-flow-analyzer";
 
 // Mock implementations for missing services
 const getTicker = async (symbol: string) => ({ price: Math.random() * 50000 + 20000 });
 const getKlines = async (symbol: string, interval: string) => ([]);
 
 // Mock types and interfaces
-interface OrderData {
-  id: string;
-  timestamp: number;
-  price: number;
-  quantity: number;
-  side: 'buy' | 'sell';
-  symbol: string;
-  size: number;
-  orderId?: string;
-  venue?: string;
-}
-
-interface ManipulationFlags {
-  spoofing: boolean;
-  layering: boolean;
-  washTrading: boolean;
-  reasons?: string[];
-  riskScore?: number;
-  isPadding?: boolean;
-  isScam?: boolean;
-  isRag?: boolean;
-}
-
 interface EnhancedOrderFlowData {
   orders: OrderData[];
   manipulation: ManipulationFlags;
@@ -79,104 +58,25 @@ interface BinanceOrderFlowData {
   symbol: string;
 }
 
-// Mock services
-const orderFlowAnalyzer = {
-  analyze: (data: any[]) => ({ 
-    manipulation: { 
-      spoofing: false, 
-      layering: false, 
-      washTrading: false,
-      reasons: [],
-      riskScore: 0
-    },
-    orders: []
-  }),
-  analyzeOrder: (order: OrderData) => {
-    // Generate more realistic risk scores and patterns
-    const baseRisk = Math.random() * 10;
-    const isLargeOrder = order.size > 5;
-    const isRapidOrder = Date.now() - order.timestamp < 1000;
-    
-    let riskScore = baseRisk;
-    let reasons = ['Normal trading pattern'];
-    let flags = { spoofing: false, layering: false, washTrading: false, isPadding: false, isScam: false, isRag: false };
-    
-    // Detect manipulation patterns
-    if (isLargeOrder && baseRisk > 7) {
-      flags.spoofing = true;
-      reasons = ['Large order with suspicious timing'];
-      riskScore = Math.min(9, riskScore + 2);
-    }
-    
-    if (order.size < 0.1 && Math.random() > 0.8) {
-      flags.isPadding = true;
-      reasons = ['Small order - potential volume padding'];
-      riskScore = Math.min(8, riskScore + 1);
-    }
-    
-    if (isRapidOrder && Math.random() > 0.9) {
-      flags.isRag = true;
-      reasons = ['Rapid aggressive trading detected'];
-      riskScore = Math.min(9, riskScore + 2);
-    }
-    
-    if (Math.random() > 0.95) {
-      flags.isScam = true;
-      reasons = ['Potential scam pattern detected'];
-      riskScore = 9;
-    }
-    
-    return { 
-      reasons: reasons,
-      riskScore: riskScore,
-      ...flags
-    };
-  },
-  getManipulationStats: (symbol?: string) => {
-    const paddingCount = Math.floor(Math.random() * 10);
-    const scamCount = Math.floor(Math.random() * 3);
-    const ragCount = Math.floor(Math.random() * 15);
-    
-    return { 
-      total: paddingCount + scamCount + ragCount, 
-      spoofing: Math.floor(Math.random() * 5), 
-      layering: Math.floor(Math.random() * 5), 
-      washTrading: Math.floor(Math.random() * 3),
-      averageRiskScore: 2 + Math.random() * 6, // Range 2-8
-      paddingCount: paddingCount,
-      scamCount: scamCount,
-      ragCount: ragCount
-    };
-  },
-  generateMockOrders: (symbolOrCount: string | number, count?: number) => {
-    const actualCount = typeof symbolOrCount === 'number' ? symbolOrCount : (count || 10);
-    const symbol = typeof symbolOrCount === 'string' ? symbolOrCount : 'BTCUSDT';
-    const now = Date.now();
-    
-    return Array.from({ length: actualCount }, (_, i) => {
-      const timestamp = now - (i * 2000) + Math.random() * 1000; // Spread over time
-      const isBuy = Math.random() > 0.5;
-      const baseSize = Math.random() * 10;
-      
-      // Create more varied order sizes
-      let size = baseSize;
-      if (Math.random() > 0.9) size *= 5; // Some large orders
-      if (Math.random() > 0.8) size *= 0.1; // Some micro orders
-      
-      return {
-        id: `order-${timestamp}-${i}`,
-        timestamp: timestamp,
-        price: 45000 + Math.random() * 10000, // Realistic BTC price range
-        quantity: size,
-        side: isBuy ? 'buy' as const : 'sell' as const,
-        symbol: symbol,
-        size: size
-      };
-    });
-  }
-};
+interface VeryLargeActivity {
+  id: string;
+  timestamp: number;
+  type: 'large_order' | 'whale_movement' | 'anomaly';
+  amount: number;
+  symbol: string;
+  description: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  metadata?: any;
+}
 
-const enhancedOrderFlowAnalyzer = {
+interface ManipulationPattern {
+  type: 'padding' | 'scam' | 'rag';
+  severity: 'low' | 'medium' | 'high';
+  count: number;
+  examples: OrderFlowData[];
+}
+
+const localEnhancedOrderFlowAnalyzer = {
   analyze: (data: any[]) => ({ 
     manipulation: { 
       spoofing: false, 
@@ -306,28 +206,34 @@ const Tabs = ({ children, defaultValue, className = '', ...props }: any) => {
 };
 const TabsList = ({ children, className = '', activeTab, setActiveTab, ...props }: any) => (
   // Consume activeTab/setActiveTab so they are not forwarded to the DOM element
-  <div className={`inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground ${className}`} {...props}>
+  <div className={`inline-flex h-12 items-center justify-center rounded-md bg-gray-100 p-1 text-gray-600 w-full ${className}`} {...props}>
     {children}
   </div>
 );
 const TabsTrigger = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => (
   <button
-    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
-      activeTab === value ? 'bg-background text-foreground shadow-sm' : ''
+    className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-2 text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${
+      activeTab === value ? 'bg-white text-blue-600 shadow-sm font-semibold' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
     } ${className}`}
-    onClick={() => setActiveTab && setActiveTab(value)}
+    onClick={() => {
+      console.log('🔀 Tab clicked:', value);
+      setActiveTab && setActiveTab(value);
+    }}
     {...props}
   >
     {children}
   </button>
 );
-const TabsContent = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => (
-  activeTab === value ? (
-    <div className={`mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`} {...props}>
+const TabsContent = ({ children, value, className = '', activeTab, setActiveTab, ...props }: any) => {
+  const isActive = activeTab === value;
+  console.log(`📋 TabsContent for "${value}": ${isActive ? 'ACTIVE' : 'inactive'} (activeTab: ${activeTab})`);
+  
+  return isActive ? (
+    <div className={`mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${className}`} {...props}>
       {children}
     </div>
-  ) : null
-);
+  ) : null;
+};
 // Local lightweight Progress replacement (fallback) to avoid missing module during build
 const Progress = ({ value = 0, className = '', ...props }: any) => (
   <div className={`relative w-full bg-gray-200 rounded-full overflow-hidden ${className}`} style={{ height: '8px' }} {...props}>
@@ -375,6 +281,7 @@ export default function OrderFlowPage() {
   const [marketData, setMarketData] = useState<any>(null);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [realTimeOrders, setRealTimeOrders] = useState<BinanceOrderFlowData[]>([]);
+  const [tradingChartData, setTradingChartData] = useState<any[]>([]);
   
   // Initialize dual API service
   const dualApiService = createDualApiService(coingeckoApiKey, coinmarketcapApiKey);
@@ -384,6 +291,37 @@ export default function OrderFlowPage() {
   const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
   const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
 
+  // Generate initial data immediately when component mounts
+  React.useEffect(() => {
+    console.log('🚀 Component mounted, generating initial data...');
+    
+    // Generate some initial data immediately to show tabs are working
+    const initialOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 20);
+    const initialAnalyzed = initialOrders.map(order => {
+      const flags = orderFlowAnalyzer.analyzeOrder(order);
+      return {
+        symbol: order.symbol,
+        timestamp: order.timestamp,
+        orderType: order.side,
+        size: order.size,
+        price: order.price,
+        suspiciousFlags: flags.reasons || [],
+        riskScore: flags.riskScore || 0,
+        flags,
+        marketSource: { coinApi: 'initial', priceApi: 'initial' }
+      };
+    });
+    
+    setOrderFlowData(initialAnalyzed);
+    const initialStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
+    setStats(initialStats);
+    
+    console.log('✅ Initial data generated:', {
+      orders: initialAnalyzed.length,
+      stats: initialStats
+    });
+  }, []);
+
   // Initialize with mock data and start analysis
   useEffect(() => {
     loadMockData();
@@ -391,6 +329,7 @@ export default function OrderFlowPage() {
     
     // Generate additional data for flow chart and signals
     const generateRealTimeData = () => {
+      console.log('🔄 generateRealTimeData() started for', selectedSymbol);
       const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
       const analyzed = newOrders.map(order => {
         const flags = orderFlowAnalyzer.analyzeOrder(order);
@@ -407,18 +346,25 @@ export default function OrderFlowPage() {
         };
       });
 
+      console.log('📋 Generated analyzed orders:', analyzed.length);
       setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
       updateChartData(analyzed);
       
       const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
       setStats(currentStats);
+      console.log('✅ Real-time data generation completed');
     };
 
     // Generate initial data immediately
     generateRealTimeData();
+    generateTradingChartData();
     
-    // Set up periodic data generation every 10 seconds
-    const interval = setInterval(generateRealTimeData, 10000);
+    // Set up periodic data generation every 1 minute (60 seconds)
+    const interval = setInterval(() => {
+      console.log('🔄 Generating new data (1-minute interval)...');
+      generateRealTimeData();
+      generateTradingChartData();
+    }, 60000); // Changed from 10000 to 60000 (1 minute)
     
     return () => clearInterval(interval);
   }, [selectedSymbol, selectedTimeInterval]);
@@ -662,6 +608,9 @@ export default function OrderFlowPage() {
   };
 
   const updateChartData = (orders: OrderFlowData[]) => {
+    console.log('📈 updateChartData called with orders:', orders.length);
+    console.log('📅 Selected time interval:', selectedTimeInterval);
+    
     // Get interval duration in milliseconds based on selected time interval
     const getIntervalMs = (interval: string) => {
       switch (interval) {
@@ -690,6 +639,8 @@ export default function OrderFlowPage() {
         timestamp: intervalTime
       };
     }
+    
+    console.log('⏱️ Generated time groups:', Object.keys(timeGroups).length);
     
     // Process existing orders into time groups
     [...orders, ...orderFlowData].forEach(order => {
@@ -738,7 +689,78 @@ export default function OrderFlowPage() {
       }))
       .sort((a, b) => a.timestamp - b.timestamp);
 
+    console.log('📊 Generated chart data:', chartDataArray.length, 'data points');
+    if (chartDataArray.length > 0) {
+      console.log('🔗 First data point:', chartDataArray[0]);
+      console.log('🔗 Last data point:', chartDataArray[chartDataArray.length - 1]);
+    }
+
     setChartData(chartDataArray);
+  };
+
+  // Generate trading chart data (OHLCV candlestick data)
+  const generateTradingChartData = () => {
+    const now = Date.now();
+    const intervalMs = getIntervalMs(selectedTimeInterval);
+    const numCandles = 50;
+    
+    const basePrice = 45000 + Math.random() * 10000; // Base BTC price
+    let currentPrice = basePrice;
+    
+    const tradingData = Array.from({ length: numCandles }, (_, i) => {
+      const timestamp = now - ((numCandles - 1 - i) * intervalMs);
+      
+      // Generate realistic OHLC data
+      const open = currentPrice;
+      const volatility = 0.02; // 2% volatility
+      const change = (Math.random() - 0.5) * volatility * open;
+      const close = open + change;
+      
+      // High and low should encompass open and close
+      const high = Math.max(open, close) + Math.random() * 0.01 * open;
+      const low = Math.min(open, close) - Math.random() * 0.01 * open;
+      
+      // Volume based on market activity (correlated with price movement)
+      const volume = (50 + Math.random() * 100) * Math.abs(change / open) * 1000;
+      
+      currentPrice = close; // Update for next candle
+      
+      return {
+        timestamp,
+        time: timestamp,
+        open: Number(open.toFixed(2)),
+        high: Number(high.toFixed(2)),
+        low: Number(low.toFixed(2)),
+        close: Number(close.toFixed(2)),
+        volume: Number(volume.toFixed(2)),
+        // Technical indicators
+        sma20: Number((currentPrice * (0.98 + Math.random() * 0.04)).toFixed(2)),
+        ema12: Number((currentPrice * (0.99 + Math.random() * 0.02)).toFixed(2)),
+        // Order flow correlation
+        buyPressure: orderFlowData.filter(o => 
+          Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy'
+        ).length,
+        sellPressure: orderFlowData.filter(o => 
+          Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell'
+        ).length,
+        manipulationRisk: Math.random() * 10,
+        // Support/Resistance levels
+        resistance: Number((high * 1.005).toFixed(2)),
+        support: Number((low * 0.995).toFixed(2))
+      };
+    });
+    
+    setTradingChartData(tradingData);
+  };
+
+  const getIntervalMs = (interval: string) => {
+    switch (interval) {
+      case '30s': return 30000;
+      case '5m': return 300000;
+      case '1h': return 3600000;
+      case '4h': return 14400000;
+      default: return 30000;
+    }
   };
 
   const startMonitoring = () => {
@@ -1346,7 +1368,7 @@ export default function OrderFlowPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <LayoutDashboard className="h-4 w-4" />
             Overview
@@ -1354,6 +1376,11 @@ export default function OrderFlowPage() {
           <TabsTrigger value="chart" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Flow Chart
+            <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">📊</span>
+          </TabsTrigger>
+          <TabsTrigger value="trading-chart" className="flex items-center gap-2">
+            <ChartIcon className="h-4 w-4" />
+            Trading Chart
           </TabsTrigger>
           <TabsTrigger value="signals" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -1379,6 +1406,27 @@ export default function OrderFlowPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
+            <h3 className="font-semibold text-gray-800 mb-2">📊 Order Flow Analysis Overview</h3>
+            <p className="text-sm text-gray-700">
+              Monitor real-time order flow patterns and detect manipulation for {selectedSymbol}
+            </p>
+          </div>
+
+          {/* Debug Info */}
+          <Card className="mb-4 bg-yellow-50 border-yellow-200">
+            <CardContent className="p-4">
+              <div className="text-sm text-gray-600">
+                <div>🔍 Debug Info:</div>
+                <div>• Order Flow Data: {orderFlowData.length} items</div>
+                <div>• Chart Data: {chartData.length} points</div>
+                <div>• Stats Available: {stats ? 'Yes' : 'No'}</div>
+                <div>• Symbol: {selectedSymbol}</div>
+                <div>• Monitoring: {isMonitoring ? 'Active' : 'Inactive'}</div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Statistics Summary */}
           {stats && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -1629,6 +1677,18 @@ export default function OrderFlowPage() {
             <p className="text-sm text-gray-700">
               Real-time charts showing buy/sell flow, volume patterns, and risk levels for {selectedSymbol}
             </p>
+            <div className="text-xs bg-yellow-100 p-2 rounded mt-2 border border-yellow-300">
+              🔍 Debug Info: Chart data length: {chartData.length} | Selected interval: {selectedTimeInterval}
+              {chartData.length > 0 && (
+                <div className="mt-1">
+                  Latest data: Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)} | 
+                  Sell Vol: {chartData[chartData.length - 1]?.sellVolume?.toFixed(2)}
+                </div>
+              )}
+              {chartData.length === 0 && (
+                <div className="mt-1 text-red-600 font-semibold">⚠️ No chart data available! Check console for data generation logs.</div>
+              )}
+            </div>
           </div>
 
           {/* Time Interval Selector */}
@@ -1652,9 +1712,36 @@ export default function OrderFlowPage() {
                   <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
                 </select>
               </div>
-              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
-                Charts update automatically on interval change
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    console.log('🔄 Manual data generation triggered');
+                    const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
+                    const analyzed = newOrders.map(order => {
+                      const flags = orderFlowAnalyzer.analyzeOrder(order);
+                      return {
+                        symbol: order.symbol,
+                        timestamp: order.timestamp,
+                        orderType: order.side,
+                        size: order.size,
+                        price: order.price,
+                        suspiciousFlags: flags.reasons || [],
+                        riskScore: flags.riskScore || 0,
+                        flags,
+                        marketSource: { coinApi: 'manual', priceApi: 'manual' }
+                      };
+                    });
+                    setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
+                    updateChartData(analyzed);
+                  }}
+                  className="px-3 py-1 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 transition-colors"
+                >
+                  🔄 Generate Data
+                </button>
+                <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
+                  Updates every 1 minute
+                </span>
+              </div>
             </div>
           </Card>
 
@@ -1700,7 +1787,16 @@ export default function OrderFlowPage() {
               </div>
 
               <div className="h-80 w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
+                {chartData.length === 0 ? (
+                  <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <div className="text-center">
+                      <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                      <p className="text-gray-600 font-semibold">Loading chart data...</p>
+                      <p className="text-xs text-gray-500 mt-1">Generating real-time order flow data</p>
+                    </div>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
                     <XAxis 
@@ -1845,6 +1941,7 @@ export default function OrderFlowPage() {
                     />
                   </AreaChart>
                 </ResponsiveContainer>
+                )}
                 
                 {/* Floating annotations */}
                 {chartData.length > 0 && (
@@ -2558,6 +2655,356 @@ export default function OrderFlowPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Trading Chart Tab */}
+        <TabsContent value="trading-chart" className="space-y-4">
+          <div className="mb-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-gray-200">
+            <h3 className="font-semibold text-gray-800 mb-2">📊 Trading Chart Analysis</h3>
+            <p className="text-sm text-gray-700">
+              Comprehensive price action, volume analysis, and order flow correlation for {selectedSymbol}
+            </p>
+          </div>
+
+          {/* Chart Controls */}
+          <Card className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-semibold text-indigo-800">📈 Chart Type:</label>
+                <select 
+                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                >
+                  <option value="candlestick" className="text-gray-800 font-semibold bg-white">Candlestick</option>
+                  <option value="line" className="text-gray-800 font-semibold bg-white">Line Chart</option>
+                  <option value="area" className="text-gray-800 font-semibold bg-white">Area Chart</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-semibold text-indigo-800">⏰ Timeframe:</label>
+                <select 
+                  value={selectedTimeInterval}
+                  onChange={(e) => setSelectedTimeInterval(e.target.value)}
+                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
+                >
+                  <option value="30s" className="text-gray-800 font-semibold bg-white">30 Seconds</option>
+                  <option value="5m" className="text-gray-800 font-semibold bg-white">5 Minutes</option>
+                  <option value="1h" className="text-gray-800 font-semibold bg-white">1 Hour</option>
+                  <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
+                </select>
+              </div>
+              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
+                Real-time price action with order flow overlay
+              </span>
+            </div>
+          </Card>
+
+          {/* Main Trading Chart */}
+          <Card className="border-2 border-indigo-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-indigo-800">
+                📈 {selectedSymbol} Price Chart with Order Flow Analysis
+                {isMonitoring && (
+                  <Badge className="bg-green-500 animate-pulse text-xs">LIVE</Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Candlestick chart with volume, technical indicators, and manipulation risk overlay
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Chart Legend */}
+              <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded"></div>
+                      <span className="font-semibold">Green Candle ↑</span>
+                    </div>
+                    <span className="text-muted-foreground">Price closed higher than open</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded"></div>
+                      <span className="font-semibold">Red Candle ↓</span>
+                    </div>
+                    <span className="text-muted-foreground">Price closed lower than open</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
+                      <span className="font-semibold">Volume Bars</span>
+                    </div>
+                    <span className="text-muted-foreground">Trading volume per timeframe</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-orange-500 rounded"></div>
+                      <span className="font-semibold">Risk Level</span>
+                    </div>
+                    <span className="text-muted-foreground">Order flow manipulation risk</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Combined Chart */}
+              <div className="h-96 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={tradingChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e0e7ff" />
+                    <XAxis 
+                      dataKey="time"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tick={{ fontSize: 11 }}
+                      type="number"
+                      scale="time"
+                      domain={['dataMin', 'dataMax']}
+                      tickFormatter={(value) => {
+                        const date = new Date(value);
+                        if (selectedTimeInterval === '30s') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false 
+                          });
+                        } else if (selectedTimeInterval === '5m') {
+                          return date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit', 
+                            minute: '2-digit',
+                            hour12: false 
+                          });
+                        } else {
+                          return date.toLocaleDateString('en-US', { 
+                            month: '2-digit', 
+                            day: '2-digit' 
+                          }) + ' ' + date.toLocaleTimeString('en-US', { 
+                            hour: '2-digit',
+                            hour12: false 
+                          }) + 'h';
+                        }
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="price"
+                      orientation="right"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    />
+                    <YAxis 
+                      yAxisId="volume"
+                      orientation="left"
+                      stroke="#6b7280"
+                      fontSize={12}
+                      tickLine={false}
+                      tickFormatter={(value) => {
+                        if (value >= 1000) {
+                          return `${(value / 1000).toFixed(1)}K`;
+                        }
+                        return value.toFixed(0);
+                      }}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: any, name: any) => {
+                        if (name === 'volume') {
+                          return [`${Number(value).toLocaleString()}`, '📊 Volume'];
+                        }
+                        if (name === 'manipulationRisk') {
+                          return [`${Number(value).toFixed(1)}/10`, '⚠️ Risk Score'];
+                        }
+                        if (name === 'close') {
+                          return [`$${Number(value).toLocaleString()}`, '💰 Close Price'];
+                        }
+                        return [Number(value).toLocaleString(), name];
+                      }}
+                      labelFormatter={(label) => {
+                        const date = new Date(label);
+                        return `${date.toLocaleDateString('en-US')} ${date.toLocaleTimeString('en-US', { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          hour12: false 
+                        })}`;
+                      }}
+                    />
+                    <Legend />
+                    
+                    {/* Volume Bars */}
+                    <Bar
+                      yAxisId="volume"
+                      dataKey="volume"
+                      fill="#3b82f6"
+                      fillOpacity={0.3}
+                      name="volume"
+                    />
+                    
+                    {/* Price Line */}
+                    <Line
+                      yAxisId="price"
+                      type="monotone"
+                      dataKey="close"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                      name="close"
+                    />
+                    
+                    {/* Risk Level Overlay */}
+                    <Line
+                      yAxisId="volume"
+                      type="monotone"
+                      dataKey="manipulationRisk"
+                      stroke="#f97316"
+                      strokeWidth={1}
+                      strokeDasharray="5 5"
+                      dot={false}
+                      name="manipulationRisk"
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Current Price Info */}
+              {tradingChartData.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-indigo-50 rounded-lg">
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Current Price</div>
+                    <div className="text-lg font-bold text-green-600">
+                      ${tradingChartData[tradingChartData.length - 1]?.close?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">24h High</div>
+                    <div className="text-lg font-bold text-gray-700">
+                      ${Math.max(...tradingChartData.map(d => d.high)).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">24h Low</div>
+                    <div className="text-lg font-bold text-gray-700">
+                      ${Math.min(...tradingChartData.map(d => d.low)).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Volume</div>
+                    <div className="text-lg font-bold text-blue-600">
+                      {tradingChartData[tradingChartData.length - 1]?.volume?.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-sm font-semibold text-indigo-800">Risk Level</div>
+                    <div className={`text-lg font-bold ${
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 3 ? 'text-green-600' :
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 6 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {tradingChartData[tradingChartData.length - 1]?.manipulationRisk?.toFixed(1)}/10
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Technical Analysis & Order Flow Correlation */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  📊 Technical Indicators
+                  <Badge variant="outline">Real-time</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {tradingChartData.length > 0 && (
+                    <>
+                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                        <span className="text-sm font-semibold">SMA (20):</span>
+                        <span className="font-bold text-blue-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.sma20?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <span className="text-sm font-semibold">EMA (12):</span>
+                        <span className="font-bold text-green-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.ema12?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                        <span className="text-sm font-semibold">Resistance:</span>
+                        <span className="font-bold text-orange-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.resistance?.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                        <span className="text-sm font-semibold">Support:</span>
+                        <span className="font-bold text-purple-600">
+                          ${tradingChartData[tradingChartData.length - 1]?.support?.toLocaleString()}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  🔄 Order Flow Correlation
+                  <Badge variant="outline">Live Analysis</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {tradingChartData.length > 0 && (
+                    <>
+                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                        <span className="text-sm font-semibold">Buy Pressure:</span>
+                        <span className="font-bold text-green-600">
+                          {tradingChartData[tradingChartData.length - 1]?.buyPressure || 0} orders
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                        <span className="text-sm font-semibold">Sell Pressure:</span>
+                        <span className="font-bold text-red-600">
+                          {tradingChartData[tradingChartData.length - 1]?.sellPressure || 0} orders
+                        </span>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <div className="text-sm font-semibold mb-2">Order Flow Sentiment:</div>
+                        <div className={`font-bold ${
+                          (tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
+                          (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
+                          'text-green-600' : 'text-red-600'
+                        }`}>
+                          {(tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
+                           (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
+                           '🚀 BULLISH' : '📉 BEARISH'}
+                        </div>
+                      </div>
+                      <div className="p-3 bg-yellow-50 rounded-lg">
+                        <div className="text-sm font-semibold mb-2">Price Action Signal:</div>
+                        <div className="text-yellow-700 text-sm">
+                          {tradingChartData.length >= 2 &&
+                           tradingChartData[tradingChartData.length - 1]?.close > tradingChartData[tradingChartData.length - 2]?.close ?
+                           '⬆️ Upward momentum detected' : '⬇️ Downward momentum detected'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* Buy/Sell Signals Tab */}
