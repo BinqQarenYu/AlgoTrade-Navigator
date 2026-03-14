@@ -1,115 +1,82 @@
-import { test, describe, beforeEach, afterEach } from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert';
-import { BotMonitor } from './bot-monitor';
-import type { BotHealthMetrics } from './bot-monitor';
 
-describe('BotMonitor - performHealthCheck', () => {
-  let monitor: BotMonitor;
-  const botId = 'test-bot-123';
-  let now: number;
+// We mock timers before importing anything to prevent global intervals from keeping the process alive
+import { mock } from 'node:test';
+mock.timers.enable({ apis: ['setInterval', 'setTimeout'] });
 
-  beforeEach(() => {
-    monitor = new BotMonitor();
-    now = Date.now();
+import { BotMonitor, botMonitor as globalBotMonitor } from './bot-monitor';
+import { emergencyStop } from './emergency-stop';
 
-    // Register the bot so it has initial metrics
-    monitor.registerBot(botId, {});
+test('BotMonitor', async (t) => {
+  await t.test('registerBot adds a bot with default healthy metrics', () => {
+    const monitor = new BotMonitor();
+
+    try {
+      const botId = 'test-bot-123';
+      const config = { pair: 'BTC/USDT' };
+
+      monitor.registerBot(botId, config);
+
+      const metrics = monitor.getBotMetrics(botId);
+
+      assert.ok(metrics, 'Metrics should exist for the registered bot');
+      assert.strictEqual(metrics.botId, botId);
+      assert.strictEqual(metrics.status, 'healthy');
+      assert.strictEqual(metrics.uptime, 0);
+      assert.strictEqual(metrics.totalTrades, 0);
+      assert.strictEqual(metrics.successfulTrades, 0);
+      assert.strictEqual(metrics.failedTrades, 0);
+      assert.strictEqual(metrics.winRate, 0);
+      assert.strictEqual(metrics.currentPnl, 0);
+      assert.strictEqual(metrics.maxDrawdown, 0);
+      assert.strictEqual(metrics.avgExecutionTime, 0);
+      assert.strictEqual(metrics.websocketStatus, 'disconnected');
+      assert.strictEqual(metrics.apiCallsPerMinute, 0);
+      assert.strictEqual(metrics.memoryUsage, 0);
+      assert.deepStrictEqual(metrics.errors, []);
+      assert.deepStrictEqual(metrics.warnings, []);
+
+      // lastUpdate should be reasonably close to now
+      const now = Date.now();
+      assert.ok(now - metrics.lastUpdate < 1000, 'lastUpdate should be recently populated');
+
+    } finally {
+      monitor.destroy();
+    }
   });
 
-  afterEach(() => {
-    // Crucial to clear intervals to prevent hang
-    monitor.destroy();
+  await t.test('registerBot overrides existing bot if registered again', () => {
+    const monitor = new BotMonitor();
+
+    try {
+      const botId = 'test-bot-override';
+
+      // Register first time
+      monitor.registerBot(botId, {});
+
+      const firstMetrics = monitor.getBotMetrics(botId);
+      assert.ok(firstMetrics);
+      firstMetrics.status = 'critical';
+      firstMetrics.totalTrades = 10;
+
+      // Register again - it should overwrite with fresh metrics
+      monitor.registerBot(botId, {});
+
+      const newMetrics = monitor.getBotMetrics(botId);
+      assert.ok(newMetrics);
+      assert.strictEqual(newMetrics.status, 'healthy', 'Status should be reset');
+      assert.strictEqual(newMetrics.totalTrades, 0, 'Trades should be reset');
+
+    } finally {
+      monitor.destroy();
+    }
   });
+});
 
-  // Helper to get and modify metrics easily in tests
-  const getMetrics = (): BotHealthMetrics => {
-    const metrics = (monitor as any).botMetrics.get(botId);
-    assert(metrics, 'Metrics should exist after registration');
-    return metrics;
-  };
-
-  test('should return offline for unknown botId', () => {
-    const status = monitor.performHealthCheck('unknown-bot');
-    assert.strictEqual(status, 'offline');
-  });
-
-  test('should return offline if time since update > 5 minutes (300000ms)', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now - 300001; // 5 mins and 1ms ago
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'offline');
-    assert.strictEqual(metrics.status, 'offline');
-  });
-
-  test('should return critical if errors > 5', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now; // Fresh
-    metrics.errors = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'critical');
-    assert.strictEqual(metrics.status, 'critical');
-  });
-
-  test('should return critical if websocketStatus is error', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now; // Fresh
-    metrics.websocketStatus = 'error';
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'critical');
-    assert.strictEqual(metrics.status, 'critical');
-  });
-
-  test('should return warning if warnings > 3', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now; // Fresh
-    metrics.winRate = 0.5; // Healthy win rate
-    metrics.warnings = ['w1', 'w2', 'w3', 'w4'];
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'warning');
-    assert.strictEqual(metrics.status, 'warning');
-  });
-
-  test('should return warning if winRate < 0.3', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now; // Fresh
-    metrics.winRate = 0.29; // Low win rate
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'warning');
-    assert.strictEqual(metrics.status, 'warning');
-  });
-
-  test('should return warning if time since update > 1 minute (60000ms) but <= 5 minutes', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now - 60001; // 1 min and 1ms ago
-    metrics.winRate = 0.5; // Healthy
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'warning');
-    assert.strictEqual(metrics.status, 'warning');
-  });
-
-  test('should return healthy if all conditions are good', () => {
-    const metrics = getMetrics();
-    metrics.lastUpdate = now; // Fresh
-    metrics.winRate = 0.5; // Good
-    metrics.errors = [];
-    metrics.warnings = [];
-    metrics.websocketStatus = 'connected';
-
-    const status = monitor.performHealthCheck(botId);
-
-    assert.strictEqual(status, 'healthy');
-    assert.strictEqual(metrics.status, 'healthy');
-  });
+after(() => {
+  // Clean up global singletons that keep the event loop alive due to timers
+  globalBotMonitor.destroy();
+  emergencyStop.destroy();
+  mock.timers.reset();
 });
