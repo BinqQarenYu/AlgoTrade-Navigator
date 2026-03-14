@@ -422,7 +422,7 @@ const BacktestPageContent = () => {
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
-    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
+    const dataWithSignals = await strategy.calculate(data.map(d => ({ ...d })), strategyParams, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -566,7 +566,7 @@ const BacktestPageContent = () => {
     const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
     const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
     
-    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    let dataWithSignals = await strategy.calculate(fullChartData.map(d => ({ ...d })), paramsForStrategy, symbol);
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -762,22 +762,29 @@ const BacktestPageContent = () => {
     let bestParams: any | null = null;
     let bestProfitFactor = -Infinity;
 
-    const testCombinations = combinations.slice(0, 50); // Limit to 50 combinations to prevent browser freeze
-    if(combinations.length > 50) {
-        toast({ title: "Warning", description: `Testing first 50 of ${combinations.length} possible combinations.` });
-    }
+    const batchSize = 20; // Process in chunks to avoid blocking the event loop or running out of memory
+    for (let i = 0; i < combinations.length; i += batchSize) {
+        const batch = combinations.slice(i, i + batchSize);
 
-    for (const params of testCombinations) {
-        const { summary } = await runSilentBacktest(fullChartData, {
-            strategyId: selectedStrategy,
-            strategyParams: params,
-            initialCapital, leverage, takeProfit, stopLoss, fee,
-            symbol: symbol
-        });
+        // Run batch concurrently using Promise.all
+        const results = await Promise.all(
+            batch.map(async (params) => {
+                const { summary } = await runSilentBacktest(fullChartData, {
+                    strategyId: selectedStrategy,
+                    strategyParams: params,
+                    initialCapital, leverage, takeProfit, stopLoss, fee,
+                    symbol: symbol
+                });
+                return { summary, params };
+            })
+        );
 
-        if (summary && summary.profitFactor > bestProfitFactor) {
-            bestProfitFactor = summary.profitFactor;
-            bestParams = params;
+        // Process results
+        for (const { summary, params } of results) {
+            if (summary && summary.profitFactor > bestProfitFactor) {
+                bestProfitFactor = summary.profitFactor;
+                bestParams = params;
+            }
         }
     }
 
@@ -806,7 +813,7 @@ const BacktestPageContent = () => {
       return;
     }
     const paramsForStrategy = strategyParams[selectedStrategy] || {};
-    const calculatedData = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    const calculatedData = await strategy.calculate(fullChartData.map(d => ({ ...d })), paramsForStrategy, symbol);
     setFullChartData(calculatedData); // Store data with all signals pre-calculated
     setBacktestResults([]);
     setSummaryStats(null);
