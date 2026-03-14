@@ -269,17 +269,43 @@ export class BotMonitor {
    * Get system health overview
    */
   public getSystemHealth(): SystemHealthMetrics {
-    const metrics = Array.from(this.botMetrics.values());
-    
+    let activeBots = 0;
+    let healthyBots = 0;
+    let warningBots = 0;
+    let criticalBots = 0;
+    let offlineBots = 0;
+    let totalMemoryUsage = 0;
+    let totalApiCalls = 0;
+
+    for (const m of this.botMetrics.values()) {
+      const status = m.status;
+
+      if (status === 'healthy') {
+        healthyBots++;
+        activeBots++;
+      } else if (status === 'warning') {
+        warningBots++;
+        activeBots++;
+      } else if (status === 'critical') {
+        criticalBots++;
+        activeBots++;
+      } else if (status === 'offline') {
+        offlineBots++;
+      }
+
+      totalMemoryUsage += m.memoryUsage;
+      totalApiCalls += m.apiCallsPerMinute;
+    }
+
     return {
-      totalBots: metrics.length,
-      activeBots: metrics.filter(m => ['healthy', 'warning', 'critical'].includes(m.status)).length,
-      healthyBots: metrics.filter(m => m.status === 'healthy').length,
-      warningBots: metrics.filter(m => m.status === 'warning').length,
-      criticalBots: metrics.filter(m => m.status === 'critical').length,
-      offlineBots: metrics.filter(m => m.status === 'offline').length,
-      totalMemoryUsage: metrics.reduce((sum, m) => sum + m.memoryUsage, 0),
-      totalApiCalls: metrics.reduce((sum, m) => sum + m.apiCallsPerMinute, 0),
+      totalBots: this.botMetrics.size,
+      activeBots,
+      healthyBots,
+      warningBots,
+      criticalBots,
+      offlineBots,
+      totalMemoryUsage,
+      totalApiCalls,
       systemUptime: Date.now() - this.systemStartTime,
       emergencyStopActive: emergencyStop.isEmergencyActive(),
     };
