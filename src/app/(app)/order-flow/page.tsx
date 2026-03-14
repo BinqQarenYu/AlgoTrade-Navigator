@@ -977,7 +977,8 @@ export default function OrderFlowPage() {
     const isWhaleActivity = maxOrderSize > 25; // Single very large order
     const isMassiveBuying = buyOrders.length > 8 && buyOrders.reduce((s, o) => s + o.size, 0) > 40;
     const isMassiveSelling = sellOrders.length > 8 && sellOrders.reduce((s, o) => s + o.size, 0) > 40;
-    const isCoordinatedAttack = windowOrders.length > 12 && windowOrders.filter(o => o.riskScore >= 7).length > 6;
+    const highRiskOrdersCount = windowOrders.filter(o => o.riskScore >= 7).length;
+    const isCoordinatedAttack = windowOrders.length > 12 && highRiskOrdersCount > 6;
 
     // Check if we should start a new very large activity
     if (!activeVeryLargeActivity && (isVeryLargeVolume || isWhaleActivity || isMassiveBuying || isMassiveSelling || isCoordinatedAttack)) {
@@ -987,7 +988,7 @@ export default function OrderFlowPage() {
 
       if (isCoordinatedAttack) {
         activityType = 'coordinated_attack';
-        description = `🚨 COORDINATED ATTACK DETECTED! ${windowOrders.length} orders with ${windowOrders.filter(o => o.riskScore >= 7).length} high-risk orders in 30 seconds`;
+        description = `🚨 COORDINATED ATTACK DETECTED! ${windowOrders.length} orders with ${highRiskOrdersCount} high-risk orders in 30 seconds`;
         riskLevel = 'extreme';
       } else if (isMassiveBuying) {
         activityType = 'massive_buy';
