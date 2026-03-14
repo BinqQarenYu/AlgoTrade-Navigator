@@ -6,6 +6,14 @@ import crypto from 'crypto';
 
 const BINANCE_API_URL = 'https://fapi.binance.com';
 
+// Allow-list of permitted Binance API endpoints and methods.
+// This prevents the proxy from being used to access unauthorized endpoints.
+const ALLOWED_ENDPOINTS: Record<string, string[]> = {
+  '/fapi/v2/account': ['GET'],
+  '/fapi/v2/positionRisk': ['GET'],
+  '/fapi/v1/order': ['POST'],
+};
+
 // This is the core proxy logic. It forwards requests from the client to the Binance API.
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +21,13 @@ export async function POST(request: NextRequest) {
 
     if (!path || !method) {
       return NextResponse.json({ error: 'Missing path or method' }, { status: 400 });
+    }
+
+    // Server-side input validation
+    const allowedMethods = ALLOWED_ENDPOINTS[path];
+    if (!allowedMethods || !allowedMethods.includes(method.toUpperCase())) {
+      console.warn(`[SECURITY] Unauthorized proxy request: ${method} ${path}`);
+      return NextResponse.json({ error: 'Unauthorized endpoint or method' }, { status: 403 });
     }
 
     // Use keys from the request body, or fall back to environment variables.
