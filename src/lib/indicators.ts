@@ -547,6 +547,9 @@ export const calculateCMF = (data: HistoricalData[], period: number): (number | 
     const moneyFlowVolumes: number[] = [];
     const volumes: number[] = [];
 
+    let sumMfv = 0;
+    let sumVol = 0;
+
     for (let i = 0; i < data.length; i++) {
         const d = data[i];
         const range = d.high - d.low;
@@ -556,11 +559,17 @@ export const calculateCMF = (data: HistoricalData[], period: number): (number | 
         moneyFlowVolumes.push(mfv);
         volumes.push(d.volume);
 
+        sumMfv += mfv;
+        sumVol += d.volume;
+
+        if (i >= period) {
+            sumMfv -= moneyFlowVolumes[i - period];
+            sumVol -= volumes[i - period];
+        }
+
         if (i < period - 1) {
             cmf.push(null);
         } else {
-            const sumMfv = moneyFlowVolumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-            const sumVol = volumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
             cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
         }
     }
