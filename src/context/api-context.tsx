@@ -65,7 +65,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [telegramBotToken, setTelegramBotToken] = useState<string | null>(null);
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-  const [geminiModel, setGeminiModel] = useState<string>('gemini-1.5-flash-latest');
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-1.5-flash');
   const [aiQuota, setAiQuota] = useState({
     used: 0,
     limit: 49,

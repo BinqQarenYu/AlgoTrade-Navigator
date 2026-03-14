@@ -223,6 +223,7 @@ export type BacktestSummary = {
   endingBalance: number;
   totalReturnPercent: number;
   totalFees: number;
+  maxDrawdown: number;
 };
 
 export type ApiProfile = {
