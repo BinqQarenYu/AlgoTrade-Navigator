@@ -335,7 +335,10 @@ export class BotPersistence {
       let cleanedCount = 0;
       const activeStates: Record<string, PersistedBotState> = {};
 
-      for (const [botId, state] of Object.entries(allStates)) {
+      const keys = Object.keys(allStates);
+      for (let i = 0; i < keys.length; i++) {
+        const botId = keys[i];
+        const state = allStates[botId];
         // Keep active bots or recently active bots
         if (state.status !== 'idle' && state.status !== 'error' || state.lastActivity > cutoffTime) {
           activeStates[botId] = state;
