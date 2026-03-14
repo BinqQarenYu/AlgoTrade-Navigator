@@ -291,6 +291,16 @@ export default function OrderFlowPage() {
   const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
   const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
 
+  const { buyOrderCount, sellOrderCount } = React.useMemo(() => {
+    let buy = 0;
+    let sell = 0;
+    for (let i = 0; i < orderFlowData.length; i++) {
+      if (orderFlowData[i].orderType === 'buy') buy++;
+      else if (orderFlowData[i].orderType === 'sell') sell++;
+    }
+    return { buyOrderCount: buy, sellOrderCount: sell };
+  }, [orderFlowData]);
+
   // Generate initial data immediately when component mounts
   React.useEffect(() => {
     console.log('🚀 Component mounted, generating initial data...');
@@ -3066,7 +3076,7 @@ export default function OrderFlowPage() {
                       <ul className="text-sm text-green-600 space-y-1">
                         <li>• {getTradingSignal().reason}</li>
                         <li>• Risk Score: {stats?.averageRiskScore.toFixed(1)}/10</li>
-                        <li>• Buy Pressure: {((orderFlowData.filter(o => o.orderType === 'buy').length / Math.max(orderFlowData.length, 1)) * 100).toFixed(0)}%</li>
+                        <li>• Buy Pressure: {((buyOrderCount / Math.max(orderFlowData.length, 1)) * 100).toFixed(0)}%</li>
                         <li>• Market Sentiment: {getMarketSentiment().toUpperCase()}</li>
                       </ul>
                       <div className="mt-3 p-2 bg-green-200 rounded text-xs text-green-800">
@@ -3217,18 +3227,18 @@ export default function OrderFlowPage() {
                   <div className="flex justify-between items-center">
                     <span className="text-sm">Buy/Sell Pressure:</span>
                     <span className="font-bold text-blue-600">
-                      {orderFlowData.filter(o => o.orderType === 'buy').length > 
-                       orderFlowData.filter(o => o.orderType === 'sell').length ? 
+                      {buyOrderCount >
+                       sellOrderCount ?
                        '📈 BUYING' : '📉 SELLING'}
                     </span>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Recent orders: {orderFlowData.filter(o => o.orderType === 'buy').length} buys vs {orderFlowData.filter(o => o.orderType === 'sell').length} sells
+                    Recent orders: {buyOrderCount} buys vs {sellOrderCount} sells
                   </div>
                   <div className="bg-green-50 p-3 rounded text-xs">
                     <strong>💡 Trading Tip:</strong> {
-                      orderFlowData.filter(o => o.orderType === 'buy').length > 
-                      orderFlowData.filter(o => o.orderType === 'sell').length ? 
+                      buyOrderCount >
+                      sellOrderCount ?
                       'More buying pressure suggests potential upward momentum' :
                       'More selling pressure may indicate downward momentum'
                     }
@@ -3304,11 +3314,11 @@ export default function OrderFlowPage() {
                 
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {((orderFlowData.filter(o => o.orderType === 'buy').length / Math.max(orderFlowData.length, 1)) * 100).toFixed(0)}%
+                    {((buyOrderCount / Math.max(orderFlowData.length, 1)) * 100).toFixed(0)}%
                   </div>
                   <div className="text-sm font-semibold">Buy Pressure</div>
                   <div className="text-xs text-muted-foreground">
-                    {orderFlowData.filter(o => o.orderType === 'buy').length} buy orders
+                    {buyOrderCount} buy orders
                   </div>
                 </div>
                 
@@ -3372,7 +3382,7 @@ export default function OrderFlowPage() {
                     <li>• Risk score below 4/10 ✓</li>
                     <li>• No scam patterns {stats?.scamCount === 0 ? '✓' : '❌'}</li>
                     <li>• Natural volume flow {stats?.paddingCount <= 5 ? '✓' : '❌'}</li>
-                    <li>• Strong buy pressure {((orderFlowData.filter(o => o.orderType === 'buy').length / Math.max(orderFlowData.length, 1)) * 100) > 60 ? '✓' : '❌'}</li>
+                    <li>• Strong buy pressure {((buyOrderCount / Math.max(orderFlowData.length, 1)) * 100) > 60 ? '✓' : '❌'}</li>
                   </ul>
                   {getTradingSignal().signal.includes('buy') && (
                     <div className="mt-2 text-xs font-semibold text-green-800 bg-green-200 rounded p-1">
@@ -3389,7 +3399,7 @@ export default function OrderFlowPage() {
                     <li>• Risk score 4-6/10 {stats?.averageRiskScore >= 4 && stats?.averageRiskScore <= 6 ? '✓' : '❌'}</li>
                     <li>• Minor manipulation {stats?.paddingCount > 5 && stats?.paddingCount <= 10 ? '✓' : '❌'}</li>
                     <li>• Mixed signals {getTradingSignal().confidence < 80 ? '✓' : '❌'}</li>
-                    <li>• Unclear momentum {Math.abs((orderFlowData.filter(o => o.orderType === 'buy').length - orderFlowData.filter(o => o.orderType === 'sell').length)) <= 2 ? '✓' : '❌'}</li>
+                    <li>• Unclear momentum {Math.abs((buyOrderCount - sellOrderCount)) <= 2 ? '✓' : '❌'}</li>
                   </ul>
                   {getTradingSignal().signal === 'wait' && (
                     <div className="mt-2 text-xs font-semibold text-yellow-800 bg-yellow-200 rounded p-1">
