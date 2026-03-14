@@ -1,3 +1,3 @@
-## 2024-03-14 - Indicators Performance Optimization
-**Learning:** Found that core indicators (`calculateSMA`, `calculateStandardDeviation`) were recalculating overlapping windows, resulting in O(n * period) performance via `slice()` and `reduce()`. This was a hidden bottleneck for all other indicators that relied on SMA or StdDev.
-**Action:** Switched to O(n) sliding window approach. Used Sum(x) and Sum(x^2) for O(1) sliding variance calculation, which required adding `Math.max(0, ...)` before `Math.sqrt()` to protect against floating-point precision issues occasionally dropping variance slightly below zero.
+## 2024-03-14 - Duplicated usePersistentState hook
+**Learning:** Found multiple identical copies of `usePersistentState` defined inline inside various dashboard components (`open-positions.tsx`, `portfolio-summary.tsx`, `trade-history.tsx`, `market-sentiment.tsx`, `backtest-results.tsx`) while a central one exists in `src/hooks/use-persistent-state.ts`. The central hook is robust and handles date parsing correctly.
+**Action:** Deduplicate `usePersistentState` by importing the central hook from `@/hooks/use-persistent-state` instead of declaring it inline in multiple files. This reduces code size and improves maintainability.
