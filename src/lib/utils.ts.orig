@@ -12,8 +12,8 @@ export function cn(...inputs: ClassValue[]) {
  * @returns A formatted string representation of the price.
  */
 export function formatPrice(price: number): string {
-  if (price === undefined || price === null || price === 0) return '0.00';
-  
+  if (price === 0) return '0.00';
+
   let precision: number;
   if (price > 1000) { // e.g. BTC
     precision = 2;
