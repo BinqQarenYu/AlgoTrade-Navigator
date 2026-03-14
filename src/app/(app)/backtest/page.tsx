@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
@@ -47,6 +47,7 @@ import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSe
 import { RiskGuardian } from "@/lib/risk-guardian"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { format, addDays } from "date-fns"
 import {
   DropdownMenu,
@@ -262,6 +263,8 @@ const BacktestPageContent = () => {
   const [takeProfit, setTakeProfit] = usePersistentState<number>('backtest-tp', 5);
   const [stopLoss, setStopLoss] = usePersistentState<number>('backtest-sl', 2);
   const [fee, setFee] = usePersistentState<number>('backtest-fee', 0.04);
+  const [slippage, setSlippage] = usePersistentState<number>('backtest-slippage', 0.1);
+  const [useCompounding, setUseCompounding] = usePersistentState<boolean>('backtest-compounding', false);
   const [useAIValidation, setUseAIValidation] = usePersistentState<boolean>('backtest-ai-validation', false);
   const [maxAiValidations, setMaxAiValidations] = usePersistentState<number>('backtest-max-validations', 20);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -418,7 +421,7 @@ const BacktestPageContent = () => {
 
 
   const runSilentBacktest = async (data: HistoricalData[], params: any): Promise<{summary: BacktestSummary | null, dataWithSignals: HistoricalData[], trades: BacktestResult[]}> => {
-    const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee, symbol } = params;
+    const { strategyId, strategyParams, initialCapital, leverage, takeProfit, stopLoss, fee, slippage, useCompounding, symbol } = params;
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
@@ -427,24 +430,38 @@ const BacktestPageContent = () => {
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
+    let currentBalance = initialCapital;
+    let peakBalance = initialCapital;
+    let maxDrawdown = 0;
     
     for (let i = 1; i < dataWithSignals.length; i++) {
+        if (currentBalance <= 0) break; // Simulated Liquidation Check
+        
         const d = dataWithSignals[i];
+        const prevD = dataWithSignals[i-1];
 
         if (positionType === 'long') {
             let exitPrice: number | null = null;
             const slPrice = entryPrice * (1 - (stopLoss || 0) / 100);
             const tpPrice = entryPrice * (1 + (takeProfit || 0) / 100);
 
-            if (d.low <= slPrice) exitPrice = slPrice;
+            if (prevD.sellSignal) exitPrice = d.open * (1 - (slippage || 0) / 100);
+            else if (d.low <= slPrice) exitPrice = slPrice * (1 - (slippage || 0) / 100);
             else if (d.high >= tpPrice) exitPrice = tpPrice;
-            else if (d.sellSignal) exitPrice = d.close;
 
             if (exitPrice !== null) {
-                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
+                const playingCapital = useCompounding ? currentBalance : initialCapital;
+                const quantity = (playingCapital * (leverage || 1)) / entryPrice;
                 const grossPnl = (exitPrice - entryPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ id: `silent-trade-${i}`, type: 'long', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
+                const netPnl = grossPnl - totalFee;
+                trades.push({ id: `silent-trade-${i}`, type: 'long', entryPrice, exitPrice, pnl: netPnl, fee: totalFee } as BacktestResult);
+                
+                currentBalance += netPnl;
+                if (currentBalance > peakBalance) peakBalance = currentBalance;
+                const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
+                if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
+                
                 positionType = null;
             }
         } else if (positionType === 'short') {
@@ -452,22 +469,30 @@ const BacktestPageContent = () => {
             const slPrice = entryPrice * (1 + (stopLoss || 0) / 100);
             const tpPrice = entryPrice * (1 - (takeProfit || 0) / 100);
 
-            if (d.high >= slPrice) exitPrice = slPrice;
+            if (prevD.buySignal) exitPrice = d.open * (1 + (slippage || 0) / 100);
+            else if (d.high >= slPrice) exitPrice = slPrice * (1 + (slippage || 0) / 100);
             else if (d.low <= tpPrice) exitPrice = tpPrice;
-            else if (d.buySignal) exitPrice = d.close;
 
             if (exitPrice !== null) {
-                const quantity = (initialCapital * (leverage || 1)) / entryPrice;
+                const playingCapital = useCompounding ? currentBalance : initialCapital;
+                const quantity = (playingCapital * (leverage || 1)) / entryPrice;
                 const grossPnl = (entryPrice - exitPrice) * quantity;
                 const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                trades.push({ id: `silent-trade-${i}`, type: 'short', entryPrice, exitPrice, pnl: grossPnl - totalFee, fee: totalFee } as BacktestResult);
+                const netPnl = grossPnl - totalFee;
+                trades.push({ id: `silent-trade-${i}`, type: 'short', entryPrice, exitPrice, pnl: netPnl, fee: totalFee } as BacktestResult);
+                
+                currentBalance += netPnl;
+                if (currentBalance > peakBalance) peakBalance = currentBalance;
+                const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
+                if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
+                
                 positionType = null;
             }
         }
 
         if (positionType === null) {
-            if (d.buySignal) { positionType = 'long'; entryPrice = d.close; } 
-            else if (d.sellSignal) { positionType = 'short'; entryPrice = d.close; }
+            if (prevD.buySignal) { positionType = 'long'; entryPrice = d.open * (1 + (slippage || 0) / 100); } 
+            else if (prevD.sellSignal) { positionType = 'short'; entryPrice = d.open * (1 - (slippage || 0) / 100); }
         }
     }
     
@@ -488,7 +513,8 @@ const BacktestPageContent = () => {
       profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
       initialCapital,
       endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
+      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0,
+      maxDrawdown
     };
     return { summary, dataWithSignals, trades };
   }
@@ -580,24 +606,33 @@ const BacktestPageContent = () => {
     let entryPeakPrice: number | undefined;
     let aiValidationCount = 0;
     let aiLimitReachedNotified = false;
+    let currentBalance = initialCapital;
+    let peakBalance = initialCapital;
+    let maxDrawdown = 0;
 
     // --- Main Backtesting Loop ---
     for (let i = 1; i < dataWithSignals.length; i++) {
-      const d = dataWithSignals[i];
-
-      // --- Exit Logic ---
-      if (positionType !== null) {
-        let exitPrice: number | null = null;
-        let closeReason: BacktestResult['closeReason'] = 'signal';
-        if (positionType === 'long') {
-            if (d.low <= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-            else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-            else if (d.sellSignal) { exitPrice = d.close; closeReason = 'signal'; }
-        } else { // short
-            if (d.high >= stopLossPrice) { exitPrice = stopLossPrice; closeReason = 'stop-loss'; }
-            else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-            else if (d.buySignal) { exitPrice = d.close; closeReason = 'signal'; }
+        if (currentBalance <= 0) {
+            if (!contrarian) toast({ title: "Account Liquidated", description: `Balance reached $0 at ${new Date(dataWithSignals[i].time).toLocaleDateString()}`, variant: "destructive" });
+            break;
         }
+
+        const d = dataWithSignals[i];
+        const prevD = dataWithSignals[i-1];
+
+        // --- Exit Logic ---
+        if (positionType !== null) {
+            let exitPrice: number | null = null;
+            let closeReason: BacktestResult['closeReason'] = 'signal';
+            if (positionType === 'long') {
+                if (prevD.sellSignal) { exitPrice = d.open * (1 - slippage / 100); closeReason = 'signal'; }
+                else if (d.low <= stopLossPrice) { exitPrice = stopLossPrice * (1 - slippage / 100); closeReason = 'stop-loss'; }
+                else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            } else { // short
+                if (prevD.buySignal) { exitPrice = d.open * (1 + slippage / 100); closeReason = 'signal'; }
+                else if (d.high >= stopLossPrice) { exitPrice = stopLossPrice * (1 + slippage / 100); closeReason = 'stop-loss'; }
+                else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
+            }
 
         if (exitPrice !== null) {
           const entryValue = entryPrice * tradeQuantity;
@@ -609,6 +644,10 @@ const BacktestPageContent = () => {
           const netPnl = grossPnl - totalFee;
 
           riskGuardian.registerTrade(netPnl);
+          currentBalance += netPnl;
+          if (currentBalance > peakBalance) peakBalance = currentBalance;
+          const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
+          if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
 
           trades.push({
             id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
@@ -621,18 +660,15 @@ const BacktestPageContent = () => {
 
       // --- Entry Logic (Only if not in a position) ---
       if (positionType === null) {
-        const potentialSignal: 'BUY' | 'SELL' | null = d.buySignal ? 'BUY' : d.sellSignal ? 'SELL' : null;
-        
-        const { allowed, reason } = riskGuardian.canTrade();
-        if (!allowed && disciplineConfig.enableDiscipline) {
-            // Don't show toast for contrarian run to avoid spam
-            if (!contrarian) {
-                toast({ title: "Discipline Action", description: reason, variant: "destructive" });
-            }
-            continue; 
-        }
+        const potentialSignal: 'BUY' | 'SELL' | null = prevD.buySignal ? 'BUY' : prevD.sellSignal ? 'SELL' : null;
         
         if (potentialSignal) {
+          const { allowed, reason } = riskGuardian.canTrade();
+          if (!allowed && disciplineConfig.enableDiscipline) {
+              if (!contrarian) toast({ title: "Discipline Action", description: reason, variant: "destructive" });
+              continue; 
+          }
+
           let isValidSignal = false;
           let prediction: PredictMarketOutput | null = null;
           
@@ -671,20 +707,22 @@ const BacktestPageContent = () => {
           }
           
           if (isValidSignal) {
-            entryPrice = d.close;
+            entryPrice = d.open * (potentialSignal === 'BUY' ? (1 + slippage / 100) : (1 - slippage / 100));
             entryTime = d.time;
             entryReasoning = prediction?.reasoning ?? 'Classic strategy signal.';
             entryConfidence = prediction?.confidence ?? 1;
-            entryPeakPrice = d.peakPrice;
-            tradeQuantity = (initialCapital * leverage) / entryPrice;
+            entryPeakPrice = prevD.peakPrice;
+            
+            const playingCapital = useCompounding ? currentBalance : initialCapital;
+            tradeQuantity = (playingCapital * leverage) / entryPrice;
 
             if (potentialSignal === 'BUY') {
               positionType = 'long';
-              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
+              stopLossPrice = prevD.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
               takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
             } else {
               positionType = 'short';
-              stopLossPrice = d.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
+              stopLossPrice = prevD.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
               takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
             }
           }
@@ -710,7 +748,8 @@ const BacktestPageContent = () => {
       profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
       initialCapital,
       endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0
+      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0,
+      maxDrawdown
     };
     
     if (contrarian) {
@@ -766,18 +805,13 @@ const BacktestPageContent = () => {
     for (let i = 0; i < combinations.length; i += batchSize) {
         const batch = combinations.slice(i, i + batchSize);
 
-        // Run batch concurrently using Promise.all
-        const results = await Promise.all(
-            batch.map(async (params) => {
-                const { summary } = await runSilentBacktest(fullChartData, {
-                    strategyId: selectedStrategy,
-                    strategyParams: params,
-                    initialCapital, leverage, takeProfit, stopLoss, fee,
-                    symbol: symbol
-                });
-                return { summary, params };
-            })
-        );
+    for (const params of testCombinations) {
+        const { summary } = await runSilentBacktest(fullChartData, {
+            strategyId: selectedStrategy,
+            strategyParams: params,
+            initialCapital, leverage, takeProfit, stopLoss, fee, slippage, useCompounding,
+            symbol: symbol
+        });
 
         // Process results
         for (const { summary, params } of results) {
@@ -1033,7 +1067,10 @@ const BacktestPageContent = () => {
               disabled={anyLoading || isReplaying}
             />
             <div className="flex flex-col">
-              <Label htmlFor="reverse-logic-hpf" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <div className="flex items-center gap-1 cursor-pointer">
+                <Label htmlFor="reverse-logic-hpf">Reverse Logic (Contrarian Mode)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
+              </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
           </div>
@@ -1093,8 +1130,11 @@ const BacktestPageContent = () => {
                   disabled={anyLoading || isReplaying}
                 />
                 <div className="flex flex-col">
-                  <Label htmlFor="reverse-logic-consensus" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
-                  <p className="text-xs text-muted-foreground">Trade against the consensus signal.</p>
+                  <div className="flex items-center gap-1 cursor-pointer">
+                    <Label htmlFor="reverse-logic-consensus">Fade Engine (Contrarian Mode)</Label>
+                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Only enters a contrarian trade when the consensus is &gt;80% unanimous, volume indicates exhaustion (capitulation), and price is over-extended from the 50-EMA.</p></TooltipContent></Tooltip></TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Fade the crowd using smart exhaustion and over-extension filters.</p>
                 </div>
             </div>
         </div>
@@ -1232,7 +1272,10 @@ const BacktestPageContent = () => {
                     disabled={anyLoading || isReplaying}
                 />
                 <div className="flex flex-col">
-                  <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                  <div className="flex items-center gap-1 cursor-pointer">
+                    <Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label>
+                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
+                  </div>
                   <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                 </div>
             </div>
@@ -1273,7 +1316,10 @@ const BacktestPageContent = () => {
               disabled={anyLoading || isReplaying}
             />
             <div className="flex flex-col">
-              <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+              <div className="flex items-center gap-1 cursor-pointer">
+                <Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
+              </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
           </div>
@@ -1469,8 +1515,14 @@ const BacktestPageContent = () => {
                                     <div className="space-y-2"><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" value={leverage} onChange={e=>setLeverage(parseInt(e.target.value,10)||1)} disabled={anyLoading}/></div>
                                     <div className="space-y-2"><Label htmlFor="take-profit">Take Profit (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={e=>setTakeProfit(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
                                     <div className="space-y-2"><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={e=>setStopLoss(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                     <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                     <div className="space-y-2"><Label htmlFor="slippage">Slippage (%)</Label><Input id="slippage" type="number" value={slippage} onChange={e=>setSlippage(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
                                 </div>
-                                 <div className="space-y-2"><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} onChange={e=>setFee(parseFloat(e.target.value)||0)} disabled={anyLoading}/></div>
+                                <Separator className="my-2" />
+                                <div className="space-y-2">
+                                     <div className="flex items-center space-x-2"><Switch id="compounding" checked={useCompounding} onCheckedChange={setUseCompounding} disabled={anyLoading}/><Label htmlFor="compounding" className="cursor-pointer">Compound Profits</Label></div>
+                                     <p className="text-xs text-muted-foreground">If enabled, the position size will adjust automatically based on your current equity curve. Otherwise, every trade uses the initial capital size.</p>
+                                </div>
                             </TabsContent>
                             <TabsContent value="risk" className="pt-4 space-y-4">
                                 <DisciplineSettings params={strategyParams[selectedStrategy]?.discipline||defaultDisciplineParams} onParamChange={handleDisciplineParamChange} isDisabled={anyLoading}/>

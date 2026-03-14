@@ -147,7 +147,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
   const [botInstances, setBotInstances] = usePersistentState<BotInstance[]>('live-bot-instances', []);
   
   const addBotInstance = useCallback((config: Partial<LiveBotConfig>) => {
-    const newId = `bot_${Date.now()}`;
+    const newId = `bot_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     
     // Validate configuration
     const fullConfig: LiveBotConfig = {
@@ -284,7 +284,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         let strategySignal: 'BUY' | 'SELL' | null = lastCandle.buySignal ? 'BUY' : 'SELL';
         if (config.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
         
-        const prediction = config.useAIPrediction ? (
+        const aiData = config.useAIPrediction ? (
           canUseAi() ? 
           await predictMarket({ 
             symbol: config.symbol, 
@@ -294,14 +294,20 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
             strategySignal: strategySignal 
           }) : null 
         ) : { 
-          prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', 
-          confidence: 1, 
-          reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).` 
+          aggressive: {
+            prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', 
+            confidence: 1, 
+            reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).`,
+            recommendation: 'Standard trade execution.'
+          }
         };
 
-        if (!prediction) {
+        if (!aiData) {
           return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
         }
+        
+        // Use the aggressive profile for short term scalping
+        const prediction = (aiData as any).aggressive || aiData; 
         
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || 
                           (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
