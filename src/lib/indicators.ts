@@ -19,11 +19,16 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   if (data.length < period) return Array(data.length).fill(null);
   
   const sma: (number | null)[] = Array(period - 1).fill(null);
+  let sum = 0;
 
-  // Calculate initial sum for the first window
-  let currentSum = 0;
-  for (let i = 0; i < period; i++) {
-    currentSum += data[i];
+  for (let i = 0; i < data.length; i++) {
+    sum += data[i];
+    if (i >= period) {
+      sum -= data[i - period];
+    }
+    if (i >= period - 1) {
+      sma.push(sum / period);
+    }
   }
   sma.push(currentSum / period);
 
@@ -48,15 +53,16 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
   const ema: (number | null)[] = [];
   const multiplier = 2 / (period + 1);
   let prevEma: number | null = null;
+  let sum = 0;
 
   for (let i = 0; i < data.length; i++) {
     if (i < period - 1) {
+      sum += data[i];
       ema.push(null);
       continue;
     }
     if (i === period - 1) {
-      const slice = data.slice(0, period);
-      const sum = slice.reduce((acc, val) => acc + val, 0);
+      sum += data[i];
       prevEma = sum / period; // Start with SMA
       ema.push(prevEma);
     } else {
