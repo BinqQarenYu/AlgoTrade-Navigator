@@ -1,5 +1,3 @@
-
-
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -804,22 +802,26 @@ const BacktestPageContent = () => {
     const batchSize = 20; // Process in chunks to avoid blocking the event loop or running out of memory
     for (let i = 0; i < combinations.length; i += batchSize) {
         const batch = combinations.slice(i, i + batchSize);
+        
+        const results = await Promise.all(batch.map(async (params) => {
+            const { summary } = await runSilentBacktest(fullChartData, {
+                strategyId: selectedStrategy,
+                strategyParams: params,
+                initialCapital, leverage, takeProfit, stopLoss, fee, slippage, useCompounding,
+                symbol: symbol
+            });
+            return { summary, params };
+        }));
 
-    for (const params of testCombinations) {
-        const { summary } = await runSilentBacktest(fullChartData, {
-            strategyId: selectedStrategy,
-            strategyParams: params,
-            initialCapital, leverage, takeProfit, stopLoss, fee, slippage, useCompounding,
-            symbol: symbol
-        });
-
-        // Process results
         for (const { summary, params } of results) {
-            if (summary && summary.profitFactor > bestProfitFactor) {
+            if (summary && (summary.profitFactor || 0) > bestProfitFactor) {
                 bestProfitFactor = summary.profitFactor;
                 bestParams = params;
             }
         }
+        
+        // Small delay to keep UI semi-responsive
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     if (bestParams) {

@@ -26,17 +26,6 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
     sum = sum - data[i - period] + data[i];
     sma.push(sum / period);
   }
-  
-  let currentSum = 0;
-  for (let i = 0; i < period; i++) {
-    currentSum += data[i];
-  }
-  sma[period - 1] = currentSum / period;
-
-  for (let i = period; i < data.length; i++) {
-    currentSum += data[i] - data[i - period];
-    sma[i] = currentSum / period;
-  }
 
   return sma;
 };
@@ -141,30 +130,6 @@ export const calculateStandardDeviation = (data: number[], period: number): (num
         sum = sum - data[i - period] + data[i];
         sumSq = sumSq - (data[i - period] * data[i - period]) + (data[i] * data[i]);
         stdDev.push(calcStd(sum, sumSq, period));
-    }
-
-    let sum = 0;
-    let sumSq = 0;
-
-    for (let i = 0; i < period; i++) {
-        sum += data[i];
-        sumSq += data[i] * data[i];
-    }
-
-    let mean = sum / period;
-    let variance = Math.max(0, (sumSq / period) - (mean * mean));
-    stdDev[period - 1] = Math.sqrt(variance);
-
-    for (let i = period; i < data.length; i++) {
-        const oldVal = data[i - period];
-        const newVal = data[i];
-
-        sum += newVal - oldVal;
-        sumSq += (newVal * newVal) - (oldVal * oldVal);
-
-        mean = sum / period;
-        variance = Math.max(0, (sumSq / period) - (mean * mean));
-        stdDev[i] = Math.sqrt(variance);
     }
 
     return stdDev;
