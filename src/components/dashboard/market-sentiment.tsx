@@ -10,43 +10,12 @@ import type { CoinSentimentData } from "@/lib/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
 import { Button } from '../ui/button';
 import { cn } from '@/lib/utils';
+import { usePersistentState } from '@/hooks/use-persistent-state';
 
 interface MarketSentimentProps {
   sentiments: CoinSentimentData[];
   isLoading: boolean;
 }
-
-const usePersistentState = <T,>(key: string, defaultValue: T): [T, React.Dispatch<React.SetStateAction<T>>] => {
-  const [state, setState] = useState<T>(defaultValue);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-    try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        if (isMounted) {
-          setState(JSON.parse(item));
-        }
-      }
-    } catch (e) {
-      console.error('Failed to parse stored state', e);
-    } finally {
-      if (isMounted) {
-        setIsHydrated(true);
-      }
-    }
-    return () => { isMounted = false; };
-  }, [key]);
-
-  useEffect(() => {
-    if (isHydrated) {
-      window.localStorage.setItem(key, JSON.stringify(state));
-    }
-  }, [key, state, isHydrated]);
-
-  return [state, setState];
-};
 
 const SentimentSkeleton = () => (
     <div className="space-y-4">
