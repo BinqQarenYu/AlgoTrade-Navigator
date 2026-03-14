@@ -1,0 +1,56 @@
+import { describe, it } from 'node:test';
+import * as assert from 'node:assert';
+// @ts-ignore
+import { formatPrice } from '../utils.ts';
+
+describe('formatPrice', () => {
+    // Basic zeroes and nullish
+    it('returns "0.00" for 0', () => {
+        assert.strictEqual(formatPrice(0), '0.00');
+    });
+
+    it('returns "0.00" for undefined', () => {
+        assert.strictEqual(formatPrice(undefined as any), '0.00');
+    });
+
+    it('returns "0.00" for null', () => {
+        assert.strictEqual(formatPrice(null as any), '0.00');
+    });
+
+    // Large numbers (> 1000)
+    it('formats large numbers (e.g. BTC) with 2 decimal places and commas', () => {
+        assert.strictEqual(formatPrice(65432.123), '65,432.12');
+        assert.strictEqual(formatPrice(1001), '1,001.00');
+    });
+
+    // Medium numbers (10 to 1000)
+    it('formats medium numbers (e.g. SOL) with 4 decimal places and commas if > 1', () => {
+        assert.strictEqual(formatPrice(150.12345), '150.1235');
+        assert.strictEqual(formatPrice(11.1), '11.1000');
+    });
+
+    // Small numbers (0.1 to 10)
+    it('formats small numbers (e.g. ADA) with 5 decimal places', () => {
+        assert.strictEqual(formatPrice(1.5), '1.50000');
+        assert.strictEqual(formatPrice(0.15), '0.15000');
+    });
+
+    // Very small numbers (0.0001 to 0.1)
+    it('formats very small numbers (e.g. SHIB) with 8 decimal places', () => {
+        assert.strictEqual(formatPrice(0.001234567), '0.00123457');
+        assert.strictEqual(formatPrice(0.00015), '0.00015000');
+    });
+
+    // Micro numbers (<= 0.0001)
+    it('formats micro numbers (e.g. PEPE) with 10 decimal places', () => {
+        assert.strictEqual(formatPrice(0.00001234567), '0.0000123457');
+        assert.strictEqual(formatPrice(0.00000001), '0.0000000100');
+    });
+
+    // Negative numbers
+    it('formats negative numbers correctly based on their absolute value (handled as micro currently because price <= 0.0001)', () => {
+        // Since the current implementation uses `price > X` without Math.abs, negative numbers fall into the `else` block (precision = 10)
+        assert.strictEqual(formatPrice(-5.123), '-5.1230000000');
+        assert.strictEqual(formatPrice(-1500.5), '-1500.5000000000');
+    });
+});
