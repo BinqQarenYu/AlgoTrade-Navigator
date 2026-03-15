@@ -278,7 +278,7 @@ function SimulationPageContent() {
         ]);
         setLiquidityEvents(resultEvents);
         setLiquidityTargets(targetEvents);
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Error analyzing liquidity automatically:", error);
     }
   }, [interval, showAnalysis]);

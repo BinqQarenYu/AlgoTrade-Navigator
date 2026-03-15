@@ -552,8 +552,8 @@ export class TradingAnalytics {
       };
 
       localStorage.setItem('trading-analytics', JSON.stringify(data));
-    } catch (error: any) {
-      logger.error(`Failed to save analytics data: ${error.message}`, { error: error.message }, undefined, 'analytics');
+    } catch (error: unknown) {
+      logger.error(`Failed to save analytics data: ${(error instanceof Error ? error.message : String(error))}`, { error: (error instanceof Error ? error.message : String(error)) }, undefined, 'analytics');
     }
   }
 
@@ -582,8 +582,8 @@ export class TradingAnalytics {
         botsCount: this.botPerformance.size 
       }, undefined, 'analytics');
 
-    } catch (error: any) {
-      logger.error(`Failed to load analytics data: ${error.message}`, { error: error.message }, undefined, 'analytics');
+    } catch (error: unknown) {
+      logger.error(`Failed to load analytics data: ${(error instanceof Error ? error.message : String(error))}`, { error: (error instanceof Error ? error.message : String(error)) }, undefined, 'analytics');
     }
   }
 

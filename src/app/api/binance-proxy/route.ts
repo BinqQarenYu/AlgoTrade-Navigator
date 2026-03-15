@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data, usedWeight });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[BINANCE PROXY ERROR]', error);
     return NextResponse.json({ error: 'An internal server error occurred in the proxy.' }, { status: 500 });
   }

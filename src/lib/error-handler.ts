@@ -181,9 +181,9 @@ export async function withRetry<T>(
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       return await operation();
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = TradingErrorHandler.createError(
-        error.message || 'Unknown error',
+        (error instanceof Error ? error.message : String(error)) || 'Unknown error',
         error,
         { ...context, attempt, operationName }
       );

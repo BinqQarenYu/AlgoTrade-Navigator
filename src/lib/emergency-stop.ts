@@ -286,10 +286,10 @@ export class EmergencyStopSystem {
       // 4. Send notifications (would integrate with notification system)
       logger.info('Emergency notifications sent', { trigger: event.trigger }, undefined, 'emergency');
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to execute emergency procedures: ${error.message}`,
-        { error: error.message, event },
+        `Failed to execute emergency procedures: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)), event },
         undefined,
         'emergency'
       );
@@ -370,10 +370,10 @@ export class EmergencyStopSystem {
         }
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Emergency system maintenance failed: ${error.message}`,
-        { error: error.message },
+        `Emergency system maintenance failed: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'emergency'
       );
@@ -387,10 +387,10 @@ export class EmergencyStopSystem {
     for (const listener of this.listeners) {
       try {
         listener(event);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(
-          `Error notifying emergency listener: ${error.message}`,
-          { error: error.message },
+          `Error notifying emergency listener: ${(error instanceof Error ? error.message : String(error))}`,
+          { error: (error instanceof Error ? error.message : String(error)) },
           undefined,
           'emergency'
         );
@@ -452,10 +452,10 @@ export class EmergencyStopSystem {
       logger.info('Emergency system test completed successfully', { testEventId: testEvent.id }, undefined, 'emergency');
       
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Emergency system test failed: ${error.message}`,
-        { error: error.message },
+        `Emergency system test failed: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'emergency'
       );

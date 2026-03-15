@@ -117,8 +117,8 @@ export class ResilientWebSocket {
           }
         }, 10000);
 
-      } catch (error: any) {
-        logger.error(`Failed to create WebSocket connection: ${error.message}`, { url, error: error.message }, this.botId, 'websocket');
+      } catch (error: unknown) {
+        logger.error(`Failed to create WebSocket connection: ${(error instanceof Error ? error.message : String(error))}`, { url, error: (error instanceof Error ? error.message : String(error)) }, this.botId, 'websocket');
         this.setState('ERROR');
         reject(error);
       }
@@ -157,8 +157,8 @@ export class ResilientWebSocket {
       const message = typeof data === 'string' ? data : JSON.stringify(data);
       this.ws.send(message);
       return true;
-    } catch (error: any) {
-      logger.error(`Failed to send WebSocket message: ${error.message}`, { error: error.message }, this.botId, 'websocket');
+    } catch (error: unknown) {
+      logger.error(`Failed to send WebSocket message: ${(error instanceof Error ? error.message : String(error))}`, { error: (error instanceof Error ? error.message : String(error)) }, this.botId, 'websocket');
       return false;
     }
   }
@@ -248,10 +248,10 @@ export class ResilientWebSocket {
 
       this.emit('message', data);
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to parse WebSocket message: ${error.message}`,
-        { error: error.message, rawData: event.data },
+        `Failed to parse WebSocket message: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)), rawData: event.data },
         this.botId,
         'websocket'
       );
@@ -320,10 +320,10 @@ export class ResilientWebSocket {
     try {
       await this.connect(this.config.url);
       logger.info('WebSocket reconnection successful', { attempt: this.reconnectAttempts }, this.botId, 'websocket');
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Reconnection attempt ${this.reconnectAttempts} failed: ${error.message}`,
-        { attempt: this.reconnectAttempts, error: error.message },
+        `Reconnection attempt ${this.reconnectAttempts} failed: ${(error instanceof Error ? error.message : String(error))}`,
+        { attempt: this.reconnectAttempts, error: (error instanceof Error ? error.message : String(error)) },
         this.botId,
         'websocket'
       );
@@ -417,10 +417,10 @@ export class ResilientWebSocket {
       listeners.forEach(listener => {
         try {
           listener(...args);
-        } catch (error: any) {
+        } catch (error: unknown) {
           logger.error(
-            `Error in WebSocket event listener for '${event}': ${error.message}`,
-            { event, error: error.message },
+            `Error in WebSocket event listener for '${event}': ${(error instanceof Error ? error.message : String(error))}`,
+            { event, error: (error instanceof Error ? error.message : String(error)) },
             this.botId,
             'websocket'
           );

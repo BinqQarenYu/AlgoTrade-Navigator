@@ -491,10 +491,10 @@ export class BotMonitor {
         'monitor'
       );
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Monitoring system error: ${error.message}`,
-        { error: error.message },
+        `Monitoring system error: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'monitor'
       );
@@ -635,10 +635,10 @@ export class BotMonitor {
     for (const listener of this.listeners) {
       try {
         listener(metrics);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(
-          `Error notifying health listener: ${error.message}`,
-          { error: error.message },
+          `Error notifying health listener: ${(error instanceof Error ? error.message : String(error))}`,
+          { error: (error instanceof Error ? error.message : String(error)) },
           undefined,
           'monitor'
         );
@@ -653,10 +653,10 @@ export class BotMonitor {
     for (const listener of this.alertListeners) {
       try {
         listener(alert);
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(
-          `Error notifying alert listener: ${error.message}`,
-          { error: error.message },
+          `Error notifying alert listener: ${(error instanceof Error ? error.message : String(error))}`,
+          { error: (error instanceof Error ? error.message : String(error)) },
           undefined,
           'monitor'
         );

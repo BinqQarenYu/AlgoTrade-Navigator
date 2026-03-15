@@ -52,17 +52,17 @@ export default function DashboardPage() {
         setPortfolio(realPortfolio);
         setPositions(realPositions);
 
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error(error);
         setPortfolio(null);
         setPositions([]);
         
-        if (error.message.includes('Service unavailable')) {
-           setError(error.message);
+        if ((error instanceof Error ? error.message : String(error)).includes('Service unavailable')) {
+           setError((error instanceof Error ? error.message : String(error)));
         } else {
            const errorMessage = `Failed to fetch live data using '${activeProfile?.name}'. Please check your API key permissions or try again later.`;
            setError(errorMessage);
-           toast({ title: "Data Fetch Failed", description: error.message || "Could not retrieve data from Binance.", variant: "destructive"});
+           toast({ title: "Data Fetch Failed", description: (error instanceof Error ? error.message : String(error)) || "Could not retrieve data from Binance.", variant: "destructive"});
         }
       }
       setIsLoading(false);

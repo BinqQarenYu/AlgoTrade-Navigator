@@ -95,10 +95,10 @@ export class BotPersistence {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to save bot state: ${error.message}`,
-        { botId, error: error.message },
+        `Failed to save bot state: ${(error instanceof Error ? error.message : String(error))}`,
+        { botId, error: (error instanceof Error ? error.message : String(error)) },
         botId,
         'persistence'
       );
@@ -125,10 +125,10 @@ export class BotPersistence {
       }
 
       return null;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to load bot state: ${error.message}`,
-        { botId, error: error.message },
+        `Failed to load bot state: ${(error instanceof Error ? error.message : String(error))}`,
+        { botId, error: (error instanceof Error ? error.message : String(error)) },
         botId,
         'persistence'
       );
@@ -159,10 +159,10 @@ export class BotPersistence {
 
       // Validate and migrate old data format if necessary
       return this.validateAndMigrateData(parsedData);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to load all bot states: ${error.message}`,
-        { error: error.message },
+        `Failed to load all bot states: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'persistence'
       );
@@ -189,10 +189,10 @@ export class BotPersistence {
       }
 
       localStorage.setItem(this.config.storageKey, dataToStore);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to save all bot states: ${error.message}`,
-        { error: error.message },
+        `Failed to save all bot states: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'persistence'
       );
@@ -217,10 +217,10 @@ export class BotPersistence {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to delete bot state: ${error.message}`,
-        { botId, error: error.message },
+        `Failed to delete bot state: ${(error instanceof Error ? error.message : String(error))}`,
+        { botId, error: (error instanceof Error ? error.message : String(error)) },
         botId,
         'persistence'
       );
@@ -261,10 +261,10 @@ export class BotPersistence {
       );
 
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to clear all bot states: ${error.message}`,
-        { error: error.message },
+        `Failed to clear all bot states: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'persistence'
       );
@@ -300,10 +300,10 @@ export class BotPersistence {
         oldestState: timestamps.length > 0 ? Math.min(...timestamps) : null,
         newestState: timestamps.length > 0 ? Math.max(...timestamps) : null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Failed to get storage stats: ${error.message}`,
-        { error: error.message },
+        `Failed to get storage stats: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'persistence'
       );
@@ -356,10 +356,10 @@ export class BotPersistence {
           'persistence'
         );
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
-        `Maintenance task failed: ${error.message}`,
-        { error: error.message },
+        `Maintenance task failed: ${(error instanceof Error ? error.message : String(error))}`,
+        { error: (error instanceof Error ? error.message : String(error)) },
         undefined,
         'persistence'
       );

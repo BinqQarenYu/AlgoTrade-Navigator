@@ -217,9 +217,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         } else {
             return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
         }
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error(`Analysis failed for ${config.symbol}:`, e);
-        return { status: 'error', log: e.message || 'Unknown error', signal: null };
+        return { status: 'error', log: (e instanceof Error ? e.message : String(e)) || 'Unknown error', signal: null };
     }
   }, [canUseAi, consumeAiCredit]);
 
@@ -320,10 +320,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
               setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'running'}}}));
           }
         }
-    } catch (e: any) {
-        addLiveLog(botId, `CRITICAL ERROR: ${e.message}`);
+    } catch (e: unknown) {
+        addLiveLog(botId, `CRITICAL ERROR: ${(e instanceof Error ? e.message : String(e))}`);
         setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'error'}}}));
-        if (e.message.includes('-2015') || e.message.toLowerCase().includes('invalid api-key')) {
+        if ((e instanceof Error ? e.message : String(e)).includes('-2015') || (e instanceof Error ? e.message : String(e)).toLowerCase().includes('invalid api-key')) {
             toast({ title: "API Key Failed!", description: "Bot stopped for safety.", variant: "destructive" });
             stopBotInstance(botId);
         }
@@ -368,9 +368,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       ws.onclose = () => addLiveLog(botId, "Live data stream closed.");
       
       toast({ title: "Bot Started", description: `Monitoring ${config.asset} on ${config.interval}.`});
-    } catch (error: any) {
-        addLiveLog(botId, `Error starting bot: ${error.message}`);
-        toast({ title: "Failed to Start Bot", description: error.message, variant: "destructive"});
+    } catch (error: unknown) {
+        addLiveLog(botId, `Error starting bot: ${(error instanceof Error ? error.message : String(error))}`);
+        toast({ title: "Failed to Start Bot", description: (error instanceof Error ? error.message : String(error)), variant: "destructive"});
         stopBotInstance(botId);
     }
   }, [addLiveLog, toast, stopBotInstance, runLiveBotCycle]);
@@ -394,8 +394,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     try {
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
         toast({ title: "Close Order Submitted", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. ID: ${orderResult.orderId}` });
-    } catch (e: any) {
-        toast({ title: "Close Order Failed", description: e.message || "An unknown error.", variant: "destructive" });
+    } catch (e: unknown) {
+        toast({ title: "Close Order Failed", description: (e instanceof Error ? e.message : String(e)) || "An unknown error.", variant: "destructive" });
     }
   }, [toast, activeProfile]);
   
@@ -419,9 +419,9 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         toast({ title: "Test Order Placed", description: `${side} order for ${orderResult.quantity} ${symbol} submitted.` });
         addLiveLog(symbol, `Test order successful. ID: ${orderResult.orderId}`);
-    } catch (e: any) {
-        toast({ title: "Test Order Failed", description: e.message, variant: "destructive" });
-        addLiveLog(symbol, `Test order failed: ${e.message}`);
+    } catch (e: unknown) {
+        toast({ title: "Test Order Failed", description: (e instanceof Error ? e.message : String(e)), variant: "destructive" });
+        addLiveLog(symbol, `Test order failed: ${(e instanceof Error ? e.message : String(e))}`);
     }
   }, [addLiveLog, toast, activeProfile]);
 
@@ -446,14 +446,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     try { 
       await placeOrder(symbol, 'SELL', quantity, keys, true); 
       toast({title: "Close Signal Sent", description: `Sent SELL order for ${symbol}.`}); 
-    } catch (e: any) { 
-      addLiveLog(symbol, `Could not close LONG (may not exist): ${e.message}`); 
+    } catch (e: unknown) {
+      addLiveLog(symbol, `Could not close LONG (may not exist): ${(e instanceof Error ? e.message : String(e))}`);
     }
     try { 
       await placeOrder(symbol, 'BUY', quantity, keys, true); 
       toast({title: "Close Signal Sent", description: `Sent BUY order for ${symbol}.`}); 
-    } catch (e: any) { 
-      addLiveLog(symbol, `Could not close SHORT (may not exist): ${e.message}`); 
+    } catch (e: unknown) {
+      addLiveLog(symbol, `Could not close SHORT (may not exist): ${(e instanceof Error ? e.message : String(e))}`);
     }
   }, [addLiveLog, toast, activeProfile]);
 

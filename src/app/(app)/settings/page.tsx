@@ -133,9 +133,9 @@ export default function SettingsPage() {
              // Generic error, testConnection would have logged specifics.
              throw new Error("Failed to connect. The proxy might have failed or keys are invalid.");
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         setIsConnected(false);
-        const errorMessage = error.message || "An unknown error occurred.";
+        const errorMessage = (error instanceof Error ? error.message : String(error)) || "An unknown error occurred.";
         if (errorMessage.includes('Service unavailable') || errorMessage.includes('restricted location')) {
             setConnectionError(errorMessage);
         } else if (errorMessage.includes('-2015')) {

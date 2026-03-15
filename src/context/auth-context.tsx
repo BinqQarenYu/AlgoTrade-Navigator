@@ -52,9 +52,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signInWithPopup(auth, provider);
       toast({ title: "Signed In", description: "You have successfully signed in." });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Google Sign-In Error:", error);
-      toast({ title: "Sign-In Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign-In Failed", description: (error instanceof Error ? error.message : String(error)), variant: "destructive" });
     }
   };
 
@@ -66,9 +66,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await signOut(auth);
       toast({ title: "Signed Out", description: "You have been signed out." });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Sign-Out Error:", error);
-      toast({ title: "Sign-Out Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Sign-Out Failed", description: (error instanceof Error ? error.message : String(error)), variant: "destructive" });
     }
   };
 

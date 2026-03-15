@@ -299,11 +299,11 @@ export class DualCoinApiService {
           console.log(`✅ CoinGecko success for ${ticker}`);
           return result;
         }
-      } catch (error: any) {
-        console.warn(`⚠️ CoinGecko failed for ${ticker}:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ CoinGecko failed for ${ticker}:`, (error instanceof Error ? error.message : String(error)));
         
         // Check if it's a rate limit error
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 CoinGecko rate limit hit, marking as exhausted`);
           apiUsage.coingecko.used = apiUsage.coingecko.limit; // Mark as exhausted
         }
@@ -326,11 +326,11 @@ export class DualCoinApiService {
           console.log(`✅ CoinMarketCap success for ${ticker}`);
           return result;
         }
-      } catch (error: any) {
-        console.warn(`⚠️ CoinMarketCap failed for ${ticker}:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ CoinMarketCap failed for ${ticker}:`, (error instanceof Error ? error.message : String(error)));
         
         // Check if it's a rate limit error
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 CoinMarketCap rate limit hit, marking as exhausted`);
           apiUsage.coinmarketcap.used = apiUsage.coinmarketcap.limit;
         }
@@ -361,11 +361,11 @@ export class DualCoinApiService {
           console.log(`✅ CoinGecko success: ${result.length} coins`);
           return result;
         }
-      } catch (error: any) {
-        console.warn(`⚠️ CoinGecko failed for top coins:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ CoinGecko failed for top coins:`, (error instanceof Error ? error.message : String(error)));
         
         // Check if it's a rate limit error
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 CoinGecko rate limit reached`);
           apiUsage.coingecko.used = apiUsage.coingecko.limit; // Mark as exhausted
         }
@@ -440,10 +440,10 @@ export class DualCoinApiService {
             volume24h
           };
         }
-      } catch (error: any) {
-        console.warn(`⚠️ Binance failed for ${ticker}:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ Binance failed for ${ticker}:`, (error instanceof Error ? error.message : String(error)));
         
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 Binance rate limit hit`);
           apiUsage.binance.used = apiUsage.binance.limit;
         }
@@ -477,10 +477,10 @@ export class DualCoinApiService {
             volume24h: coinDetails.volume24h || 0
           };
         }
-      } catch (error: any) {
-        console.warn(`⚠️ CoinGecko failed for ${ticker}:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ CoinGecko failed for ${ticker}:`, (error instanceof Error ? error.message : String(error)));
         
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 CoinGecko rate limit hit`);
           apiUsage.coingecko.used = apiUsage.coingecko.limit;
         }
@@ -543,10 +543,10 @@ export class DualCoinApiService {
           console.log(`✅ Binance historical data success for ${symbol}: ${klines.length} candles`);
           return klines;
         }
-      } catch (error: any) {
-        console.warn(`⚠️ Binance historical data failed for ${symbol}:`, error.message);
+      } catch (error: unknown) {
+        console.warn(`⚠️ Binance historical data failed for ${symbol}:`, (error instanceof Error ? error.message : String(error)));
         
-        if (error.message?.includes('429') || error.message?.includes('rate limit')) {
+        if ((error instanceof Error ? error.message : String(error))?.includes('429') || (error instanceof Error ? error.message : String(error))?.includes('rate limit')) {
           console.log(`🚫 Binance historical data rate limit hit`);
           apiUsage.binance.used = apiUsage.binance.limit;
         }

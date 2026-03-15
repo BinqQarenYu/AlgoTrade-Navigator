@@ -350,8 +350,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
           return { status: 'no_signal', log: `AI invalidated signal (${prediction.prediction}).`, signal: null };
         }
       }, `analyze_asset_${config.symbol}`, { symbol: config.symbol, strategy: config.strategy });
-    } catch (e: any) {
-      const error = TradingErrorHandler.createError(e.message || 'Unknown analysis error', e, { 
+    } catch (e: unknown) {
+      const error = TradingErrorHandler.createError((e instanceof Error ? e.message : String(e)) || 'Unknown analysis error', e, {
         symbol: config.symbol, 
         strategy: config.strategy 
       });
@@ -396,9 +396,9 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
       
       toast({ title: `Bot ${botId} Stopped` });
       
-    } catch (error: any) {
-      logger.error(`Failed to stop bot ${botId}: ${error.message}`, { error: error.message }, botId, 'bot-context');
-      toast({ title: "Stop Failed", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      logger.error(`Failed to stop bot ${botId}: ${(error instanceof Error ? error.message : String(error))}`, { error: (error instanceof Error ? error.message : String(error)) }, botId, 'bot-context');
+      toast({ title: "Stop Failed", description: (error instanceof Error ? error.message : String(error)), variant: "destructive" });
     }
   }, [toast, liveBotState.bots]);
   
@@ -623,8 +623,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
           }
         }
       });
-    } catch (e: any) {
-      const error = TradingErrorHandler.createError(e.message || 'Unknown bot cycle error', e, { botId });
+    } catch (e: unknown) {
+      const error = TradingErrorHandler.createError((e instanceof Error ? e.message : String(e)) || 'Unknown bot cycle error', e, { botId });
       
       addLiveLog(botId, `CRITICAL ERROR: ${error.message}`);
       logger.error(`Bot cycle error: ${error.message}`, { error: error.message }, botId, 'bot-context');
@@ -771,8 +771,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
       
       toast({ title: "Enhanced Bot Started", description: `Monitoring ${config.asset} on ${config.interval} with advanced features.`});
       
-    } catch (error: any) {
-      const tradingError = TradingErrorHandler.createError(error.message || 'Failed to start bot', error);
+    } catch (error: unknown) {
+      const tradingError = TradingErrorHandler.createError((error instanceof Error ? error.message : String(error)) || 'Failed to start bot', error);
       
       addLiveLog(botId, `Error starting enhanced bot: ${tradingError.message}`);
       logger.error(`Failed to start enhanced bot ${botId}: ${tradingError.message}`, { error: tradingError }, botId, 'bot-context');
@@ -821,8 +821,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         title: "Close Order Submitted", 
         description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. ID: ${orderResult.orderId}` 
       });
-    } catch (error: any) {
-      const tradingError = TradingErrorHandler.createError(error.message || 'Failed to close position', error);
+    } catch (error: unknown) {
+      const tradingError = TradingErrorHandler.createError((error instanceof Error ? error.message : String(error)) || 'Failed to close position', error);
       logger.error(`Close position failed: ${tradingError.message}`, { error: tradingError }, undefined, 'bot-context');
       toast({ title: "Close Order Failed", description: tradingError.message, variant: "destructive" });
     }
@@ -875,8 +875,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
       });
       
       addLiveLog(testBotId, `Enhanced test order successful. ID: ${orderResult.orderId}`);
-    } catch (error: any) {
-      const tradingError = TradingErrorHandler.createError(error.message || 'Test trade failed', error);
+    } catch (error: unknown) {
+      const tradingError = TradingErrorHandler.createError((error instanceof Error ? error.message : String(error)) || 'Test trade failed', error);
       
       logger.error(`Test trade failed: ${tradingError.message}`, { error: tradingError }, testBotId, 'bot-context');
       toast({ title: "Enhanced Test Order Failed", description: tradingError.message, variant: "destructive" });
@@ -915,8 +915,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         
         logger.logTrade(testBotId, 'SELL', symbol, quantity, currentPrice);
         toast({title: "Close Signal Sent", description: `Sent SELL order for ${symbol}.`}); 
-      } catch (e: any) { 
-        addLiveLog(testBotId, `Could not close LONG (may not exist): ${e.message}`); 
+      } catch (e: unknown) {
+        addLiveLog(testBotId, `Could not close LONG (may not exist): ${(e instanceof Error ? e.message : String(e))}`);
       }
       
       try { 
@@ -928,12 +928,12 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         
         logger.logTrade(testBotId, 'BUY', symbol, quantity, currentPrice);
         toast({title: "Close Signal Sent", description: `Sent BUY order for ${symbol}.`}); 
-      } catch (e: any) { 
-        addLiveLog(testBotId, `Could not close SHORT (may not exist): ${e.message}`); 
+      } catch (e: unknown) {
+        addLiveLog(testBotId, `Could not close SHORT (may not exist): ${(e instanceof Error ? e.message : String(e))}`);
       }
       
-    } catch (error: any) {
-      const tradingError = TradingErrorHandler.createError(error.message || 'Close test position failed', error);
+    } catch (error: unknown) {
+      const tradingError = TradingErrorHandler.createError((error instanceof Error ? error.message : String(error)) || 'Close test position failed', error);
       
       logger.error(`Close test position failed: ${tradingError.message}`, { error: tradingError }, testBotId, 'bot-context');
       toast({ title: "Close Test Position Failed", description: tradingError.message, variant: "destructive" });

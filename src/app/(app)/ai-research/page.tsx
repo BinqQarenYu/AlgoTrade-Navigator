@@ -127,11 +127,11 @@ export default function AIResearchPage() {
         title: "AI Analysis Complete",
         description: `Successfully researched ${selectedAsset} using advanced models.`,
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error)
       toast({
         title: "Research Failed",
-        description: error.message || "Failed to analyze market data",
+        description: (error instanceof Error ? error.message : String(error)) || "Failed to analyze market data",
         variant: "destructive"
       })
     } finally {

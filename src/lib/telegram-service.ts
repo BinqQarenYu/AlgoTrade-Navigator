@@ -39,7 +39,7 @@ export const sendTelegramMessage = async ({ botToken, chatId, message }: SendTel
 
         console.log('Successfully sent Telegram message.');
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Error sending Telegram message:', error);
         // Re-throw a more user-friendly error
         throw new Error('Could not send Telegram notification. Please check your Bot Token and Chat ID in Settings.');
