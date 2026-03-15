@@ -13,13 +13,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, Layers } from "lucide-react"
 import { topAssets } from "@/lib/assets"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { LiquidityHeatmap } from "@/components/live/LiquidityHeatmap"
 import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/lib/types"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +58,7 @@ import { defaultEmaCciMacdParams } from "@/lib/strategies/ema-cci-macd"
 import { defaultCodeBasedConsensusParams } from "@/lib/strategies/code-based-consensus"
 import { defaultMtfEngulfingParams } from "@/lib/strategies/mtf-engulfing"
 import { defaultSmiMfiSupertrendParams } from "@/lib/strategies/smi-mfi-supertrend"
+import { defaultAIHybridParams } from "@/lib/strategies/ai-hybrid"
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'awesome-oscillator': defaultAwesomeOscillatorParams,
@@ -88,6 +91,7 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'ai-hybrid': defaultAIHybridParams,
 }
 
 type BotInstance = LiveBotConfig & {
@@ -347,6 +351,42 @@ export default function ManualTradingPage() {
                     Configure and monitor multiple strategies, but execute trades manually based on the bot's signals.
                 </p>
             </div>
+            
+            <div className="flex flex-col md:flex-row gap-4 mb-4">
+                <Button 
+                    variant="destructive" 
+                    size="lg" 
+                    className="w-full md:w-auto font-bold uppercase tracking-wider animate-pulse border border-red-900 shadow-[0_0_15px_rgba(239,68,68,0.5)] hover:shadow-[0_0_25px_rgba(239,68,68,0.8)]"
+                    onClick={() => {
+                        Object.keys(runningBots).forEach(id => stopBotInstance(id));
+                        toast({ title: "🚨 PANIC ENGAGED 🚨", description: "All active monitors stopped. Liquidating active positions to USDT...", variant: "destructive" });
+                        // Next step: Loop through open positions and market sell
+                    }}
+                >
+                    <AlertTriangle className="mr-2 h-5 w-5" />
+                    KILL SWITCH: Close ALL & Convert to USDT
+                </Button>
+
+                <Dialog>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="lg" className="w-full md:w-auto border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 transition-all duration-300 group">
+                            <Layers className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
+                            Open Liquidity Heatmap
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl p-0 h-[80vh] bg-black/50 border-white/10 backdrop-blur-md overflow-hidden flex flex-col">
+                        <DialogHeader className="px-4 py-2 border-b border-white/5 bg-black/40">
+                            <DialogTitle className="text-white flex items-center gap-2">
+                                <Activity className="h-4 w-4 text-purple-400" />
+                                Order Book Heatmap Analysis
+                            </DialogTitle>
+                        </DialogHeader>
+                        <div className="flex-1 overflow-hidden relative">
+                           <LiquidityHeatmap symbol={botInstances[0]?.asset || 'BTCUSDT'} />
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
 
             {isConnected ? (
                 <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
@@ -500,8 +540,13 @@ const BotInstanceRow = memo(({
                                     : <><TrendingDown className="mr-1 h-4 w-4"/> SELL SIGNAL</>
                                 }
                             </span>
-                            <span className="text-muted-foreground mt-1">
-                                Entry: {formatPrice(lastSignal.entryPrice)}
+                            <span className="text-muted-foreground mt-1 flex items-center gap-1">
+                                Entry: {formatPrice(lastSignal.entryPrice)} 
+                                {lastSignal.confidence && (
+                                    <Badge variant="outline" className={lastSignal.confidence > 0.8 ? "text-green-400 border-green-500/30" : "text-yellow-400 border-yellow-500/30"}>
+                                        {(lastSignal.confidence * 100).toFixed(0)}% AI Confidence
+                                    </Badge>
+                                )}
                             </span>
                             <span className="text-muted-foreground">
                                 SL: {formatPrice(lastSignal.stopLoss)} / TP: {formatPrice(lastSignal.takeProfit)}

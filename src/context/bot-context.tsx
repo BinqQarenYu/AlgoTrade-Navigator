@@ -9,6 +9,7 @@ import { getStrategyById } from "@/lib/strategies";
 import { useApi } from './api-context';
 import { RiskGuardian } from '@/lib/risk-guardian';
 import { usePersistentState } from '@/hooks/use-persistent-state';
+import Decimal from 'decimal.js';
 
 import { defaultAwesomeOscillatorParams } from "@/lib/strategies/awesome-oscillator";
 import { defaultBollingerBandsParams } from "@/lib/strategies/bollinger-bands";
@@ -40,6 +41,7 @@ import { defaultEmaCciMacdParams } from '@/lib/strategies/ema-cci-macd';
 import { defaultCodeBasedConsensusParams } from '@/lib/strategies/code-based-consensus';
 import { defaultMtfEngulfingParams } from '@/lib/strategies/mtf-engulfing';
 import { defaultSmiMfiSupertrendParams } from '@/lib/strategies/smi-mfi-supertrend';
+import { defaultAIHybridParams } from '@/lib/strategies/ai-hybrid';
 
 type BotInstance = LiveBotConfig & {
     id: string;
@@ -101,6 +103,7 @@ const DEFAULT_STRATEGY_PARAMS: Record<string, any> = {
     'code-based-consensus': defaultCodeBasedConsensusParams,
     'mtf-engulfing': defaultMtfEngulfingParams,
     'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'ai-hybrid': defaultAIHybridParams,
 };
 
 export const BotProvider = ({ children }: { children: ReactNode }) => {
@@ -280,10 +283,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                     toast({ title: `Manual Exit Signal: ${config.asset}`, description: `Reason: ${closeReason}.` });
                 } else {
                     const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
-                    const quantity = (config.capital * config.leverage) / currentPosition.entryPrice;
+                    const quantity = new Decimal(config.capital).mul(config.leverage).div(currentPosition.entryPrice).toNumber();
                     const orderResult = await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
                     toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
-                    const pnl = side === 'SELL' ? (orderResult.price - currentPosition.entryPrice) * orderResult.quantity : (currentPosition.entryPrice - orderResult.price) * orderResult.quantity;
+                    const pnl = side === 'SELL' 
+                        ? new Decimal(orderResult.price).minus(currentPosition.entryPrice).mul(orderResult.quantity).toNumber()
+                        : new Decimal(currentPosition.entryPrice).minus(orderResult.price).mul(orderResult.quantity).toNumber();
                     riskGuardian?.registerTrade(pnl);
                 }
                 setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
@@ -310,7 +315,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                  toast({ title: `Manual Entry Signal: ${config.asset}`, description: `Action: ${signal.action}, Entry: ${signal.entryPrice.toFixed(4)}` });
               } else {
                   const side = signal.action === 'UP' ? 'BUY' : 'SELL';
-                  const quantity = (config.capital * config.leverage) / signal.entryPrice;
+                  const quantity = new Decimal(config.capital).mul(config.leverage).div(signal.entryPrice).toNumber();
                   await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
                   toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
               }
@@ -359,6 +364,20 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
           if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) buffer[buffer.length - 1] = newCandle;
           else buffer.push(newCandle);
           dataBufferRef.current[botId] = buffer.slice(-1000);
+
+          // Real-time synchronization for frontend Live Price display (zero-lag)
+          // Keep chartData small in React state to avoid UI freezing
+          setLiveBotState(prev => {
+              if (!prev.bots[botId]) return prev;
+              return {
+                  ...prev,
+                  bots: {
+                      ...prev.bots,
+                      [botId]: { ...prev.bots[botId], chartData: [newCandle] }
+                  }
+              };
+          });
+
           if (data.k.x) runLiveBotCycle(botId, true);
         }
       };
@@ -415,7 +434,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         if (klines.length === 0) throw new Error("Could not fetch current price.");
         
         const currentPrice = klines[0].close;
-        const quantity = (capital * leverage) / currentPrice;
+        const quantity = new Decimal(capital).mul(leverage).div(currentPrice).toNumber();
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         toast({ title: "Test Order Placed", description: `${side} order for ${orderResult.quantity} ${symbol} submitted.` });
         addLiveLog(symbol, `Test order successful. ID: ${orderResult.orderId}`);
@@ -439,7 +458,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     const currentPrice = klines[0].close;
-    const quantity = (capital * leverage) / currentPrice;
+    const quantity = new Decimal(capital).mul(leverage).div(currentPrice).toNumber();
     
     const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
 
