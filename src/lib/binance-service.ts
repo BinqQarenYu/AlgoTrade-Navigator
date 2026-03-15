@@ -3,6 +3,10 @@
 
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
 import type { Ticker, Exchange } from 'ccxt';
+import Decimal from 'decimal.js';
+
+// Helper for exponential backoff
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // This function is now the single point of contact for all client-side requests to our proxy.
 async function callProxy<T>(
@@ -11,41 +15,66 @@ async function callProxy<T>(
     body?: Record<string, any>,
     keys?: { apiKey: string, secretKey: string },
     useDirectConnection: boolean = false,
-    timeoutMs: number = 20000
+    timeoutMs: number = 20000,
+    maxRetries: number = 3
 ): Promise<{ data: T, usedWeight: number }> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    let attempt = 0;
+    
+    while (attempt < maxRetries) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    try {
-        const requestBody: any = { path, method, body };
-        if (keys) {
-            requestBody.apiKey = keys.apiKey;
-            requestBody.secretKey = keys.secretKey;
-        }
-
-        const response = await fetch('/api/binance-proxy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            // Handle specific geo-blocking errors coming from our proxy
-            if (result.error?.includes('restricted location')) {
-                throw new Error(result.error);
+        try {
+            const requestBody: any = { path, method, body };
+            if (keys) {
+                requestBody.apiKey = keys.apiKey;
+                requestBody.secretKey = keys.secretKey;
             }
-            throw new Error(result.error || `Proxy Error: ${response.statusText}`);
+
+            const response = await fetch('/api/binance-proxy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                // Handle 429 Rate Limit Errors with Exponential Backoff + Jitter
+                if (response.status === 429 || result.error?.includes('429')) {
+                    const retryAfter = response.headers.get('Retry-After');
+                    let waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * 1000;
+                    
+                    // Add up to 500ms jitter to prevent thundering herd
+                    waitTime += Math.random() * 500;
+                    
+                    console.warn(`[Binance 429 Limit] Rate limited on ${path}. Backing off for ${Math.round(waitTime)}ms (Attempt ${attempt + 1}/${maxRetries})`);
+                    await sleep(waitTime);
+                    attempt++;
+                    continue; // Retry loop
+                }
+
+                if (result.error?.includes('restricted location')) {
+                    throw new Error(result.error);
+                }
+                throw new Error(result.error || `Proxy Error: ${response.statusText}`);
+            }
+            return { data: result.data || result, usedWeight: result.usedWeight || 1 };
+        } catch (error: any) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                console.warn(`[Timeout] Request to ${path} timed out. Retrying...`);
+                attempt++;
+                continue;
+            }
+            console.error(`Error calling proxy for path ${path}:`, error);
+            throw error; // If it's a structural error, don't retry, just throw.
         }
-        return result;
-    } catch (error) {
-        console.error(`Error calling proxy for path ${path}:`, error);
-        // Re-throw the error so it can be caught by the calling function and displayed in the UI
-        throw error;
     }
+    
+    throw new Error(`Exceeded maximum retries (${maxRetries}) for Binance API path: ${path}. Check connection or rate limits.`);
 }
 
 
@@ -109,7 +138,7 @@ export const getOpenPositions = async (
 export const placeOrder = async (
   symbol: string, 
   side: OrderSide, 
-  quantity: number,
+  quantity: number | Decimal,
   keys: { apiKey: string, secretKey: string },
   reduceOnly: boolean = false,
   useDirectConnection: boolean = false
@@ -121,7 +150,9 @@ export const placeOrder = async (
       throw new Error(`Could not find market data for symbol: ${symbol}`);
   }
 
-  const formattedQuantity = binanceExchange.amountToPrecision(symbol, quantity);
+  // Convert quantity through Decimal.js to prevent JS float leaking, then back to a safe exchange precision string
+  const preciseQty = new Decimal(quantity).toNumber();
+  const formattedQuantity = binanceExchange.amountToPrecision(symbol, preciseQty);
   
   const body: any = {
     symbol,
@@ -208,3 +239,16 @@ export const getLatestKlinesByLimit = async (
         throw error;
     }
 }
+
+export const getOrderBook = async (
+    symbol: string,
+    limit: number = 100
+): Promise<{ bids: [string, string][], asks: [string, string][] }> => {
+    try {
+        const { data } = await callProxy<any>('/fapi/v1/depth', 'GET', { symbol: symbol.toUpperCase(), limit });
+        return data;
+    } catch (error) {
+        console.error(`Error fetching order book for ${symbol}:`, error);
+        return { bids: [], asks: [] };
+    }
+};
