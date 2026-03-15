@@ -57,8 +57,10 @@ import { Separator } from "@/components/ui/separator"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { detectOverfitting, type OverfittingResult } from "@/lib/analysis/overfitting-analysis"
 import { generateProjectedCandles } from "@/lib/projection-service"
+import { applyFadeEngineFilters } from "@/lib/analysis/fade-engine"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { executeBacktestEngine, type BacktestEngineConfig } from "@/lib/analysis/backtest-engine"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -101,37 +103,37 @@ interface DateRange {
 
 
 const DEFAULT_PARAMS_MAP: Record<string, any> = {
-    'awesome-oscillator': defaultAwesomeOscillatorParams,
-    'bollinger-bands': defaultBollingerBandsParams,
-    'cci-reversion': defaultCciReversionParams,
-    'chaikin-money-flow': defaultChaikinMoneyFlowParams,
-    'coppock-curve': defaultCoppockCurveParams,
-    'donchian-channels': defaultDonchianChannelsParams,
-    'elder-ray-index': defaultElderRayIndexParams,
-    'ema-crossover': defaultEmaCrossoverParams,
-    'hyper-peak-formation': defaultHyperPFFParams,
-    'hyper-peak-formation-old': defaultOldHyperPFFParams,
-    'ichimoku-cloud': defaultIchimokuCloudParams,
-    'keltner-channels': defaultKeltnerChannelsParams,
-    'macd-crossover': defaultMacdCrossoverParams,
-    'momentum-cross': defaultMomentumCrossParams,
-    'obv-divergence': defaultObvDivergenceParams,
-    'parabolic-sar-flip': defaultParabolicSarFlipParams,
-    'peak-formation-fib': defaultPffParams,
-    'pivot-point-reversal': defaultPivotPointReversalParams,
-    'rsi-divergence': defaultRsiDivergenceParams,
-    'sma-crossover': defaultSmaCrossoverParams,
-    'stochastic-crossover': defaultStochasticCrossoverParams,
-    'supertrend': defaultSupertrendParams,
-    'volume-delta': defaultVolumeDeltaParams,
-    'vwap-cross': defaultVwapCrossParams,
-    'williams-r': defaultWilliamsRParams,
-    'liquidity-grab': defaultLiquidityGrabParams,
-    'liquidity-order-flow': defaultLiquidityOrderFlowParams,
-    'ema-cci-macd': defaultEmaCciMacdParams,
-    'code-based-consensus': defaultCodeBasedConsensusParams,
-    'mtf-engulfing': defaultMtfEngulfingParams,
-    'smi-mfi-supertrend': defaultSmiMfiSupertrendParams,
+    'awesome-oscillator': { ...defaultAwesomeOscillatorParams, advancedContrarian: true },
+    'bollinger-bands': { ...defaultBollingerBandsParams, advancedContrarian: true },
+    'cci-reversion': { ...defaultCciReversionParams, advancedContrarian: true },
+    'chaikin-money-flow': { ...defaultChaikinMoneyFlowParams, advancedContrarian: true },
+    'coppock-curve': { ...defaultCoppockCurveParams, advancedContrarian: true },
+    'donchian-channels': { ...defaultDonchianChannelsParams, advancedContrarian: true },
+    'elder-ray-index': { ...defaultElderRayIndexParams, advancedContrarian: true },
+    'ema-crossover': { ...defaultEmaCrossoverParams, advancedContrarian: true },
+    'hyper-peak-formation': { ...defaultHyperPFFParams, advancedContrarian: true },
+    'hyper-peak-formation-old': { ...defaultOldHyperPFFParams, advancedContrarian: true },
+    'ichimoku-cloud': { ...defaultIchimokuCloudParams, advancedContrarian: true },
+    'keltner-channels': { ...defaultKeltnerChannelsParams, advancedContrarian: true },
+    'macd-crossover': { ...defaultMacdCrossoverParams, advancedContrarian: true },
+    'momentum-cross': { ...defaultMomentumCrossParams, advancedContrarian: true },
+    'obv-divergence': { ...defaultObvDivergenceParams, advancedContrarian: true },
+    'parabolic-sar-flip': { ...defaultParabolicSarFlipParams, advancedContrarian: true },
+    'peak-formation-fib': { ...defaultPffParams, advancedContrarian: true },
+    'pivot-point-reversal': { ...defaultPivotPointReversalParams, advancedContrarian: true },
+    'rsi-divergence': { ...defaultRsiDivergenceParams, advancedContrarian: true },
+    'sma-crossover': { ...defaultSmaCrossoverParams, advancedContrarian: true },
+    'stochastic-crossover': { ...defaultStochasticCrossoverParams, advancedContrarian: true },
+    'supertrend': { ...defaultSupertrendParams, advancedContrarian: true },
+    'volume-delta': { ...defaultVolumeDeltaParams, advancedContrarian: true },
+    'vwap-cross': { ...defaultVwapCrossParams, advancedContrarian: true },
+    'williams-r': { ...defaultWilliamsRParams, advancedContrarian: true },
+    'liquidity-grab': { ...defaultLiquidityGrabParams, advancedContrarian: true },
+    'liquidity-order-flow': { ...defaultLiquidityOrderFlowParams, advancedContrarian: true },
+    'ema-cci-macd': { ...defaultEmaCciMacdParams, advancedContrarian: true },
+    'code-based-consensus': { ...defaultCodeBasedConsensusParams, advancedContrarian: true },
+    'mtf-engulfing': { ...defaultMtfEngulfingParams, advancedContrarian: true },
+    'smi-mfi-supertrend': { ...defaultSmiMfiSupertrendParams, advancedContrarian: true },
 }
 
 const defaultDisciplineParams: DisciplineParams = {
@@ -150,7 +152,6 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     const ranges = keys.map(key => {
         const { min, max, step } = config[key];
         const values = [];
-        // Handle floating point inaccuracies by fixing precision
         const precision = (String(step).split('.')[1] || '').length;
         for (let i = min; i <= max; i += step) {
             values.push(parseFloat(i.toFixed(precision)));
@@ -159,24 +160,25 @@ const generateCombinations = (config: StrategyOptimizationConfig): any[] => {
     });
 
     const combinations: any[] = [];
-    const maxIndex = ranges.length - 1;
+    const currentCombo: any[] = [];
 
-    function helper(arr: any[], i: number) {
-        for (let j = 0, l = ranges[i].length; j < l; j++) {
-            const a = arr.slice(0); // clone arr
-            a.push(ranges[i][j]);
-            if (i === maxIndex) {
-                const combo: Record<string, number | string> = {};
-                keys.forEach((key, index) => {
-                    combo[key] = a[index];
-                });
-                combinations.push(combo);
-            } else {
-                helper(a, i + 1);
-            }
+    function helper(depth: number) {
+        if (depth === keys.length) {
+            const combo: Record<string, number | string> = {};
+            keys.forEach((key, index) => {
+                combo[key] = currentCombo[index];
+            });
+            combinations.push(combo);
+            return;
+        }
+
+        for (let j = 0; j < ranges[depth].length; j++) {
+            currentCombo[depth] = ranges[depth][j];
+            helper(depth + 1);
         }
     }
-    helper([], 0);
+    
+    helper(0);
     return combinations;
 }
 
@@ -423,99 +425,27 @@ const BacktestPageContent = () => {
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
-    const dataWithSignals = await strategy.calculate(data.map(d => ({ ...d })), strategyParams, symbol);
+    let dataWithSignals = await strategy.calculate(data.map(d => ({ ...d })), strategyParams, symbol);
     
-    const trades: BacktestResult[] = [];
-    let positionType: 'long' | 'short' | null = null;
-    let entryPrice = 0;
-    let currentBalance = initialCapital;
-    let peakBalance = initialCapital;
-    let maxDrawdown = 0;
-    
-    for (let i = 1; i < dataWithSignals.length; i++) {
-        if (currentBalance <= 0) break; // Simulated Liquidation Check
-        
-        const d = dataWithSignals[i];
-        const prevD = dataWithSignals[i-1];
-
-        if (positionType === 'long') {
-            let exitPrice: number | null = null;
-            const slPrice = entryPrice * (1 - (stopLoss || 0) / 100);
-            const tpPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-
-            if (prevD.sellSignal) exitPrice = d.open * (1 - (slippage || 0) / 100);
-            else if (d.low <= slPrice) exitPrice = slPrice * (1 - (slippage || 0) / 100);
-            else if (d.high >= tpPrice) exitPrice = tpPrice;
-
-            if (exitPrice !== null) {
-                const playingCapital = useCompounding ? currentBalance : initialCapital;
-                const quantity = (playingCapital * (leverage || 1)) / entryPrice;
-                const grossPnl = (exitPrice - entryPrice) * quantity;
-                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                const netPnl = grossPnl - totalFee;
-                trades.push({ id: `silent-trade-${i}`, type: 'long', entryPrice, exitPrice, pnl: netPnl, fee: totalFee } as BacktestResult);
-                
-                currentBalance += netPnl;
-                if (currentBalance > peakBalance) peakBalance = currentBalance;
-                const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
-                if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
-                
-                positionType = null;
-            }
-        } else if (positionType === 'short') {
-            let exitPrice: number | null = null;
-            const slPrice = entryPrice * (1 + (stopLoss || 0) / 100);
-            const tpPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-
-            if (prevD.buySignal) exitPrice = d.open * (1 + (slippage || 0) / 100);
-            else if (d.high >= slPrice) exitPrice = slPrice * (1 + (slippage || 0) / 100);
-            else if (d.low <= tpPrice) exitPrice = tpPrice;
-
-            if (exitPrice !== null) {
-                const playingCapital = useCompounding ? currentBalance : initialCapital;
-                const quantity = (playingCapital * (leverage || 1)) / entryPrice;
-                const grossPnl = (entryPrice - exitPrice) * quantity;
-                const totalFee = (entryPrice * quantity + exitPrice * quantity) * (fee / 100);
-                const netPnl = grossPnl - totalFee;
-                trades.push({ id: `silent-trade-${i}`, type: 'short', entryPrice, exitPrice, pnl: netPnl, fee: totalFee } as BacktestResult);
-                
-                currentBalance += netPnl;
-                if (currentBalance > peakBalance) peakBalance = currentBalance;
-                const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
-                if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
-                
-                positionType = null;
-            }
-        }
-
-        if (positionType === null) {
-            if (prevD.buySignal) { positionType = 'long'; entryPrice = d.open * (1 + (slippage || 0) / 100); } 
-            else if (prevD.sellSignal) { positionType = 'short'; entryPrice = d.open * (1 - (slippage || 0) / 100); }
-        }
+    // Apply Advanced Contrarian (Fade Engine) filters if enabled and in reverse mode
+    if (strategyParams.advancedContrarian && strategyParams.reverse && strategyId !== 'code-based-consensus') {
+        dataWithSignals = applyFadeEngineFilters(dataWithSignals, true);
     }
     
-    const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl <= 0);
-    const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
-    const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-
-    const summary: BacktestSummary = {
-      totalTrades: trades.length,
-      winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
-      totalPnl: totalPnl,
-      totalFees,
-      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-      averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
-      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+    const engineConfig: BacktestEngineConfig = {
       initialCapital,
-      endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0,
-      maxDrawdown
+      leverage,
+      fee,
+      slippage,
+      stopLoss,
+      takeProfit,
+      useCompounding,
+      discipline: strategyParams.discipline || defaultDisciplineParams
     };
+
+    const { summary, trades } = executeBacktestEngine(dataWithSignals, engineConfig);
     return { summary, dataWithSignals, trades };
-  }
+  };
 
   const handleRunBacktestClick = () => {
     if (isReplaying) {
@@ -543,234 +473,97 @@ const BacktestPageContent = () => {
     toast({ title: "Report Cleared", description: "The backtest results have been cleared from view." });
   };
 
-  const runBacktest = async (contrarian = false) => {
+  const runBacktest = async () => {
     if (fullChartData.length === 0) {
-      toast({
-        title: "No Data",
-        description: "Cannot run backtest without market data. Please connect your API and select a date range.",
-        variant: "destructive",
-      });
+      toast({ title: "No Data", description: "Cannot run backtest without market data.", variant: "destructive" });
       return;
     }
     
-    if (isReplaying) {
-        console.warn("Attempted to run backtest while replay is active. This should be handled by stopAndRunBacktest.");
-        return;
-    }
+    if (isReplaying) return;
 
-    if (!contrarian) {
-        setIsBacktesting(true);
-        setBacktestResults([]);
-        setSummaryStats(null);
-        setOverfittingResult(null);
-        setOutlierTradeIds([]);
-        setContrarianResults(null);
-        setContrarianSummary(null);
-        setSelectedTrade(null);
-        setProjectedData([]);
-        setForwardTestTrades([]);
-        setForwardTestSummary(null);
-    }
+    setIsBacktesting(true);
+    // Clear previous results to avoid stale data display
+    setBacktestResults([]);
+    setSummaryStats(null);
+    setOverfittingResult(null);
+    setOutlierTradeIds([]);
+    setContrarianResults(null);
+    setContrarianSummary(null);
+    setSelectedTrade(null);
     
+    // Prepare engine configurations
     const strategy = getStrategyById(selectedStrategy);
     if (!strategy) {
-      toast({ title: "No Strategy Selected", variant: "destructive" });
       setIsBacktesting(false);
       return;
     }
 
-    toast({
-      title: contrarian ? "Running Contrarian Analysis..." : "Backtest Started",
-      description: `Running ${strategy.name} on ${symbol} (${interval}).`,
-    });
-    
     const baseParams = strategyParams[selectedStrategy] || {};
-    const paramsForStrategy = contrarian ? { ...baseParams, reverse: !baseParams.reverse } : baseParams;
-
-    const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
-    const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
-    
-    let dataWithSignals = await strategy.calculate(fullChartData.map(d => ({ ...d })), paramsForStrategy, symbol);
-    
-    const trades: BacktestResult[] = [];
-    let positionType: 'long' | 'short' | null = null;
-    let entryPrice = 0;
-    let entryTime = 0;
-    let stopLossPrice = 0;
-    let takeProfitPrice = 0;
-    let tradeQuantity = 0;
-    let entryReasoning: string | undefined;
-    let entryConfidence: number | undefined;
-    let entryPeakPrice: number | undefined;
-    let aiValidationCount = 0;
-    let aiLimitReachedNotified = false;
-    let currentBalance = initialCapital;
-    let peakBalance = initialCapital;
-    let maxDrawdown = 0;
-
-    // --- Main Backtesting Loop ---
-    for (let i = 1; i < dataWithSignals.length; i++) {
-        if (currentBalance <= 0) {
-            if (!contrarian) toast({ title: "Account Liquidated", description: `Balance reached $0 at ${new Date(dataWithSignals[i].time).toLocaleDateString()}`, variant: "destructive" });
-            break;
-        }
-
-        const d = dataWithSignals[i];
-        const prevD = dataWithSignals[i-1];
-
-        // --- Exit Logic ---
-        if (positionType !== null) {
-            let exitPrice: number | null = null;
-            let closeReason: BacktestResult['closeReason'] = 'signal';
-            if (positionType === 'long') {
-                if (prevD.sellSignal) { exitPrice = d.open * (1 - slippage / 100); closeReason = 'signal'; }
-                else if (d.low <= stopLossPrice) { exitPrice = stopLossPrice * (1 - slippage / 100); closeReason = 'stop-loss'; }
-                else if (d.high >= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-            } else { // short
-                if (prevD.buySignal) { exitPrice = d.open * (1 + slippage / 100); closeReason = 'signal'; }
-                else if (d.high >= stopLossPrice) { exitPrice = stopLossPrice * (1 + slippage / 100); closeReason = 'stop-loss'; }
-                else if (d.low <= takeProfitPrice) { exitPrice = takeProfitPrice; closeReason = 'take-profit'; }
-            }
-
-        if (exitPrice !== null) {
-          const entryValue = entryPrice * tradeQuantity;
-          const exitValue = exitPrice * tradeQuantity;
-          const totalFee = (entryValue + exitValue) * (fee / 100);
-          const grossPnl = positionType === 'long' 
-            ? exitValue - entryValue
-            : entryValue - exitValue;
-          const netPnl = grossPnl - totalFee;
-
-          riskGuardian.registerTrade(netPnl);
-          currentBalance += netPnl;
-          if (currentBalance > peakBalance) peakBalance = currentBalance;
-          const currentDrawdown = ((peakBalance - currentBalance) / peakBalance) * 100;
-          if (currentDrawdown > maxDrawdown) maxDrawdown = currentDrawdown;
-
-          trades.push({
-            id: `trade-${trades.length}`, type: positionType, entryTime, entryPrice, exitTime: d.time, exitPrice, pnl: netPnl,
-            pnlPercent: (netPnl / initialCapital) * 100, closeReason, stopLoss: stopLossPrice, takeProfit: takeProfitPrice,
-            fee: totalFee, reasoning: entryReasoning, confidence: entryConfidence, peakPrice: entryPeakPrice
-          });
-          positionType = null;
-        }
-      }
-
-      // --- Entry Logic (Only if not in a position) ---
-      if (positionType === null) {
-        const potentialSignal: 'BUY' | 'SELL' | null = prevD.buySignal ? 'BUY' : prevD.sellSignal ? 'SELL' : null;
-        
-        if (potentialSignal) {
-          const { allowed, reason } = riskGuardian.canTrade();
-          if (!allowed && disciplineConfig.enableDiscipline) {
-              if (!contrarian) toast({ title: "Discipline Action", description: reason, variant: "destructive" });
-              continue; 
-          }
-
-          let isValidSignal = false;
-          let prediction: PredictMarketOutput | null = null;
-          
-          if (useAIValidation && !contrarian) {
-            if (aiValidationCount < maxAiValidations) {
-              if (canUseAi()) {
-                aiValidationCount++;
-                try {
-                  prediction = await predictMarket({
-                      symbol: symbol,
-                      recentData: JSON.stringify(dataWithSignals.slice(Math.max(0, i-50), i).map(k => ({t: k.time, o: k.open, h: k.high, l:k.low, c:k.close, v:k.volume}))),
-                      strategySignal: potentialSignal,
-                      model: geminiModel
-                  });
-                  consumeAiCredit();
-                  if ((prediction.prediction === 'UP' && potentialSignal === 'BUY') || (prediction.prediction === 'DOWN' && potentialSignal === 'SELL')) {
-                    isValidSignal = true;
-                  }
-                } catch(e) {
-                  console.error("AI validation failed", e);
-                  isValidSignal = false; 
-                }
-              } else {
-                toast({ title: "AI Quota Reached", description: "Skipping AI validation for this trade." });
-                isValidSignal = true;
-              }
-            } else if (!aiLimitReachedNotified) {
-              toast({ title: "AI Limit Reached", description: `Max ${maxAiValidations} AI validations performed.` });
-              aiLimitReachedNotified = true;
-              isValidSignal = true;
-            } else {
-              isValidSignal = true;
-            }
-          } else {
-            isValidSignal = true;
-          }
-          
-          if (isValidSignal) {
-            entryPrice = d.open * (potentialSignal === 'BUY' ? (1 + slippage / 100) : (1 - slippage / 100));
-            entryTime = d.time;
-            entryReasoning = prediction?.reasoning ?? 'Classic strategy signal.';
-            entryConfidence = prediction?.confidence ?? 1;
-            entryPeakPrice = prevD.peakPrice;
-            
-            const playingCapital = useCompounding ? currentBalance : initialCapital;
-            tradeQuantity = (playingCapital * leverage) / entryPrice;
-
-            if (potentialSignal === 'BUY') {
-              positionType = 'long';
-              stopLossPrice = prevD.stopLossLevel ?? (entryPrice * (1 - (stopLoss || 0) / 100));
-              takeProfitPrice = entryPrice * (1 + (takeProfit || 0) / 100);
-            } else {
-              positionType = 'short';
-              stopLossPrice = prevD.stopLossLevel ?? (entryPrice * (1 + (stopLoss || 0) / 100));
-              takeProfitPrice = entryPrice * (1 - (takeProfit || 0) / 100);
-            }
-          }
-        }
-      }
-    }
-
-    // --- Summary Calculation ---
-    const wins = trades.filter(t => t.pnl > 0);
-    const losses = trades.filter(t => t.pnl <= 0);
-    const totalPnl = trades.reduce((sum, t) => sum + t.pnl, 0);
-    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
-    const totalWins = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const totalLosses = losses.reduce((sum, t) => sum + t.pnl, 0);
-
-    const summary: BacktestSummary = {
-      totalTrades: trades.length,
-      winRate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0,
-      totalPnl: totalPnl,
-      totalFees,
-      averageWin: wins.length > 0 ? totalWins / wins.length : 0,
-      averageLoss: losses.length > 0 ? Math.abs(totalLosses / losses.length) : 0,
-      profitFactor: totalLosses !== 0 ? Math.abs(totalWins / totalLosses) : Infinity,
+    const engineConfig: BacktestEngineConfig = {
       initialCapital,
-      endingBalance: initialCapital + totalPnl,
-      totalReturnPercent: initialCapital > 0 ? (totalPnl / initialCapital) * 100 : 0,
-      maxDrawdown
+      leverage,
+      fee,
+      slippage,
+      stopLoss,
+      takeProfit,
+      useCompounding,
+      discipline: baseParams.discipline || defaultDisciplineParams
     };
-    
-    if (contrarian) {
-        setContrarianResults(trades);
-        setContrarianSummary(summary);
-    } else {
-        setFullChartData(dataWithSignals);
-        setBacktestResults(trades);
-        setSummaryStats(summary);
-        
-        // Run overfitting analysis
-        if (summary.totalTrades > 0) {
-            const overfittingCheck = detectOverfitting(summary, fullChartData.length, trades);
-            setOverfittingResult(overfittingCheck);
-            setOutlierTradeIds(overfittingCheck.outlierTradeIds);
+
+    try {
+        // Step 1: Strategy Signal Generation (Heavy CPU)
+        // We do this once for standard and once for contrarian if needed
+        const [dataStandardRaw, dataContrarianRaw] = await Promise.all([
+          strategy.calculate(fullChartData.map(d => ({ ...d })), baseParams, symbol),
+          strategy.calculate(fullChartData.map(d => ({ ...d })), { ...baseParams, reverse: !baseParams.reverse }, symbol)
+        ]);
+
+        let dataStandard = dataStandardRaw;
+        let dataContrarian = dataContrarianRaw;
+
+        // Apply Advanced Filters if active
+        if (baseParams.advancedContrarian && baseParams.reverse && selectedStrategy !== 'code-based-consensus') {
+            dataStandard = applyFadeEngineFilters(dataStandard, true);
+        }
+        // For the automatic contrarian leg, we apply filters if it would be active in that mode
+        if (baseParams.advancedContrarian && !baseParams.reverse && selectedStrategy !== 'code-based-consensus') {
+            dataContrarian = applyFadeEngineFilters(dataContrarian, true);
+        }
+
+        // Step 2: Parallel Simulation Execution (Optimized O(N))
+        const [standardResult, contrarianResult] = await Promise.all([
+          executeBacktestEngine(dataStandard, engineConfig),
+          executeBacktestEngine(dataContrarian, engineConfig)
+        ]);
+
+        // Step 3: Optional AI Validation (Only applied to visual chart data if enabled)
+        // AI is slow, so we only run it on demand or for the primary visual strategy
+        // In this architecture, AI results will be merged into the trades post-simulation if needed
+        // but for now we focus on mathematical speed.
+
+        // Update State (One big batch via React 18 automatic batching)
+        setFullChartData(dataStandard);
+        setBacktestResults(standardResult.trades);
+        setSummaryStats(standardResult.summary);
+        setContrarianResults(contrarianResult.trades);
+        setContrarianSummary(contrarianResult.summary);
+
+        // Run Outlier/Overfitting Analysis
+        if (standardResult.summary.totalTrades > 0) {
+          const overfittingCheck = detectOverfitting(standardResult.summary, fullChartData.length, standardResult.trades);
+          setOverfittingResult(overfittingCheck);
+          setOutlierTradeIds(overfittingCheck.outlierTradeIds);
         }
 
         toast({
-          title: "Backtest Complete",
-          description: "Strategy signals and results are now available.",
+          title: "Backtest Analysis Complete",
+          description: `Standard and Contrarian legs calculated in parallel. Net PNL: $${standardResult.summary.totalPnl.toFixed(2)}`,
         });
 
-        await runBacktest(true);
+    } catch (error) {
+        console.error("Backtest engine failure:", error);
+        toast({ title: "Backtest Failed", description: "An internal engine error occurred during strategy audit.", variant: "destructive" });
+    } finally {
         setIsBacktesting(false);
     }
   };
@@ -1061,6 +854,21 @@ const BacktestPageContent = () => {
                 </div>
             )}
           </div>
+          <div className="flex items-center space-x-2 pt-4 pb-1 border-b border-white/5">
+            <Switch
+              id="adv-contrarian-hpf"
+              checked={params.advancedContrarian || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'advancedContrarian', checked)}
+              disabled={anyLoading || isReplaying || !params.reverse}
+            />
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1 cursor-pointer">
+                <Label htmlFor="adv-contrarian-hpf" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+              </div>
+              <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
+            </div>
+          </div>
           <div className="flex items-center space-x-2 pt-4">
             <Switch
               id="reverse-logic-hpf"
@@ -1070,8 +878,8 @@ const BacktestPageContent = () => {
             />
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
-                <Label htmlFor="reverse-logic-hpf">Reverse Logic (Contrarian Mode)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Label htmlFor="reverse-logic-hpf">Standard Contrarian (Reverse Logic)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
               </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
@@ -1124,7 +932,22 @@ const BacktestPageContent = () => {
                 </div>
               </ScrollArea>
           </div>
-           <div className="flex items-center space-x-2 pt-2">
+            <div className="flex items-center space-x-2 pt-2 pb-1 border-b border-white/5">
+                <Switch
+                  id="advanced-contrarian-consensus"
+                  checked={params.advancedContrarian || false}
+                  onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'advancedContrarian', checked)}
+                  disabled={anyLoading || isReplaying || !params.reverse}
+                />
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1 cursor-pointer">
+                    <Label htmlFor="advanced-contrarian-consensus" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
+                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: When Consensus &gt;80%, volume shows exhaustion, and price is over-extended, it trades the reversal. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Apply smart exhaustion and over-extension filters.</p>
+                </div>
+            </div>
+            <div className="flex items-center space-x-2 pt-2">
                 <Switch
                   id="reverse-logic-consensus"
                   checked={params.reverse || false}
@@ -1133,10 +956,10 @@ const BacktestPageContent = () => {
                 />
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 cursor-pointer">
-                    <Label htmlFor="reverse-logic-consensus">Fade Engine (Contrarian Mode)</Label>
-                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Only enters a contrarian trade when the consensus is &gt;80% unanimous, volume indicates exhaustion (capitulation), and price is over-extended from the 50-EMA.</p></TooltipContent></Tooltip></TooltipProvider>
+                    <Label htmlFor="reverse-logic-consensus">Standard Contrarian (Reverse Logic)</Label>
+                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Always trades the opposite of the majority consensus. If Advanced Contrarian is OFF, this is a pure signal flip.</p></TooltipContent></Tooltip></TooltipProvider>
                   </div>
-                  <p className="text-xs text-muted-foreground">Fade the crowd using smart exhaustion and over-extension filters.</p>
+                  <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                 </div>
             </div>
         </div>
@@ -1180,7 +1003,22 @@ const BacktestPageContent = () => {
                         <Input id="rrRatio" type="number" step="0.1" value={params.rrRatio || 0} onChange={(e) => handleParamChange(selectedStrategy, 'rrRatio', e.target.value)} disabled={anyLoading || isReplaying} />
                     </div>
                 </div>
-                 <div className="flex items-center space-x-2 pt-2">
+                 <div className="flex items-center space-x-2 pt-2 pb-1 border-b border-white/5">
+                    <Switch
+                        id="adv-contrarian-mtf"
+                        checked={params.advancedContrarian || false}
+                        onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'advancedContrarian', checked)}
+                        disabled={anyLoading || isReplaying || !params.reverse}
+                    />
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-1 cursor-pointer">
+                            <Label htmlFor="adv-contrarian-mtf" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
+                            <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-2 pt-2">
                     <Switch
                     id="reverse-logic"
                     checked={params.reverse || false}
@@ -1188,7 +1026,7 @@ const BacktestPageContent = () => {
                     disabled={anyLoading || isReplaying}
                     />
                     <div className="flex flex-col">
-                    <Label htmlFor="reverse-logic" className="cursor-pointer">Reverse Logic (Contrarian Mode)</Label>
+                    <Label htmlFor="reverse-logic" className="cursor-pointer font-medium">Standard Contrarian (Reverse Logic)</Label>
                     <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                     </div>
                 </div>
@@ -1261,24 +1099,41 @@ const BacktestPageContent = () => {
         );
     }
     
-    // Filter out 'strategies' from the regular parameter display
-    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'discipline'));
+    // Filter out 'strategies', 'reverse', 'advancedContrarian', and 'discipline' from the regular parameter display
+    const filteredParams = Object.fromEntries(Object.entries(params).filter(([key]) => key !== 'strategies' && key !== 'reverse' && key !== 'advancedContrarian' && key !== 'discipline'));
 
     if (Object.keys(filteredParams).length === 0 && selectedStrategy !== 'none') {
         return (
-            <div className="flex items-center space-x-2 pt-2">
-                <Switch
-                    id="reverse-logic"
-                    checked={params.reverse || false}
-                    onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
-                    disabled={anyLoading || isReplaying}
-                />
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1 cursor-pointer">
-                    <Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label>
-                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+            <div className="space-y-4 pt-2">
+                <div className="flex items-center space-x-2 pb-1 border-b border-white/5">
+                    <Switch
+                        id="adv-contrarian-generic-none"
+                        checked={params.advancedContrarian || false}
+                        onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'advancedContrarian', checked)}
+                        disabled={anyLoading || isReplaying || !params.reverse}
+                    />
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-1 cursor-pointer">
+                            <Label htmlFor="adv-contrarian-generic-none" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
+                            <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
+                    </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                    <Switch
+                        id="reverse-logic-generic-none"
+                        checked={params.reverse || false}
+                        onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
+                        disabled={anyLoading || isReplaying}
+                    />
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-1 cursor-pointer">
+                        <Label htmlFor="reverse-logic-generic-none">Standard Contrarian (Reverse Logic)</Label>
+                        <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
+                    </div>
                 </div>
             </div>
         );
@@ -1310,17 +1165,32 @@ const BacktestPageContent = () => {
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">{controls}</div>
-         <div className="flex items-center space-x-2 pt-2">
+         <div className="flex items-center space-x-2 pt-2 pb-1 border-b border-white/5">
             <Switch
-              id="reverse-logic"
+              id="adv-contrarian-generic"
+              checked={params.advancedContrarian || false}
+              onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'advancedContrarian', checked)}
+              disabled={anyLoading || isReplaying || !params.reverse}
+            />
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1 cursor-pointer">
+                <Label htmlFor="adv-contrarian-generic" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+              </div>
+              <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              id="reverse-logic-generic"
               checked={params.reverse || false}
               onCheckedChange={(checked) => handleParamChange(selectedStrategy, 'reverse', checked)}
               disabled={anyLoading || isReplaying}
             />
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
-                <Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal. Best used when a strategy is consistently wrong.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Label htmlFor="reverse-logic-generic">Standard Contrarian (Reverse Logic)</Label>
+                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
               </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>

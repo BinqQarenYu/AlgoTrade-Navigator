@@ -9,6 +9,10 @@ const BINANCE_API_URL = 'https://fapi.binance.com';
 // Allow-list of permitted Binance API endpoints and methods.
 // This prevents the proxy from being used to access unauthorized endpoints.
 const ALLOWED_ENDPOINTS: Record<string, string[]> = {
+  '/fapi/v1/ping': ['GET'],
+  '/fapi/v1/time': ['GET'],
+  '/fapi/v1/exchangeInfo': ['GET'],
+  '/fapi/v1/klines': ['GET'],
   '/fapi/v2/account': ['GET'],
   '/fapi/v2/positionRisk': ['GET'],
   '/fapi/v1/order': ['POST'],
@@ -34,7 +38,12 @@ export async function POST(request: NextRequest) {
     const finalApiKey = apiKey || process.env.BINANCE_API_KEY;
     const finalSecretKey = secretKey || process.env.BINANCE_SECRET_KEY;
 
-    if (!finalApiKey || !finalSecretKey) {
+    // Public endpoints don't strictly require API keys for signing, 
+    // although our proxy usually expects them for consistent signature generation.
+    // Endpoints like /fapi/v1/ping, /klines, etc. can be called without keys.
+    const isPublicEndpoint = path.startsWith('/fapi/v1/') && !path.includes('order') && !path.includes('account');
+
+    if (!isPublicEndpoint && (!finalApiKey || !finalSecretKey)) {
       return NextResponse.json({ error: 'API keys are not configured on the server.' }, { status: 500 });
     }
 
@@ -49,18 +58,23 @@ export async function POST(request: NextRequest) {
         }
     }
     
-    const signature = crypto
-      .createHmac('sha256', finalSecretKey)
-      .update(queryString)
-      .digest('hex');
+    // Only sign if we have keys. Public endpoints call without keys will have no signature.
+    if (finalApiKey && finalSecretKey) {
+        const signature = crypto
+          .createHmac('sha256', finalSecretKey)
+          .update(queryString)
+          .digest('hex');
+          
+        queryString += `&signature=${signature}`;
+    }
 
     const url = new URL(`${BINANCE_API_URL}${path}`);
-    url.search = `${queryString}&signature=${signature}`;
+    url.search = queryString;
 
     const options: RequestInit = {
       method,
       headers: {
-        'X-MBX-APIKEY': finalApiKey,
+        ...(finalApiKey ? { 'X-MBX-APIKEY': finalApiKey } : {}),
         'Content-Type': 'application/json',
       },
       cache: 'no-store',

@@ -39,9 +39,10 @@ export class RiskGuardian {
 
   /**
    * Checks if a new trade is allowed based on the current state and rules.
+   * @param timestamp The current candle timestamp (simulated time).
    * @returns An object indicating if the trade is allowed and the reason if not.
    */
-  public canTrade(): { allowed: boolean; reason: string; mode: 'cooldown' | 'adapt' | 'none' } {
+  public canTrade(timestamp: number): { allowed: boolean; reason: string; mode: 'cooldown' | 'adapt' | 'none' } {
     if (!this.disciplineParams.enableDiscipline) {
       return { allowed: true, reason: 'Discipline is disabled.', mode: 'none' };
     }
@@ -52,7 +53,7 @@ export class RiskGuardian {
         return { 
             allowed: false, 
             reason: `Daily drawdown limit of ${this.disciplineParams.dailyDrawdownLimit}% reached.`,
-            mode: 'cooldown' // Always a hard stop
+            mode: 'cooldown' 
         };
     }
 
@@ -66,21 +67,21 @@ export class RiskGuardian {
         };
       } else { // Cooldown
         if (!this.cooldownUntil) {
-          this.cooldownUntil = Date.now() + this.disciplineParams.cooldownPeriodMinutes * 60 * 1000;
+          this.cooldownUntil = timestamp + this.disciplineParams.cooldownPeriodMinutes * 60 * 1000;
         }
       }
     }
 
     // Check if currently in a cooldown period
-    if (this.cooldownUntil && Date.now() < this.cooldownUntil) {
-      const minutesRemaining = ((this.cooldownUntil - Date.now()) / 60000).toFixed(1);
+    if (this.cooldownUntil && timestamp < this.cooldownUntil) {
+      const minutesRemaining = ((this.cooldownUntil - timestamp) / 60000).toFixed(1);
       return {
         allowed: false,
         reason: `Trading is on a mandatory cooldown for another ${minutesRemaining} minutes due to consecutive losses.`,
         mode: 'cooldown',
       };
-    } else if (this.cooldownUntil && Date.now() >= this.cooldownUntil) {
-        // Cooldown has expired, reset for the next trade
+    } else if (this.cooldownUntil && timestamp >= this.cooldownUntil) {
+        // Cooldown has expired
         this.resetCooldown();
     }
 

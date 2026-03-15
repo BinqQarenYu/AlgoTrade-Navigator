@@ -307,7 +307,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         }
         
         // Use the aggressive profile for short term scalping
-        const prediction = (aiData as any).aggressive || aiData; 
+        const prediction = aiData.aggressive; 
         
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || 
                           (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
