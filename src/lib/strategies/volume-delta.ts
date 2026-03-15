@@ -1,4 +1,3 @@
-
 'use client';
 
 import type { HistoricalData, Strategy, DisciplineParams } from '../types';
@@ -25,22 +24,27 @@ export const defaultVolumeDeltaParams: VolumeDeltaParams = {
   },
 };
 
-
 // Calculates a simplified volume delta for each candle
 function calculateVolumeDelta(data: HistoricalData[], deltaLookback: number): { volumeDelta: number[], cumulativeVolumeDelta: number[] } {
-    const volumeDelta = data.map(d => {
-        if (d.close > d.open) return d.volume; // Buying pressure
-        if (d.close < d.open) return -d.volume; // Selling pressure
-        return 0;
-    });
-
-    const cumulativeVolumeDelta: (number | null)[] = [];
+    const volumeDelta = new Array(data.length);
     for (let i = 0; i < data.length; i++) {
-        if (i < deltaLookback - 1) {
-            cumulativeVolumeDelta.push(null);
-        } else {
-            const sum = volumeDelta.slice(i - deltaLookback + 1, i + 1).reduce((a, b) => a + b, 0);
-            cumulativeVolumeDelta.push(sum);
+        const d = data[i];
+        if (d.close > d.open) volumeDelta[i] = d.volume; // Buying pressure
+        else if (d.close < d.open) volumeDelta[i] = -d.volume; // Selling pressure
+        else volumeDelta[i] = 0;
+    }
+
+    const cumulativeVolumeDelta: (number | null)[] = new Array(data.length).fill(null);
+    let currentSum = 0;
+
+    for (let i = 0; i < data.length; i++) {
+        currentSum += volumeDelta[i];
+        if (i >= deltaLookback) {
+            currentSum -= volumeDelta[i - deltaLookback];
+        }
+
+        if (i >= deltaLookback - 1) {
+            cumulativeVolumeDelta[i] = currentSum;
         }
     }
 
@@ -50,19 +54,21 @@ function calculateVolumeDelta(data: HistoricalData[], deltaLookback: number): { 
 // Finds the Point of Control (price level with the highest volume) in a lookback period
 function findPOC(data: HistoricalData[], endIndex: number, lookback: number): number {
     const startIndex = Math.max(0, endIndex - lookback + 1);
-    const relevantData = data.slice(startIndex, endIndex + 1);
-
-    const volumeAtPrice: { [price: string]: number } = {};
-    let maxVolume = 0;
-    let poc = 0;
+    const relevantDataLength = endIndex - startIndex + 1;
     
-    if(relevantData.length === 0) return 0;
+    if (relevantDataLength <= 0) return 0;
 
-    const minPrice = Math.min(...relevantData.map(d => d.low));
-    const maxPrice = Math.max(...relevantData.map(d => d.high));
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+
+    for (let i = startIndex; i <= endIndex; i++) {
+        const d = data[i];
+        if (d.low < minPrice) minPrice = d.low;
+        if (d.high > maxPrice) maxPrice = d.high;
+    }
+    
     const priceRange = maxPrice - minPrice;
-    
-    if (priceRange === 0) return relevantData[0]?.close || 0;
+    if (priceRange === 0) return data[startIndex]?.close || 0;
 
     // Adjust bin size based on price magnitude
     let binSize = 0.01; // for prices < $1
@@ -70,17 +76,21 @@ function findPOC(data: HistoricalData[], endIndex: number, lookback: number): nu
     else if (minPrice > 100) binSize = 1;
     else if (minPrice > 1) binSize = 0.1;
 
+    const volumeAtPrice: { [price: string]: number } = {};
+    let maxVolume = 0;
+    let poc = 0;
 
-    relevantData.forEach(d => {
+    for (let i = startIndex; i <= endIndex; i++) {
+        const d = data[i];
         const priceBin = (Math.round(d.close / binSize) * binSize).toFixed(8);
         volumeAtPrice[priceBin] = (volumeAtPrice[priceBin] || 0) + d.volume;
         if (volumeAtPrice[priceBin] > maxVolume) {
             maxVolume = volumeAtPrice[priceBin];
             poc = parseFloat(priceBin);
         }
-    });
+    }
 
-    return poc || relevantData[relevantData.length - 1]?.close || 0;
+    return poc || data[endIndex]?.close || 0;
 }
 
 const volumeDeltaStrategy: Strategy = {
@@ -88,6 +98,8 @@ const volumeDeltaStrategy: Strategy = {
     name: 'Volume Delta Confirmation',
     description: 'A strategy that confirms trades by analyzing buying/selling pressure (delta) at significant price levels (POC).',
     async calculate(data: HistoricalData[], params: VolumeDeltaParams = defaultVolumeDeltaParams): Promise<HistoricalData[]> {
+        if (!data || data.length === 0) return [];
+
         const dataWithIndicators = data.map(d => ({ ...d }));
         if (data.length < params.pocLookback) return dataWithIndicators;
 
@@ -100,7 +112,7 @@ const volumeDeltaStrategy: Strategy = {
             const poc = findPOC(data, i, params.pocLookback);
             dataWithIndicators[i].poc = poc;
             
-            if (!poc || !cumulativeVolumeDelta[i - 1] || !cumulativeVolumeDelta[i]) continue;
+            if (!poc || cumulativeVolumeDelta[i - 1] === null || cumulativeVolumeDelta[i] === null) continue;
             
             const currentCandle = data[i];
             const prevCumulativeDelta = cumulativeVolumeDelta[i - 1]!;

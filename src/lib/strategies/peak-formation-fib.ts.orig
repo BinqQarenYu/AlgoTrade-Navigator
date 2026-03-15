@@ -114,6 +114,10 @@ async function calculate(
 
     let anySignal = false;
 
+    // Use running trackers instead of looping backwards
+    let lastPfhIndex = -1;
+    let lastPflIndex = -1;
+
     for (let i = peakLookaround + swingLookaround; i < data.length; i++) {
         // --- PREPARE RUNNING INDICES ---
         // Find the most recent PFH strictly before (i - peakLookaround) to avoid lookahead repainting

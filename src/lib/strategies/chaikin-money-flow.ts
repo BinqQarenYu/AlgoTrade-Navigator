@@ -1,6 +1,6 @@
 'use client';
-import type { Strategy, HistoricalData, DisciplineParams } from '@/lib/types';
-import { calculateCMF } from '@/lib/indicators';
+import type { Strategy, HistoricalData, DisciplineParams } from '../types';
+import { calculateCMF } from '../indicators';
 
 export interface ChaikinMoneyFlowParams {
   period: number;
@@ -25,14 +25,15 @@ const chaikinMoneyFlowStrategy: Strategy = {
   name: 'Chaikin Money Flow',
   description: 'Measures buying and selling pressure. Signals are generated when the CMF crosses the zero line.',
   async calculate(data: HistoricalData[], params: ChaikinMoneyFlowParams = defaultChaikinMoneyFlowParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = data.map(d => ({ ...d }));
+    if (!data || data.length === 0) return [];
 
-    if (data.length < params.period) return dataWithIndicators;
+    if (data.length < params.period) return data.map(d => ({ ...d }));
 
     const cmf = calculateCMF(data, params.period);
 
-    dataWithIndicators.forEach((d: HistoricalData, i: number) => {
-      d.cmf = cmf[i];
+    return data.map((d, i) => {
+      const result: HistoricalData = { ...d, cmf: cmf[i] };
+
       if (i > 0 && cmf[i-1] !== null && cmf[i] !== null) {
         // Buy Signal: CMF crosses above zero
         const standardBuy = cmf[i-1]! <= 0 && cmf[i]! > 0;
@@ -40,16 +41,15 @@ const chaikinMoneyFlowStrategy: Strategy = {
         const standardSell = cmf[i-1]! >= 0 && cmf[i]! < 0;
         
         if (params.reverse) {
-            if (standardBuy) d.sellSignal = d.high;
-            if (standardSell) d.buySignal = d.low;
+            if (standardBuy) result.sellSignal = result.high;
+            if (standardSell) result.buySignal = result.low;
         } else {
-            if (standardBuy) d.buySignal = d.low;
-            if (standardSell) d.sellSignal = d.high;
+            if (standardBuy) result.buySignal = result.low;
+            if (standardSell) result.sellSignal = result.high;
         }
       }
+      return result;
     });
-
-    return dataWithIndicators;
   },
 };
 
