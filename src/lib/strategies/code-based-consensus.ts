@@ -8,12 +8,14 @@ import { calculateSMA, calculateEMA } from '@/lib/indicators';
 export interface CodeBasedConsensusParams {
   strategies: string[]; // Array of strategy IDs
   reverse: boolean; // If true, it will trade against the consensus
+  advancedContrarian: boolean; // If true, it will use the smart Fade Engine logic instead of simple inversion
   discipline: DisciplineParams;
 }
 
 export const defaultCodeBasedConsensusParams: CodeBasedConsensusParams = {
   strategies: ['ema-crossover', 'rsi-divergence', 'macd-crossover'],
   reverse: false,
+  advancedContrarian: true,
   discipline: {
     enableDiscipline: true,
     maxConsecutiveLosses: 4,
@@ -71,41 +73,49 @@ const codeBasedConsensusStrategy: Strategy = {
         if (!hasConsensus) continue;
 
         const isBuyConsensus = buyVotes > sellVotes;
+        const dominantVotes = Math.max(buyVotes, sellVotes);
+        const consensusStrength = strategyCount > 0 ? (dominantVotes / strategyCount) : 0;
 
         // Generate final signal based on consensus and the reverse parameter
         if (params.reverse) {
-            // PRO CONTRARIAN MODE (FADE TRADING)
-            // A basic inversion is unreliable. We only trade against the herd if they are trapped.
-            
-            // Phase 1: Unanimous Fakeout Detector
-            // Only fade if the consensus is extremely strong (>80% of active strategies agree).
-            // A weak consensus means the market is choppy, not over-extended.
-            const dominantVotes = Math.max(buyVotes, sellVotes);
-            const consensusStrength = strategyCount > 0 ? (dominantVotes / strategyCount) : 0;
-            if (consensusStrength < 0.8) continue; 
+            if (params.advancedContrarian) {
+                // PRO CONTRARIAN MODE (FADE TRADING / FADE ENGINE)
+                // A basic inversion is unreliable. We only trade against the herd if they are trapped.
+                
+                // Phase 1: Unanimous Fakeout Detector
+                // Only fade if the consensus is extremely strong (>80% of active strategies agree).
+                if (consensusStrength < 0.8) continue; 
 
-            // Phase 2: Exhaustion Filter (Capitulation/Euphoria Check)
-            // Trade only if current volume is significantly higher than the 20-period average.
-            const currentVol = data[i].volume;
-            const avgVol = volumeSma[i];
-            if (avgVol === null || currentVol < avgVol * 1.5) continue;
+                // Phase 2: Exhaustion Filter (Capitulation/Euphoria Check)
+                const currentVol = data[i].volume;
+                const avgVol = volumeSma[i];
+                if (avgVol === null || currentVol < avgVol * 1.5) continue;
 
-            // Phase 3: Mean Reversion / Extension Check
-            // Trade only if the price has stretched too far from the 50 EMA.
-            const currentClose = data[i].close;
-            const emaBase = baselineEma[i];
-            if (emaBase === null) continue;
-            const distancePercent = Math.abs((currentClose - emaBase) / emaBase) * 100;
-            if (distancePercent < 1.0) continue; // Requires at least a 1% stretch from the mean to justify a snap-back trade
+                // Phase 3: Mean Reversion / Extension Check
+                const currentClose = data[i].close;
+                const emaBase = baselineEma[i];
+                if (emaBase === null) continue;
+                const distancePercent = Math.abs((currentClose - emaBase) / emaBase) * 100;
+                if (distancePercent < 1.0) continue; 
 
-            // If all 3 traps trigger, the herd is wrong, and the contrarian strikes:
-            if (isBuyConsensus) {
-                dataWithIndicators[i].sellSignal = data[i].high;
+                // If all 3 traps trigger, the herd is wrong, and the contrarian strikes:
+                if (isBuyConsensus) {
+                    dataWithIndicators[i].sellSignal = data[i].high;
+                } else {
+                    dataWithIndicators[i].buySignal = data[i].low;
+                }
             } else {
-                dataWithIndicators[i].buySignal = data[i].low;
+                // STANDARD CONTRARIAN MODE (Simple inversion)
+                // Just flip the consensus signal
+                if (isBuyConsensus) {
+                    dataWithIndicators[i].sellSignal = data[i].high;
+                } else {
+                    dataWithIndicators[i].buySignal = data[i].low;
+                }
             }
         } else {
             // Follower mode (default majority rules)
+            // Can also use a consensus strength filter if configured (optional)
             if (isBuyConsensus) {
                 dataWithIndicators[i].buySignal = data[i].low;
             } else {

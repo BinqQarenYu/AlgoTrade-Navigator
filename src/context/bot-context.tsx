@@ -202,7 +202,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
         if (!aiData) return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
         
-        const prediction = (aiData as any).aggressive || aiData;
+        const prediction = aiData.aggressive;
         
         const aiConfirms = (prediction.prediction === 'UP' && strategySignal === 'BUY') || (prediction.prediction === 'DOWN' && strategySignal === 'SELL');
         
@@ -210,7 +210,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
             if (config.useAIPrediction) consumeAiCredit();
             const currentPrice = lastCandle.close;
             const stopLossPrice = lastCandle?.stopLossLevel ? lastCandle.stopLossLevel : prediction.prediction === 'UP' ? currentPrice * (1 - (config.stopLoss / 100)) : currentPrice * (1 + (config.stopLoss / 100));
-            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.stopLoss / 100));
+            const takeProfitPrice = prediction.prediction === 'UP' ? currentPrice * (1 + (config.takeProfit / 100)) : currentPrice * (1 - (config.takeProfit / 100));
             
             const newSignal: TradeSignal = { asset: config.symbol, action: prediction.prediction as 'UP' | 'DOWN', entryPrice: currentPrice, stopLoss: stopLossPrice, takeProfit: takeProfitPrice, confidence: prediction.confidence, reasoning: prediction.reasoning, timestamp: lastCandle.time, strategy: config.strategy, peakPrice: lastCandle?.peakPrice };
             return { status: 'monitoring', log: 'Signal found.', signal: newSignal };
