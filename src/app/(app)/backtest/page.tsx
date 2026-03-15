@@ -422,7 +422,7 @@ const BacktestPageContent = () => {
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
-    const dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(data)), strategyParams, symbol);
+    const dataWithSignals = await strategy.calculate(data.map((d: any) => ({ ...d })), strategyParams, symbol); // ⚡ Bolt: Shallow copy for performance, avoids slow JSON deep cloning
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -566,7 +566,7 @@ const BacktestPageContent = () => {
     const disciplineConfig = paramsForStrategy.discipline || defaultDisciplineParams;
     const riskGuardian = new RiskGuardian(disciplineConfig, initialCapital);
     
-    let dataWithSignals = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    let dataWithSignals = await strategy.calculate(fullChartData.map((d: any) => ({ ...d })), paramsForStrategy, symbol); // ⚡ Bolt: Shallow copy for performance, avoids slow JSON deep cloning
     
     const trades: BacktestResult[] = [];
     let positionType: 'long' | 'short' | null = null;
@@ -805,7 +805,7 @@ const BacktestPageContent = () => {
       return;
     }
     const paramsForStrategy = strategyParams[selectedStrategy] || {};
-    const calculatedData = await strategy.calculate(JSON.parse(JSON.stringify(fullChartData)), paramsForStrategy, symbol);
+    const calculatedData = await strategy.calculate(fullChartData.map((d: any) => ({ ...d })), paramsForStrategy, symbol); // ⚡ Bolt: Shallow copy for performance, avoids slow JSON deep cloning
     setFullChartData(calculatedData); // Store data with all signals pre-calculated
     setBacktestResults([]);
     setSummaryStats(null);

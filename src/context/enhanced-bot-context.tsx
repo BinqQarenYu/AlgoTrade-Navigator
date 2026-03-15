@@ -270,7 +270,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const dataWithIndicators = await strategy.calculate(
-          JSON.parse(JSON.stringify(dataToAnalyze)), 
+          dataToAnalyze.map((d: any) => ({ ...d })),  // ⚡ Bolt: Shallow copy for performance, avoids slow JSON deep cloning
           config.strategyParams, 
           config.symbol
         );

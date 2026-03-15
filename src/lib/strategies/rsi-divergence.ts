@@ -29,7 +29,7 @@ const rsiDivergenceStrategy: Strategy = {
   name: 'RSI Divergence',
   description: 'A mean-reversion strategy that identifies overbought and oversold conditions using the RSI indicator.',
   async calculate(data: HistoricalData[], params: RsiDivergenceParams = defaultRsiDivergenceParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map((d: any) => ({ ...d })); // ⚡ Bolt: Shallow copy for performance, avoids slow JSON deep cloning
     if (data.length < params.period + 1) return dataWithIndicators;
     
     const closePrices = data.map(d => d.close);
