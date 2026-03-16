@@ -18,12 +18,24 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   }
   if (data.length < period) return Array(data.length).fill(null);
   
+  // ⚡ Bolt Optimization: Replacing O(N * lookback) nested slice().reduce()
+  // with an O(N) sliding window to drastically reduce execution latency
+  // and Garbage Collection overhead for large backtest arrays.
   const sma: (number | null)[] = Array(period - 1).fill(null);
-  for (let i = period - 1; i < data.length; i++) {
-    const slice = data.slice(i - period + 1, i + 1);
-    const sum = slice.reduce((acc, val) => acc + val, 0);
-    sma.push(sum / period);
+
+  // Calculate initial window sum
+  let windowSum = 0;
+  for (let i = 0; i < period; i++) {
+    windowSum += data[i];
   }
+  sma.push(windowSum / period);
+
+  // Slide the window forward
+  for (let i = period; i < data.length; i++) {
+    windowSum += data[i] - data[i - period];
+    sma.push(windowSum / period);
+  }
+
   return sma;
 };
 
