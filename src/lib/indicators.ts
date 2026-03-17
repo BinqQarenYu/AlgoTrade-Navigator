@@ -3,6 +3,53 @@
 import type { HistoricalData } from './types';
 
 /**
+ * Internal helper to calculate sliding window maximum or minimum using a monotonic deque.
+ * This achieves O(N) complexity for the entire dataset, compared to O(N * period).
+ *
+ * @param data Array of numbers to process
+ * @param period The sliding window size
+ * @param type 'max' for rolling maximum, 'min' for rolling minimum
+ * @returns Array of (number | null) where null represents initial periods
+ */
+const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
+  if (data.length < period) return Array(data.length).fill(null);
+
+  const results: (number | null)[] = Array(data.length).fill(null);
+  const deque: number[] = []; // Stores indices
+  let head = 0; // Use a head pointer to avoid O(P) shift() operations
+
+  for (let i = 0; i < data.length; i++) {
+    // Remove indices that are out of the current window
+    if (deque.length > head && deque[head] <= i - period) {
+      head++;
+    }
+
+    // Maintain monotonic property
+    while (deque.length > head) {
+      const lastIdx = deque[deque.length - 1];
+      const shouldPop = type === 'max'
+        ? data[i] >= data[lastIdx]
+        : data[i] <= data[lastIdx];
+
+      if (shouldPop) {
+        deque.pop();
+      } else {
+        break;
+      }
+    }
+
+    deque.push(i);
+
+    // If window is full, the element at the head of deque is the extreme
+    if (i >= period - 1) {
+      results[i] = data[deque[head]];
+    }
+  }
+
+  return results;
+};
+
+/**
  * Calculates the Simple Moving Average (SMA) for a given set of data.
  * @param data An array of numbers (e.g., closing prices).
  * @param period The number of periods to average over.
@@ -249,24 +296,13 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
 };
 
 export const calculateDonchianChannels = (data: HistoricalData[], period: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-  const upper: (number | null)[] = [];
-  const lower: (number | null)[] = [];
-  const middle: (number | null)[] = [];
+  const highs = data.map(d => d.high);
+  const lows = data.map(d => d.low);
 
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      upper.push(null);
-      lower.push(null);
-      middle.push(null);
-    } else {
-      const slice = data.slice(i - period + 1, i + 1);
-      const upperBand = Math.max(...slice.map(d => d.high));
-      const lowerBand = Math.min(...slice.map(d => d.low));
-      upper.push(upperBand);
-      lower.push(lowerBand);
-      middle.push((upperBand + lowerBand) / 2);
-    }
-  }
+  const upper = calculateSlidingWindowExtreme(highs, period, 'max');
+  const lower = calculateSlidingWindowExtreme(lows, period, 'min');
+  const middle = upper.map((u, i) => (u !== null && lower[i] !== null) ? (u + lower[i]!) / 2 : null);
+
   return { upper, middle, lower };
 };
 
@@ -277,72 +313,69 @@ export const calculateIchimokuCloud = (
   senkouBPeriod: number,
   displacement: number
 ): { tenkan: (number | null)[]; kijun: (number | null)[]; senkouA: (number | null)[]; senkouB: (number | null)[]; chikou: (number | null)[] } => {
-  const result = {
-    tenkan: Array(data.length).fill(null),
-    kijun: Array(data.length).fill(null),
-    senkouA: Array(data.length).fill(null),
-    senkouB: Array(data.length).fill(null),
-    chikou: Array(data.length).fill(null),
-  };
+  const highs = data.map(d => d.high);
+  const lows = data.map(d => d.low);
+
+  const tenkanHigh = calculateSlidingWindowExtreme(highs, tenkanPeriod, 'max');
+  const tenkanLow = calculateSlidingWindowExtreme(lows, tenkanPeriod, 'min');
+  const tenkan = tenkanHigh.map((h, i) => (h !== null && tenkanLow[i] !== null) ? (h + tenkanLow[i]!) / 2 : null);
+
+  const kijunHigh = calculateSlidingWindowExtreme(highs, kijunPeriod, 'max');
+  const kijunLow = calculateSlidingWindowExtreme(lows, kijunPeriod, 'min');
+  const kijun = kijunHigh.map((h, i) => (h !== null && kijunLow[i] !== null) ? (h + kijunLow[i]!) / 2 : null);
+
+  const senkouBHigh = calculateSlidingWindowExtreme(highs, senkouBPeriod, 'max');
+  const senkouBLow = calculateSlidingWindowExtreme(lows, senkouBPeriod, 'min');
+  const senkouBBase = senkouBHigh.map((h, i) => (h !== null && senkouBLow[i] !== null) ? (h + senkouBLow[i]!) / 2 : null);
+
+  const senkouA = Array(data.length).fill(null);
+  const senkouB = Array(data.length).fill(null);
+  const chikou = Array(data.length).fill(null);
 
   for (let i = 0; i < data.length; i++) {
-    if (i >= tenkanPeriod - 1) {
-      const slice = data.slice(i - tenkanPeriod + 1, i + 1);
-      const highestHigh = Math.max(...slice.map(d => d.high));
-      const lowestLow = Math.min(...slice.map(d => d.low));
-      result.tenkan[i] = (highestHigh + lowestLow) / 2;
-    }
-
-    if (i >= kijunPeriod - 1) {
-      const slice = data.slice(i - kijunPeriod + 1, i + 1);
-      const highestHigh = Math.max(...slice.map(d => d.high));
-      const lowestLow = Math.min(...slice.map(d => d.low));
-      result.kijun[i] = (highestHigh + lowestLow) / 2;
-    }
-  }
-
-  for (let i = 0; i < data.length; i++) {
-    if (result.tenkan[i] !== null && result.kijun[i] !== null) {
-      const val = (result.tenkan[i]! + result.kijun[i]!) / 2;
+    if (tenkan[i] !== null && kijun[i] !== null) {
+      const val = (tenkan[i]! + kijun[i]!) / 2;
       if (i + displacement < data.length) {
-        result.senkouA[i + displacement] = val;
+        senkouA[i + displacement] = val;
       }
     }
 
-    if (i >= senkouBPeriod - 1) {
-      const slice = data.slice(i - senkouBPeriod + 1, i + 1);
-      const highestHigh = Math.max(...slice.map(d => d.high));
-      const lowestLow = Math.min(...slice.map(d => d.low));
-      const val = (highestHigh + lowestLow) / 2;
+    if (senkouBBase[i] !== null) {
       if (i + displacement < data.length) {
-        result.senkouB[i + displacement] = val;
+        senkouB[i + displacement] = senkouBBase[i];
       }
     }
 
     if (i - displacement >= 0) {
-       result.chikou[i-displacement] = data[i].close;
+      chikou[i - displacement] = data[i].close;
     }
   }
 
-  return result;
+  return { tenkan, kijun, senkouA, senkouB, chikou };
 };
 
 export const calculateStochastic = (data: HistoricalData[], period: number, smoothK: number, smoothD: number): { k: (number | null)[], d: (number | null)[] } => {
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     const stochK: (number | null)[] = [];
     for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
+        const highestHigh = periodHighs[i];
+        const lowestLow = periodLows[i];
+
+        if (highestHigh === null || lowestLow === null) {
             stochK.push(null);
             continue;
         }
-        const slice = data.slice(i - period + 1, i + 1);
-        const lowestLow = Math.min(...slice.map(d => d.low));
-        const highestHigh = Math.max(...slice.map(d => d.high));
+
         const k = ((data[i].close - lowestLow) / (highestHigh - lowestLow)) * 100;
         stochK.push(isNaN(k) ? 50 : k);
     }
-    const smoothedK = calculateSMA(stochK.filter(v => v !== null) as number[], smoothK);
+    const smoothedK = calculateSMA(stochK.filter((v): v is number => v !== null), smoothK);
     const kWithPadding = [...Array(data.length - smoothedK.length).fill(null), ...smoothedK];
-    const smoothedD = calculateSMA(smoothedK.filter(v => v !== null) as number[], smoothD);
+    const smoothedD = calculateSMA(smoothedK.filter((v): v is number => v !== null), smoothD);
     const dWithPadding = [...Array(data.length - smoothedD.length).fill(null), ...smoothedD];
     return { k: kWithPadding, d: dWithPadding };
 };
@@ -442,15 +475,21 @@ export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: 
 };
 
 export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     const williamsR: (number | null)[] = [];
     for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
+        const highestHigh = periodHighs[i];
+        const lowestLow = periodLows[i];
+
+        if (highestHigh === null || lowestLow === null) {
             williamsR.push(null);
             continue;
         }
-        const slice = data.slice(i - period + 1, i + 1);
-        const highestHigh = Math.max(...slice.map(d => d.high));
-        const lowestLow = Math.min(...slice.map(d => d.low));
+
         const r = ((highestHigh - data[i].close) / (highestHigh - lowestLow)) * -100;
         williamsR.push(isNaN(r) ? -50 : r);
     }
@@ -690,11 +729,18 @@ export const calculateSMI = (
     
     const padding = data.length - validData.length;
 
+    const highs = calculateSlidingWindowExtreme(validData, smiPeriod, 'max');
+    const lows = calculateSlidingWindowExtreme(validData, smiPeriod, 'min');
+
     let smiValues: (number|null)[] = [];
-    for (let i = smiPeriod - 1; i < validData.length; i++) {
-        const slice = validData.slice(i - smiPeriod + 1, i + 1);
-        const highest = Math.max(...slice);
-        const lowest = Math.min(...slice);
+    for (let i = 0; i < validData.length; i++) {
+        const highest = highs[i];
+        const lowest = lows[i];
+
+        if (highest === null || lowest === null) {
+            continue;
+        }
+
         const range = highest - lowest;
         const smi = range > 0 ? ((validData[i] - (highest + lowest) / 2) / (range / 2)) * 100 : 0;
         smiValues.push(smi);
