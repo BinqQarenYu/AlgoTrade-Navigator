@@ -270,7 +270,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const dataWithIndicators = await strategy.calculate(
-          JSON.parse(JSON.stringify(dataToAnalyze)), 
+          dataToAnalyze.map(d => ({ ...d })),
           config.strategyParams, 
           config.symbol
         );

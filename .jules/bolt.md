@@ -1,3 +1,3 @@
-## 2024-03-16 - [Array Mutation Performance in Indicators]
-**Learning:** Found heavily nested loop/slice processing inside core indicators (`calculateSMA`, `calculateStandardDeviation`). Using `.slice()` and `.reduce()` repeatedly for moving averages causes an O(N * lookback) time complexity.
-**Action:** Replace `slice().reduce()` in array processing with sliding window techniques to achieve O(N) complexity for backtesting performance, particularly as `calculateSMA` is used heavily by other indicators like Bollinger Bands and Awesome Oscillator.
+## 2024-05-24 - Avoid Deep Cloning
+**Learning:** `JSON.parse(JSON.stringify(data))` is used extensively in the strategies to clone the historical data arrays before calculating indicators. In performance critical paths like backtesting, this is an expensive operation in terms of execution latency and GC overhead, and isn't necessary. A shallow copy is much faster. Memory instructs avoiding deep cloning.
+**Action:** Replace `JSON.parse(JSON.stringify(data))` with `data.map(d => ({ ...d }))` or `[...data]` for shallow cloning, depending on mutation needs. Since the strategies mutate the objects, `data.map(d => ({ ...d }))` is preferred.

@@ -25,7 +25,7 @@ const elderRayStrategy: Strategy = {
   name: 'Elder-Ray Index',
   description: 'Uses Bull and Bear Power oscillators to gauge market sentiment, with an EMA for trend direction.',
   async calculate(data: HistoricalData[], params: ElderRayIndexParams = defaultElderRayIndexParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 

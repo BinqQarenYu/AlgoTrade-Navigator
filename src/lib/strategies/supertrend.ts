@@ -27,7 +27,7 @@ const supertrendStrategy: Strategy = {
   name: 'Supertrend',
   description: 'A trend-following strategy that uses the Supertrend indicator to identify trend direction and generate signals on trend changes.',
   async calculate(data: HistoricalData[], params: SupertrendParams = defaultSupertrendParams): Promise<HistoricalData[]> {
-    const dataWithIndicators = JSON.parse(JSON.stringify(data));
+    const dataWithIndicators = data.map(d => ({ ...d }));
 
     if (data.length < params.period) return dataWithIndicators;
 
