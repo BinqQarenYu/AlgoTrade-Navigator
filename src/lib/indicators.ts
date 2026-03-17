@@ -535,6 +535,11 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     const pp: (number | null)[] = [];
     const s1: (number | null)[] = [];
     const s2: (number | null)[] = [];
@@ -544,6 +549,8 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
     const r3: (number | null)[] = [];
 
     for (let i = 0; i < data.length; i++) {
+        // Pivot points are typically calculated from the previous period's high, low, and close
+        // The previous period ends at i-1
         if (i < period) {
             pp.push(null);
             s1.push(null);
@@ -553,8 +560,11 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             r2.push(null);
             r3.push(null);
         } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
+            const high = periodHighs[i - 1];
+            const low = periodLows[i - 1];
+            const close = data[i - 1].close;
+
+            if (high === null || low === null) {
                  pp.push(null);
                  s1.push(null);
                  s2.push(null);
@@ -564,10 +574,6 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
                  r3.push(null);
                  continue;
             }
-
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
 
             const ppVal = (high + low + close) / 3;
             const r1Val = (2 * ppVal) - low;

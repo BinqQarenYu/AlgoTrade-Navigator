@@ -29,9 +29,7 @@ const donchianChannelStrategy: Strategy = {
 
     if (data.length < params.period) return dataWithIndicators;
 
-    const highs = data.map(d => d.high);
-    const lows = data.map(d => d.low);
-    const { upper, middle, lower } = calculateDonchianChannels(highs, lows, params.period);
+    const { upper, middle, lower } = calculateDonchianChannels(data, params.period);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.donchian_upper = upper[i];

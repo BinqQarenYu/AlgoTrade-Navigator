@@ -270,7 +270,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
         }
 
         const dataWithIndicators = await strategy.calculate(
-          JSON.parse(JSON.stringify(dataToAnalyze)), 
+          dataToAnalyze.map(d => ({ ...d })),
           config.strategyParams, 
           config.symbol
         );
@@ -423,7 +423,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
     let currentPosition = botState.activePosition;
     
     const riskGuardian = riskGuardianRefs.current[botId];
-    const { allowed, reason } = riskGuardian?.canTrade() ?? { allowed: true, reason: '' };
+    const lastTime = data[data.length - 1]?.time || Date.now();
+    const { allowed, reason } = riskGuardian?.canTrade(lastTime) ?? { allowed: true, reason: '' };
     
     if (!allowed) {
       addLiveLog(botId, `Risk management action: ${reason}`);
