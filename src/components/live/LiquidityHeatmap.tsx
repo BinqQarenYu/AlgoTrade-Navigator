@@ -3,9 +3,11 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getOrderBook } from '@/lib/binance-service';
-import { Loader2, Activity, Layers, ArrowUpRight, ArrowDownRight, Zap } from 'lucide-react';
+import { Loader2, Activity, Layers, ArrowUpRight, ArrowDownRight, Zap, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatPrice } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { topAssets } from '@/lib/assets';
 
 interface OrderBookLevel {
     price: number;
@@ -20,7 +22,14 @@ interface LiquidityHeatmapProps {
     onClose?: () => void;
 }
 
-export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol }) => {
+export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: initialSymbol }) => {
+    const [symbol, setSymbol] = useState(initialSymbol);
+
+    // Sync with prop if it changes externally
+    useEffect(() => {
+        setSymbol(initialSymbol);
+    }, [initialSymbol]);
+
     const [bids, setBids] = useState<OrderBookLevel[]>([]);
     const [asks, setAsks] = useState<OrderBookLevel[]>([]);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -144,7 +153,7 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol }) =>
                         </div>
                         <div>
                             <CardTitle className="text-sm font-semibold tracking-wide text-white flex items-center gap-2">
-                                {symbol} Liquidity Heatmap 
+                                Liquidity Heatmap 
                                 <Badge variant="outline" className="text-[10px] h-5 bg-green-500/10 text-green-400 border-green-500/20 px-1.5 flex items-center gap-1">
                                     <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                                     Live
@@ -154,6 +163,21 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol }) =>
                                 Real-time dynamic order book depth & wall detection.
                             </CardDescription>
                         </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                        <Select value={symbol} onValueChange={setSymbol}>
+                            <SelectTrigger className="w-[140px] h-9 bg-white/5 border-white/10 text-white text-xs">
+                                <SelectValue placeholder="Select Asset" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-slate-900 border-white/10 text-white">
+                                {topAssets.map((asset) => (
+                                    <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>
+                                        {asset.ticker} <span className="text-[10px] opacity-50 ml-1">({asset.name})</span>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
             </CardHeader>

@@ -31,7 +31,7 @@ async function callProxy<T>(
                 requestBody.secretKey = keys.secretKey;
             }
 
-            const response = await fetch('/api/binance-proxy', {
+            const response = await fetch('/api/exchange-proxy', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
