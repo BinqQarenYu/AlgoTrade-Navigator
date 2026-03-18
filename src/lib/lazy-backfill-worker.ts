@@ -1,32 +1,49 @@
+import { connectToDB } from './db-service';
 import { globalApiQueue, PriorityLevel } from './api-priority-queue';
-import { getHistoricalKlines } from './binance-service';
+import { getSyncState, updateSyncState } from './sync-state-manager';
+import ccxt from 'ccxt';
 
 // Target timestamp (2 months ago)
 const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000;
 const CHUNK_SIZE = 1000;
 const COOLDOWN_MS = 2000;
+const MAX_WEIGHT = 2400;
 
 class LazyBackfillWorker {
     private isRunning = false;
     private symbol: string = '';
-    private interval: string = '1m';
-    private lastSavedTimestamp: number = 0;
+    private lastFetchedTimestamp: number = 0;
+    private endGoalTimestamp: number | null = null;
+    private exchange: ccxt.binance;
     
     // UI Progress trackers
     public totalGaps: number = 0;
     public solvedGaps: number = 0;
     private onProgressChange: ((percent: number) => void) | null = null;
+
+    constructor() {
+        this.exchange = new ccxt.binance({
+            enableRateLimit: true,
+            options: {
+                defaultType: 'future'
+            }
+        });
+    }
     
     public init(symbol: string, onProgressChange?: (p: number) => void) {
         this.symbol = symbol;
         if (onProgressChange) this.onProgressChange = onProgressChange;
         
-        const now = Date.now();
-        this.lastSavedTimestamp = now; 
+        const state = getSyncState();
+        this.lastFetchedTimestamp = state.last_fetched_ms;
+        this.endGoalTimestamp = state.first_ws_packet_ms;
+
+        if (this.endGoalTimestamp) {
+            this.totalGaps = (this.endGoalTimestamp - this.lastFetchedTimestamp) / (60 * 1000);
+        } else {
+            this.totalGaps = TWO_MONTHS_MS / (60 * 1000);
+        }
         
-        // In a real app we'd fetch the TRUE lastSavedTimestamp from DuckDB
-        // For demonstration of the gap, we'll scan back entirely:
-        this.totalGaps = TWO_MONTHS_MS / (60 * 1000); // How many 1m candles in 2 months
         this.solvedGaps = 0;
     }
 
@@ -34,8 +51,13 @@ class LazyBackfillWorker {
         if (this.isRunning) return;
         this.isRunning = true;
         
-        // Background slow-fetch loop protecting the UI Main Thread
         this.processNextChunk();
+    }
+
+    public resume() {
+        if (!this.isRunning) {
+            this.start();
+        }
     }
 
     public pause() {
@@ -45,51 +67,94 @@ class LazyBackfillWorker {
     private async processNextChunk() {
         if (!this.isRunning) return;
         
-        const targetEnd = this.lastSavedTimestamp;
-        const targetStart = targetEnd - (CHUNK_SIZE * 60 * 1000);
+        const state = getSyncState();
+        this.endGoalTimestamp = state.first_ws_packet_ms;
+
+        const currentTarget = this.lastFetchedTimestamp;
         
-        // Stop condition: reached 2 months ago
-        if (Date.now() - targetStart > TWO_MONTHS_MS) {
+        // Stop condition
+        if (this.endGoalTimestamp && currentTarget >= this.endGoalTimestamp) {
             this.isRunning = false;
+            updateSyncState({ historical_backfill: { status: 'complete' } });
             if (this.onProgressChange) this.onProgressChange(100);
             return;
         }
 
         try {
             // Priority 3 (BACKGROUND) ensures live trading APIs execute first
-            const klines = await globalApiQueue.enqueue(
+            const trades = await globalApiQueue.enqueue(
                 PriorityLevel.BACKGROUND,
-                () => getHistoricalKlines(this.symbol, this.interval, targetStart, targetEnd)
+                async () => {
+                    const res = await this.exchange.fetchTrades(this.symbol, currentTarget, CHUNK_SIZE, {
+                        fromId: undefined
+                    });
+                    return res;
+                }
             );
 
-            // Transmit stitched chunk to Next.js API securely saving to DuckDB
-            if (klines && klines.length > 0) {
-               // Fire and forget so we don't bind up the thread waiting for disk I/O
-               fetch('/api/db/save', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({ 
-                       source: 'BACKFILL', 
-                       symbol: this.symbol, 
-                       data: klines 
-                   })
-               }).catch(e => console.error("DuckDB save failed (background worker):", e));
+            // Weight Guard: Check Binance limits natively inside CCXT
+            if (this.exchange.last_response_headers) {
+                 const usedWeightStr = this.exchange.last_response_headers['x-mbx-used-weight-1m'];
+                 if (usedWeightStr) {
+                      const usedWeight = parseInt(usedWeightStr as string, 10);
+                      if (usedWeight > MAX_WEIGHT * 0.6) {
+                           console.warn(`[Lazy-Backfill] Weight Guard Tripped! Used: ${usedWeight}. Sleeping for 10s.`);
+                           await new Promise(res => setTimeout(res, 10000));
+                      }
+                 }
+            }
 
-               this.lastSavedTimestamp = targetStart;
-               this.solvedGaps += klines.length;
+            if (trades && trades.length > 0) {
+               const mappedTrades = trades.map(t => ({
+                   id: t.id,
+                   price: t.price,
+                   quantity: t.amount,
+                   side: t.side ? t.side.toUpperCase() : 'BUY',
+                   timestamp: t.timestamp
+               }));
+
+               try {
+                   const conn = await connectToDB();
+                   const stmt = conn.prepare(`
+                       INSERT INTO live_trades (id, symbol, price, quantity, side, timestamp, source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT (id) DO NOTHING;
+                   `);
+                   for (let i = 0; i < mappedTrades.length; i++) {
+                       const t = mappedTrades[i];
+                       stmt.run(t.id, this.symbol.toUpperCase(), t.price, t.quantity, t.side, t.timestamp, 'BACKFILL');
+                   }
+                   stmt.finalize();
+               } catch (e) {
+                   console.error("DuckDB save failed (background worker):", e);
+               }
+
+               const maxTimestamp = Math.max(...trades.map(t => t.timestamp || 0));
+               this.lastFetchedTimestamp = maxTimestamp > currentTarget ? maxTimestamp : currentTarget + 1000;
+
+               updateSyncState({ last_fetched_ms: this.lastFetchedTimestamp, historical_backfill: { status: 'in_progress' } });
+
+               this.solvedGaps++;
                
                if (this.onProgressChange) {
-                   const progress = Math.min((this.solvedGaps / this.totalGaps) * 100, 100);
+                   const startTime = (this.endGoalTimestamp || Date.now()) - TWO_MONTHS_MS;
+                   const timeElapsed = this.lastFetchedTimestamp - startTime;
+                   const totalTimeWindow = (this.endGoalTimestamp || Date.now()) - startTime;
+                   const progress = Math.max(0, Math.min(100, (timeElapsed / Math.max(totalTimeWindow, 1)) * 100));
                    this.onProgressChange(progress);
                }
+            } else {
+               this.lastFetchedTimestamp += 60 * 1000;
             }
         } catch (error) {
             console.warn(`[Lazy-Backfill] Chunk failed. Retrying...`, error);
         }
 
-        // Pacing: Wait 2 seconds between REST calls so Binance doesn't drop 429
         setTimeout(() => this.processNextChunk(), COOLDOWN_MS);
     }
 }
+
+
+
 
 export const backfillEngine = new LazyBackfillWorker();

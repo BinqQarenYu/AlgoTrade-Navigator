@@ -15,6 +15,7 @@ const ALLOWED_ENDPOINTS: Record<string, string[]> = {
   '/fapi/v2/account': ['GET'],
   '/fapi/v2/positionRisk': ['GET'],
   '/fapi/v1/order': ['POST'],
+  '/sapi/v1/asset/transfer': ['POST'],
 };
 
 // This is the core proxy logic. It forwards requests from the client to the Binance API.

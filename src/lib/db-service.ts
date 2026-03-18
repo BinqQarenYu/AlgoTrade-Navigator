@@ -64,7 +64,7 @@ export const connectToDB = (customPath?: string): Promise<duckdb.Connection> => 
                 );
             `;
 
-            conn.exec(initQuery, (execErr) => {
+            conn.exec("PRAGMA default_compression='zstd';" + initQuery, (execErr) => {
                 if (execErr) reject(execErr);
                 else resolve(conn!);
             });
@@ -89,4 +89,15 @@ export const getStorageConfig = () => {
         sizeMb,
         isActive: db !== null
     };
+};
+
+/**
+ * Safely closes the DuckDB connection.
+ */
+export const closeDB = (): void => {
+    if (db) {
+        db.close();
+        db = null;
+        conn = null;
+    }
 };

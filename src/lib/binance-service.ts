@@ -91,6 +91,20 @@ const getBinanceExchange = async () => {
     return binanceExchangeInstance;
 };
 
+let cachedExchangeInfo: any = null;
+
+export const initExchangeInfo = async (useDirectConnection: boolean = false): Promise<any> => {
+    try {
+        if (cachedExchangeInfo) return cachedExchangeInfo;
+        const { data } = await callProxy('/fapi/v1/exchangeInfo', 'GET', undefined, undefined, useDirectConnection);
+        cachedExchangeInfo = data;
+        return data;
+    } catch (error) {
+        console.error('[BINANCE API] initExchangeInfo error:', error);
+        throw error;
+    }
+};
+
 export const pingBinance = async (keys: { apiKey: string, secretKey: string }, useDirectConnection: boolean = false): Promise<boolean> => {
     try {
         await callProxy<any>('/fapi/v1/ping', 'GET', undefined, keys, useDirectConnection, 5000);
@@ -150,8 +164,25 @@ export const placeOrder = async (
       throw new Error(`Could not find market data for symbol: ${symbol}`);
   }
 
-  // Convert quantity through Decimal.js to prevent JS float leaking, then back to a safe exchange precision string
-  const preciseQty = new Decimal(quantity).toNumber();
+  // Fetch exchange info at startup (or fallback inline) to apply stepSize precision bounding
+  let exchangeInfo = cachedExchangeInfo;
+  if (!exchangeInfo) {
+      exchangeInfo = await initExchangeInfo(useDirectConnection);
+  }
+
+  const symbolInfo = exchangeInfo?.symbols?.find((s: any) => s.symbol === symbol);
+  let boundedQuantity = quantity;
+
+  if (symbolInfo) {
+      const lotSizeFilter = symbolInfo.filters.find((f: any) => f.filterType === 'LOT_SIZE');
+      if (lotSizeFilter && lotSizeFilter.stepSize) {
+          const stepSize = parseFloat(lotSizeFilter.stepSize);
+          boundedQuantity = Number(new Decimal(quantity).dividedToIntegerBy(stepSize).times(stepSize));
+      }
+  }
+
+  // Convert bounded quantity through Decimal.js to prevent JS float leaking, then back to a safe exchange precision string
+  const preciseQty = new Decimal(boundedQuantity).toNumber();
   const formattedQuantity = binanceExchange.amountToPrecision(symbol, preciseQty);
   
   const body: any = {
@@ -264,5 +295,25 @@ export const getRecentTrades = async (
     } catch (error) {
         console.error(`Error fetching recent trades for ${symbol} via CCXT:`, error);
         return [];
+    }
+};
+
+export const transferSpotToFutures = async (
+    keys: { apiKey: string, secretKey: string },
+    asset: string,
+    amount: number,
+    useDirectConnection: boolean = false
+): Promise<any> => {
+    try {
+        const body = {
+            asset,
+            amount: amount.toString(),
+            type: 1 // 1: spot to USDT-M futures
+        };
+        const { data } = await callProxy('/sapi/v1/asset/transfer', 'POST', body, keys, useDirectConnection);
+        return data;
+    } catch (error) {
+        console.error('[BINANCE API] transferSpotToFutures error:', error);
+        throw error;
     }
 };
