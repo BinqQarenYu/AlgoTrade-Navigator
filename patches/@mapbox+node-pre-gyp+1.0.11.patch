@@ -1,0 +1,48 @@
+diff --git a/node_modules/@mapbox/node-pre-gyp/lib/node-pre-gyp.js b/node_modules/@mapbox/node-pre-gyp/lib/node-pre-gyp.js
+index 1234567..abcdefg 100644
+--- a/node_modules/@mapbox/node-pre-gyp/lib/node-pre-gyp.js
++++ b/node_modules/@mapbox/node-pre-gyp/lib/node-pre-gyp.js
+@@ -18,6 +18,22 @@ const nopt = require('nopt');
+ const log = require('./util/log.js');
+ const napi = require('./util/napi.js');
+ 
++// Explicit static requires to replace dynamic require('./' + command) patterns.
++// This prevents webpack from creating a context module that includes ALL files
++// in this directory (including non-JS files like .html that crash the build).
++const command_modules = {
++  clean: require('./clean'),
++  install: require('./install'),
++  reinstall: require('./reinstall'),
++  build: require('./build'),
++  rebuild: require('./rebuild'),
++  package: require('./package'),
++  testpackage: require('./testpackage'),
++  publish: require('./publish'),
++  unpublish: require('./unpublish'),
++  info: require('./info'),
++  testbinary: require('./testbinary'),
++  reveal: require('./reveal'),
++  configure: require('./configure'),
++};
++
+ const EE = require('events').EventEmitter;
+ const inherits = require('util').inherits;
+ const cli_commands = [
+@@ -68,7 +84,7 @@ function Run({ package_json_path = './package.json', argv }) {
+   const self = this;
+   cli_commands.forEach((command) => {
+     self.commands[command] = function(argvx, callback) {
+-      return require('./' + command)(self, argvx, callback);
++      return command_modules[command](self, argvx, callback);
+     };
+   });
+ 
+@@ -274,7 +290,7 @@ proto.usage = function usage() {
+     '',
+     '  where <command> is one of:',
+     cli_commands.map((c) => {
+-      return '    - ' + c + ' - ' + require('./' + c).usage;
++      return '    - ' + c + ' - ' + (command_modules[c] && command_modules[c].usage ? command_modules[c].usage : '');
+     }).join('\n'),
+     '',
+     'node-pre-gyp@' + this.version + '  ' + path.resolve(__dirname, '..'),

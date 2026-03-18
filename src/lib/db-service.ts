@@ -8,6 +8,9 @@
  * - Atomic database relocation support
  */
 
+// 'server-only' ensures Next.js App Router / RSC compiler treats this module as strictly
+// server-side, enabling serverExternalPackages to correctly externalize duckdb+deps at build time.
+import 'server-only';
 import duckdb from 'duckdb';
 import path from 'path';
 import fs from 'fs';
