@@ -177,7 +177,7 @@ export const placeOrder = async (
   };
 };
 
-// Public data fetching can still use CCXT directly, as it doesn't require API keys.
+// Public data fetching natively uses CCXT to avoid proxy rate limits.
 export const getHistoricalKlines = async (
     symbol: string, 
     interval: string, 
@@ -187,26 +187,19 @@ export const getHistoricalKlines = async (
     if (!symbol) return [];
     
     try {
-        // We use the proxy for klines too, to ensure we bypass geo-restrictions even for public data.
-        const body = {
-            symbol: symbol.toUpperCase(),
-            interval,
-            startTime,
-            endTime,
-            limit: 1500
-        };
-
-        const { data: ohlcv } = await callProxy<any[]>('/fapi/v1/klines', 'GET', body);
+        const binanceExchange = await getBinanceExchange();
+        // Use CCXT's unified method to fetch OHLCV data
+        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500);
         
         if (!Array.isArray(ohlcv)) {
-            throw new Error('Unexpected data format from Binance klines.');
+            throw new Error('Unexpected data format from CCXT fetchOHLCV.');
         }
         
         return ohlcv.map((k: any): HistoricalData => ({
             time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]),
         }));
     } catch (error) {
-        console.error(`Error fetching klines via Proxy:`, error);
+        console.error(`Error fetching klines via CCXT:`, error);
         throw error;
     }
 };
@@ -219,23 +212,18 @@ export const getLatestKlinesByLimit = async (
     if (!symbol) return [];
     
     try {
-        const body = {
-            symbol: symbol.toUpperCase(),
-            interval,
-            limit
-        };
-
-        const { data: ohlcv } = await callProxy<any[]>('/fapi/v1/klines', 'GET', body);
+        const binanceExchange = await getBinanceExchange();
+        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit);
         
         if (!Array.isArray(ohlcv)) {
-            throw new Error('Unexpected data format from Binance klines.');
+            throw new Error('Unexpected data format from CCXT fetchOHLCV.');
         }
         
         return ohlcv.map((k: any): HistoricalData => ({
             time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]),
         }));
     } catch (error) {
-        console.error(`Error fetching latest klines via Proxy:`, error);
+        console.error(`Error fetching latest klines via CCXT:`, error);
         throw error;
     }
 }
@@ -245,10 +233,14 @@ export const getOrderBook = async (
     limit: number = 100
 ): Promise<{ bids: [string, string][], asks: [string, string][] }> => {
     try {
-        const { data } = await callProxy<any>('/fapi/v1/depth', 'GET', { symbol: symbol.toUpperCase(), limit });
-        return data;
+        const binanceExchange = await getBinanceExchange();
+        const orderbook = await binanceExchange.fetchOrderBook(symbol.toUpperCase(), limit);
+        return {
+            bids: (orderbook.bids || []).map(b => [(b[0] ?? 0).toString(), (b[1] ?? 0).toString()]),
+            asks: (orderbook.asks || []).map(a => [(a[0] ?? 0).toString(), (a[1] ?? 0).toString()]),
+        };
     } catch (error) {
-        console.error(`Error fetching order book for ${symbol}:`, error);
+        console.error(`Error fetching order book for ${symbol} via CCXT:`, error);
         return { bids: [], asks: [] };
     }
 };
@@ -258,10 +250,19 @@ export const getRecentTrades = async (
     limit: number = 100
 ): Promise<any[]> => {
     try {
-        const { data } = await callProxy<any[]>('/fapi/v1/trades', 'GET', { symbol: symbol.toUpperCase(), limit });
-        return data;
+        const binanceExchange = await getBinanceExchange();
+        const trades = await binanceExchange.fetchTrades(symbol.toUpperCase(), undefined, limit);
+        // Map CCXT trade format to mimic original Binance REST payload format
+        return trades.map((t: any) => ({
+            id: t.id || t.info?.id || Date.now().toString(),
+            price: t.price?.toString() || '0',
+            qty: t.amount?.toString() || '0',
+            time: t.timestamp,
+            // CCXT translates side directly to 'buy' or 'sell' for taker
+            isBuyerMaker: t.side === 'sell'
+        }));
     } catch (error) {
-        console.error(`Error fetching recent trades for ${symbol}:`, error);
+        console.error(`Error fetching recent trades for ${symbol} via CCXT:`, error);
         return [];
     }
 };
