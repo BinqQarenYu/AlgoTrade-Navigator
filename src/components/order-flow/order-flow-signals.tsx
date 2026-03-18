@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, TrendingDown, Target, Activity, Shield, BarChart2, Zap } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Activity, Shield, BarChart2, Zap, CheckCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { type OrderFlowData } from "@/hooks/use-order-flow";
 
 interface OrderFlowSignalsProps {
