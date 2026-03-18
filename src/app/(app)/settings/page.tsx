@@ -25,7 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap, Database, FolderOpen, Activity, Clock } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -84,36 +84,77 @@ export default function SettingsPage() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(true);
 
-  const [dbPathInput, setDbPathInput] = useState<string>("Loading...");
+  // ── DuckDB Data Health Card state ───────────────────────
+  interface DbConfig {
+    path: string;
+    sizeMb: number;
+    isActive: boolean;
+    tradeCount: number;
+    oldestTimestamp: number | null;
+    newestTimestamp: number | null;
+    bufferPending: number;
+    timeline?: {
+      targetStartMs: number;
+      nowMs: number;
+      coveredStartMs: number | null;
+      coveredEndMs: number | null;
+      coveredPercent: number;
+      gapPercent: number;
+    };
+  }
+  const [dbConfig, setDbConfig] = useState<DbConfig | null>(null);
+  const [dbPathInput, setDbPathInput] = useState<string>('');
   const [isRelocating, setIsRelocating] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState(0);
+  const [backfillDays, setBackfillDays] = useState({ covered: 0, total: 60 });
 
-  // Poll DB info
+  const refreshDbConfig = async (symbol = 'BTCUSDT') => {
+    try {
+      const res = await fetch(`/api/db/config?symbol=${symbol}`);
+      if (!res.ok) return;
+      const d: DbConfig = await res.json();
+      setDbConfig(d);
+      setDbPathInput(prev => prev || d.path);
+      if (d.timeline) {
+        const p = d.timeline.coveredPercent;
+        setBackfillProgress(parseFloat(p.toFixed(1)));
+        setBackfillDays({
+          covered: parseFloat(((p / 100) * 60).toFixed(1)),
+          total: 60,
+        });
+      }
+    } catch (e) {
+      console.error('Could not load DB config', e);
+    }
+  };
+
   useEffect(() => {
-     fetch('/api/db/config').then(r => r.json()).then(d => {
-         if (d && d.path) setDbPathInput(d.path);
-     }).catch(e => console.error("Could not load DB path"));
+    refreshDbConfig();
+    const t = setInterval(() => refreshDbConfig(), 15_000);
+    return () => clearInterval(t);
   }, []);
 
   const handleRelocateDB = async () => {
-     setIsRelocating(true);
-     try {
-         const res = await fetch('/api/db/config', {
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ newPath: dbPathInput })
-         });
-         const data = await res.json();
-         if (data.success) {
-            toast({ title: "Database Relocated", description: "Successfully remounted the DuckDB storage stream to the new path." });
-         } else {
-            toast({ title: "Failed to Relocate", description: data.error, variant: "destructive" });
-         }
-     } catch (e: any) {
-         toast({ title: "Error", description: e.message, variant: "destructive" });
-     } finally {
-         setIsRelocating(false);
-     }
+    if (!dbPathInput || dbPathInput === dbConfig?.path) return;
+    setIsRelocating(true);
+    try {
+      const res = await fetch('/api/db/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'relocate', newPath: dbPathInput }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast({ title: '✅ Database Relocated', description: `Mounted at ${dbPathInput}` });
+        await refreshDbConfig();
+      } else {
+        toast({ title: 'Relocation Failed', description: data.error, variant: 'destructive' });
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    } finally {
+      setIsRelocating(false);
+    }
   };
 
 
@@ -244,60 +285,132 @@ export default function SettingsPage() {
         <Collapsible open={isStorageOpen} onOpenChange={setIsStorageOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                <CardTitle className="flex items-center gap-2">
-                    <HardDrive className="text-primary"/> DuckDB Data Engine
-                </CardTitle>
-                <CardDescription>
-                    Manage the local data repository for analytics and simulations.
-                </CardDescription>
+                  <CardTitle className="flex items-center gap-2">
+                      <Database className="text-primary h-5 w-5"/> Data Vault Health
+                  </CardTitle>
+                  <CardDescription>
+                      DuckDB persistence engine status, backfill progress, and repository management.
+                  </CardDescription>
                 </div>
                 <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isStorageOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
             </CardHeader>
             <CollapsibleContent>
-            <CardContent className="space-y-6">
-                <div className="flex items-center justify-between border rounded-lg p-4 bg-primary/5">
-                    <div className="space-y-1">
-                        <Label className="text-base font-bold">1. Live Sync Stream</Label>
-                        <p className="text-sm text-muted-foreground">High-priority WebSocket instantly writing to database tables</p>
+            <CardContent className="space-y-5">
+
+                {/* ── Stats Grid ─────────────────────────────────── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    {
+                      icon: <HardDrive className="h-4 w-4 text-primary"/>,
+                      label: 'DB Size',
+                      value: dbConfig ? `${dbConfig.sizeMb} MB` : '—',
+                    },
+                    {
+                      icon: <Activity className="h-4 w-4 text-green-500"/>,
+                      label: 'Trade Records',
+                      value: dbConfig ? dbConfig.tradeCount.toLocaleString() : '—',
+                    },
+                    {
+                      icon: <Clock className="h-4 w-4 text-yellow-500"/>,
+                      label: 'Buffer Pending',
+                      value: dbConfig ? `${dbConfig.bufferPending} rows` : '—',
+                    },
+                    {
+                      icon: <Zap className="h-4 w-4 text-blue-500"/>,
+                      label: 'DB Status',
+                      value: dbConfig?.isActive ? 'Connected' : 'Offline',
+                    },
+                  ].map((stat) => (
+                    <div key={stat.label} className="flex flex-col gap-1 p-3 rounded-xl border bg-primary/5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {stat.icon}
+                        {stat.label}
+                      </div>
+                      <p className="text-sm font-bold">{stat.value}</p>
                     </div>
-                    <Badge variant={isConnected ? "default" : "secondary"} className={isConnected ? "bg-green-600 px-3 py-1 text-xs text-white" : "px-3 py-1 text-xs"}>
-                        {isConnected && <Zap className="h-3 w-3 mr-1 inline-block" />}
-                        <span>{isConnected ? "Active" : "Paused"}</span>
-                    </Badge>
-                </div>
-                
-                <div className="flex flex-col border rounded-lg p-4 bg-primary/5 space-y-3">
-                    <div className="flex items-center justify-between pl-1">
-                        <div className="space-y-1">
-                            <Label className="text-base font-bold">2. Lazy-Backfill Engine</Label>
-                            <p className="text-sm text-muted-foreground">Low-priority background worker mapping the 2-month gap</p>
-                        </div>
-                    </div>
-                    <div className="flex justify-between text-xs font-bold px-1 mt-2">
-                        <span className="text-muted-foreground">Backfilling Historical Data...</span>
-                        <span>{backfillProgress}% Complete</span>
-                    </div>
-                    <Progress value={backfillProgress} className="h-2" />
+                  ))}
                 </div>
 
-                <div className="space-y-3 pt-2 border-t mt-4">
-                    <Label className="text-base font-bold">Relocate Data Repository</Label>
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2">
-                        <Input 
-                            value={dbPathInput} 
-                            onChange={(e) => setDbPathInput(e.target.value)} 
-                            placeholder="e.g. D:\backups\algo_trades.duckdb"
-                            className="font-mono text-sm shadow-inner"
-                        />
-                        <Button onClick={handleRelocateDB} disabled={isRelocating} className="shrink-0 w-full sm:w-auto">
-                            {isRelocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {isRelocating ? "Migrating DB..." : "Move DB Path"}
-                        </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground italic pl-1 mt-1">
-                        If your C: Drive gets full, move the massive DB file to an external SSD/NVMe. This form will pause the Lazy-Backfill, unmount the database, reconnect at the new path, and seamlessly resume.
-                    </p>
+                {/* ── Stream Status Row ─────────────────────────── */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1 flex items-center justify-between border rounded-lg p-3 bg-primary/5">
+                      <div>
+                          <Label className="text-sm font-bold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5"/>Live Sync Stream</Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">WebSocket → DuckDB instant write</p>
+                      </div>
+                      <Badge className={isConnected ? "bg-green-600 text-white text-xs" : "text-xs"} variant={isConnected ? "default" : "secondary"}>
+                          {isConnected ? "🟢 Active" : "⚪ Paused"}
+                      </Badge>
+                  </div>
+                  <div className="flex-1 flex items-center justify-between border rounded-lg p-3 bg-primary/5">
+                      <div>
+                          <Label className="text-sm font-bold flex items-center gap-1.5"><Activity className="h-3.5 w-3.5"/>Backfill Engine</Label>
+                          <p className="text-xs text-muted-foreground mt-0.5">Background REST gap fill</p>
+                      </div>
+                      <Badge className="text-xs" variant={backfillProgress >= 100 ? "default" : "secondary"}>
+                          {backfillProgress >= 100 ? "✅ Complete" : "⏳ Running"}
+                      </Badge>
+                  </div>
                 </div>
+
+                {/* ── Timeline Map ──────────────────────────────── */}
+                <div className="space-y-2 border rounded-lg p-4 bg-black/20">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-muted-foreground">Historical Coverage Timeline</span>
+                    <span className="text-primary">{backfillDays.covered} / {backfillDays.total} days</span>
+                  </div>
+                  <div className="relative h-4 rounded-full bg-muted overflow-hidden">
+                    {/* Covered range */}
+                    <div
+                      className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-blue-400 transition-all duration-700"
+                      style={{ width: `${backfillProgress}%` }}
+                    />
+                    {/* Gap (not yet fetched) */}
+                    <div
+                      className="absolute top-0 h-full bg-red-500/30"
+                      style={{ left: `${backfillProgress}%`, width: `${100 - backfillProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                    <span>2 months ago</span>
+                    {dbConfig?.timeline?.coveredStartMs && (
+                      <span className="text-primary font-medium">
+                        {new Date(dbConfig.timeline.coveredStartMs).toLocaleDateString()} fetched
+                      </span>
+                    )}
+                    <span>Now</span>
+                  </div>
+                  <Progress value={backfillProgress} className="h-1.5" />
+                  <p className="text-center text-xs font-bold">{backfillProgress}% Complete</p>
+                </div>
+
+                {/* ── Relocation Section ───────────────────────── */}
+                <div className="space-y-2 pt-2 border-t">
+                  <Label className="text-sm font-bold flex items-center gap-1.5">
+                    <FolderOpen className="h-4 w-4"/> Relocate Repository
+                  </Label>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                      <Input
+                          value={dbPathInput}
+                          onChange={(e) => setDbPathInput(e.target.value)}
+                          placeholder="e.g. D:\DataVault\algo_trades.duckdb"
+                          className="font-mono text-xs sm:text-sm flex-1"
+                      />
+                      <Button
+                        onClick={handleRelocateDB}
+                        disabled={isRelocating || !dbPathInput || dbPathInput === dbConfig?.path}
+                        className="shrink-0"
+                        size="sm"
+                      >
+                          {isRelocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HardDrive className="mr-2 h-4 w-4" />}
+                          {isRelocating ? "Migrating..." : "Move DB"}
+                      </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                    Atomically flushes all pending writes, closes the database, physically moves the <code>.duckdb</code> file to the new path, and remounts. Zero data loss.
+                  </p>
+                </div>
+
             </CardContent>
             </CollapsibleContent>
         </Collapsible>
