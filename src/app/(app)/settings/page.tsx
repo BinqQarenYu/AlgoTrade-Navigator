@@ -82,6 +82,40 @@ export default function SettingsPage() {
   const [isProfilesOpen, setProfilesOpen] = useState(true);
   const [isFeesOpen, setIsFeesOpen] = useState(false);
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
+  const [isStorageOpen, setIsStorageOpen] = useState(true);
+
+  const [dbPathInput, setDbPathInput] = useState<string>("Loading...");
+  const [isRelocating, setIsRelocating] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState(0);
+
+  // Poll DB info
+  useEffect(() => {
+     fetch('/api/db/config').then(r => r.json()).then(d => {
+         if (d && d.path) setDbPathInput(d.path);
+     }).catch(e => console.error("Could not load DB path"));
+  }, []);
+
+  const handleRelocateDB = async () => {
+     setIsRelocating(true);
+     try {
+         const res = await fetch('/api/db/config', {
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ newPath: dbPathInput })
+         });
+         const data = await res.json();
+         if (data.success) {
+            toast({ title: "Database Relocated", description: "Successfully remounted the DuckDB storage stream to the new path." });
+         } else {
+            toast({ title: "Failed to Relocate", description: data.error, variant: "destructive" });
+         }
+     } catch (e: any) {
+         toast({ title: "Error", description: e.message, variant: "destructive" });
+     } finally {
+         setIsRelocating(false);
+     }
+  };
+
 
   useEffect(() => { setCgKeyValue(coingeckoApiKey || ""); }, [coingeckoApiKey]);
   useEffect(() => { setGeminiKeyValue(geminiApiKey || ""); }, [geminiApiKey]);
@@ -205,6 +239,69 @@ export default function SettingsPage() {
                 {isSaving ? "Saving..." : "Save Configuration to Server"}
             </Button>
         </div>
+
+      <Card>
+        <Collapsible open={isStorageOpen} onOpenChange={setIsStorageOpen}>
+            <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                <CardTitle className="flex items-center gap-2">
+                    <HardDrive className="text-primary"/> DuckDB Data Engine
+                </CardTitle>
+                <CardDescription>
+                    Manage the local data repository for analytics and simulations.
+                </CardDescription>
+                </div>
+                <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isStorageOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+            <CardContent className="space-y-6">
+                <div className="flex items-center justify-between border rounded-lg p-4 bg-primary/5">
+                    <div className="space-y-1">
+                        <Label className="text-base font-bold">1. Live Sync Stream</Label>
+                        <p className="text-sm text-muted-foreground">High-priority WebSocket instantly writing to database tables</p>
+                    </div>
+                    <Badge variant={isConnected ? "default" : "secondary"} className={isConnected ? "bg-green-600 px-3 py-1 text-xs text-white" : "px-3 py-1 text-xs"}>
+                        {isConnected && <Zap className="h-3 w-3 mr-1 inline-block" />}
+                        <span>{isConnected ? "Active" : "Paused"}</span>
+                    </Badge>
+                </div>
+                
+                <div className="flex flex-col border rounded-lg p-4 bg-primary/5 space-y-3">
+                    <div className="flex items-center justify-between pl-1">
+                        <div className="space-y-1">
+                            <Label className="text-base font-bold">2. Lazy-Backfill Engine</Label>
+                            <p className="text-sm text-muted-foreground">Low-priority background worker mapping the 2-month gap</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-between text-xs font-bold px-1 mt-2">
+                        <span className="text-muted-foreground">Backfilling Historical Data...</span>
+                        <span>{backfillProgress}% Complete</span>
+                    </div>
+                    <Progress value={backfillProgress} className="h-2" />
+                </div>
+
+                <div className="space-y-3 pt-2 border-t mt-4">
+                    <Label className="text-base font-bold">Relocate Data Repository</Label>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2">
+                        <Input 
+                            value={dbPathInput} 
+                            onChange={(e) => setDbPathInput(e.target.value)} 
+                            placeholder="e.g. D:\backups\algo_trades.duckdb"
+                            className="font-mono text-sm shadow-inner"
+                        />
+                        <Button onClick={handleRelocateDB} disabled={isRelocating} className="shrink-0 w-full sm:w-auto">
+                            {isRelocating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            {isRelocating ? "Migrating DB..." : "Move DB Path"}
+                        </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground italic pl-1 mt-1">
+                        If your C: Drive gets full, move the massive DB file to an external SSD/NVMe. This form will pause the Lazy-Backfill, unmount the database, reconnect at the new path, and seamlessly resume.
+                    </p>
+                </div>
+            </CardContent>
+            </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
        <Card>
         <Collapsible open={isConnectionOpen} onOpenChange={setConnectionOpen}>
