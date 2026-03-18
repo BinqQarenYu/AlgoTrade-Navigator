@@ -48,73 +48,86 @@ export const orderFlowAnalyzer = {
   }),
 
   analyzeOrder: (order: OrderData): ManipulationFlags => {
-    // Generate more realistic risk scores and patterns
-    const baseRisk = Math.random() * 10;
-    const isLargeOrder = order.size > 5;
-    const isRapidOrder = Date.now() - order.timestamp < 1000;
-    
-    let riskScore = baseRisk;
-    let reasons = ['Normal trading pattern'];
-    let flags = { 
-      spoofing: false, 
-      layering: false, 
-      washTrading: false, 
-      isPadding: false, 
-      isScam: false, 
-      isRag: false 
+    let riskScore = 0;
+    let reasons: string[] = [];
+    let flags = {
+      spoofing: false,
+      layering: false,
+      washTrading: false,
+      isPadding: false,
+      isScam: false,
+      isRag: false
     };
-    
-    // Detect manipulation patterns
-    if (isLargeOrder && baseRisk > 7) {
-      flags.spoofing = true;
-      reasons = ['Large order with suspicious timing'];
-      riskScore = Math.min(9, riskScore + 2);
+
+    const isLargeOrder = order.size > 10;
+    const isRapidOrder = Date.now() - order.timestamp < 100;
+
+    if (isLargeOrder) {
+      riskScore += 4;
+      if (isRapidOrder) {
+        flags.spoofing = true;
+        reasons.push('Large order with rapid timing');
+        riskScore += 3;
+      } else {
+        reasons.push('Large order block');
+      }
     }
-    
-    if (order.size < 0.1 && Math.random() > 0.8) {
+
+    if (order.size < 0.01) {
       flags.isPadding = true;
-      reasons = ['Small order - potential volume padding'];
-      riskScore = Math.min(8, riskScore + 1);
+      reasons.push('Micro order - potential volume padding');
+      riskScore += 1;
     }
-    
-    if (isRapidOrder && Math.random() > 0.9) {
+
+    if (isRapidOrder) {
       flags.isRag = true;
-      reasons = ['Rapid aggressive trading detected'];
-      riskScore = Math.min(9, riskScore + 2);
+      reasons.push('Rapid execution detected');
+      riskScore += 2;
     }
-    
-    if (Math.random() > 0.95) {
-      flags.isScam = true;
-      reasons = ['Potential scam pattern detected'];
-      riskScore = 9;
+
+    if (reasons.length === 0) {
+      reasons.push('Normal trading pattern');
     }
-    
-    return { 
-      spoofing: flags.spoofing, 
-      layering: flags.layering, 
+
+    return {
+      spoofing: flags.spoofing,
+      layering: flags.layering,
       washTrading: flags.washTrading,
       reasons: reasons,
-      riskScore: riskScore,
+      riskScore: Math.min(10, riskScore),
       isPadding: flags.isPadding,
       isScam: flags.isScam,
       isRag: flags.isRag
     };
   },
 
-  getManipulationStats: (symbol?: string): ManipulationStats => {
-    const paddingCount = Math.floor(Math.random() * 10);
-    const scamCount = Math.floor(Math.random() * 3);
-    const ragCount = Math.floor(Math.random() * 15);
-    
+  getManipulationStats: (orders: any[]): ManipulationStats => {
+    let paddingCount = 0;
+    let scamCount = 0;
+    let ragCount = 0;
+    let spoofingCount = 0;
+    let totalRisk = 0;
+
+    orders.forEach(o => {
+      const f = o.flags || {};
+      if (f.isPadding) paddingCount++;
+      if (f.isScam) scamCount++;
+      if (f.isRag) ragCount++;
+      if (f.spoofing) spoofingCount++;
+      totalRisk += (o.riskScore || 0);
+    });
+
+    const averageRiskScore = orders.length > 0 ? (totalRisk / orders.length) : 0;
+
     return { 
-      total: paddingCount + scamCount + ragCount, 
-      spoofing: Math.floor(Math.random() * 5), 
-      layering: Math.floor(Math.random() * 5), 
-      washTrading: Math.floor(Math.random() * 3),
-      averageRiskScore: 2 + Math.random() * 6, // Range 2-8
-      paddingCount: paddingCount,
-      scamCount: scamCount,
-      ragCount: ragCount
+      total: orders.length, 
+      spoofing: spoofingCount, 
+      layering: 0, 
+      washTrading: 0,
+      averageRiskScore,
+      paddingCount,
+      scamCount,
+      ragCount
     };
   },
 
