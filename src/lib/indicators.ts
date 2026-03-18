@@ -535,56 +535,37 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
-    const pp: (number | null)[] = [];
-    const s1: (number | null)[] = [];
-    const s2: (number | null)[] = [];
-    const s3: (number | null)[] = [];
-    const r1: (number | null)[] = [];
-    const r2: (number | null)[] = [];
-    const r3: (number | null)[] = [];
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const rollingMaxHigh = calculateSlidingWindowExtreme(highs, period, 'max');
+    const rollingMinLow = calculateSlidingWindowExtreme(lows, period, 'min');
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period) {
-            pp.push(null);
-            s1.push(null);
-            s2.push(null);
-            s3.push(null);
-            r1.push(null);
-            r2.push(null);
-            r3.push(null);
-        } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
-                 pp.push(null);
-                 s1.push(null);
-                 s2.push(null);
-                 s3.push(null);
-                 r1.push(null);
-                 r2.push(null);
-                 r3.push(null);
-                 continue;
-            }
+    const pp: (number | null)[] = Array(data.length).fill(null);
+    const s1: (number | null)[] = Array(data.length).fill(null);
+    const s2: (number | null)[] = Array(data.length).fill(null);
+    const s3: (number | null)[] = Array(data.length).fill(null);
+    const r1: (number | null)[] = Array(data.length).fill(null);
+    const r2: (number | null)[] = Array(data.length).fill(null);
+    const r3: (number | null)[] = Array(data.length).fill(null);
 
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
+    // Pivot Points are calculated using the high, low, and close of the PREVIOUS period
+    // So for index i, we look at the window ending at i-1
+    for (let i = period; i < data.length; i++) {
+        const prevIdx = i - 1;
+        const high = rollingMaxHigh[prevIdx];
+        const low = rollingMinLow[prevIdx];
+        const close = data[prevIdx].close;
 
-            const ppVal = (high + low + close) / 3;
-            const r1Val = (2 * ppVal) - low;
-            const s1Val = (2 * ppVal) - high;
-            const r2Val = ppVal + (high - low);
-            const s2Val = ppVal - (high - low);
-            const r3Val = high + 2 * (ppVal - low);
-            const s3Val = low - 2 * (high - ppVal);
+        if (high === null || low === null) continue;
 
-            pp.push(ppVal);
-            r1.push(r1Val);
-            s1.push(s1Val);
-            r2.push(r2Val);
-            s2.push(s2Val);
-            r3.push(r3Val);
-            s3.push(s3Val);
-        }
+        const ppVal = (high + low + close) / 3;
+        pp[i] = ppVal;
+        r1[i] = (2 * ppVal) - low;
+        s1[i] = (2 * ppVal) - high;
+        r2[i] = ppVal + (high - low);
+        s2[i] = ppVal - (high - low);
+        r3[i] = high + 2 * (ppVal - low);
+        s3[i] = low - 2 * (high - ppVal);
     }
     return { pp, s1, s2, s3, r1, r2, r3 };
 };
