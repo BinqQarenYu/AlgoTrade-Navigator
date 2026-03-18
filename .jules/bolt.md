@@ -9,3 +9,7 @@
 ## 2024-05-18 - High Performance WebSockets & DuckDB Migrations
 **Learning:** Native Binance WebSockets emitting `@aggTrade` can easily DDoS the Node event loop and memory limits if every tick triggers a synchronous file read or an unbatched HTTP POST payload. DuckDB initialization requires `PRAGMA default_compression='zstd'` for persistent storage configurations, not `compression='zstd'`.
 **Action:** When handling raw WebSocket streams, implement a `tradeBuffer` array with a `setInterval` (e.g., 1000ms) to flush batches. Only parse manifest JSON files synchronously once via a flag (`hasRecordedFirstPacket`). Ensure DB migration logic gracefully pauses stream engines natively before calling `fs.renameSync` on DB files.
+
+## 2024-05-18 - [Optimizing Indicators: Avoid slice() and reduce() on loops]
+**Learning:** Using `array.slice().reduce()` inside an $O(N)$ loop triggers $O(N \times \text{period})$ array creations and allocations. This leads to heavy garbage collection pressure when running against historical crypto data (e.g., 100k+ candles).
+**Action:** Replace `slice().reduce()` chains with inline `for` loops accumulating values directly. Use monotonic deques (like `calculateSlidingWindowExtreme`) instead of repeated `Math.max(...slice())` for localized bounds.

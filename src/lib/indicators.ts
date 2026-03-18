@@ -506,8 +506,14 @@ export const calculateCCI = (data: HistoricalData[], period: number): (number | 
             cci.push(null);
             continue;
         }
-        const slice = typicalPrices.slice(i - period + 1, i + 1);
-        const meanDeviation = slice.reduce((sum, val) => sum + Math.abs(val - smaTp[i]!), 0) / period;
+
+        // ⚡ Bolt Optimization: Avoid allocating a new array for each slice, saving GC and memory
+        let sumDev = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sumDev += Math.abs(typicalPrices[j] - smaTp[i]!);
+        }
+        const meanDeviation = sumDev / period;
+
         const val = (typicalPrices[i] - smaTp[i]!) / (0.015 * meanDeviation);
         cci.push(meanDeviation > 0 ? val : 0);
     }
@@ -535,6 +541,12 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
+    // ⚡ Bolt Optimization: Use sliding window extremes to achieve O(N) complexity instead of O(N * period)
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     const pp: (number | null)[] = [];
     const s1: (number | null)[] = [];
     const s2: (number | null)[] = [];
@@ -553,8 +565,11 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             r2.push(null);
             r3.push(null);
         } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
+            // Get the extreme for the window [i - period, i - 1]
+            const high = periodHighs[i - 1];
+            const low = periodLows[i - 1];
+
+            if (high === null || low === null || !data[i - 1]) {
                  pp.push(null);
                  s1.push(null);
                  s2.push(null);
@@ -565,9 +580,7 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
                  continue;
             }
 
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
+            const close = data[i - 1].close;
 
             const ppVal = (high + low + close) / 3;
             const r1Val = (2 * ppVal) - low;
