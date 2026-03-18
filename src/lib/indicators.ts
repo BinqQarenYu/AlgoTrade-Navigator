@@ -555,9 +555,17 @@ export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
 };
 
 export const calculateCMF = (data: HistoricalData[], period: number): (number | null)[] => {
+    // ⚡ Bolt Optimization: Replacing O(N * period) nested slice().reduce()
+    // with an O(N) sliding window. This significantly reduces execution latency
+    // and garbage collection overhead by keeping a running sum of money flow volume and volume.
     const cmf: (number | null)[] = [];
-    const moneyFlowVolumes: number[] = [];
-    const volumes: number[] = [];
+
+    // Pre-allocate arrays for better performance
+    const moneyFlowVolumes: number[] = new Array(data.length);
+    const volumes: number[] = new Array(data.length);
+
+    let sumMfv = 0;
+    let sumVol = 0;
 
     for (let i = 0; i < data.length; i++) {
         const d = data[i];
@@ -565,14 +573,20 @@ export const calculateCMF = (data: HistoricalData[], period: number): (number | 
         const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
         const mfv = multiplier * d.volume;
         
-        moneyFlowVolumes.push(mfv);
-        volumes.push(d.volume);
+        moneyFlowVolumes[i] = mfv;
+        volumes[i] = d.volume;
+
+        sumMfv += mfv;
+        sumVol += d.volume;
 
         if (i < period - 1) {
             cmf.push(null);
         } else {
-            const sumMfv = moneyFlowVolumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
-            const sumVol = volumes.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+            // Subtract elements that fall out of the sliding window
+            if (i >= period) {
+                sumMfv -= moneyFlowVolumes[i - period];
+                sumVol -= volumes[i - period];
+            }
             cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
         }
     }

@@ -1,3 +1,7 @@
 ## 2024-03-16 - [Array Mutation Performance in Indicators]
 **Learning:** Found heavily nested loop/slice processing inside core indicators (`calculateSMA`, `calculateStandardDeviation`). Using `.slice()` and `.reduce()` repeatedly for moving averages causes an O(N * lookback) time complexity.
 **Action:** Replace `slice().reduce()` in array processing with sliding window techniques to achieve O(N) complexity for backtesting performance, particularly as `calculateSMA` is used heavily by other indicators like Bollinger Bands and Awesome Oscillator.
+
+## 2024-03-17 - [Avoid Nested slice/reduce in Sliding Window Calculations]
+**Learning:** Found O(N * period) complexity in `calculateCMF` due to the use of `.slice().reduce()` to calculate rolling sums at each step. This significantly degraded performance (~8x slower) in large data sets. Pre-allocating arrays and maintaining running sums via a sliding window pattern avoids large memory allocations and redundant computation.
+**Action:** Standardize replacing any chained array mutations (like `.slice().reduce()`) with O(N) sliding window computations (adding the new element, subtracting the element falling out of the window) in performance-critical areas like indicators and backtesting engines.
