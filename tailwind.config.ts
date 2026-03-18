@@ -88,10 +88,20 @@ export default {
             height: '0',
           },
         },
+        'alarm-blink': {
+          '0%, 100%': { borderColor: 'rgba(239, 68, 68, 1)', borderWidth: '4px' },
+          '50%': { borderColor: 'transparent', borderWidth: '4px' },
+        },
+        'bg-alarm': {
+          '0%, 100%': { backgroundColor: 'rgba(239, 68, 68, 0.2)' },
+          '50%': { backgroundColor: 'transparent' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        'alarm-blink': 'alarm-blink 0.5s infinite',
+        'bg-alarm': 'bg-alarm 1s infinite',
       },
     },
   },

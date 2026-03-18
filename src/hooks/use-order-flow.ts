@@ -47,23 +47,59 @@ export interface ManipulationPattern {
   examples: OrderFlowData[];
 }
 
-// Mock implementations for missing services
-const getTicker = async (symbol: string) => ({ price: Math.random() * 50000 + 20000 });
-const getKlines = async (symbol: string, interval: string) => ([]);
-
-const createDualApiService = (key1?: string | null, key2?: string | null) => ({
-  getCoinDetails: (symbol: string) => Promise.resolve({ symbol }),
-  trackBinanceUsage: (count?: number) => {},
-  getApiStatus: async () => ({ status: 'ok', activeApi: 'binance' })
-});
+import { createDualApiService } from "@/lib/dual-coin-api-service";
+import { getRecentTrades } from "@/lib/binance-service";
+import { wsManager } from "@/lib/websocket-manager";
 
 const binanceWebSocketService = {
-  onConnection: (callback: (connected: boolean) => void) => {},
-  onError: (callback: (error: Error) => void) => {},
-  subscribeToAggTrades: (symbol: string, callback: (orderData: BinanceOrderFlowData) => void) => {},
-  connect: () => {},
-  unsubscribe: (symbol?: string) => {},
-  disconnect: () => {}
+  connectionCallback: null as ((connected: boolean) => void) | null,
+  errorCallback: null as ((error: Error) => void) | null,
+  ws: null as any,
+  
+  onConnection: function(callback: (connected: boolean) => void) {
+    this.connectionCallback = callback;
+  },
+  
+  onError: function(callback: (error: Error) => void) {
+    this.errorCallback = callback;
+  },
+  
+  subscribeToAggTrades: function(symbol: string, callback: (orderData: BinanceOrderFlowData) => void) {
+    const url = `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@aggTrade`;
+    this.ws = wsManager.createConnection(`orderFlow-${symbol}`, { url });
+    
+    this.ws.addEventListener('open', () => {
+      if (this.connectionCallback) this.connectionCallback(true);
+    });
+    
+    this.ws.addEventListener('close', () => {
+      if (this.connectionCallback) this.connectionCallback(false);
+    });
+    
+    this.ws.addEventListener('message', (data: any) => {
+      if (data.e === 'aggTrade') {
+        const orderData: BinanceOrderFlowData = {
+          id: data.a.toString(),
+          timestamp: data.T,
+          price: parseFloat(data.p),
+          quantity: parseFloat(data.q),
+          side: data.m ? 'sell' : 'buy',
+          symbol: data.s.toUpperCase()
+        };
+        callback(orderData);
+      }
+    });
+    
+    this.ws.connect(url).catch((err: Error) => {
+      if (this.errorCallback) this.errorCallback(err);
+    });
+  },
+  
+  connect: function() {},
+  unsubscribe: function(symbol?: string) {
+    if (this.ws && symbol) wsManager.removeConnection(`orderFlow-${symbol}`);
+  },
+  disconnect: function() {}
 };
 
 export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: string, coingeckoApiKey?: string | null, coinmarketcapApiKey?: string | null) {
@@ -82,6 +118,10 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
   const [veryLargeActivities, setVeryLargeActivities] = useState<VeryLargeActivity[]>([]);
   const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
   const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
+  
+  // Use a ref to track if a whale alert is currently active to prevent duplicates during rapid updates
+  const activeWhaleRef = React.useRef<string | null>(null);
+
 
   const dualApiService = useMemo(() => createDualApiService(coingeckoApiKey, coinmarketcapApiKey), [coingeckoApiKey, coinmarketcapApiKey]);
 
@@ -141,14 +181,11 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     });
 
     Object.values(timeGroups).forEach(group => {
-      if (group.buyVolume === 0 && group.sellVolume === 0) {
-        const baseVolume = Math.random() * 5 + 1;
-        group.buyVolume = baseVolume * (0.4 + Math.random() * 0.2);
-        group.sellVolume = baseVolume * (0.4 + Math.random() * 0.2);
-        group.buyCount = Math.floor(Math.random() * 3) + 1;
-        group.sellCount = Math.floor(Math.random() * 3) + 1;
-        group.avgRisk = Math.random() * 3 + 1;
-      }
+      // Intentionally intentionally leave 0s instead of filling with mock data
+      if (!group.buyVolume) group.buyVolume = 0;
+      if (!group.sellVolume) group.sellVolume = 0;
+      if (!group.buyCount) group.buyCount = 0;
+      if (!group.sellCount) group.sellCount = 0;
     });
 
     const chartDataArray = Object.entries(timeGroups)
@@ -169,45 +206,58 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     setChartData(chartDataArray);
   }, [selectedTimeInterval, getIntervalMs]);
 
-  const generateTradingChartData = useCallback(() => {
-    const now = Date.now();
+  const generateTradingChartData = useCallback(async () => {
     const intervalMs = getIntervalMs(selectedTimeInterval);
-    const numCandles = 50;
+    const binanceInterval = selectedTimeInterval === '30s' ? '1m' : selectedTimeInterval;
     
-    const basePrice = 45000 + Math.random() * 10000;
-    let currentPrice = basePrice;
-    
-    const tradingData = Array.from({ length: numCandles }, (_, i) => {
-      const timestamp = now - ((numCandles - 1 - i) * intervalMs);
-      const open = currentPrice;
-      const volatility = 0.02;
-      const change = (Math.random() - 0.5) * volatility * open;
-      const close = open + change;
-      const high = Math.max(open, close) + Math.random() * 0.01 * open;
-      const low = Math.min(open, close) - Math.random() * 0.01 * open;
-      const volume = (50 + Math.random() * 100) * Math.abs(change / open) * 1000;
-      currentPrice = close;
+    try {
+      const historicalData = await dualApiService.getHistoricalData(selectedSymbol, binanceInterval, 50);
       
-      return {
-        timestamp,
-        time: timestamp,
-        open: Number(open.toFixed(2)),
-        high: Number(high.toFixed(2)),
-        low: Number(low.toFixed(2)),
-        close: Number(close.toFixed(2)),
-        volume: Number(volume.toFixed(2)),
-        sma20: Number((currentPrice * (0.98 + Math.random() * 0.04)).toFixed(2)),
-        ema12: Number((currentPrice * (0.99 + Math.random() * 0.02)).toFixed(2)),
-        buyPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').length,
-        sellPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').length,
-        manipulationRisk: Math.random() * 10,
-        resistance: Number((high * 1.005).toFixed(2)),
-        support: Number((low * 0.995).toFixed(2))
-      };
-    });
-    
-    setTradingChartData(tradingData);
-  }, [selectedTimeInterval, orderFlowData, getIntervalMs]);
+      if (!historicalData || historicalData.length === 0) {
+        return;
+      }
+      
+      let prevEma12 = historicalData[0].close;
+      let prices: number[] = [];
+
+      const tradingData = historicalData.map((kline) => {
+        const timestamp = kline.time;
+        prices.push(kline.close);
+        
+        // Simple SMA20
+        const sma20 = prices.slice(Math.max(prices.length - 20, 0)).reduce((a, b) => a + b, 0) / Math.min(prices.length, 20);
+        
+        // Simple EMA12
+        const k = 2 / (12 + 1);
+        const ema12 = (kline.close * k) + (prevEma12 * (1 - k));
+        prevEma12 = ema12;
+        
+        const bVol = orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').reduce((a, b) => a + b.size, 0);
+        const sVol = orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').reduce((a, b) => a + b.size, 0);
+        
+        return {
+          timestamp,
+          time: timestamp,
+          open: Number(kline.open.toFixed(2)),
+          high: Number(kline.high.toFixed(2)),
+          low: Number(kline.low.toFixed(2)),
+          close: Number(kline.close.toFixed(2)),
+          volume: Number(kline.volume.toFixed(2)),
+          sma20: Number(sma20.toFixed(2)),
+          ema12: Number(ema12.toFixed(2)),
+          buyPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').length,
+          sellPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').length,
+          manipulationRisk: bVol > 0 || sVol > 0 ? ((bVol > sVol * 3 || sVol > bVol * 3) ? 8 : 2) : 0,
+          resistance: Number((kline.high * 1.005).toFixed(2)),
+          support: Number((kline.low * 0.995).toFixed(2))
+        };
+      });
+      
+      setTradingChartData(tradingData);
+    } catch (e) {
+      console.warn("Failed to generate real trading chart data", e);
+    }
+  }, [selectedSymbol, selectedTimeInterval, orderFlowData, dualApiService, getIntervalMs]);
 
   const fetchMarketData = useCallback(async () => {
     try {
@@ -216,14 +266,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       
       let binanceData = null;
       try {
-        const tickerData = await getTicker(selectedSymbol);
+        const tickerData = await dualApiService.getRealTimePrice(selectedSymbol);
         binanceData = tickerData;
-        dualApiService.trackBinanceUsage(1);
       } catch (binanceError) {
-        console.warn(`⚠️ Binance API failed for ${selectedSymbol}:`, binanceError);
+        console.warn(`⚠️ Binance API price fetch failed for ${selectedSymbol}:`, binanceError);
       }
       
-      const apiStatus = await dualApiService.getApiStatus();
+      const apiStatus = dualApiService.getApiStatus();
       const combinedMarketData = {
         symbol: selectedSymbol,
         coinDetails: coinDetails,
@@ -241,23 +290,28 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     }
   }, [selectedSymbol, dualApiService]);
 
-  const loadMockData = useCallback(async () => {
-    let mockOrders: OrderData[];
+  const loadInitialOrderData = useCallback(async () => {
+    let mockOrders: OrderData[] = [];
     
-    if (marketData?.binanceData) {
-      const enhancedOrders = await enhancedOrderFlowAnalyzer.generateEnhancedOrders(100, selectedSymbol, dualApiService);
-      mockOrders = enhancedOrders.map(order => ({
-        id: order.id,
-        symbol: order.symbol,
-        timestamp: order.timestamp,
-        side: (order as any).type || (order as any).side,
-        size: (order as any).volume || (order as any).size,
-        quantity: (order as any).volume || (order as any).size,
-        price: order.price,
-        orderId: order.id,
-        venue: (order as any).source
-      }));
-    } else {
+    try {
+      const trades = await getRecentTrades(selectedSymbol, 100);
+      if (trades && trades.length > 0) {
+        mockOrders = trades.map((t: any) => ({
+          id: t.id.toString(),
+          symbol: selectedSymbol,
+          timestamp: t.time,
+          side: t.isBuyerMaker ? 'sell' : 'buy',
+          size: parseFloat(t.qty),
+          quantity: parseFloat(t.qty),
+          price: parseFloat(t.price),
+          orderId: t.id.toString(),
+          venue: 'binance-rest'
+        }));
+      } else {
+        mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
+      }
+    } catch (error) {
+      console.warn("Failed to fetch initial real trades, falling back to mock", error);
       mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
     }
     
@@ -277,7 +331,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     });
 
     setOrderFlowData(analyzedOrders);
-    const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
+    const currentStats = orderFlowAnalyzer.getManipulationStats(analyzedOrders);
     setStats(currentStats);
 
     const hasLargeOrderManipulation = analyzedOrders.some(order => order.riskScore >= 8 && order.size > 10);
@@ -317,10 +371,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     const highRiskDensity = recentOrders.filter(o => o.riskScore >= 7).length / Math.max(recentOrders.length, 1);
     
     if (isWhaleActivity || highRiskDensity > 0.4) {
-      if (!activeVeryLargeActivity) {
+      if (!activeWhaleRef.current) {
+        const timestamp = Date.now();
+        const uniqueId = `whale-${timestamp}-${Math.random().toString(36).substring(2, 9)}`;
+        
         const newActivity: VeryLargeActivity = {
-          id: `whale-${Date.now()}`,
-          startTime: Date.now(),
+          id: uniqueId,
+          startTime: timestamp,
           symbol: selectedSymbol,
           type: isWhaleActivity ? 'whale_activity' : 'massive_buy',
           totalVolume: recentOrders.reduce((acc, o) => acc + o.size, 0),
@@ -331,12 +388,16 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           isActive: true,
           riskLevel: highRiskDensity > 0.7 ? 'extreme' : 'critical'
         };
+        
+        activeWhaleRef.current = uniqueId;
         setActiveVeryLargeActivity(newActivity);
         setVeryLargeActivities(prev => [newActivity, ...prev]);
         setVeryLargeActivityLog(prev => [`[${new Date().toLocaleTimeString()}] ALERT: ${newActivity.description}`, ...prev]);
       }
-    } else if (activeVeryLargeActivity) {
-      if (Date.now() - activeVeryLargeActivity.startTime > 30000) {
+    } else if (activeWhaleRef.current) {
+      // Find the active activity to check its start time
+      if (activeVeryLargeActivity && Date.now() - activeVeryLargeActivity.startTime > 30000) {
+        activeWhaleRef.current = null;
         setActiveVeryLargeActivity(null);
       }
     }
@@ -345,59 +406,12 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
   const startMonitoring = useCallback(() => {
     setIsMonitoring(true);
     const marketDataInterval = setInterval(() => fetchMarketData(), 30000);
-    const orderInterval = setInterval(async () => {
-      if (Math.random() > 0.7) {
-        let newOrder: OrderData;
-        if (marketData?.binanceData) {
-          const enhancedOrders = await enhancedOrderFlowAnalyzer.generateEnhancedOrders(1, selectedSymbol, dualApiService);
-          const enhancedOrder = enhancedOrders[0];
-          newOrder = {
-            id: enhancedOrder.id,
-            symbol: enhancedOrder.symbol,
-            timestamp: enhancedOrder.timestamp,
-            side: (enhancedOrder as any).type || (enhancedOrder as any).side,
-            size: (enhancedOrder as any).volume || (enhancedOrder as any).size,
-            quantity: (enhancedOrder as any).volume || (enhancedOrder as any).size,
-            price: enhancedOrder.price,
-            orderId: enhancedOrder.id,
-            venue: (enhancedOrder as any).source
-          };
-        } else {
-          newOrder = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 1)[0];
-        }
-        
-        const flags = orderFlowAnalyzer.analyzeOrder(newOrder);
-        const analyzedOrder: OrderFlowData = {
-          symbol: newOrder.symbol,
-          timestamp: newOrder.timestamp,
-          orderType: newOrder.side,
-          size: newOrder.size,
-          price: newOrder.price,
-          suspiciousFlags: flags.reasons || [],
-          riskScore: flags.riskScore || 0,
-          flags,
-          marketSource: marketData?.dataSource
-        };
-
-        setOrderFlowData(prev => {
-          const newData = [analyzedOrder, ...prev.slice(0, 99)];
-          updateChartData(newData.slice(0, 50));
-          detectVeryLargeActivity(newData.slice(0, 20));
-          return newData;
-        });
-        
-        const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
-        setStats(currentStats);
-        setHasHighRiskDetected(analyzedOrder.riskScore >= 8 && analyzedOrder.size > 10 || currentStats.averageRiskScore >= 7);
-      }
-    }, 2000);
 
     return () => {
       clearInterval(marketDataInterval);
-      clearInterval(orderInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSymbol, isMonitoring]);
+  }, [selectedSymbol]);
 
   const stopMonitoring = useCallback(() => {
     setIsMonitoring(false);
@@ -411,12 +425,11 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
 
   // Effects
   useEffect(() => {
-    loadMockData();
+    loadInitialOrderData();
     fetchMarketData();
     generateTradingChartData();
     
     const interval = setInterval(() => {
-      loadMockData();
       fetchMarketData();
       generateTradingChartData();
     }, 60000);
@@ -453,10 +466,18 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         flags: analyzed,
         marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' }
       };
-      setOrderFlowData(prev => [orderFlowItem, ...prev].slice(0, 500));
-      const currentStats = orderFlowAnalyzer.getManipulationStats(selectedSymbol);
-      setStats(currentStats);
-      setHasHighRiskDetected(analyzed.riskScore >= 8 || currentStats.averageRiskScore >= 7);
+      
+      setOrderFlowData(prev => {
+        const newData = [orderFlowItem, ...prev].slice(0, 500);
+        updateChartData(newData.slice(0, 50));
+        detectVeryLargeActivity(newData.slice(0, 20));
+
+        const currentStats = orderFlowAnalyzer.getManipulationStats(newData);
+        setStats(currentStats);
+        setHasHighRiskDetected((analyzed.riskScore ?? 0) >= 8 || currentStats.averageRiskScore >= 7);
+
+        return newData;
+      });
     });
     
     return () => {

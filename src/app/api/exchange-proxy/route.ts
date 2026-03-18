@@ -14,6 +14,7 @@ const ALLOWED_ENDPOINTS: Record<string, string[]> = {
   '/fapi/v1/exchangeInfo': ['GET'],
   '/fapi/v1/klines': ['GET'],
   '/fapi/v1/depth': ['GET'],
+  '/fapi/v1/trades': ['GET'],
   '/fapi/v2/account': ['GET'],
   '/fapi/v2/positionRisk': ['GET'],
   '/fapi/v1/order': ['POST'],

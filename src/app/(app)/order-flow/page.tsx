@@ -100,31 +100,31 @@ export default function OrderFlowPage() {
 
   return (
     <TooltipProvider>
-    <div className="container mx-auto p-4 space-y-6">
+    <div className={`container mx-auto p-4 space-y-6 min-h-screen bg-slate-950 text-slate-200 transition-colors duration-500 ${activeVeryLargeActivity ? 'animate-bg-alarm' : ''}`}>
       {/* Header Section */}
-      <Card className="border-b-4 border-b-blue-600 shadow-xl overflow-hidden bg-gradient-to-br from-white to-blue-50">
+      <Card className={`border-b-4 border-b-blue-500 shadow-xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 transition-all duration-500 ${activeVeryLargeActivity ? 'border-b-red-500' : ''}`}>
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-600 rounded-2xl shadow-lg ring-4 ring-blue-100">
-                <Activity className="h-8 w-8 text-white" />
+              <div className={`p-3 rounded-2xl shadow-lg ring-4 transition-all duration-500 ${activeVeryLargeActivity ? 'bg-red-600 ring-red-100 animate-bounce' : 'bg-blue-600 ring-blue-100'}`}>
+                {activeVeryLargeActivity ? <AlertTriangle className="h-8 w-8 text-white" /> : <Activity className="h-8 w-8 text-white" />}
               </div>
               <div>
-                <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">
+                <h1 className="text-3xl font-extrabold tracking-tight text-white">
                   Order Flow Navigator
                 </h1>
-                <p className="text-blue-600 font-medium flex items-center gap-2 mt-1">
-                  <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
-                  Institutional Grade Flow Analysis
+                <p className={`font-medium flex items-center gap-2 mt-1 transition-colors duration-500 ${activeVeryLargeActivity ? 'text-red-400' : 'text-blue-400'}`}>
+                  <span className={`flex h-2 w-2 rounded-full animate-pulse ${activeVeryLargeActivity ? 'bg-red-500' : 'bg-blue-500'}`}></span>
+                  {activeVeryLargeActivity ? '⚠️ CRITICAL MARKET ALERT' : 'Institutional Grade Flow Analysis'}
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 p-2 bg-white/60 backdrop-blur-sm rounded-2xl border border-blue-100 shadow-inner">
+            <div className="flex flex-wrap items-center gap-4 p-2 bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-700 shadow-inner">
               <div className="flex items-center gap-3 px-3">
-                <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">Pair:</span>
+                <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pair:</span>
                 <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                  <SelectTrigger className="w-[140px] bg-white border-2 border-blue-200 font-bold text-blue-700 hover:border-blue-400 focus:ring-blue-500 transition-all">
+                  <SelectTrigger className={`w-[140px] bg-slate-800 border-2 font-bold transition-all ${activeVeryLargeActivity ? 'border-red-500 text-red-400' : 'border-slate-700 text-white hover:border-blue-500'}`}>
                     <SelectValue placeholder="Select Symbol" />
                   </SelectTrigger>
                   <SelectContent>
@@ -142,7 +142,7 @@ export default function OrderFlowPage() {
                 {!isMonitoring ? (
                   <Button 
                     onClick={startMonitoring}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 shadow-md hover:shadow-lg transition-all active:scale-95"
+                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_20px_rgba(59,130,246,0.6)] transition-all active:scale-95 border border-blue-500"
                   >
                     🚀 Start Monitoring
                   </Button>
@@ -163,20 +163,20 @@ export default function OrderFlowPage() {
 
       {/* Hero Alerts */}
       {activeVeryLargeActivity && (
-        <Alert className="border-4 border-purple-500 bg-purple-50 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-500">
-          <Zap className="h-6 w-6 text-purple-600 animate-bounce" />
-          <AlertTitle className="text-xl font-black text-purple-900 flex items-center gap-2">
+        <Alert className="border-4 border-red-500 bg-red-50 shadow-2xl animate-alarm-blink">
+          <AlertTriangle className="h-6 w-6 text-red-600 animate-pulse" />
+          <AlertTitle className="text-xl font-black text-red-900 flex items-center gap-2">
             🚨 WHALE ACTIVITY DETECTED
-            <span className="text-xs bg-purple-600 text-white px-2 py-0.5 rounded-full animate-pulse uppercase">Critical</span>
+            <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded-full animate-pulse uppercase">Critical</span>
           </AlertTitle>
           <AlertDescription className="mt-2">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="text-purple-800 font-bold text-lg">
+              <div className="text-red-800 font-black text-2xl tracking-tight">
                 {activeVeryLargeActivity.description}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={saveActivityLog} className="bg-white border-purple-200 hover:bg-purple-100 text-purple-700 font-bold">
-                  💾 Save Log
+                <Button size="sm" variant="outline" onClick={saveActivityLog} className="bg-white border-red-200 hover:bg-red-100 text-red-700 font-bold shadow-lg">
+                  💾 Save Alert Log
                 </Button>
               </div>
             </div>
@@ -201,29 +201,29 @@ export default function OrderFlowPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1 bg-gray-100/50 p-1 rounded-xl">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-1 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <LayoutDashboard className="h-4 w-4 mr-2" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="chart">
+          <TabsTrigger value="chart" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <BarChart3 className="h-4 w-4 mr-2" /> Flow Chart
           </TabsTrigger>
-          <TabsTrigger value="trading-chart">
+          <TabsTrigger value="trading-chart" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <ChartIcon className="h-4 w-4 mr-2" /> Trading Chart
           </TabsTrigger>
-          <TabsTrigger value="signals">
+          <TabsTrigger value="signals" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <TrendingUp className="h-4 w-4 mr-2" /> Signals
           </TabsTrigger>
-          <TabsTrigger value="patterns">
+          <TabsTrigger value="patterns" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <Target className="h-4 w-4 mr-2" /> Patterns
           </TabsTrigger>
-          <TabsTrigger value="orders">
+          <TabsTrigger value="orders" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <Activity className="h-4 w-4 mr-2" /> Live Orders
           </TabsTrigger>
-          <TabsTrigger value="whale">
+          <TabsTrigger value="whale" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <Zap className="h-4 w-4 mr-2" /> Whales
           </TabsTrigger>
-          <TabsTrigger value="alerts">
+          <TabsTrigger value="alerts" className="data-[state=active]:bg-slate-800 data-[state=active]:text-white font-bold text-slate-400 rounded-lg">
             <AlertTriangle className="h-4 w-4 mr-2" /> Alerts
           </TabsTrigger>
         </TabsList>

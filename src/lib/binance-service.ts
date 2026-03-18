@@ -252,3 +252,16 @@ export const getOrderBook = async (
         return { bids: [], asks: [] };
     }
 };
+
+export const getRecentTrades = async (
+    symbol: string,
+    limit: number = 100
+): Promise<any[]> => {
+    try {
+        const { data } = await callProxy<any[]>('/fapi/v1/trades', 'GET', { symbol: symbol.toUpperCase(), limit });
+        return data;
+    } catch (error) {
+        console.error(`Error fetching recent trades for ${symbol}:`, error);
+        return [];
+    }
+};
