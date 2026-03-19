@@ -47,10 +47,18 @@ export interface OHLCVRecord {
 // State
 // ──────────────────────────────────────────────────────────
 const DEFAULT_PATH = path.join(process.cwd(), 'data', 'algo_trades.duckdb');
-let dbPath = process.env.DUCKDB_PATH || readManifest().config.storage_path || DEFAULT_PATH;
-let db: DuckDBType.Database | null = null;
-let conn: DuckDBType.Connection | null = null;
-let isInitialized = false;
+
+// Use globalThis to persist connection across HMR reloads
+const globalForDuckDB = globalThis as unknown as {
+  db: DuckDBType.Database | null;
+  conn: DuckDBType.Connection | null;
+  isInitialized: boolean;
+  dbPath: string;
+};
+
+if (!globalForDuckDB.dbPath) {
+  globalForDuckDB.dbPath = process.env.DUCKDB_PATH || readManifest().config.storage_path || DEFAULT_PATH;
+}
 
 // In-memory write buffers — flushed every 10s
 const tradeBuffer: TradeRecord[] = [];
@@ -101,43 +109,43 @@ const SCHEMA_SQL = `
 // ──────────────────────────────────────────────────────────
 function runQuery(query: string, params?: any[]): Promise<any[]> {
   return new Promise((resolve, reject) => {
-    if (!conn) return reject(new Error('DuckDB not connected'));
+    if (!globalForDuckDB.conn) return reject(new Error('DuckDB not connected'));
     const cb = (err: Error | null, res: any[]) => err ? reject(err) : resolve(res || []);
     if (params && params.length > 0) {
-      conn.all(query, ...params, cb);
+      globalForDuckDB.conn.all(query, ...params, cb);
     } else {
-      conn.all(query, cb);
+      globalForDuckDB.conn.all(query, cb);
     }
   });
 }
 
 export async function connectToDB(customPath?: string): Promise<void> {
   // Handle relocation request
-  if (customPath && customPath !== dbPath) {
+  if (customPath && customPath !== globalForDuckDB.dbPath) {
     await closeDB();
-    dbPath = customPath;
+    globalForDuckDB.dbPath = customPath;
   }
 
-  if (isInitialized && conn) return;
+  if (globalForDuckDB.isInitialized && globalForDuckDB.conn) return;
 
-  const dir = path.dirname(dbPath);
+  const dir = path.dirname(globalForDuckDB.dbPath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   await new Promise<void>((resolve, reject) => {
-    db = new duckdb!.Database(dbPath, (err) => {
+    globalForDuckDB.db = new duckdb!.Database(globalForDuckDB.dbPath, (err) => {
       if (err) return reject(err);
-      conn = db!.connect();
+      globalForDuckDB.conn = globalForDuckDB.db!.connect();
 
-      conn.exec(SCHEMA_SQL, (schemaErr) => {
+      globalForDuckDB.conn.exec(SCHEMA_SQL, (schemaErr) => {
         if (schemaErr) return reject(schemaErr);
         // Optimise for AI concurrency
-        conn!.exec(`
+        globalForDuckDB.conn!.exec(`
           PRAGMA threads=4;
           PRAGMA memory_limit='2GB';
           PRAGMA default_compression='zstd';
         `, (pragmaErr) => {
           if (pragmaErr) console.warn('[DuckDB] Pragma warning:', pragmaErr);
-          isInitialized = true;
+          globalForDuckDB.isInitialized = true;
           startFlushTimer();
           resolve();
         });
@@ -150,11 +158,11 @@ export async function closeDB(): Promise<void> {
   stopFlushTimer();
   await flushBuffers(); // Final flush before close
   return new Promise((resolve) => {
-    if (db) {
-      db.close(() => {
-        db = null;
-        conn = null;
-        isInitialized = false;
+    if (globalForDuckDB.db) {
+      globalForDuckDB.db.close(() => {
+        globalForDuckDB.db = null;
+        globalForDuckDB.conn = null;
+        globalForDuckDB.isInitialized = false;
         resolve();
       });
     } else {
@@ -183,7 +191,7 @@ export function bufferOHLCVBatch(records: OHLCVRecord[]): void {
 }
 
 async function flushBuffers(): Promise<void> {
-  if (!conn) return;
+  if (!globalForDuckDB.conn) return;
 
   // --- Flush trades ---
   if (tradeBuffer.length > 0) {
@@ -243,8 +251,8 @@ function stopFlushTimer(): void {
 export async function getStorageConfig() {
   let sizeMb = 0;
   try {
-    if (fs.existsSync(dbPath)) {
-      const stats = fs.statSync(dbPath);
+    if (fs.existsSync(globalForDuckDB.dbPath)) {
+      const stats = fs.statSync(globalForDuckDB.dbPath);
       sizeMb = parseFloat((stats.size / (1024 * 1024)).toFixed(2));
     }
   } catch {}
@@ -253,7 +261,7 @@ export async function getStorageConfig() {
   let oldestTimestamp: number | null = null;
   let newestTimestamp: number | null = null;
   try {
-    if (isInitialized) {
+    if (globalForDuckDB.isInitialized) {
       const result = await runQuery(`
         SELECT COUNT(*) as cnt, MIN(timestamp) as oldest, MAX(timestamp) as newest
         FROM trades
@@ -267,9 +275,9 @@ export async function getStorageConfig() {
   } catch {}
 
   return {
-    path: dbPath,
+    path: globalForDuckDB.dbPath,
     sizeMb,
-    isActive: isInitialized,
+    isActive: globalForDuckDB.isInitialized,
     tradeCount,
     oldestTimestamp,
     newestTimestamp,
@@ -285,7 +293,7 @@ export async function getStorageConfig() {
  * 4. Reopen at new path
  */
 export async function relocateDatabase(newPath: string): Promise<void> {
-  const oldPath = dbPath;
+  const oldPath = globalForDuckDB.dbPath;
   
   // Final flush before close
   await closeDB();
