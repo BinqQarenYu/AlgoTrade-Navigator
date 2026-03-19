@@ -36,7 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { useBot } from "@/context/bot-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { topAssets } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
 
@@ -646,7 +647,22 @@ export default function SettingsPage() {
             <CollapsibleContent>
                 <CardContent className="flex flex-col gap-4">
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2"><Label htmlFor="test-symbol">Asset to Test</Label><Select onValueChange={setTestSymbol} value={testSymbol} disabled={!isConnected}><SelectTrigger id="test-symbol"><SelectValue /></SelectTrigger><SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>{asset.ticker}/USDT</SelectItem>))}</SelectContent></Select></div>
+                        <div className="col-span-2 grid grid-cols-2 gap-4">
+                        {(() => {
+                            const parsed = parseSymbolString(testSymbol) || { base: testSymbol.replace('USDT', ''), quote: 'USDT' };
+                            const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+                            return (
+                                <AssetSelector
+                                    baseAsset={parsed.base}
+                                    quoteAsset={parsed.quote}
+                                    onBaseChange={(newBase) => setTestSymbol(`${newBase}${parsed.quote}`)}
+                                    onQuoteChange={(newQuote) => setTestSymbol(`${parsed.base}${newQuote}`)}
+                                    disabled={!isConnected}
+                                    availableQuotes={availableQuotes}
+                                />
+                            );
+                        })()}
+                        </div>
                         <div className="space-y-2"><Label htmlFor="test-capital">Test Capital ($)</Label><Input id="test-capital" type="number" value={testCapital} onChange={(e) => setTestCapital(parseFloat(e.target.value) || 0)} placeholder="10" disabled={!isConnected}/></div>
                         <div className="space-y-2"><Label htmlFor="test-leverage">Test Leverage (x)</Label><Input id="test-leverage" type="number" min="1" value={testLeverage} onChange={(e) => setTestLeverage(parseInt(e.target.value, 10) || 1)} placeholder="1" disabled={!isConnected}/></div>
                     </div>

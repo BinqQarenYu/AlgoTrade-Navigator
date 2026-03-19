@@ -33,7 +33,8 @@ import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams,
 import { BacktestResults } from "@/components/backtest-results"
 import { Switch } from "@/components/ui/switch"
 import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-flow"
-import { topAssets, getAvailableQuotesForBase } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById as getStaticStrategyById, strategyIndicatorMap } from "@/lib/strategies"
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -1352,15 +1353,15 @@ const BacktestPageContent = () => {
                             <TabsContent value="strategy" className="pt-4 space-y-4">
                                 <div className="space-y-2">
                                     <Label htmlFor="base-asset">Asset</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Select onValueChange={setBaseAsset} value={baseAsset} disabled={anyLoading}>
-                                            <SelectTrigger><SelectValue/></SelectTrigger>
-                                            <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
-                                        </Select>
-                                        <Select onValueChange={setQuoteAsset} value={quoteAsset} disabled={anyLoading || availableQuotes.length === 0}>
-                                            <SelectTrigger><SelectValue/></SelectTrigger>
-                                            <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
-                                        </Select>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <AssetSelector
+                                            baseAsset={baseAsset}
+                                            quoteAsset={quoteAsset}
+                                            onBaseChange={setBaseAsset}
+                                            onQuoteChange={setQuoteAsset}
+                                            disabled={anyLoading}
+                                            availableQuotes={availableQuotes}
+                                        />
                                     </div>
                                 </div>
                                 <div className="space-y-2">

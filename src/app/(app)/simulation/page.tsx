@@ -30,7 +30,8 @@ import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, Chevr
 import { cn } from "@/lib/utils"
 import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
 import { Switch } from "@/components/ui/switch"
-import { topAssets } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -435,17 +436,15 @@ function SimulationPageContent() {
               <CollapsibleContent>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}><SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning}><SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
-                      </Select>
+                    <div className="col-span-2 grid grid-cols-2 gap-4">
+                      <AssetSelector
+                        baseAsset={baseAsset}
+                        quoteAsset={quoteAsset}
+                        onBaseChange={handleBaseAssetChange}
+                        onQuoteChange={handleQuoteAssetChange}
+                        disabled={isRunning}
+                        availableQuotes={availableQuotes}
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">

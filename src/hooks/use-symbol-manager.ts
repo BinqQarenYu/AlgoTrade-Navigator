@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { usePersistentState } from '@/hooks/use-persistent-state';
-import { topAssets, getAvailableQuotesForBase, parseSymbolString } from '@/lib/assets';
+import { assetRegistry } from '@/lib/asset-registry';
 import { useToast } from '@/hooks/use-toast';
 
 export function useSymbolManager(
@@ -27,7 +27,7 @@ export function useSymbolManager(
     useEffect(() => {
         const symbolFromQuery = searchParams.get('symbol');
         if (symbolFromQuery) {
-            const parsed = parseSymbolString(symbolFromQuery);
+            const parsed = assetRegistry.parseSymbolString(symbolFromQuery);
             if (parsed && (parsed.base !== baseAsset || parsed.quote !== quoteAsset)) {
                 setBaseAsset(parsed.base);
                 setQuoteAsset(parsed.quote);
@@ -47,7 +47,7 @@ export function useSymbolManager(
 
     // Effect to update available quotes when base asset changes
     useEffect(() => {
-        const quotes = getAvailableQuotesForBase(baseAsset);
+        const quotes = assetRegistry.getAvailableQuotesForBase(baseAsset);
         setAvailableQuotes(quotes);
         if (!quotes.includes(quoteAsset)) {
             setQuoteAsset(quotes[0] || '');
