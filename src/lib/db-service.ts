@@ -329,3 +329,14 @@ export async function getHistoricalTrades(symbol: string, limit: number = 100): 
   const result = await runQuery(query, [symbol, limit]);
   return result as TradeRecord[];
 }
+
+export async function getHistoricalOHLCV(symbol: string, interval: string, startTime: number, endTime: number): Promise<OHLCVRecord[]> {
+  await connectToDB();
+  const query = `
+    SELECT * FROM ohlcv
+    WHERE symbol = ? AND interval = ? AND time >= ? AND time <= ?
+    ORDER BY time ASC
+  `;
+  const result = await runQuery(query, [symbol, interval, startTime, endTime]);
+  return result as OHLCVRecord[];
+}
