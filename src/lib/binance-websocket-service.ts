@@ -94,7 +94,7 @@ class BinanceNativeWS {
             }
         };
 
-        this.ws!.onclose = () => {
+        this.ws!.onclose = async () => {
             console.warn("[BinanceNativeWS] WebSocket closed.");
             await this.cleanup();
             if (!this.isManuallyPaused) {

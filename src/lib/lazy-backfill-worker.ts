@@ -1,7 +1,7 @@
 import { connectToDB } from './db-service';
 import { globalApiQueue, PriorityLevel } from './api-priority-queue';
 import { getSyncState, updateSyncState } from './sync-state-manager';
-import ccxt from 'ccxt';
+import * as ccxt from 'ccxt';
 
 // Target timestamp (2 months ago)
 const TWO_MONTHS_MS = 60 * 24 * 60 * 60 * 1000;
@@ -105,7 +105,7 @@ class LazyBackfillWorker {
             }
 
             if (trades && trades.length > 0) {
-               const mappedTrades = trades.map(t => ({
+               const mappedTrades = trades.map((t: any) => ({
                    id: t.id,
                    price: t.price,
                    quantity: t.amount,
@@ -129,7 +129,7 @@ class LazyBackfillWorker {
                    console.error("DuckDB save failed (background worker):", e);
                }
 
-               const maxTimestamp = Math.max(...trades.map(t => t.timestamp || 0));
+               const maxTimestamp = Math.max(...trades.map((t: any) => t.timestamp || 0));
                this.lastFetchedTimestamp = maxTimestamp > currentTarget ? maxTimestamp : currentTarget + 1000;
 
                updateSyncState({ last_fetched_ms: this.lastFetchedTimestamp, historical_backfill: { status: 'in_progress' } });
