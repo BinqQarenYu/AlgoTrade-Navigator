@@ -1,0 +1,29 @@
+
+> nextn@0.1.0 start
+> next start
+
+   ▲ Next.js 15.3.8
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 562ms
+[DuckDB] Pragma warning: [Error: Catalog Error: unrecognized configuration parameter "default_compression"
+
+Did you mean: "default_order"] {
+  errno: -1,
+  code: 'DUCKDB_NODEJS_ERROR',
+  errorType: 'Catalog'
+}
+Error fetching system logs: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at b.json (.next/server/chunks/580.js:1:25955)
+    at u (.next/server/app/api/db/system-logs/route.js:76:2876)
+Error fetching system logs: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at b.json (.next/server/chunks/580.js:1:25955)
+    at u (.next/server/app/api/db/system-logs/route.js:76:2876)
+Error fetching system logs: TypeError: Do not know how to serialize a BigInt
+    at JSON.stringify (<anonymous>)
+    at b.json (.next/server/chunks/580.js:1:25955)
+    at u (.next/server/app/api/db/system-logs/route.js:76:2876)
