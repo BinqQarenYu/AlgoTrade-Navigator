@@ -9,3 +9,7 @@
 ## 2024-05-18 - High Performance WebSockets & DuckDB Migrations
 **Learning:** Native Binance WebSockets emitting `@aggTrade` can easily DDoS the Node event loop and memory limits if every tick triggers a synchronous file read or an unbatched HTTP POST payload. DuckDB initialization requires `PRAGMA default_compression='zstd'` for persistent storage configurations, not `compression='zstd'`.
 **Action:** When handling raw WebSocket streams, implement a `tradeBuffer` array with a `setInterval` (e.g., 1000ms) to flush batches. Only parse manifest JSON files synchronously once via a flag (`hasRecordedFirstPacket`). Ensure DB migration logic gracefully pauses stream engines natively before calling `fs.renameSync` on DB files.
+
+## 2024-05-20 - More $O(N \times P)$ Anti-patterns in Technical Indicators
+**Learning:** Found more instances of `slice().reduce()` and `Math.max(...slice.map(...))` inside historical indicator loops, specifically in `calculateCCI` and `calculatePivotPoints`. These patterns force frequent garbage collection and redundant looping inside every tick calculation, leading to massive performance loss during large backtests.
+**Action:** Replaced `slice().reduce()` in `calculateCCI` with an iterative calculation against precomputed SMA inside a fixed inner loop. For `calculatePivotPoints`, replaced `Math.max(...slice)` with the existing $O(N)$ central `calculateSlidingWindowExtreme` helper utilizing a monotonic deque algorithm.
