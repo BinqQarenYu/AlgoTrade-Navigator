@@ -317,3 +317,15 @@ export async function relocateDatabase(newPath: string): Promise<void> {
   // Remount at new path (connectToDB will update dbPath internally)
   await connectToDB(newPath);
 }
+
+export async function getHistoricalTrades(symbol: string, limit: number = 100): Promise<TradeRecord[]> {
+  await connectToDB();
+  const query = `
+    SELECT * FROM trades 
+    WHERE symbol = ? 
+    ORDER BY timestamp DESC 
+    LIMIT ?
+  `;
+  const result = await runQuery(query, [symbol, limit]);
+  return result as TradeRecord[];
+}

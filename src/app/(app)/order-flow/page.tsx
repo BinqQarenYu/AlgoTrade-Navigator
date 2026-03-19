@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import * as React from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { 
   AlertTriangle, 
@@ -15,6 +14,8 @@ import {
   TrendingUp as ChartIcon
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 
 // Custom Hook
 import { useOrderFlow } from "@/hooks/use-order-flow";
@@ -123,17 +124,20 @@ export default function OrderFlowPage() {
             <div className="flex flex-wrap items-center gap-4 p-2 bg-slate-900/60 backdrop-blur-sm rounded-2xl border border-slate-700 shadow-inner">
               <div className="flex items-center gap-3 px-3">
                 <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Pair:</span>
-                <Select value={selectedSymbol} onValueChange={setSelectedSymbol}>
-                  <SelectTrigger className={`w-[140px] bg-slate-800 border-2 font-bold transition-all ${activeVeryLargeActivity ? 'border-red-500 text-red-400' : 'border-slate-700 text-white hover:border-blue-500'}`}>
-                    <SelectValue placeholder="Select Symbol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BTCUSDT" className="font-bold">BTC/USDT</SelectItem>
-                    <SelectItem value="ETHUSDT" className="font-bold">ETH/USDT</SelectItem>
-                    <SelectItem value="BNBUSDT" className="font-bold">BNB/USDT</SelectItem>
-                    <SelectItem value="SOLUSDT" className="font-bold">SOL/USDT</SelectItem>
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const parsed = parseSymbolString(selectedSymbol) || { base: selectedSymbol.replace('USDT', ''), quote: 'USDT' };
+                  const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+                  return (
+                    <AssetSelector
+                      baseAsset={parsed.base}
+                      quoteAsset={parsed.quote}
+                      onBaseChange={(newBase) => setSelectedSymbol(`${newBase}${parsed.quote}`)}
+                      onQuoteChange={(newQuote) => setSelectedSymbol(`${parsed.base}${newQuote}`)}
+                      disabled={isMonitoring}
+                      availableQuotes={availableQuotes}
+                    />
+                  );
+                })()}
               </div>
 
               <div className="h-8 w-px bg-blue-100"></div>
