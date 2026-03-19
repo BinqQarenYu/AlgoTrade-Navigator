@@ -11,7 +11,7 @@ import type { HistoricalData } from './types';
  * @param type 'max' for rolling maximum, 'min' for rolling minimum
  * @returns Array of (number | null) where null represents initial periods
  */
-const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
+export const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
   if (data.length < period) return Array(data.length).fill(null);
 
   const results: (number | null)[] = Array(data.length).fill(null);
