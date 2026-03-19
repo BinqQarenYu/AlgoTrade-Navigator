@@ -550,13 +550,13 @@ export default function SettingsPage() {
                         <SelectValue placeholder="Select Model" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="gemini-1.5-flash">
+                        <SelectItem value="gemini-1.5-flash-002">
                           <div className="flex items-center gap-2">
                             <Zap className="h-4 w-4 text-orange-500" />
                             <span>Gemini 1.5 Flash (Budget/Fast)</span>
                           </div>
                         </SelectItem>
-                        <SelectItem value="gemini-1.5-pro">
+                        <SelectItem value="gemini-1.5-pro-002">
                           <div className="flex items-center gap-2">
                             <Brain className="h-4 w-4 text-primary" />
                             <span>Gemini 1.5 Pro (Precision/High-Cost)</span>
