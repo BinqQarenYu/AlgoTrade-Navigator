@@ -62,16 +62,22 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
   }
   if (data.length < period) return Array(data.length).fill(null);
   
+  // ⚡ Bolt Optimization: Replacing O(N * lookback) nested slice().reduce()
+  // with an O(N) sliding window to drastically reduce execution latency
+  // and Garbage Collection overhead for large backtest arrays.
   const sma: (number | null)[] = Array(period - 1).fill(null);
-  let sum = 0;
-  for (let i = 0; i < period; i++) {
-    sum += data[i];
-  }
-  sma.push(sum / period);
 
+  // Calculate initial window sum
+  let windowSum = 0;
+  for (let i = 0; i < period; i++) {
+    windowSum += data[i];
+  }
+  sma.push(windowSum / period);
+
+  // Slide the window forward
   for (let i = period; i < data.length; i++) {
-    sum = sum - data[i - period] + data[i];
-    sma.push(sum / period);
+    windowSum += data[i] - data[i - period];
+    sma.push(windowSum / period);
   }
 
   return sma;
@@ -586,26 +592,40 @@ export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
 };
 
 export const calculateCMF = (data: HistoricalData[], period: number): (number | null)[] => {
-    const cmf: (number | null)[] = Array(period - 1).fill(null);
-    const mfv: number[] = data.map(d => {
-        const range = d.high - d.low;
-        const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
-        return multiplier * d.volume;
-    });
+    // ⚡ Bolt Optimization: Replacing O(N * period) nested slice().reduce()
+    // with an O(N) sliding window. This significantly reduces execution latency
+    // and garbage collection overhead by keeping a running sum of money flow volume and volume.
+    const cmf: (number | null)[] = [];
+
+    // Pre-allocate arrays for better performance
+    const moneyFlowVolumes: number[] = new Array(data.length);
+    const volumes: number[] = new Array(data.length);
 
     let sumMfv = 0;
     let sumVol = 0;
 
-    for (let i = 0; i < period; i++) {
-        sumMfv += mfv[i];
-        sumVol += data[i].volume;
-    }
-    cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
+    for (let i = 0; i < data.length; i++) {
+        const d = data[i];
+        const range = d.high - d.low;
+        const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
+        const mfv = multiplier * d.volume;
+        
+        moneyFlowVolumes[i] = mfv;
+        volumes[i] = d.volume;
 
-    for (let i = period; i < data.length; i++) {
-        sumMfv = sumMfv - mfv[i - period] + mfv[i];
-        sumVol = sumVol - data[i - period].volume + data[i].volume;
-        cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
+        sumMfv += mfv;
+        sumVol += d.volume;
+
+        if (i < period - 1) {
+            cmf.push(null);
+        } else {
+            // Subtract elements that fall out of the sliding window
+            if (i >= period) {
+                sumMfv -= moneyFlowVolumes[i - period];
+                sumVol -= volumes[i - period];
+            }
+            cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
+        }
     }
     return cmf;
 };

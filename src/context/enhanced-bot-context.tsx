@@ -962,10 +962,8 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
     const activeBotIds = Object.keys(liveBotState.bots);
     await emergencyStop.triggerEmergencyStop('MANUAL_STOP', reason, activeBotIds);
     
-    // Stop all bots
-    for (const botId of activeBotIds) {
-      await stopBotInstance(botId);
-    }
+    // Stop all bots concurrently
+    await Promise.all(activeBotIds.map(botId => stopBotInstance(botId)));
     
     toast({ title: "Emergency Stop Activated", description: `All bots stopped: ${reason}`, variant: "destructive" });
   }, [liveBotState.bots, stopBotInstance, toast]);
