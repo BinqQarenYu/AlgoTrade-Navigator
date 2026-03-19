@@ -48,59 +48,9 @@ export interface ManipulationPattern {
 }
 
 import { createDualApiService } from "@/lib/dual-coin-api-service";
+import { dataHub } from "@/lib/data-hub";
 import { getRecentTrades } from "@/lib/binance-service";
 import { wsManager } from "@/lib/websocket-manager";
-
-const binanceWebSocketService = {
-  connectionCallback: null as ((connected: boolean) => void) | null,
-  errorCallback: null as ((error: Error) => void) | null,
-  ws: null as any,
-  
-  onConnection: function(callback: (connected: boolean) => void) {
-    this.connectionCallback = callback;
-  },
-  
-  onError: function(callback: (error: Error) => void) {
-    this.errorCallback = callback;
-  },
-  
-  subscribeToAggTrades: function(symbol: string, callback: (orderData: BinanceOrderFlowData) => void) {
-    const url = `wss://fstream.binance.com/ws/${symbol.toLowerCase()}@aggTrade`;
-    this.ws = wsManager.createConnection(`orderFlow-${symbol}`, { url });
-    
-    this.ws.addEventListener('open', () => {
-      if (this.connectionCallback) this.connectionCallback(true);
-    });
-    
-    this.ws.addEventListener('close', () => {
-      if (this.connectionCallback) this.connectionCallback(false);
-    });
-    
-    this.ws.addEventListener('message', (data: any) => {
-      if (data.e === 'aggTrade') {
-        const orderData: BinanceOrderFlowData = {
-          id: data.a.toString(),
-          timestamp: data.T,
-          price: parseFloat(data.p),
-          quantity: parseFloat(data.q),
-          side: data.m ? 'sell' : 'buy',
-          symbol: data.s.toUpperCase()
-        };
-        callback(orderData);
-      }
-    });
-    
-    this.ws.connect(url).catch((err: Error) => {
-      if (this.errorCallback) this.errorCallback(err);
-    });
-  },
-  
-  connect: function() {},
-  unsubscribe: function(symbol?: string) {
-    if (this.ws && symbol) wsManager.removeConnection(`orderFlow-${symbol}`);
-  },
-  disconnect: function() {}
-};
 
 export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: string, coingeckoApiKey?: string | null, coinmarketcapApiKey?: string | null) {
   const [orderFlowData, setOrderFlowData] = useState<OrderFlowData[]>([]);
@@ -438,61 +388,72 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSymbol, selectedTimeInterval]);
 
+  // Use a mutable ref array to buffer incoming messages
+  const wsMessageBuffer = React.useRef<BinanceOrderFlowData[]>([]);
+
   useEffect(() => {
-    binanceWebSocketService.connect();
-    binanceWebSocketService.onConnection(connected => setIsWebSocketConnected(connected));
-    binanceWebSocketService.subscribeToAggTrades(selectedSymbol, (orderData) => {
-      setRealTimeOrders(prev => [orderData, ...prev].slice(0, 1000));
-      const analysisOrder: OrderData = {
-        id: orderData.id,
-        symbol: orderData.symbol,
-        timestamp: orderData.timestamp,
-        side: orderData.side,
-        size: orderData.quantity,
-        quantity: orderData.quantity,
-        price: orderData.price,
-        orderId: orderData.id,
-        venue: 'binance-ws'
-      };
-      const analyzed = orderFlowAnalyzer.analyzeOrder(analysisOrder);
-      const orderFlowItem: OrderFlowData = {
-        symbol: orderData.symbol,
-        timestamp: orderData.timestamp,
-        orderType: orderData.side,
-        size: orderData.quantity,
-        price: orderData.price,
-        suspiciousFlags: analyzed.reasons || [],
-        riskScore: analyzed.riskScore || 0,
-        flags: analyzed,
-        marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' }
-      };
+    const handleTrade = (orderData: BinanceOrderFlowData) => {
+      wsMessageBuffer.current.push(orderData);
+    };
+
+    dataHub.subscribe(selectedSymbol, handleTrade);
+    dataHub.onConnection(selectedSymbol, connected => setIsWebSocketConnected(connected));
+
+    // Flush the buffer to React state on an interval to prevent UI freezing
+    const flushInterval = setInterval(() => {
+      if (wsMessageBuffer.current.length === 0) return;
       
+      const batch = [...wsMessageBuffer.current];
+      wsMessageBuffer.current = []; // Clear buffer
+
+      setRealTimeOrders(prev => [...batch.reverse(), ...prev].slice(0, 1000));
+
+      const newOrderFlowItems: OrderFlowData[] = batch.map(orderData => {
+        const analysisOrder: OrderData = {
+          id: orderData.id,
+          symbol: orderData.symbol,
+          timestamp: orderData.timestamp,
+          side: orderData.side,
+          size: orderData.quantity,
+          quantity: orderData.quantity,
+          price: orderData.price,
+          orderId: orderData.id,
+          venue: 'binance-ws'
+        };
+        const analyzed = orderFlowAnalyzer.analyzeOrder(analysisOrder);
+        return {
+          symbol: orderData.symbol,
+          timestamp: orderData.timestamp,
+          orderType: orderData.side,
+          size: orderData.quantity,
+          price: orderData.price,
+          suspiciousFlags: analyzed.reasons || [],
+          riskScore: analyzed.riskScore || 0,
+          flags: analyzed,
+          marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' }
+        };
+      });
+
       setOrderFlowData(prev => {
-        const newData = [orderFlowItem, ...prev].slice(0, 500);
+        const newData = [...newOrderFlowItems.reverse(), ...prev].slice(0, 500);
         updateChartData(newData.slice(0, 50));
         detectVeryLargeActivity(newData.slice(0, 20));
 
         const currentStats = orderFlowAnalyzer.getManipulationStats(newData);
         setStats(currentStats);
-        setHasHighRiskDetected((analyzed.riskScore ?? 0) >= 8 || currentStats.averageRiskScore >= 7);
+
+        // Check if any in batch triggered high risk
+        const anyHighRisk = newOrderFlowItems.some(item => item.riskScore >= 8) || currentStats.averageRiskScore >= 7;
+        setHasHighRiskDetected(anyHighRisk);
 
         return newData;
       });
 
-      // Instantly save Live edge to DuckDB without waiting for history
-      fetch('/api/db/save', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-              source: 'LIVE',
-              symbol: orderData.symbol,
-              data: orderData
-          })
-      }).catch(e => console.error("Failed to write Live Stream to DB", e));
-    });
+    }, 500); // Flush every 500ms
     
     return () => {
-      binanceWebSocketService.unsubscribe(selectedSymbol);
+      dataHub.unsubscribe(selectedSymbol, handleTrade);
+      clearInterval(flushInterval);
     };
   }, [selectedSymbol]);
 
@@ -502,12 +463,6 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       return cleanup;
     }
   }, [isMonitoring, startMonitoring]);
-
-  useEffect(() => {
-    return () => {
-      binanceWebSocketService.disconnect();
-    };
-  }, []);
 
   // Analysis Helpers
   const helpers = useMemo(() => ({
