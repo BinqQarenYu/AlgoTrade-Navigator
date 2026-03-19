@@ -1,63 +1,72 @@
+'use server';
+
 import { NextResponse, type NextRequest } from 'next/server';
-import { connectToDB } from '@/lib/db-service';
-import crypto from 'crypto';
+import { connectToDB, bufferTrades, bufferOHLCVBatch, TradeRecord, OHLCVRecord } from '@/lib/db-service';
+import { updateSyncState } from '@/lib/sync-state-manager';
 
 export async function POST(request: NextRequest) {
-    try {
-        const payload = await request.json();
-        
-        // This accepts BOTH stitched klines (chunks) and single aggTrades (live)
-        const { source, symbol, data } = payload;
-        
-        if (!data) return NextResponse.json({ success: false, error: 'No data provided' }, { status: 400 });
+  try {
+    const { source, symbol, data } = await request.json();
 
-        const conn = await connectToDB();
-
-        // 1. Is this a Backfill Batch of CCXT Klines?
-        if (source === 'BACKFILL' && Array.isArray(data)) {
-            // Using a parameterized statement to prevent injection and speed up large inserts natively
-            const stmt = conn.prepare(`
-                INSERT INTO market_data (id, symbol, time, open, high, low, close, volume, source) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (id) DO UPDATE SET 
-                close = excluded.close, volume = excluded.volume;
-            `);
-            
-            for (let i = 0; i < data.length; i++) {
-                const k = data[i];
-                // Unique composite PK so AI doesn't see overlapping candles
-                const id = `${symbol}-${k.time}`;
-                stmt.run(id, symbol, k.time, k.open, k.high, k.low, k.close, k.volume, 'BACKFILL');
-            }
-            stmt.finalize();
-            return NextResponse.json({ success: true, count: data.length });
-        }
-        
-        // 2. Is this the Live Edge priority stream?
-        if (source === 'LIVE') {
-            const stmt = conn.prepare(`
-                INSERT INTO live_trades (id, symbol, price, quantity, side, timestamp, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (id) DO NOTHING;
-            `);
-            
-            // Single burst
-            if (!Array.isArray(data)) {
-                 stmt.run(data.id || crypto.randomUUID(), symbol, data.price, data.quantity, data.side, data.timestamp, 'LIVE');
-            } else {
-                 for (let i = 0; i < data.length; i++) {
-                     const t = data[i];
-                     stmt.run(t.id || crypto.randomUUID(), symbol, t.price, t.quantity, t.side, t.timestamp, 'LIVE');
-                 }
-            }
-            stmt.finalize();
-            return NextResponse.json({ success: true, liveStitched: true });
-        }
-
-        return NextResponse.json({ success: false, error: 'Unknown payload format' }, { status: 400 });
-        
-    } catch (error: any) {
-        console.error('[DUCKDB SAVE ERROR]', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!symbol || !data) {
+      return NextResponse.json({ error: 'symbol and data are required' }, { status: 400 });
     }
+
+    // Ensure DB is ready (idempotent)
+    await connectToDB();
+
+    // ── LIVE trades from WebSocket ──────────────────────────
+    if (source === 'LIVE') {
+      const records: TradeRecord[] = Array.isArray(data)
+        ? data
+        : [data];
+
+      bufferTrades(
+        records.map((r: any) => ({
+          trade_id: String(r.trade_id || r.id || `${symbol}-${r.timestamp}-${Math.random()}`),
+          symbol,
+          price: Number(r.price),
+          quantity: Number(r.quantity ?? r.qty ?? 0),
+          side: r.side || (r.isBuyerMaker ? 'sell' : 'buy'),
+          timestamp: Number(r.timestamp),
+          source: 'LIVE' as const,
+        }))
+      );
+
+      // Update manifest's "newest" bookmark
+      const newestTs = Math.max(...records.map(r => Number(r.timestamp)));
+      const oldestTs = Math.min(...records.map(r => Number(r.timestamp)));
+      updateSyncState(symbol, oldestTs, newestTs, records.length, false);
+
+      return NextResponse.json({ success: true, buffered: records.length, source: 'LIVE' });
+    }
+
+    // ── BACKFILL OHLCV chunks from CCXT REST ────────────────
+    if (source === 'BACKFILL' && Array.isArray(data)) {
+      const ohlcvRecords: OHLCVRecord[] = data.map((k: any) => ({
+        symbol,
+        interval: k.interval || '1m',
+        time: Number(k.time),
+        open: Number(k.open),
+        high: Number(k.high),
+        low: Number(k.low),
+        close: Number(k.close),
+        volume: Number(k.volume),
+        source: 'BACKFILL',
+      }));
+
+      bufferOHLCVBatch(ohlcvRecords);
+
+      const times = ohlcvRecords.map(r => r.time);
+      updateSyncState(symbol, Math.min(...times), Math.max(...times), ohlcvRecords.length, false);
+
+      return NextResponse.json({ success: true, buffered: ohlcvRecords.length, source: 'BACKFILL' });
+    }
+
+    return NextResponse.json({ error: 'Unknown payload format' }, { status: 400 });
+
+  } catch (error: any) {
+    console.error('[DB SAVE ERROR]', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
