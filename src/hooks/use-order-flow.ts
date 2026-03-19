@@ -1,3 +1,4 @@
+import { type SystemLogRecord } from "@/lib/db-service";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import * as React from "react";
 import { orderFlowAnalyzer, enhancedOrderFlowAnalyzer, type OrderData, type ManipulationFlags } from "@/lib/order-flow-analyzer";
@@ -67,7 +68,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
   // Very Large Activity tracking
   const [veryLargeActivities, setVeryLargeActivities] = useState<VeryLargeActivity[]>([]);
   const [activeVeryLargeActivity, setActiveVeryLargeActivity] = useState<VeryLargeActivity | null>(null);
-  const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<string[]>([]);
+  const [veryLargeActivityLog, setVeryLargeActivityLog] = useState<SystemLogRecord[]>([]);
   
   // Use a ref to track if a whale alert is currently active to prevent duplicates during rapid updates
   const activeWhaleRef = React.useRef<string | null>(null);
@@ -342,7 +343,32 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         activeWhaleRef.current = uniqueId;
         setActiveVeryLargeActivity(newActivity);
         setVeryLargeActivities(prev => [newActivity, ...prev]);
-        setVeryLargeActivityLog(prev => [`[${new Date().toLocaleTimeString()}] ALERT: ${newActivity.description}`, ...prev]);
+
+        const logRecord: SystemLogRecord = {
+          id: uniqueId,
+          timestamp,
+          asset_pair: selectedSymbol,
+          alert_source: 'order_flow_analyzer',
+          interval: selectedTimeInterval || '1m',
+          numerical_data: JSON.stringify({
+            totalVolume: newActivity.totalVolume,
+            orderCount: newActivity.orderCount,
+            avgPrice: newActivity.avgPrice,
+            maxOrderSize: newActivity.maxOrderSize,
+            riskLevel: newActivity.riskLevel
+          }),
+          message: `[${new Date().toLocaleTimeString()}] ALERT: ${newActivity.description}`
+        };
+
+        setVeryLargeActivityLog(prev => [logRecord, ...prev]);
+
+        // Auto-save to DB
+        fetch('/api/db/system-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(logRecord)
+        }).catch(err => console.error('Failed to buffer system log:', err));
+
       }
     } else if (activeWhaleRef.current) {
       // Find the active activity to check its start time
@@ -372,6 +398,31 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     console.log('Saving activity log:', logText);
     alert('Log exported to console (simulated)');
   }, [veryLargeActivityLog]);
+
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLogs = async () => {
+      try {
+        const response = await fetch(`/api/db/system-logs?asset_pair=${selectedSymbol}&limit=100`);
+        if (response.ok) {
+          const logs: SystemLogRecord[] = await response.json();
+          if (isMounted) {
+            setVeryLargeActivityLog(logs);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch historical system logs:', error);
+      }
+    };
+
+    if (selectedSymbol) {
+      setVeryLargeActivityLog([]); // Clear old logs on symbol change
+      fetchLogs();
+    }
+
+    return () => { isMounted = false; };
+  }, [selectedSymbol]);
 
   // Effects
   useEffect(() => {

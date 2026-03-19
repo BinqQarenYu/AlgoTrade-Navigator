@@ -4,11 +4,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Zap, Timer, ArrowUpRight, ArrowDownRight, AlertTriangle, Eye, Activity } from "lucide-react";
 import { type VeryLargeActivity } from "@/hooks/use-order-flow";
+import { type SystemLogRecord } from "@/lib/db-service";
+import { FixedSizeList } from "react-window";
 
 interface OrderFlowWhaleActivityProps {
   veryLargeActivities: VeryLargeActivity[];
   activeVeryLargeActivity: VeryLargeActivity | null;
-  veryLargeActivityLog: string[];
+  veryLargeActivityLog: SystemLogRecord[];
   saveActivityLog: () => void;
 }
 
@@ -161,15 +163,33 @@ export function OrderFlowWhaleActivity({
               <CardDescription>Console output feed</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="max-h-[600px] overflow-y-auto p-4 bg-slate-950 text-green-400 font-mono text-xs space-y-3 leading-relaxed">
+              <div className="h-[600px] bg-slate-950">
                 {veryLargeActivityLog.length === 0 ? (
-                  <p className="text-slate-600 text-center py-10">Awaiting system events...</p>
+                  <p className="text-slate-600 text-center py-10 font-mono text-xs">Awaiting system events...</p>
                 ) : (
-                  veryLargeActivityLog.map((log, i) => (
-                    <div key={i} className="border-b border-white/10 pb-2 last:border-0">
-                      <span className="text-slate-500 mr-2">&gt;</span>{log}
-                    </div>
-                  ))
+                  <FixedSizeList
+                    height={600}
+                    width="100%"
+                    itemSize={60}
+                    itemCount={veryLargeActivityLog.length}
+                    className="font-mono text-xs leading-relaxed"
+                  >
+                    {({ index, style }: { index: number; style: React.CSSProperties }) => {
+                      const log = veryLargeActivityLog[index];
+                      return (
+                        <div style={style} className="px-4 py-2 border-b border-white/10 last:border-0 flex flex-col justify-center text-green-400">
+                          <div className="flex items-center gap-2">
+                             <span className="text-slate-500">&gt;</span>
+                             <span className="text-blue-400">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                             <span className="text-slate-400 font-bold">[{log.asset_pair}]</span>
+                          </div>
+                          <div className="pl-4 break-words whitespace-normal line-clamp-2" title={log.message}>
+                            {log.message}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </FixedSizeList>
                 )}
               </div>
             </CardContent>
