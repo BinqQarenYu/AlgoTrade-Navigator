@@ -27,6 +27,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: [
     'duckdb',
     'duckdb-async',
+    '@mapbox/node-pre-gyp',
+    'node-gyp',
     'genkit',
     '@genkit-ai/core',
     '@genkit-ai/googleai',
@@ -41,6 +43,7 @@ const nextConfig: NextConfig = {
       duckdb: emptyModule,
       'duckdb-async': emptyModule,
       '@mapbox/node-pre-gyp': emptyModule,
+      node_gyp: emptyModule,
       'aws-sdk': emptyModule,
       'mock-aws-s3': emptyModule,
       nock: emptyModule,
@@ -49,23 +52,22 @@ const nextConfig: NextConfig = {
 
   // ── Webpack config ────────────────────────────────────────────────────────
   webpack: (config) => {
+    // Exclude .html and .cs files from the build graph entirely.
+    config.plugins.push(
+        new webpack.IgnorePlugin({
+            resourceRegExp: /\.(html|cs)$/,
+        })
+    );
+
     // ContextReplacementPlugin: restrict the dynamic require context inside
     // @mapbox/node-pre-gyp/lib/ to only match .js files.
-    // Without this, webpack's dynamic require analysis includes ALL files in the
-    // directory (including the .html file), causing a fatal parse error.
-    //
-    // The second argument is the newContentResource (directory to use as context root).
-    // The third argument is the newContentRegExp (filter what files match in that context).
     config.plugins.push(
       new webpack.ContextReplacementPlugin(
-        // Match the context module from @mapbox/node-pre-gyp/lib/
         /node_modules[/\\]@mapbox[/\\]node-pre-gyp[/\\]lib/,
-        // Restrict context to only .js files (exclude .html, .cs, etc.)
         /\.js$/,
       ),
     );
 
-    // Also restrict node-gyp's dynamic context for the same reason
     config.plugins.push(
       new webpack.ContextReplacementPlugin(
         /node_modules[/\\]node-gyp[/\\]lib/,
@@ -73,9 +75,7 @@ const nextConfig: NextConfig = {
       ),
     );
 
-    // Stub optional/uninstalled deps that some packages try to require conditionally.
-    // resolve.alias: matches requires from project source
-    // resolve.fallback: matches ALL requires including from within node_modules
+    // Stub optional/uninstalled deps
     config.resolve.alias = {
       ...config.resolve.alias,
       'mock-aws-s3': emptyModule,
@@ -85,8 +85,6 @@ const nextConfig: NextConfig = {
       '@opentelemetry/exporter-jaeger': emptyModule,
     };
 
-    // resolve.fallback covers requires coming from inside node_modules themselves.
-    // Setting to false means "ignore this module if not found" (no-op empty module).
     config.resolve.fallback = {
       ...config.resolve.fallback,
       nock: emptyModule,
@@ -96,16 +94,8 @@ const nextConfig: NextConfig = {
       npm: emptyModule,
     };
 
-    // null-load any stray non-JS assets that appear in the build graph.
-    // Note: no 'include' filter — on Windows, paths use backslashes so /node_modules/
-    // regex may not match. Applied globally to .html and .cs files which only appear
-    // inside node_modules anyway (node-pre-gyp and node-gyp).
-    config.module.rules.unshift({
-      test: /\.(html|cs)$/,
-      use: 'null-loader',
-      // enforce: 'pre' ensures this runs before any other loader for these file types.
-      enforce: 'pre' as const,
-    });
+    // Manually mark duckdb as external in webpack as well to avoid bundling native binary dependencies.
+    config.externals = [...(config.externals || []), 'duckdb', '@mapbox/node-pre-gyp', 'node-gyp'];
 
     return config;
   },

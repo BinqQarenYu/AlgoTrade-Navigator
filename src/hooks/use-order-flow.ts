@@ -50,7 +50,6 @@ export interface ManipulationPattern {
 import { createDualApiService } from "@/lib/dual-coin-api-service";
 import { getRecentTrades } from "@/lib/binance-service";
 import { wsManager } from "@/lib/websocket-manager";
-import { backfillEngine } from "@/lib/lazy-backfill-worker";
 
 const binanceWebSocketService = {
   connectionCallback: null as ((connected: boolean) => void) | null,
@@ -492,16 +491,8 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       }).catch(e => console.error("Failed to write Live Stream to DB", e));
     });
     
-    // Spawn Background Gap Analysis and Fetch
-    backfillEngine.init(selectedSymbol, (progress) => {
-       // In a real app we'd dispatch this to a global context so Settings UI pulls it
-       console.log(`[Backfill Engine] ${selectedSymbol}: ${progress.toFixed(2)}% Complete`);
-    });
-    backfillEngine.start();
-    
     return () => {
       binanceWebSocketService.unsubscribe(selectedSymbol);
-      backfillEngine.pause();
     };
   }, [selectedSymbol]);
 

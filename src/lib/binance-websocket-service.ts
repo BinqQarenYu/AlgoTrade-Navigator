@@ -1,5 +1,5 @@
-import { connectToDB } from './db-service';
-import { getSyncState, updateSyncState } from './sync-state-manager';
+import { connectToDB, bufferTrades } from './db-service';
+
 // Next.js Edge runtime or browser native WebSocket handles this:
 // Ensure WebSocket is available
 const isServer = typeof window === 'undefined';
@@ -22,7 +22,6 @@ class BinanceNativeWS {
     private maxReconnectAttempts: number = 10;
     private pingIntervalId: NodeJS.Timeout | null = null;
     private isManuallyPaused: boolean = false;
-    private hasRecordedFirstPacket: boolean = false;
     private tradeBuffer: any[] = [];
     private batchIntervalId: NodeJS.Timeout | null = null;
 
@@ -45,7 +44,8 @@ class BinanceNativeWS {
             console.log(`[BinanceNativeWS] Connected to ${this.symbol}@aggTrade stream`);
             this.reconnectAttempts = 0; // reset
 
-            this.batchIntervalId = setInterval(() => this.flushBuffer(), 1000);
+            // Flush local buffer to db-service every 1s
+            this.batchIntervalId = setInterval(() => this.flushToDbService(), 1000);
 
             // 3-minute ping handler
             this.pingIntervalId = setInterval(() => {
@@ -70,21 +70,14 @@ class BinanceNativeWS {
                 if (parsed.e === 'aggTrade') {
                     const eventTime = parsed.E;
 
-                    if (!this.hasRecordedFirstPacket) {
-                        const state = getSyncState();
-                        if (!state.first_ws_packet_ms) {
-                            console.log(`[BinanceNativeWS] Recording FIRST ws packet time: ${eventTime}`);
-                            updateSyncState({ first_ws_packet_ms: eventTime });
-                        }
-                        this.hasRecordedFirstPacket = true;
-                    }
-
                     const tradeData = {
-                         id: String(parsed.a),
+                         trade_id: String(parsed.a),
+                         symbol: this.symbol.toUpperCase(),
                          price: parseFloat(parsed.p),
                          quantity: parseFloat(parsed.q),
-                         side: parsed.m ? 'SELL' : 'BUY',
-                         timestamp: eventTime
+                         side: parsed.m ? 'sell' : 'buy',
+                         timestamp: eventTime,
+                         source: 'LIVE'
                     };
 
                     this.tradeBuffer.push(tradeData);
@@ -94,7 +87,7 @@ class BinanceNativeWS {
             }
         };
 
-        this.ws!.onclose = () => {
+        this.ws!.onclose = async () => {
             console.warn("[BinanceNativeWS] WebSocket closed.");
             await this.cleanup();
             if (!this.isManuallyPaused) {
@@ -120,34 +113,21 @@ class BinanceNativeWS {
         setTimeout(() => this.connect(this.symbol), backoffDelay);
     }
 
-    private async flushBuffer() {
+    private flushToDbService() {
         if (this.tradeBuffer.length === 0) return;
 
         const batch = [...this.tradeBuffer];
         this.tradeBuffer = [];
-
-        try {
-            const conn = await connectToDB();
-            const stmt = conn.prepare(`
-                INSERT INTO live_trades (id, symbol, price, quantity, side, timestamp, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT (id) DO NOTHING;
-            `);
-            for (let i = 0; i < batch.length; i++) {
-                const t = batch[i];
-                stmt.run(t.id, this.symbol.toUpperCase(), t.price, t.quantity, t.side, t.timestamp, 'LIVE');
-            }
-            stmt.finalize();
-        } catch (e) {
-            console.error("[BinanceNativeWS] Batch save failed:", e);
-        }
+        
+        // db-service handles the actual DuckDB write with its own 10s buffer
+        bufferTrades(batch);
     }
 
     private async cleanup() {
         if (this.batchIntervalId) {
             clearInterval(this.batchIntervalId);
             this.batchIntervalId = null;
-            await this.flushBuffer();
+            this.flushToDbService();
         }
         if (this.pingIntervalId) {
             clearInterval(this.pingIntervalId);

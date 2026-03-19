@@ -11,7 +11,9 @@
 // 'server-only' ensures Next.js App Router / RSC compiler treats this module as strictly
 // server-side, enabling serverExternalPackages to correctly externalize duckdb+deps at build time.
 import 'server-only';
-import duckdb from 'duckdb';
+import type * as DuckDBType from 'duckdb';
+// Use eval('require') to bypass Webpack's build-time analysis for native modules.
+const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
 import path from 'path';
 import fs from 'fs';
 import { readManifest, updateConfigPath } from './sync-state-manager';
@@ -46,8 +48,8 @@ export interface OHLCVRecord {
 // ──────────────────────────────────────────────────────────
 const DEFAULT_PATH = path.join(process.cwd(), 'data', 'algo_trades.duckdb');
 let dbPath = process.env.DUCKDB_PATH || readManifest().config.storage_path || DEFAULT_PATH;
-let db: duckdb.Database | null = null;
-let conn: duckdb.Connection | null = null;
+let db: DuckDBType.Database | null = null;
+let conn: DuckDBType.Connection | null = null;
 let isInitialized = false;
 
 // In-memory write buffers — flushed every 10s
@@ -122,7 +124,7 @@ export async function connectToDB(customPath?: string): Promise<void> {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   await new Promise<void>((resolve, reject) => {
-    db = new duckdb.Database(dbPath, (err) => {
+    db = new duckdb!.Database(dbPath, (err) => {
       if (err) return reject(err);
       conn = db!.connect();
 
