@@ -286,7 +286,8 @@ export class ResilientWebSocket {
   }
 
   private handleError(event: Event): void {
-    logger.error('WebSocket error occurred', { event }, this.botId, 'websocket');
+    const errorMsg = 'WebSocket error: ' + (event instanceof ErrorEvent ? event.message : event.type || 'Connection interrupted');
+    logger.error(errorMsg, { eventType: event.type }, this.botId, 'websocket');
     this.setState('ERROR');
     this.emit('error', event);
   }

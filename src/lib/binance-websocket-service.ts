@@ -96,7 +96,7 @@ class BinanceNativeWS {
         };
 
         this.ws!.onerror = (error) => {
-            console.error("[BinanceNativeWS] WebSocket error:", error);
+            console.error("[BinanceNativeWS] WebSocket error:", error instanceof Error ? error.message : "Connect failed or interrupted");
         };
     }
 
