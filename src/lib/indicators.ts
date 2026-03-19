@@ -512,8 +512,14 @@ export const calculateCCI = (data: HistoricalData[], period: number): (number | 
             cci.push(null);
             continue;
         }
-        const slice = typicalPrices.slice(i - period + 1, i + 1);
-        const meanDeviation = slice.reduce((sum, val) => sum + Math.abs(val - smaTp[i]!), 0) / period;
+
+        // ⚡ Bolt Optimization: Avoid allocating a new array for each slice, saving GC and memory
+        let sumDev = 0;
+        for (let j = i - period + 1; j <= i; j++) {
+            sumDev += Math.abs(typicalPrices[j] - smaTp[i]!);
+        }
+        const meanDeviation = sumDev / period;
+
         const val = (typicalPrices[i] - smaTp[i]!) / (0.015 * meanDeviation);
         cci.push(meanDeviation > 0 ? val : 0);
     }

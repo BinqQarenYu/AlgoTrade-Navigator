@@ -10,6 +10,7 @@
 **Learning:** Native Binance WebSockets emitting `@aggTrade` can easily DDoS the Node event loop and memory limits if every tick triggers a synchronous file read or an unbatched HTTP POST payload. DuckDB initialization requires `PRAGMA default_compression='zstd'` for persistent storage configurations, not `compression='zstd'`.
 **Action:** When handling raw WebSocket streams, implement a `tradeBuffer` array with a `setInterval` (e.g., 1000ms) to flush batches. Only parse manifest JSON files synchronously once via a flag (`hasRecordedFirstPacket`). Ensure DB migration logic gracefully pauses stream engines natively before calling `fs.renameSync` on DB files.
 
+<<<<<<< HEAD
 ## 2024-03-20 - Algorithmic Optimization of Pivot Points & Cloning Efficiency
 **Learning:** `calculatePivotPoints` was a remaining $O(N \times P)$ bottleneck using `slice()` and `Math.max/min` inside its main loop. Additionally, frequent strategy re-calculations were bottlenecked by deep-cloning large candle datasets using `JSON.parse(JSON.stringify())`.
 **Action:** Optimized `calculatePivotPoints` to $O(N)$ using the monotonic deque helper. Improved cloning efficiency by switching to `data.map(d => ({ ...d }))` for shallow cloning, which is significantly faster for this data structure.
@@ -21,3 +22,7 @@
 ## 2024-03-17 - [Avoid Nested slice/reduce in Sliding Window Calculations]
 **Learning:** Found O(N * period) complexity in `calculateCMF` due to the use of `.slice().reduce()` to calculate rolling sums at each step. This significantly degraded performance (~8x slower) in large data sets. Pre-allocating arrays and maintaining running sums via a sliding window pattern avoids large memory allocations and redundant computation.
 **Action:** Standardize replacing any chained array mutations (like `.slice().reduce()`) with O(N) sliding window computations (adding the new element, subtracting the element falling out of the window) in performance-critical areas like indicators and backtesting engines.
+
+## 2024-05-18 - [Optimizing Indicators: Avoid slice() and reduce() on loops]
+**Learning:** Using `array.slice().reduce()` inside an $O(N)$ loop triggers $O(N \times \text{period})$ array creations and allocations. This leads to heavy garbage collection pressure when running against historical crypto data (e.g., 100k+ candles).
+**Action:** Replace `slice().reduce()` chains with inline `for` loops accumulating values directly. Use monotonic deques (like `calculateSlidingWindowExtreme`) instead of repeated `Math.max(...slice())` for localized bounds.
