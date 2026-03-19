@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, Layers } from "lucide-react"
-import { topAssets } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
@@ -507,16 +508,20 @@ const BotInstanceRow = memo(({
                 <TableCell>{index + 1}</TableCell>
                 <TableCell><StatusBadge status={botState?.status}/></TableCell>
                 <TableCell>
-                    <Select
-                        value={bot.asset}
-                        onValueChange={(val) => onConfigChange(bot.id, 'asset', val)}
-                        disabled={isBotRunning}
-                    >
-                        <SelectTrigger className="w-40"><SelectValue placeholder="Select Asset" /></SelectTrigger>
-                        <SelectContent>
-                            {topAssets.map(a => (<SelectItem key={a.ticker} value={`${a.ticker}USDT`}>{a.name}</SelectItem>))}
-                        </SelectContent>
-                    </Select>
+                    {(() => {
+                        const parsed = parseSymbolString(bot.asset) || { base: bot.asset.replace('USDT', ''), quote: 'USDT' };
+                        const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+                        return (
+                            <AssetSelector
+                                baseAsset={parsed.base}
+                                quoteAsset={parsed.quote}
+                                onBaseChange={(newBase) => onConfigChange(bot.id, 'asset', `${newBase}${parsed.quote}`)}
+                                onQuoteChange={(newQuote) => onConfigChange(bot.id, 'asset', `${parsed.base}${newQuote}`)}
+                                disabled={isBotRunning}
+                                availableQuotes={availableQuotes}
+                            />
+                        );
+                    })()}
                 </TableCell>
                 <TableCell>
                     {isBotRunning && lastPrice !== null ? (

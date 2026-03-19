@@ -7,7 +7,8 @@ import { Loader2, Activity, Layers, ArrowUpRight, ArrowDownRight, Zap, Search } 
 import { Badge } from '@/components/ui/badge';
 import { cn, formatPrice } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { topAssets } from '@/lib/assets';
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from '@/lib/assets';
+import { AssetSelector } from '@/components/ui/asset-selector';
 
 interface OrderBookLevel {
     price: number;
@@ -166,18 +167,21 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                     </div>
                     
                     <div className="flex items-center gap-2">
-                        <Select value={symbol} onValueChange={setSymbol}>
-                            <SelectTrigger className="w-[140px] h-9 bg-white/5 border-white/10 text-white text-xs">
-                                <SelectValue placeholder="Select Asset" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-white/10 text-white">
-                                {topAssets.map((asset) => (
-                                    <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>
-                                        {asset.ticker} <span className="text-[10px] opacity-50 ml-1">({asset.name})</span>
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="flex gap-2">
+                        {(() => {
+                            const parsed = parseSymbolString(symbol) || { base: symbol.replace('USDT', ''), quote: 'USDT' };
+                            const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+                            return (
+                                <AssetSelector
+                                    baseAsset={parsed.base}
+                                    quoteAsset={parsed.quote}
+                                    onBaseChange={(newBase) => setSymbol(`${newBase}${parsed.quote}`)}
+                                    onQuoteChange={(newQuote) => setSymbol(`${parsed.base}${newQuote}`)}
+                                    availableQuotes={availableQuotes}
+                                />
+                            );
+                        })()}
+                        </div>
                     </div>
                 </div>
             </CardHeader>

@@ -5,7 +5,8 @@ import React from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Brain, Activity, Zap } from "lucide-react"
-import { topAssets } from "@/lib/assets"
+import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { AssetSelector } from "@/components/ui/asset-selector"
 
 interface ResearchHeaderProps {
   selectedAsset: string;
@@ -46,18 +47,22 @@ export function ResearchHeader({
         </p>
       </div>
       <div className="flex flex-wrap gap-2 w-full md:w-auto">
-        <Select value={selectedAsset} onValueChange={setSelectedAsset}>
-          <SelectTrigger className="w-full md:w-[160px] bg-background border-primary/20">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {topAssets.map(asset => (
-              <SelectItem key={asset.ticker} value={`${asset.ticker}USDT`}>
-                {asset.ticker}/USDT
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2 w-full md:w-auto">
+          {(() => {
+            const parsed = parseSymbolString(selectedAsset) || { base: selectedAsset.replace('USDT', ''), quote: 'USDT' };
+            const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+            return (
+              <AssetSelector
+                baseAsset={parsed.base}
+                quoteAsset={parsed.quote}
+                onBaseChange={(newBase) => setSelectedAsset(`${newBase}${parsed.quote}`)}
+                onQuoteChange={(newQuote) => setSelectedAsset(`${parsed.base}${newQuote}`)}
+                disabled={isAnalyzing}
+                availableQuotes={availableQuotes}
+              />
+            );
+          })()}
+        </div>
         
         <Select value={selectedInterval} onValueChange={setSelectedInterval}>
           <SelectTrigger className="w-full md:w-[140px] bg-background border-primary/20">
