@@ -284,38 +284,39 @@ export function TradingChartTab({
 
           {/* Technical Analysis & Order Flow Correlation */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  📊 Technical Indicators
-                  <Badge variant="outline">Real-time</Badge>
+            <Card className="bg-slate-900 border-slate-700 shadow-xl overflow-hidden">
+              <CardHeader className="bg-slate-950/50 border-b border-slate-700 pb-4">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Activity className="h-5 w-5 text-blue-400" />
+                  Technical Indicators
+                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5">Real-time</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
                   {tradingChartData.length > 0 && (
                     <>
-                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                        <span className="text-sm font-semibold">SMA (20):</span>
-                        <span className="font-bold text-blue-600">
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-blue-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">SMA (20)</span>
+                        <span className="font-mono font-black text-blue-400 text-lg">
                           ${tradingChartData[tradingChartData.length - 1]?.sma20?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-semibold">EMA (12):</span>
-                        <span className="font-bold text-green-600">
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-green-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">EMA (12)</span>
+                        <span className="font-mono font-black text-green-400 text-lg">
                           ${tradingChartData[tradingChartData.length - 1]?.ema12?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                        <span className="text-sm font-semibold">Resistance:</span>
-                        <span className="font-bold text-orange-600">
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-orange-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">Resistance</span>
+                        <span className="font-mono font-black text-orange-400 text-lg">
                           ${tradingChartData[tradingChartData.length - 1]?.resistance?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                        <span className="text-sm font-semibold">Support:</span>
-                        <span className="font-bold text-purple-600">
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-purple-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">Support</span>
+                        <span className="font-mono font-black text-purple-400 text-lg">
                           ${tradingChartData[tradingChartData.length - 1]?.support?.toLocaleString()}
                         </span>
                       </div>
@@ -325,48 +326,72 @@ export function TradingChartTab({
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  🔄 Order Flow Correlation
-                  <Badge variant="outline">Live Analysis</Badge>
+            <Card className="bg-slate-900 border-slate-700 shadow-xl overflow-hidden">
+              <CardHeader className="bg-slate-950/50 border-b border-slate-700 pb-4">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Zap className="h-5 w-5 text-yellow-400" />
+                  Order Flow Correlation
+                  <Badge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20 text-[10px] h-5">Live Analysis</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-6">
+                <div className="space-y-3">
                   {tradingChartData.length > 0 && (
                     <>
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-semibold">Live Buy Pressure:</span>
-                        <span className="font-bold text-green-600">
-                          {buyOrderCount ?? tradingChartData[tradingChartData.length - 1]?.buyPressure ?? 0} orders
-                        </span>
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-green-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">Live Buy Pressure</span>
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-green-400" />
+                          <span className="font-mono font-black text-green-400 text-lg">
+                            {buyOrderCount ?? tradingChartData[tradingChartData.length - 1]?.buyPressure ?? 0}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                        <span className="text-sm font-semibold">Live Sell Pressure:</span>
-                        <span className="font-bold text-red-600">
-                          {sellOrderCount ?? tradingChartData[tradingChartData.length - 1]?.sellPressure ?? 0} orders
-                        </span>
+                      
+                      <div className="flex justify-between items-center p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner group hover:border-red-500/50 transition-all">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-tighter">Live Sell Pressure</span>
+                        <div className="flex items-center gap-2">
+                          <TrendingDown className="h-4 w-4 text-red-400" />
+                          <span className="font-mono font-black text-red-400 text-lg">
+                            {sellOrderCount ?? tradingChartData[tradingChartData.length - 1]?.sellPressure ?? 0}
+                          </span>
+                        </div>
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-2">Live Order Flow Sentiment:</div>
-                        <div className={`font-bold ${
+
+                      <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 shadow-inner">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <Shield className="h-3 w-3" /> Sentiment Profile
+                        </div>
+                        <div className={`text-xl font-black tracking-tighter ${
                           (buyOrderCount ?? 0) > (sellOrderCount ?? 0) ? 
-                          'text-green-600' : 'text-red-600'
+                          'text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]' : 
+                          'text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.3)]'
                         }`}>
                           {(buyOrderCount ?? 0) > (sellOrderCount ?? 0) ? 
-                           '🚀 BULLISH (Accumulation)' : '📉 BEARISH (Distribution)'}
+                           '🚀 BULLISH ACCUMULATION' : '📉 BEARISH DISTRIBUTION'}
                         </div>
                       </div>
-                      <div className="p-3 bg-yellow-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-1">Price Action Signal:</div>
-                        <div className="text-yellow-700 text-sm font-medium">
+
+                      <div className="p-4 bg-slate-950/80 rounded-xl border border-yellow-500/20 shadow-inner relative overflow-hidden group">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-yellow-500/50"></div>
+                        <div className="text-xs font-bold text-yellow-500/80 uppercase tracking-widest mb-1">Momentum Signal</div>
+                        <div className="text-slate-200 text-sm font-bold">
                           {tradingChartData.length >= 2 &&
                            tradingChartData[tradingChartData.length - 1]?.close > tradingChartData[tradingChartData.length - 2]?.close ?
-                           '⬆️ Upward momentum detected (Price rising)' : '⬇️ Downward momentum detected (Price falling)'}
+                           'Upward Bias: Price Appreciating' : 'Downward Bias: Price Depreciating'}
                         </div>
-                        <div className="mt-2 text-xs text-slate-500 italic">
-                          Real-time correlation using last {orderFlowData?.length || 0} live trades
+                        <div className="mt-2 flex items-center gap-2">
+                           <div className="h-1 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-1000 ${
+                                  (buyOrderCount ?? 0) > (sellOrderCount ?? 0) ? 'bg-green-500' : 'bg-red-500'
+                                }`}
+                                style={{ width: `${Math.min(100, ((buyOrderCount ?? 1) / Math.max(1, (buyOrderCount ?? 0) + (sellOrderCount ?? 0))) * 100)}%` }}
+                              ></div>
+                           </div>
+                           <span className="text-[10px] font-mono font-bold text-slate-400">
+                             {Math.min(100, Math.round(((buyOrderCount ?? 1) / Math.max(1, (buyOrderCount ?? 0) + (sellOrderCount ?? 0))) * 100))}% BUY
+                           </span>
                         </div>
                       </div>
                     </>
