@@ -271,6 +271,9 @@ export default function OrderFlowPage() {
             selectedTimeInterval={selectedTimeInterval} 
             setSelectedTimeInterval={setSelectedTimeInterval} 
             isMonitoring={isMonitoring} 
+            buyOrderCount={buyOrderCount}
+            sellOrderCount={sellOrderCount}
+            orderFlowData={orderFlowData}
           />
         </TabsContent>
 

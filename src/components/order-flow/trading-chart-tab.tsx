@@ -11,6 +11,9 @@ interface TradingChartTabProps {
   selectedTimeInterval: string;
   setSelectedTimeInterval: (interval: string) => void;
   isMonitoring: boolean;
+  buyOrderCount?: number;
+  sellOrderCount?: number;
+  orderFlowData?: any[];
 }
 
 export function TradingChartTab({
@@ -19,6 +22,9 @@ export function TradingChartTab({
   selectedTimeInterval,
   setSelectedTimeInterval,
   isMonitoring,
+  buyOrderCount,
+  sellOrderCount,
+  orderFlowData,
 }: TradingChartTabProps) {
   return (
     <div className="space-y-4">
@@ -331,35 +337,36 @@ export function TradingChartTab({
                   {tradingChartData.length > 0 && (
                     <>
                       <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-semibold">Buy Pressure:</span>
+                        <span className="text-sm font-semibold">Live Buy Pressure:</span>
                         <span className="font-bold text-green-600">
-                          {tradingChartData[tradingChartData.length - 1]?.buyPressure || 0} orders
+                          {buyOrderCount ?? tradingChartData[tradingChartData.length - 1]?.buyPressure ?? 0} orders
                         </span>
                       </div>
                       <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                        <span className="text-sm font-semibold">Sell Pressure:</span>
+                        <span className="text-sm font-semibold">Live Sell Pressure:</span>
                         <span className="font-bold text-red-600">
-                          {tradingChartData[tradingChartData.length - 1]?.sellPressure || 0} orders
+                          {sellOrderCount ?? tradingChartData[tradingChartData.length - 1]?.sellPressure ?? 0} orders
                         </span>
                       </div>
                       <div className="p-3 bg-gray-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-2">Order Flow Sentiment:</div>
+                        <div className="text-sm font-semibold mb-2">Live Order Flow Sentiment:</div>
                         <div className={`font-bold ${
-                          (tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
-                          (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
+                          (buyOrderCount ?? 0) > (sellOrderCount ?? 0) ? 
                           'text-green-600' : 'text-red-600'
                         }`}>
-                          {(tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
-                           (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
-                           '🚀 BULLISH' : '📉 BEARISH'}
+                          {(buyOrderCount ?? 0) > (sellOrderCount ?? 0) ? 
+                           '🚀 BULLISH (Accumulation)' : '📉 BEARISH (Distribution)'}
                         </div>
                       </div>
                       <div className="p-3 bg-yellow-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-2">Price Action Signal:</div>
-                        <div className="text-yellow-700 text-sm">
+                        <div className="text-sm font-semibold mb-1">Price Action Signal:</div>
+                        <div className="text-yellow-700 text-sm font-medium">
                           {tradingChartData.length >= 2 &&
                            tradingChartData[tradingChartData.length - 1]?.close > tradingChartData[tradingChartData.length - 2]?.close ?
-                           '⬆️ Upward momentum detected' : '⬇️ Downward momentum detected'}
+                           '⬆️ Upward momentum detected (Price rising)' : '⬇️ Downward momentum detected (Price falling)'}
+                        </div>
+                        <div className="mt-2 text-xs text-slate-500 italic">
+                          Real-time correlation using last {orderFlowData?.length || 0} live trades
                         </div>
                       </div>
                     </>
