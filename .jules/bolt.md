@@ -9,3 +9,7 @@
 ## 2024-05-18 - High Performance WebSockets & DuckDB Migrations
 **Learning:** Native Binance WebSockets emitting `@aggTrade` can easily DDoS the Node event loop and memory limits if every tick triggers a synchronous file read or an unbatched HTTP POST payload. DuckDB initialization requires `PRAGMA default_compression='zstd'` for persistent storage configurations, not `compression='zstd'`.
 **Action:** When handling raw WebSocket streams, implement a `tradeBuffer` array with a `setInterval` (e.g., 1000ms) to flush batches. Only parse manifest JSON files synchronously once via a flag (`hasRecordedFirstPacket`). Ensure DB migration logic gracefully pauses stream engines natively before calling `fs.renameSync` on DB files.
+
+## 2024-03-20 - Algorithmic Optimization of Pivot Points & Cloning Efficiency
+**Learning:** `calculatePivotPoints` was a remaining $O(N \times P)$ bottleneck using `slice()` and `Math.max/min` inside its main loop. Additionally, frequent strategy re-calculations were bottlenecked by deep-cloning large candle datasets using `JSON.parse(JSON.stringify())`.
+**Action:** Optimized `calculatePivotPoints` to $O(N)$ using the monotonic deque helper. Improved cloning efficiency by switching to `data.map(d => ({ ...d }))` for shallow cloning, which is significantly faster for this data structure.

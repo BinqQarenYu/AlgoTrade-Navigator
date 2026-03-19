@@ -191,7 +191,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const strategy = getStrategyById(config.strategy);
         if (!strategy) return { status: 'error', log: `Strategy '${config.strategy}' not found.`, signal: null };
 
-        const dataWithIndicators = await strategy.calculate(JSON.parse(JSON.stringify(dataToAnalyze)), config.strategyParams, config.symbol);
+        const dataWithIndicators = await strategy.calculate(dataToAnalyze.map(d => ({ ...d })), config.strategyParams, config.symbol);
         const lastCandle = dataWithIndicators[dataWithIndicators.length - 1];
 
         if (!lastCandle || (!lastCandle.buySignal && !lastCandle.sellSignal)) {
@@ -259,7 +259,8 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     let currentPosition = botState.activePosition;
     
     const riskGuardian = riskGuardianRefs.current[botId];
-    const { allowed, reason } = riskGuardian?.canTrade() ?? { allowed: true, reason: '' };
+    const lastTime = data[data.length - 1]?.time || Date.now();
+    const { allowed, reason } = riskGuardian?.canTrade(lastTime) ?? { allowed: true, reason: '' };
     if (!allowed) {
       addLiveLog(botId, `Discipline action: ${reason}`);
       setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], status: 'cooldown'}}}));
