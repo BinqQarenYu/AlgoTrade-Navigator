@@ -209,6 +209,32 @@ export const placeOrder = async (
 };
 
 // Public data fetching natively uses CCXT to avoid proxy rate limits.
+export const checkLocalVault = async (
+    symbol: string,
+    interval: string,
+    startTime: number,
+    endTime: number
+): Promise<HistoricalData[]> => {
+    try {
+        const response = await fetch(`/api/db/ohlcv?symbol=${symbol}&interval=${interval}&startTime=${startTime}&endTime=${endTime}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch from local vault: ${response.statusText}`);
+        }
+        const data = await response.json();
+        return data.map((k: any): HistoricalData => ({
+            time: Number(k.time),
+            open: Number(k.open),
+            high: Number(k.high),
+            low: Number(k.low),
+            close: Number(k.close),
+            volume: Number(k.volume),
+        }));
+    } catch (error) {
+        console.error('Error fetching from local vault:', error);
+        return [];
+    }
+};
+
 export const getHistoricalKlines = async (
     symbol: string, 
     interval: string, 

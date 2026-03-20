@@ -31,6 +31,17 @@ export interface TradeRecord {
   source: 'LIVE' | 'BACKFILL';
 }
 
+
+export interface SystemLogRecord {
+  id: string;
+  timestamp: number;
+  asset_pair: string;
+  alert_source: string;
+  interval: string;
+  numerical_data: string;
+  message: string;
+}
+
 export interface OHLCVRecord {
   symbol: string;
   interval: string;
@@ -63,6 +74,9 @@ if (!globalForDuckDB.dbPath) {
 // In-memory write buffers — flushed every 10s
 const tradeBuffer: TradeRecord[] = [];
 const ohlcvBuffer: OHLCVRecord[] = [];
+
+const systemLogBuffer: SystemLogRecord[] = [];
+
 const FLUSH_INTERVAL_MS = 10_000;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -98,6 +112,18 @@ const SCHEMA_SQL = `
   );
 
   -- App metadata / backfill state
+
+  -- System logs for persistent per-asset memory
+  CREATE TABLE IF NOT EXISTS system_logs (
+    id VARCHAR PRIMARY KEY,
+    timestamp BIGINT NOT NULL,
+    asset_pair VARCHAR NOT NULL,
+    alert_source VARCHAR NOT NULL,
+    interval VARCHAR NOT NULL,
+    numerical_data VARCHAR,
+    message VARCHAR NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS app_meta (
     key   VARCHAR PRIMARY KEY,
     value VARCHAR
@@ -186,6 +212,15 @@ export function bufferTrades(records: TradeRecord[]): void {
   tradeBuffer.push(...records);
 }
 
+
+export function bufferSystemLog(record: SystemLogRecord): void {
+  systemLogBuffer.push(record);
+}
+
+export function bufferSystemLogs(records: SystemLogRecord[]): void {
+  systemLogBuffer.push(...records);
+}
+
 export function bufferOHLCVBatch(records: OHLCVRecord[]): void {
   ohlcvBuffer.push(...records);
 }
@@ -209,6 +244,25 @@ async function flushBuffers(): Promise<void> {
       console.error('[DuckDB Flush] Trade batch error:', e);
       // Return records to buffer so they can be retried
       tradeBuffer.unshift(...batch);
+    }
+  }
+
+
+  // --- Flush System Logs ---
+  if (systemLogBuffer.length > 0) {
+    const batch = systemLogBuffer.splice(0, systemLogBuffer.length);
+    const values = batch
+      .map(l => `('${l.id}', ${l.timestamp}, '${l.asset_pair}', '${l.alert_source}', '${l.interval}', '${l.numerical_data.replace(/'/g, "''")}', '${l.message.replace(/'/g, "''")}')`)
+      .join(',\n');
+
+    try {
+      await runQuery(`
+        INSERT OR IGNORE INTO system_logs (id, timestamp, asset_pair, alert_source, interval, numerical_data, message)
+        VALUES ${values};
+      `);
+    } catch (e) {
+      console.error('[DuckDB Flush] SystemLog batch error:', e);
+      systemLogBuffer.unshift(...batch);
     }
   }
 
@@ -328,4 +382,28 @@ export async function getHistoricalTrades(symbol: string, limit: number = 100): 
   `;
   const result = await runQuery(query, [symbol, limit]);
   return result as TradeRecord[];
+}
+
+export async function getHistoricalOHLCV(symbol: string, interval: string, startTime: number, endTime: number): Promise<OHLCVRecord[]> {
+  await connectToDB();
+  const query = `
+    SELECT * FROM ohlcv
+    WHERE symbol = ? AND interval = ? AND time >= ? AND time <= ?
+    ORDER BY time ASC
+  `;
+  const result = await runQuery(query, [symbol, interval, startTime, endTime]);
+  return result as OHLCVRecord[];
+}
+
+
+export async function getHistoricalSystemLogs(asset_pair: string, limit: number = 100): Promise<SystemLogRecord[]> {
+  await connectToDB();
+  const query = `
+    SELECT * FROM system_logs
+    WHERE asset_pair = ?
+    ORDER BY timestamp DESC
+    LIMIT ?
+  `;
+  const result = await runQuery(query, [asset_pair, limit]);
+  return result as SystemLogRecord[];
 }
