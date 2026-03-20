@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import * as React from "react";
 import { orderFlowAnalyzer, enhancedOrderFlowAnalyzer, type OrderData, type ManipulationFlags } from "@/lib/order-flow-analyzer";
 
+import { calculateRSI, calculateMACD, calculateBollingerBands } from "@/lib/indicators";
+
 // Types
 export interface OrderFlowData {
   symbol: string;
@@ -219,8 +221,12 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       
       let prevEma12 = historicalData[0].close;
       let prices: number[] = [];
+      const closePrices = historicalData.map(d => d.close);
+      const rsiValues = calculateRSI(closePrices, 14);
+      const macdValues = calculateMACD(closePrices, 12, 26, 9);
+      const bbValues = calculateBollingerBands(closePrices, 20, 2);
 
-      const tradingData = historicalData.map((kline) => {
+      const tradingData = historicalData.map((kline, i) => {
         const timestamp = kline.time;
         prices.push(kline.close);
         
@@ -245,6 +251,11 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           volume: Number(kline.volume.toFixed(2)),
           sma20: Number(sma20.toFixed(2)),
           ema12: Number(ema12.toFixed(2)),
+          rsi: rsiValues[i],
+          macd: macdValues.macd[i],
+          bb_upper: bbValues.upper[i],
+          bb_lower: bbValues.lower[i],
+          bb_middle: bbValues.middle[i],
           buyPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').length,
           sellPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').length,
           manipulationRisk: bVol > 0 || sVol > 0 ? ((bVol > sVol * 3 || sVol > bVol * 3) ? 8 : 2) : 0,

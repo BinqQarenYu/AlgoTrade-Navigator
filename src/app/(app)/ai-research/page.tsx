@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { createDualApiService } from "@/lib/dual-coin-api-service"
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
+import { calculateRSI, calculateMACD, calculateBollingerBands } from "@/lib/indicators"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 
 // Modular Components
@@ -73,12 +74,28 @@ export default function AIResearchPage() {
     try {
       // 1. Fetch Latest K-line Data
       const data = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
-      setChartData(data)
+      
+      // Enhance data with Technical Indicators
+      const closePrices = data.map(d => d.close)
+      const rsiValues = calculateRSI(closePrices, 14)
+      const macdValues = calculateMACD(closePrices, 12, 26, 9)
+      const bbValues = calculateBollingerBands(closePrices, 20, 2)
+      
+      const enhancedData = data.map((d, i) => ({
+          ...d,
+          rsi: rsiValues[i],
+          macd: macdValues.macd[i],
+          bb_upper: bbValues.upper[i],
+          bb_lower: bbValues.lower[i],
+          bb_middle: bbValues.middle[i]
+      }))
+
+      setChartData(enhancedData)
       
       // 2. Calculate Local Technical Metrics (Immediate Feedback)
-      const calculatedMetrics = calculateMetrics(data)
+      const calculatedMetrics = calculateMetrics(enhancedData)
       setMetrics(calculatedMetrics)
-      setKeyLevels(identifyKeyLevels(data))
+      setKeyLevels(identifyKeyLevels(enhancedData))
       
       // 3. Fetch Institutional Analytics (CMC/CG/FearGreed)
       const tickerOnly = selectedAsset.replace('USDT', '').toLowerCase()
@@ -93,7 +110,7 @@ export default function AIResearchPage() {
       setGlobalContext(fetchedGlobalContext)
       
       // 4. Parallel AI Model Execution
-      const recentDataJson = JSON.stringify(data.slice(-30)) // Send last 30 candles to AI
+      const recentDataJson = JSON.stringify(enhancedData.slice(-30)) // Send last 30 candles to AI
       
       const [prediction, manipulation] = await Promise.all([
         predictMarket({

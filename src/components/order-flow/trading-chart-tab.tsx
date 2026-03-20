@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, ComposedChart, Tooltip as RechartsTooltip } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, Shield, Target, AlertTriangle, Zap, Download } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, Shield, Target, AlertTriangle, Zap, Download, Terminal } from "lucide-react";
 import { orderFlowAnalyzer } from "@/lib/order-flow-analyzer";
 
 interface TradingChartTabProps {
@@ -279,6 +279,49 @@ export function TradingChartTab({
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          {/* Latest Quantitative Output */}
+          <Card className="bg-slate-900 border-slate-700 shadow-xl overflow-hidden mb-4">
+            <CardHeader className="bg-slate-950/50 border-b border-slate-700 pb-4">
+              <CardTitle className="flex items-center gap-2 text-white">
+                  <Terminal className="h-5 w-5 text-blue-400" />
+                  Latest Quantitative Output
+                  <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px] h-5">Real-time indicators</Badge>
+              </CardTitle>
+              <CardDescription className="text-xs font-mono text-slate-400">Real-time indicators extracted from Binance candles.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6">
+              {tradingChartData.length > 0 && (() => {
+                const lastData = tradingChartData[tradingChartData.length - 1] || {};
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner group hover:border-blue-500/50 transition-all space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">RSI (14)</span>
+                      <div className="text-2xl font-mono font-black text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]">{lastData.rsi?.toFixed(2) || '---'}</div>
+                      <div className={`text-[9px] font-bold uppercase ${(lastData.rsi || 50) > 70 ? 'text-red-400' : (lastData.rsi || 50) < 30 ? 'text-green-400' : 'text-slate-400'}`}>
+                          {(lastData.rsi || 50) > 70 ? 'Overbought' : (lastData.rsi || 50) < 30 ? 'Oversold' : 'Neutral Zone'}
+                      </div>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner group hover:border-green-500/50 transition-all space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">MACD Line</span>
+                      <div className="text-2xl font-mono font-black text-green-400 drop-shadow-[0_0_8px_rgba(34,197,94,0.3)]">{lastData.macd?.toFixed(4) || '---'}</div>
+                      <div className="text-[9px] font-bold uppercase text-slate-400">PERIOD 12, 26, 9</div>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner group hover:border-orange-500/50 transition-all space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">BB Upper</span>
+                      <div className="text-2xl font-mono font-black text-orange-400 drop-shadow-[0_0_8px_rgba(249,115,22,0.3)]">${lastData.bb_upper?.toLocaleString() || '---'}</div>
+                      <div className="text-[9px] font-bold uppercase text-slate-400">TOP BAND</div>
+                    </div>
+                    <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 shadow-inner group hover:border-purple-500/50 transition-all space-y-2">
+                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">BB Lower</span>
+                      <div className="text-2xl font-mono font-black text-purple-400 drop-shadow-[0_0_8px_rgba(168,85,247,0.3)]">${lastData.bb_lower?.toLocaleString() || '---'}</div>
+                      <div className="text-[9px] font-bold uppercase text-slate-400">BOTTOM BAND</div>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
 
