@@ -65,7 +65,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [telegramBotToken, setTelegramBotToken] = useState<string | null>(null);
   const [telegramChatId, setTelegramChatId] = useState<string | null>(null);
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
-  const [geminiModel, setGeminiModel] = useState<string>('gemini-1.5-flash');
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-2.5-flash');
   const [aiQuota, setAiQuota] = useState({
     used: 0,
     limit: 49,
@@ -108,8 +108,11 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
       if (storedGeminiKey) setGeminiApiKey(storedGeminiKey);
       else if (serverSettings?.geminiApiKey) setGeminiApiKey(serverSettings.geminiApiKey);
 
-      if (storedGeminiModel) setGeminiModel(storedGeminiModel);
-      else if (serverSettings?.geminiModel) setGeminiModel(serverSettings.geminiModel);
+      if (storedGeminiModel) {
+          setGeminiModel(storedGeminiModel.replace('1.5', '2.5'));
+      } else if (serverSettings?.geminiModel) {
+          setGeminiModel(serverSettings.geminiModel.replace('1.5', '2.5'));
+      }
 
       if (storedAiQuota) {
           const parsed = JSON.parse(storedAiQuota);
