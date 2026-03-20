@@ -5,3 +5,7 @@
 ## 2024-03-15 - $O(N \times P)$ Anti-pattern in Technical Indicators
 **Learning:** Several technical indicators (Donchian, Ichimoku, Stochastic, WilliamsR, SMI) were implemented using `slice()` and `Math.max/min(...slice)` inside loops, leading to $O(N \times P)$ time complexity. This causes significant performance degradation as the data size or period increases.
 **Action:** Use a monotonic deque algorithm for rolling maximum/minimum calculations to achieve $O(N)$ complexity. Implemented a centralized `calculateSlidingWindowExtreme` helper with a `head` pointer to avoid $O(P)$ `shift()` operations, ensuring true $O(1)$ amortized time per element.
+
+## 2024-03-16 - Remaining $O(N \times P)$ Bottlenecks
+**Learning:** While many indicators have been optimized, `calculateCCI` and `calculateCoppockCurve` still use `slice()` and `reduce()` patterns, leading to $O(N \times P)$ complexity. These will become performance bottlenecks as dataset sizes grow.
+**Action:** Prioritize $O(N)$ refactoring for these remaining indicators. For `calculateCCI`, the mean deviation can be optimized using a sliding window sum of absolute differences.

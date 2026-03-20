@@ -535,6 +535,14 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+
+    // Calculate rolling high and low of the PREVIOUS 'period' candles
+    // We pad with null at the beginning and shift the results by 1 to represent the 'previous' window
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     const pp: (number | null)[] = [];
     const s1: (number | null)[] = [];
     const s2: (number | null)[] = [];
@@ -544,7 +552,13 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
     const r3: (number | null)[] = [];
 
     for (let i = 0; i < data.length; i++) {
-        if (i < period) {
+        // Pivot points for candle 'i' use high/low/close from the window ending at 'i-1'
+        const prevIdx = i - 1;
+        const highestHigh = prevIdx >= 0 ? periodHighs[prevIdx] : null;
+        const lowestLow = prevIdx >= 0 ? periodLows[prevIdx] : null;
+        const prevClose = prevIdx >= 0 ? data[prevIdx].close : null;
+
+        if (highestHigh === null || lowestLow === null || prevClose === null) {
             pp.push(null);
             s1.push(null);
             s2.push(null);
@@ -552,39 +566,24 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             r1.push(null);
             r2.push(null);
             r3.push(null);
-        } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
-                 pp.push(null);
-                 s1.push(null);
-                 s2.push(null);
-                 s3.push(null);
-                 r1.push(null);
-                 r2.push(null);
-                 r3.push(null);
-                 continue;
-            }
-
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
-
-            const ppVal = (high + low + close) / 3;
-            const r1Val = (2 * ppVal) - low;
-            const s1Val = (2 * ppVal) - high;
-            const r2Val = ppVal + (high - low);
-            const s2Val = ppVal - (high - low);
-            const r3Val = high + 2 * (ppVal - low);
-            const s3Val = low - 2 * (high - ppVal);
-
-            pp.push(ppVal);
-            r1.push(r1Val);
-            s1.push(s1Val);
-            r2.push(r2Val);
-            s2.push(s2Val);
-            r3.push(r3Val);
-            s3.push(s3Val);
+            continue;
         }
+
+        const ppVal = (highestHigh + lowestLow + prevClose) / 3;
+        const r1Val = (2 * ppVal) - lowestLow;
+        const s1Val = (2 * ppVal) - highestHigh;
+        const r2Val = ppVal + (highestHigh - lowestLow);
+        const s2Val = ppVal - (highestHigh - lowestLow);
+        const r3Val = highestHigh + 2 * (ppVal - lowestLow);
+        const s3Val = lowestLow - 2 * (highestHigh - ppVal);
+
+        pp.push(ppVal);
+        r1.push(r1Val);
+        s1.push(s1Val);
+        r2.push(r2Val);
+        s2.push(s2Val);
+        r3.push(r3Val);
+        s3.push(s3Val);
     }
     return { pp, s1, s2, s3, r1, r2, r3 };
 };
