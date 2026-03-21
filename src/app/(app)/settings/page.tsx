@@ -500,52 +500,51 @@ export default function SettingsPage() {
     <Card>
       <Collapsible open={isIntegrationsOpen} onOpenChange={setIntegrationsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
-          <div><CardTitle>Third-Party Integrations</CardTitle><CardDescription>Manage API keys for external data services and notifications.</CardDescription></div>
+          <div><CardTitle>Third-Party Integrations</CardTitle><CardDescription>Manage API keys for external data services and notifications. Add more providers as needed.</CardDescription></div>
           <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isIntegrationsOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">
-              <div className="space-y-3 p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                <div className="flex items-center gap-2 mb-1">
+            <div className="grid grid-cols-1 gap-4">
+
+              {/* Google AI (Gemini) Provider */}
+              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+                <div className="flex items-center gap-2">
                     <Brain className="h-5 w-5 text-primary" />
-                    <Label htmlFor="gemini-key" className="text-base font-bold">Google AI (Gemini) Intelligence</Label>
+                    <Label htmlFor="gemini-key" className="text-base font-bold">Google AI (Gemini)</Label>
+                    <Badge variant="outline" className="ml-auto">AI & Intelligence</Badge>
                 </div>
-                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                <p className="text-xs text-muted-foreground leading-relaxed">
                     Power your AI Research Lab, trade signal validation, and automated risk assessment. 
-                    Get your key for free at the <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline">Google AI Studio</a>.
+                    Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary font-bold hover:underline">Google AI Studio</a>.
                 </p>
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1">
-                        <Input 
-                            id="gemini-key" 
-                            type={showGeminiKey ? "text" : "password"} 
-                            value={geminiKeyValue} 
-                            onChange={(e) => setGeminiKeyValue(e.target.value)} 
-                            placeholder="Paste your Gemini API Key here..."
-                            className="pr-10 bg-background/50 border-primary/20 focus-visible:ring-primary"
-                        />
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                            onClick={() => setShowGeminiKey(!showGeminiKey)}
-                        >
-                            {showGeminiKey ? (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                                <Eye className="h-4 w-4 text-muted-foreground" />
-                            )}
-                        </Button>
-                    </div>
-                    <Button onClick={handleSaveGeminiKey} className="shrink-0 shadow-sm shadow-primary/20">
-                        <Save className="mr-2 h-4 w-4" /> Save Key
-                    </Button>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                      <Input
+                          id="gemini-key"
+                          type={showGeminiKey ? "text" : "password"}
+                          value={geminiKeyValue}
+                          onChange={(e) => setGeminiKeyValue(e.target.value)}
+                          placeholder="Paste your Gemini API Key here..."
+                          className="pr-10 bg-background/50 border-primary/20 focus-visible:ring-primary"
+                      />
+                      <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                          onClick={() => setShowGeminiKey(!showGeminiKey)}
+                      >
+                          {showGeminiKey ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+                      </Button>
+                  </div>
+                  <Button onClick={handleSaveGeminiKey} className="shrink-0 shadow-sm shadow-primary/20">
+                      <Save className="mr-2 h-4 w-4" /> Save
+                  </Button>
                 </div>
-                
-                <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                   <div className="space-y-2">
-                    <Label htmlFor="gemini-model" className="text-xs font-bold uppercase tracking-tighter text-muted-foreground">Select AI Model (Budget Control)</Label>
+                    <Label htmlFor="gemini-model" className="text-xs font-bold uppercase tracking-tighter text-muted-foreground">Select AI Model</Label>
                     <Select value={geminiModel} onValueChange={setGeminiModel}>
                       <SelectTrigger id="gemini-model" className="w-full bg-background/50 border-primary/10">
                         <SelectValue placeholder="Select Model" />
@@ -566,43 +565,72 @@ export default function SettingsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
                   <div className="p-3 bg-primary/5 border border-primary/10 rounded-2xl">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Daily Request Budget</span>
                       <span className="text-xs font-black">{aiQuota.used} / {aiQuota.limit}</span>
                     </div>
                     <Progress value={(aiQuota.used / aiQuota.limit) * 100} className="h-1" />
-                    <p className="text-[10px] text-muted-foreground mt-2 italic leading-tight">
-                      {geminiModel.includes('flash') 
-                        ? "Flash is optimized for low-latency and higher quota volume." 
-                        : "Pro offers deep reasoning but consumes quota credits faster."}
-                    </p>
                   </div>
                 </div>
               </div>
-            <Separator/>
-             <div className="space-y-2">
-                <Label htmlFor="telegram-token">Telegram Bot Token (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="telegram-token" type="password" value={telegramTokenInput} onChange={(e) => setTelegramTokenInput(e.target.value)} placeholder="Enter your Telegram Bot Token"/></div>
-                <p className="text-xs text-muted-foreground">Create a bot with BotFather on Telegram to get a token.</p>
-            </div>
-             <div className="space-y-2">
-                <Label htmlFor="telegram-chat-id">Telegram Chat ID (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="telegram-chat-id" value={telegramChatIdInput} onChange={(e) => setTelegramChatIdInput(e.target.value)} placeholder="Enter your personal Chat ID"/></div>
-                <p className="text-xs text-muted-foreground">Get your Chat ID by messaging "@userinfobot" on Telegram.</p>
-            </div>
-            <Button onClick={handleSaveTelegramConfig}><Save className="mr-2 h-4 w-4"/>Save Telegram Settings</Button>
-            <Separator />
-            <div className="space-y-2">
-                <Label htmlFor="coingecko-key">CoinGecko API Key (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="coingecko-key" type="password" value={cgKeyValue} onChange={(e) => setCgKeyValue(e.target.value)} placeholder="Enter your CoinGecko API Key"/><Button onClick={handleSaveCgKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
+
+              {/* Telegram Provider */}
+              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+                <div className="flex items-center gap-2">
+                    <Send className="h-5 w-5 text-[#2AABEE]" />
+                    <Label className="text-base font-bold">Telegram Notifications</Label>
+                    <Badge variant="outline" className="ml-auto">Alerts</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">Receive trade alerts and system notifications directly to your Telegram app.</p>
+                <div className="space-y-3 mt-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telegram-token" className="text-xs font-medium">Bot Token</Label>
+                    <Input id="telegram-token" type="password" value={telegramTokenInput} onChange={(e) => setTelegramTokenInput(e.target.value)} placeholder="Enter your Telegram Bot Token" className="bg-background/50 border-primary/20"/>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telegram-chat-id" className="text-xs font-medium">Chat ID</Label>
+                    <Input id="telegram-chat-id" value={telegramChatIdInput} onChange={(e) => setTelegramChatIdInput(e.target.value)} placeholder="Enter your personal Chat ID" className="bg-background/50 border-primary/20"/>
+                  </div>
+                  <Button onClick={handleSaveTelegramConfig} className="w-full sm:w-auto"><Save className="mr-2 h-4 w-4"/>Save Telegram Settings</Button>
+                </div>
+              </div>
+
+              {/* CoinGecko Provider */}
+              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+                <div className="flex items-center gap-2">
+                    <Globe className="h-5 w-5 text-green-500" />
+                    <Label className="text-base font-bold">CoinGecko</Label>
+                    <Badge variant="outline" className="ml-auto">Market Data</Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">Provides asset intelligence data. Recommended for higher rate limits.</p>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="coinmarketcap-key">CoinMarketCap API Key (Optional)</Label>
-                <div className="flex items-center gap-2"><Input id="coinmarketcap-key" type="password" value={cmcKeyValue} onChange={(e) => setCmcKeyValue(e.target.value)} placeholder="Enter your CoinMarketCap API Key"/><Button onClick={handleSaveCmcKey}><Save className="mr-2 h-4 w-4"/>Save</Button></div>
+                <div className="flex items-center gap-2 mt-2">
+                  <Input id="coingecko-key" type="password" value={cgKeyValue} onChange={(e) => setCgKeyValue(e.target.value)} placeholder="Enter your CoinGecko API Key" className="flex-1 bg-background/50 border-primary/20"/>
+                  <Button onClick={handleSaveCgKey} className="shrink-0"><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+              </div>
+
+              {/* CoinMarketCap Provider */}
+              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+                <div className="flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-blue-500" />
+                    <Label className="text-base font-bold">CoinMarketCap</Label>
+                    <Badge variant="outline" className="ml-auto">Market Data</Badge>
+                </div>
                 <p className="text-xs text-muted-foreground">An alternative source for market and asset data.</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Input id="coinmarketcap-key" type="password" value={cmcKeyValue} onChange={(e) => setCmcKeyValue(e.target.value)} placeholder="Enter your CoinMarketCap API Key" className="flex-1 bg-background/50 border-primary/20"/>
+                  <Button onClick={handleSaveCmcKey} className="shrink-0"><Save className="mr-2 h-4 w-4"/>Save</Button>
+                </div>
+              </div>
+
+              {/* Placeholder for future providers */}
+              <div className="flex items-center justify-center p-6 border-2 border-dashed border-primary/20 rounded-2xl bg-primary/5">
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <PlusCircle className="h-4 w-4" /> More providers coming soon...
+                </p>
+              </div>
+
             </div>
           </CardContent>
         </CollapsibleContent>
