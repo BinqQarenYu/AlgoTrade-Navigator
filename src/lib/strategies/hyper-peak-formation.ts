@@ -57,6 +57,202 @@ function isConfirmedSwingLow(data: HistoricalData[], index: number, lookaround: 
     return true;
 }
 
+
+interface SetupParams {
+    data: HistoricalData[];
+    dataWithIndicators: HistoricalData[];
+    i: number;
+    peakLookaround: number;
+    swingLookaround: number;
+    emaShort: (number | null)[];
+    emaLong: (number | null)[];
+    fibLevel1: number;
+    reverse?: boolean;
+    debug?: boolean;
+}
+
+function processShortSetup(params: SetupParams): boolean {
+    const { data, dataWithIndicators, i, peakLookaround, swingLookaround, emaShort, emaLong, fibLevel1, reverse, debug } = params;
+    const currentCandle = data[i];
+    const currentDebugInfo = dataWithIndicators[i].debug_info || {};
+
+    let pfhIndex = -1;
+    for (let j = i - peakLookaround; j > peakLookaround; j--) {
+        if (isConfirmedSwingHigh(data, j, peakLookaround)) {
+            pfhIndex = j;
+            if (debug) {
+                const logMsg = `Found potential PFH at index ${j}, price: ${data[j].high}`;
+                console.log(`[HPF DEBUG Short] ${logMsg}`);
+                currentDebugInfo.short_pfh = logMsg;
+            }
+            break;
+        }
+    }
+    if (pfhIndex === -1) return false;
+
+    const peakHigh = data[pfhIndex].high;
+
+    let swingLowIndex = -1;
+    for (let j = pfhIndex - 1; j > swingLookaround; j--) {
+        if (isConfirmedSwingLow(data, j, swingLookaround)) {
+            swingLowIndex = j;
+            if (debug) {
+                const logMsg = `Found associated Swing Low at index ${j}, price: ${data[j].low}`;
+                console.log(`[HPF DEBUG Short] ${logMsg}`);
+                currentDebugInfo.short_swingLow = logMsg;
+            }
+            break;
+        }
+    }
+    if (swingLowIndex === -1) return false;
+
+    const breakLevel = data[swingLowIndex].low;
+    if (debug) {
+        const logMsg = `Break of Structure level set to: ${breakLevel}`;
+        console.log(`[HPF DEBUG Short] ${logMsg}`);
+        currentDebugInfo.short_breakLevel = logMsg;
+    }
+
+    let bosIndex = -1;
+    for (let k = pfhIndex + 1; k < i; k++) {
+        if (data[k].close < breakLevel) {
+            bosIndex = k;
+            if (debug) {
+                const logMsg = `BOS confirmed at index ${k}, close: ${data[k].close}`;
+                console.log(`[HPF DEBUG Short] ${logMsg}`);
+                currentDebugInfo.short_bos = logMsg;
+            }
+            break;
+        }
+    }
+    if (bosIndex === -1) return false;
+
+    const isEmaBearish = emaShort[bosIndex]! < emaLong[bosIndex]!;
+    if (debug) {
+        const logMsg = `EMA check at BOS: Short EMA=${emaShort[bosIndex]}, Long EMA=${emaLong[bosIndex]}. Bearish? ${isEmaBearish}`;
+        console.log(`[HPF DEBUG Short] ${logMsg}`);
+        currentDebugInfo.short_emaCheck = logMsg;
+    }
+    if (!isEmaBearish) return false;
+
+    const lowSinceBos = Math.min(...data.slice(bosIndex, i + 1).map(c => c.low));
+    const fibRange = peakHigh - lowSinceBos;
+    const fib50 = lowSinceBos + fibRange * fibLevel1;
+    if (debug) {
+        const logMsg = `Fib level calculated. Low since BOS: ${lowSinceBos}, Fib Range: ${fibRange}, Fib Entry: ${fib50}`;
+        console.log(`[HPF DEBUG Short] ${logMsg}`);
+        currentDebugInfo.short_fibCalc = logMsg;
+    }
+
+    if (currentCandle.high >= fib50 && data[i - 1].high < fib50) {
+        if (debug) {
+            const logMsg = `SHORT SIGNAL TRIGGERED: fib50=${fib50}, high=${currentCandle.high}, price=${currentCandle.close}`;
+            console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: red; font-weight: bold;');
+            currentDebugInfo.short_SIGNAL = logMsg;
+        }
+        if (reverse) {
+            dataWithIndicators[i].buySignal = fib50;
+        } else {
+            dataWithIndicators[i].sellSignal = fib50;
+        }
+        dataWithIndicators[i].stopLossLevel = peakHigh * 1.001;
+        dataWithIndicators[i].peakPrice = peakHigh;
+        return true;
+    }
+    return false;
+}
+
+function processLongSetup(params: SetupParams): boolean {
+    const { data, dataWithIndicators, i, peakLookaround, swingLookaround, emaShort, emaLong, fibLevel1, reverse, debug } = params;
+    const currentCandle = data[i];
+    const currentDebugInfo = dataWithIndicators[i].debug_info || {};
+
+    let pflIndex = -1;
+    for (let j = i - peakLookaround; j > peakLookaround; j--) {
+        if (isConfirmedSwingLow(data, j, peakLookaround)) {
+            pflIndex = j;
+            if (debug) {
+                const logMsg = `Found potential PFL at index ${j}, price: ${data[j].low}`;
+                console.log(`[HPF DEBUG Long] ${logMsg}`);
+                currentDebugInfo.long_pfl = logMsg;
+            }
+            break;
+        }
+    }
+    if (pflIndex === -1) return false;
+
+    const peakLow = data[pflIndex].low;
+
+    let swingHighIndex = -1;
+    for (let j = pflIndex - 1; j > swingLookaround; j--) {
+        if (isConfirmedSwingHigh(data, j, swingLookaround)) {
+            swingHighIndex = j;
+            if (debug) {
+                const logMsg = `Found associated Swing High at index ${j}, price: ${data[j].high}`;
+                console.log(`[HPF DEBUG Long] ${logMsg}`);
+                currentDebugInfo.long_swingHigh = logMsg;
+            }
+            break;
+        }
+    }
+    if (swingHighIndex === -1) return false;
+
+    const breakLevelLong = data[swingHighIndex].high;
+    if (debug) {
+        const logMsg = `Break of Structure level set to: ${breakLevelLong}`;
+        console.log(`[HPF DEBUG Long] ${logMsg}`);
+        currentDebugInfo.long_breakLevel = logMsg;
+    }
+
+    let bosIndexLong = -1;
+    for (let k = pflIndex + 1; k < i; k++) {
+        if (data[k].close > breakLevelLong) {
+            bosIndexLong = k;
+            if (debug) {
+                const logMsg = `BOS confirmed at index ${k}, close: ${data[k].close}`;
+                console.log(`[HPF DEBUG Long] ${logMsg}`);
+                currentDebugInfo.long_bos = logMsg;
+            }
+            break;
+        }
+    }
+    if (bosIndexLong === -1) return false;
+
+    const isEmaBullish = emaShort[bosIndexLong]! > emaLong[bosIndexLong]!;
+    if (debug) {
+        const logMsg = `EMA check at BOS: Short EMA=${emaShort[bosIndexLong]}, Long EMA=${emaLong[bosIndexLong]}. Bullish? ${isEmaBullish}`;
+        console.log(`[HPF DEBUG Long] ${logMsg}`);
+        currentDebugInfo.long_emaCheck = logMsg;
+    }
+    if (!isEmaBullish) return false;
+
+    const highSinceBos = Math.max(...data.slice(bosIndexLong, i + 1).map(c => c.high));
+    const fibRangeLong = highSinceBos - peakLow;
+    const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
+    if (debug) {
+        const logMsg = `Fib level calculated. High since BOS: ${highSinceBos}, Fib Range: ${fibRangeLong}, Fib Entry: ${fib50Long}`;
+        console.log(`[HPF DEBUG Long] ${logMsg}`);
+        currentDebugInfo.long_fibCalc = logMsg;
+    }
+
+    if (currentCandle.low <= fib50Long && data[i - 1].low > fib50Long) {
+        if (debug) {
+            const logMsg = `LONG SIGNAL TRIGGERED: fib50Long=${fib50Long}, low=${currentCandle.low}, price=${currentCandle.close}`;
+            console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: green; font-weight: bold;');
+            currentDebugInfo.long_SIGNAL = logMsg;
+        }
+        if (reverse) {
+            dataWithIndicators[i].sellSignal = fib50Long;
+        } else {
+            dataWithIndicators[i].buySignal = fib50Long;
+        }
+        dataWithIndicators[i].stopLossLevel = peakLow * 0.999;
+        dataWithIndicators[i].peakPrice = peakLow;
+        return true;
+    }
+    return false;
+}
+
 const hyperPeakFormationStrategy: Strategy = {
     id: 'hyper-peak-formation',
     name: 'Hyper Peak Formation (NEW)',
@@ -100,175 +296,27 @@ const hyperPeakFormationStrategy: Strategy = {
                 currentDebugInfo.candle = `#${i}`;
             }
 
+            const setupParams = {
+                data,
+                dataWithIndicators,
+                i,
+                peakLookaround,
+                swingLookaround,
+                emaShort,
+                emaLong,
+                fibLevel1,
+                reverse,
+                debug
+            };
+
             // --- NON-REPAINTING SHORT SETUP ---
-            let pfhIndex = -1;
-            for (let j = i - peakLookaround; j > peakLookaround; j--) {
-                if (isConfirmedSwingHigh(data, j, peakLookaround)) {
-                    pfhIndex = j;
-                    if (debug) {
-                        const logMsg = `Found potential PFH at index ${j}, price: ${data[j].high}`;
-                        console.log(`[HPF DEBUG Short] ${logMsg}`);
-                        currentDebugInfo.short_pfh = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (pfhIndex === -1) continue;
-
-            const peakHigh = data[pfhIndex].high;
-
-            let swingLowIndex = -1;
-            for (let j = pfhIndex - 1; j > swingLookaround; j--) {
-                if (isConfirmedSwingLow(data, j, swingLookaround)) {
-                    swingLowIndex = j;
-                    if (debug) {
-                        const logMsg = `Found associated Swing Low at index ${j}, price: ${data[j].low}`;
-                        console.log(`[HPF DEBUG Short] ${logMsg}`);
-                        currentDebugInfo.short_swingLow = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (swingLowIndex === -1) continue;
-
-            const breakLevel = data[swingLowIndex].low;
-            if (debug) {
-                const logMsg = `Break of Structure level set to: ${breakLevel}`;
-                console.log(`[HPF DEBUG Short] ${logMsg}`);
-                currentDebugInfo.short_breakLevel = logMsg;
-            }
-
-            let bosIndex = -1;
-            for (let k = pfhIndex + 1; k < i; k++) {
-                if (data[k].close < breakLevel) {
-                    bosIndex = k;
-                    if (debug) {
-                        const logMsg = `BOS confirmed at index ${k}, close: ${data[k].close}`;
-                        console.log(`[HPF DEBUG Short] ${logMsg}`);
-                        currentDebugInfo.short_bos = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (bosIndex === -1) continue;
-
-            const isEmaBearish = emaShort[bosIndex]! < emaLong[bosIndex]!;
-            if (debug) {
-                const logMsg = `EMA check at BOS: Short EMA=${emaShort[bosIndex]}, Long EMA=${emaLong[bosIndex]}. Bearish? ${isEmaBearish}`;
-                console.log(`[HPF DEBUG Short] ${logMsg}`);
-                currentDebugInfo.short_emaCheck = logMsg;
-            }
-            if (!isEmaBearish) continue;
-
-            const lowSinceBos = Math.min(...data.slice(bosIndex, i + 1).map(c => c.low));
-            const fibRange = peakHigh - lowSinceBos;
-            const fib50 = lowSinceBos + fibRange * fibLevel1;
-            if (debug) {
-                const logMsg = `Fib level calculated. Low since BOS: ${lowSinceBos}, Fib Range: ${fibRange}, Fib Entry: ${fib50}`;
-                console.log(`[HPF DEBUG Short] ${logMsg}`);
-                currentDebugInfo.short_fibCalc = logMsg;
-            }
-
-
-            if (currentCandle.high >= fib50 && data[i - 1].high < fib50) {
+            if (processShortSetup(setupParams)) {
                 signals++;
-                if (debug) {
-                    const logMsg = `SHORT SIGNAL TRIGGERED: fib50=${fib50}, high=${currentCandle.high}, price=${currentCandle.close}`;
-                    console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: red; font-weight: bold;');
-                    currentDebugInfo.short_SIGNAL = logMsg;
-                }
-                if (reverse) {
-                    dataWithIndicators[i].buySignal = fib50;
-                } else {
-                    dataWithIndicators[i].sellSignal = fib50;
-                }
-                dataWithIndicators[i].stopLossLevel = peakHigh * 1.001;
-                dataWithIndicators[i].peakPrice = peakHigh;
             }
 
             // --- NON-REPAINTING LONG SETUP ---
-            let pflIndex = -1;
-            for (let j = i - peakLookaround; j > peakLookaround; j--) {
-                if (isConfirmedSwingLow(data, j, peakLookaround)) {
-                    pflIndex = j;
-                    if (debug) {
-                        const logMsg = `Found potential PFL at index ${j}, price: ${data[j].low}`;
-                        console.log(`[HPF DEBUG Long] ${logMsg}`);
-                        currentDebugInfo.long_pfl = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (pflIndex === -1) continue;
-
-            const peakLow = data[pflIndex].low;
-
-            let swingHighIndex = -1;
-            for (let j = pflIndex - 1; j > swingLookaround; j--) {
-                if (isConfirmedSwingHigh(data, j, swingLookaround)) {
-                    swingHighIndex = j;
-                    if (debug) {
-                        const logMsg = `Found associated Swing High at index ${j}, price: ${data[j].high}`;
-                        console.log(`[HPF DEBUG Long] ${logMsg}`);
-                        currentDebugInfo.long_swingHigh = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (swingHighIndex === -1) continue;
-
-            const breakLevelLong = data[swingHighIndex].high;
-            if (debug) {
-                const logMsg = `Break of Structure level set to: ${breakLevelLong}`;
-                console.log(`[HPF DEBUG Long] ${logMsg}`);
-                currentDebugInfo.long_breakLevel = logMsg;
-            }
-
-            let bosIndexLong = -1;
-            for (let k = pflIndex + 1; k < i; k++) {
-                if (data[k].close > breakLevelLong) {
-                    bosIndexLong = k;
-                    if (debug) {
-                        const logMsg = `BOS confirmed at index ${k}, close: ${data[k].close}`;
-                        console.log(`[HPF DEBUG Long] ${logMsg}`);
-                        currentDebugInfo.long_bos = logMsg;
-                    }
-                    break;
-                }
-            }
-            if (bosIndexLong === -1) continue;
-
-            const isEmaBullish = emaShort[bosIndexLong]! > emaLong[bosIndexLong]!;
-            if (debug) {
-                const logMsg = `EMA check at BOS: Short EMA=${emaShort[bosIndexLong]}, Long EMA=${emaLong[bosIndexLong]}. Bullish? ${isEmaBullish}`;
-                console.log(`[HPF DEBUG Long] ${logMsg}`);
-                currentDebugInfo.long_emaCheck = logMsg;
-            }
-            if (!isEmaBullish) continue;
-
-            const highSinceBos = Math.max(...data.slice(bosIndexLong, i + 1).map(c => c.high));
-            const fibRangeLong = highSinceBos - peakLow;
-            const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
-            if (debug) {
-                const logMsg = `Fib level calculated. High since BOS: ${highSinceBos}, Fib Range: ${fibRangeLong}, Fib Entry: ${fib50Long}`;
-                console.log(`[HPF DEBUG Long] ${logMsg}`);
-                currentDebugInfo.long_fibCalc = logMsg;
-            }
-
-            if (currentCandle.low <= fib50Long && data[i - 1].low > fib50Long) {
+            if (processLongSetup(setupParams)) {
                 signals++;
-                if (debug) {
-                    const logMsg = `LONG SIGNAL TRIGGERED: fib50Long=${fib50Long}, low=${currentCandle.low}, price=${currentCandle.close}`;
-                    console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: green; font-weight: bold;');
-                    currentDebugInfo.long_SIGNAL = logMsg;
-                }
-                if (reverse) {
-                    dataWithIndicators[i].sellSignal = fib50Long;
-                } else {
-                    dataWithIndicators[i].buySignal = fib50Long;
-                }
-                dataWithIndicators[i].stopLossLevel = peakLow * 0.999;
-                dataWithIndicators[i].peakPrice = peakLow;
             }
         }
 
