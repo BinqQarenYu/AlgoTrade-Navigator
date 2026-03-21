@@ -63,11 +63,6 @@ export const getAvailableQuotesForBase = (base: string): string[] => {
     return allPairs.filter(p => p.base === base).map(p => p.quote).sort();
 };
 
-export const getAvailableBases = (): string[] => {
-    const bases = allPairs.map(p => p.base);
-    return [...new Set(bases)].sort();
-};
-
 export const pairsByBase = allPairs.reduce((acc, pair) => {
     if (!acc[pair.base]) {
         acc[pair.base] = [];
