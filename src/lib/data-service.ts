@@ -3,6 +3,7 @@
 
 import type { SavedReport, StreamedDataPoint, SavedMarketReport, SavedManipulationScan } from './types';
 import { openDB, type IDBPDatabase } from 'idb';
+import { logger } from './logger';
 
 const DB_NAME = 'AlgoTradeDB';
 const DB_VERSION = 1;
@@ -41,7 +42,7 @@ let savedData: StreamedDataPoint[] = [];
  * @param dataPoint The data point to save.
  */
 export const saveDataPoint = async (dataPoint: StreamedDataPoint): Promise<void> => {
-    // console.log("Saving data point:", dataPoint);
+    // logger.info("Saving data point:", dataPoint);
     savedData.push(dataPoint);
 };
 
@@ -50,7 +51,7 @@ export const saveDataPoint = async (dataPoint: StreamedDataPoint): Promise<void>
  * @returns An array of all saved data points.
  */
 export const loadSavedData = async (): Promise<StreamedDataPoint[]> => {
-    console.log(`Loading ${savedData.length} saved data points...`);
+    logger.info(`Loading ${savedData.length} saved data points...`);
     return Promise.resolve([...savedData]); // Return a copy
 };
 
@@ -58,7 +59,7 @@ export const loadSavedData = async (): Promise<StreamedDataPoint[]> => {
  * Clears all saved stream data from our in-memory store. AI Reports are not affected.
  */
 export const clearStreamData = async (): Promise<void> => {
-    console.log("Clearing all saved stream data.");
+    logger.info("Clearing all saved stream data.");
     savedData = [];
 };
 
@@ -67,7 +68,7 @@ export const clearStreamData = async (): Promise<void> => {
 export const saveReport = async (report: Omit<SavedReport, 'id'>): Promise<SavedReport> => {
     const db = await initDB();
     const id = await db.put(REPORT_STORE, report);
-    console.log(`Saving new report: ${report.type} with ID ${id}`);
+    logger.info(`Saving new report: ${report.type} with ID ${id}`);
     return { ...report, id: String(id) } as SavedReport;
 };
 
@@ -75,14 +76,14 @@ export const loadReports = async (): Promise<SavedReport[]> => {
     const db = await initDB();
     const reports = await db.getAll(REPORT_STORE);
     reports.sort((a, b) => b.timestamp - a.timestamp); // Show most recent first
-    console.log(`Loading ${reports.length} saved reports...`);
+    logger.info(`Loading ${reports.length} saved reports...`);
     return reports;
 };
 
 export const deleteReport = async (reportId: string): Promise<void> => {
     const db = await initDB();
     await db.delete(REPORT_STORE, reportId);
-    console.log(`Deleting report with id: ${reportId}`);
+    logger.info(`Deleting report with id: ${reportId}`);
 };
 
 /**
@@ -106,10 +107,10 @@ export const getLatestReport = async (
     await tx.done;
 
     if (cursor) {
-        console.log(`Found latest '${type}' report for ${symbol}`);
+        logger.info(`Found latest '${type}' report for ${symbol}`);
         return cursor.value as SavedMarketReport | SavedManipulationScan;
     } else {
-        console.log(`No '${type}' report found for ${symbol}`);
+        logger.info(`No '${type}' report found for ${symbol}`);
         return null;
     }
 };
