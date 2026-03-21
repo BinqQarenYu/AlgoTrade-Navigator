@@ -1,0 +1,352 @@
+   ▲ Next.js 15.3.8
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 1844ms
+ ○ Compiling /research ...
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ GET /research 200 in 32627ms
+ ⨯ [Error: The default export is not a React Component in "/research/page"] {
+  page: '/research'
+}
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ GET /test-ui 404 in 1029ms
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ GET /api/app-persistence 200 in 1087ms
+ ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/@genkit-ai/core/lib/tracing.js
+./node_modules/genkit/lib/tracing.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/handlebars/lib/index.js
+require.extensions is not supported by webpack. Use a loader instead.
+
+Import trace for requested module:
+./node_modules/handlebars/lib/index.js
+./node_modules/dotprompt/dist/index.js
+./node_modules/@genkit-ai/core/lib/registry.js
+./node_modules/genkit/lib/registry.js
+./node_modules/genkit/lib/genkit.js
+./node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+ GET /test-ui 200 in 12730ms
+ GET /api/app-persistence 200 in 43ms
+ ✓ Compiled /test-ui in 860ms (1347 modules)
