@@ -24,8 +24,8 @@ export const defaultLiquidityOrderFlowParams: LiquidityOrderFlowParams = {
   },
 };
 
-function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
-  const swingHighs: number[] = [];
+function findSwingHighs(data: HistoricalData[], lookaround: number): Set<number> {
+  const swingHighs: Set<number> = new Set();
   for (let i = lookaround; i < data.length - lookaround; i++) {
     let isSwingHigh = true;
     for (let j = 1; j <= lookaround; j++) {
@@ -34,13 +34,13 @@ function findSwingHighs(data: HistoricalData[], lookaround: number): number[] {
         break;
       }
     }
-    if (isSwingHigh) swingHighs.push(i);
+    if (isSwingHigh) swingHighs.add(i);
   }
   return swingHighs;
 }
 
-function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
-  const swingLows: number[] = [];
+function findSwingLows(data: HistoricalData[], lookaround: number): Set<number> {
+  const swingLows: Set<number> = new Set();
   for (let i = lookaround; i < data.length - lookaround; i++) {
     let isSwingLow = true;
     for (let j = 1; j <= lookaround; j++) {
@@ -49,7 +49,7 @@ function findSwingLows(data: HistoricalData[], lookaround: number): number[] {
         break;
       }
     }
-    if (isSwingLow) swingLows.push(i);
+    if (isSwingLow) swingLows.add(i);
   }
   return swingLows;
 }
@@ -75,14 +75,20 @@ const liquidityOrderFlowStrategy: Strategy = {
 
     for (let i = params.swingLookaround; i < data.length - params.maxLookahead; i++) {
       // --- Bearish Setup (Short) ---
-      const lastSwingHighIndex = swingHighs.find(sh => sh === i);
+      const lastSwingHighIndex = swingHighs.has(i) ? i : undefined;
       if (lastSwingHighIndex) {
         const swingHighPrice = data[lastSwingHighIndex].high;
         for (let j = lastSwingHighIndex + 1; j < lastSwingHighIndex + params.maxLookahead && j < data.length; j++) {
           if (data[j].high > swingHighPrice) { // 1. Liquidity Grab
             const sweepVolume = data[j].volume;
-            const lastSwingLowBeforeGrab = swingLows.filter(sl => sl < j).pop();
-            if (!lastSwingLowBeforeGrab) continue;
+            let lastSwingLowBeforeGrab: number | undefined;
+            for (let idx = j - 1; idx >= 0; idx--) {
+              if (swingLows.has(idx)) {
+                lastSwingLowBeforeGrab = idx;
+                break;
+              }
+            }
+            if (lastSwingLowBeforeGrab === undefined) continue;
 
             for (let k = j + 1; k < j + params.maxLookahead && k < data.length; k++) {
               if (data[k].close < data[lastSwingLowBeforeGrab].low) { // 2. Market Structure Shift
@@ -113,14 +119,20 @@ const liquidityOrderFlowStrategy: Strategy = {
       }
 
       // --- Bullish Setup (Long) ---
-      const lastSwingLowIndex = swingLows.find(sl => sl === i);
+      const lastSwingLowIndex = swingLows.has(i) ? i : undefined;
       if (lastSwingLowIndex) {
         const swingLowPrice = data[lastSwingLowIndex].low;
         for (let j = lastSwingLowIndex + 1; j < lastSwingLowIndex + params.maxLookahead && j < data.length; j++) {
           if (data[j].low < swingLowPrice) { // 1. Liquidity Grab
             const sweepVolume = data[j].volume;
-            const lastSwingHighBeforeGrab = swingHighs.filter(sh => sh < j).pop();
-            if (!lastSwingHighBeforeGrab) continue;
+            let lastSwingHighBeforeGrab: number | undefined;
+            for (let idx = j - 1; idx >= 0; idx--) {
+              if (swingHighs.has(idx)) {
+                lastSwingHighBeforeGrab = idx;
+                break;
+              }
+            }
+            if (lastSwingHighBeforeGrab === undefined) continue;
 
             for (let k = j + 1; k < j + params.maxLookahead && k < data.length; k++) {
               if (data[k].close > data[lastSwingHighBeforeGrab].high) { // 2. Market Structure Shift
