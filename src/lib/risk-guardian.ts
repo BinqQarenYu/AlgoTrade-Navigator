@@ -2,6 +2,7 @@
 'use client';
 
 import type { DisciplineParams } from './types';
+import { logger } from './logger';
 
 /**
  * Manages trading discipline by tracking performance and enforcing rules.
@@ -18,7 +19,7 @@ export class RiskGuardian {
   constructor(disciplineParams: DisciplineParams, initialBalance: number = 1000) {
     this.disciplineParams = disciplineParams;
     this.initialBalance = initialBalance;
-    console.log("Risk Guardian initialized with params:", disciplineParams);
+    logger.info("Risk Guardian initialized", { params: disciplineParams }, undefined, "risk-guardian");
   }
 
   /**
@@ -30,10 +31,10 @@ export class RiskGuardian {
 
     if (pnl <= 0) {
       this.consecutiveLosses++;
-      console.log(`Loss registered. Consecutive losses: ${this.consecutiveLosses}`);
+      logger.debug(`Loss registered`, { consecutiveLosses: this.consecutiveLosses }, undefined, "risk-guardian");
     } else {
       this.consecutiveLosses = 0; // Reset on a winning trade
-      console.log("Win registered. Consecutive losses reset.");
+      logger.debug("Win registered. Consecutive losses reset.", {}, undefined, "risk-guardian");
     }
   }
 
@@ -95,7 +96,7 @@ export class RiskGuardian {
   public resetCooldown(): void {
     this.cooldownUntil = null;
     this.consecutiveLosses = 0;
-    console.log("Cooldown expired. Resetting consecutive losses.");
+    logger.info("Cooldown expired. Resetting consecutive losses.", {}, undefined, "risk-guardian");
   }
 
   /**
@@ -105,6 +106,6 @@ export class RiskGuardian {
     this.consecutiveLosses = 0;
     this.sessionPnl = 0;
     this.cooldownUntil = null;
-    console.log("Risk Guardian has been fully reset.");
+    logger.info("Risk Guardian has been fully reset.", {}, undefined, "risk-guardian");
   }
 }
