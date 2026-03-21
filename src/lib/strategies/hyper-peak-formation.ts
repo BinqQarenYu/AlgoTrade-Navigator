@@ -12,7 +12,7 @@ export interface HyperPFFParams {
     fibLevel2: number;
     signalStaleness: number;
     reverse?: boolean;
-    debug?: boolean; // <-- Added for debugging
+    debug?: boolean; 
     discipline: DisciplineParams;
 }
 
@@ -25,7 +25,7 @@ export const defaultHyperPFFParams: HyperPFFParams = {
     fibLevel2: 0.618,
     signalStaleness: 25,
     reverse: false,
-    debug: true, // Default to on
+    debug: true, 
     discipline: {
         enableDiscipline: true,
         maxConsecutiveLosses: 4,
@@ -57,15 +57,23 @@ function isConfirmedSwingLow(data: HistoricalData[], index: number, lookaround: 
     return true;
 }
 
-interface SetupResult {
-    signalTriggered: boolean;
-    shouldContinue: boolean;
+interface SetupParams {
+    data: HistoricalData[];
+    dataWithIndicators: any[];
+    i: number;
+    peakLookaround: number;
+    swingLookaround: number;
+    emaShort: (number | null)[];
+    emaLong: (number | null)[];
+    fibLevel1: number;
+    reverse?: boolean;
+    debug?: boolean;
 }
 
-function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: number, params: HyperPFFParams, emaShort: number[], emaLong: number[]): SetupResult {
-    const { peakLookaround, swingLookaround, fibLevel1, reverse, debug } = params;
+function processShortSetup(params: SetupParams): boolean {
+    const { data, dataWithIndicators, i, peakLookaround, swingLookaround, emaShort, emaLong, fibLevel1, reverse, debug } = params;
     const currentCandle = data[i];
-    const currentDebugInfo = dataWithIndicators[i].debug_info;
+    const currentDebugInfo = dataWithIndicators[i].debug_info || {};
 
     let pfhIndex = -1;
     for (let j = i - peakLookaround; j > peakLookaround; j--) {
@@ -79,7 +87,7 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
             break;
         }
     }
-    if (pfhIndex === -1) return { signalTriggered: false, shouldContinue: true };
+    if (pfhIndex === -1) return false;
 
     const peakHigh = data[pfhIndex].high;
 
@@ -95,7 +103,7 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
             break;
         }
     }
-    if (swingLowIndex === -1) return { signalTriggered: false, shouldContinue: true };
+    if (swingLowIndex === -1) return false;
 
     const breakLevel = data[swingLowIndex].low;
     if (debug) {
@@ -116,7 +124,7 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
             break;
         }
     }
-    if (bosIndex === -1) return { signalTriggered: false, shouldContinue: true };
+    if (bosIndex === -1) return false;
 
     const isEmaBearish = emaShort[bosIndex]! < emaLong[bosIndex]!;
     if (debug) {
@@ -124,7 +132,7 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
         console.log(`[HPF DEBUG Short] ${logMsg}`);
         currentDebugInfo.short_emaCheck = logMsg;
     }
-    if (!isEmaBearish) return { signalTriggered: false, shouldContinue: true };
+    if (!isEmaBearish) return false;
 
     const lowSinceBos = Math.min(...data.slice(bosIndex, i + 1).map(c => c.low));
     const fibRange = peakHigh - lowSinceBos;
@@ -135,9 +143,7 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
         currentDebugInfo.short_fibCalc = logMsg;
     }
 
-    let signalTriggered = false;
     if (currentCandle.high >= fib50 && data[i - 1].high < fib50) {
-        signalTriggered = true;
         if (debug) {
             const logMsg = `SHORT SIGNAL TRIGGERED: fib50=${fib50}, high=${currentCandle.high}, price=${currentCandle.close}`;
             console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: red; font-weight: bold;');
@@ -150,15 +156,15 @@ function checkShortSetup(data: HistoricalData[], dataWithIndicators: any[], i: n
         }
         dataWithIndicators[i].stopLossLevel = peakHigh * 1.001;
         dataWithIndicators[i].peakPrice = peakHigh;
+        return true;
     }
-
-    return { signalTriggered, shouldContinue: false };
+    return false;
 }
 
-function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: number, params: HyperPFFParams, emaShort: number[], emaLong: number[]): SetupResult {
-    const { peakLookaround, swingLookaround, fibLevel1, reverse, debug } = params;
+function processLongSetup(params: SetupParams): boolean {
+    const { data, dataWithIndicators, i, peakLookaround, swingLookaround, emaShort, emaLong, fibLevel1, reverse, debug } = params;
     const currentCandle = data[i];
-    const currentDebugInfo = dataWithIndicators[i].debug_info;
+    const currentDebugInfo = dataWithIndicators[i].debug_info || {};
 
     let pflIndex = -1;
     for (let j = i - peakLookaround; j > peakLookaround; j--) {
@@ -172,7 +178,7 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
             break;
         }
     }
-    if (pflIndex === -1) return { signalTriggered: false, shouldContinue: true };
+    if (pflIndex === -1) return false;
 
     const peakLow = data[pflIndex].low;
 
@@ -188,7 +194,7 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
             break;
         }
     }
-    if (swingHighIndex === -1) return { signalTriggered: false, shouldContinue: true };
+    if (swingHighIndex === -1) return false;
 
     const breakLevelLong = data[swingHighIndex].high;
     if (debug) {
@@ -209,7 +215,7 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
             break;
         }
     }
-    if (bosIndexLong === -1) return { signalTriggered: false, shouldContinue: true };
+    if (bosIndexLong === -1) return false;
 
     const isEmaBullish = emaShort[bosIndexLong]! > emaLong[bosIndexLong]!;
     if (debug) {
@@ -217,7 +223,7 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
         console.log(`[HPF DEBUG Long] ${logMsg}`);
         currentDebugInfo.long_emaCheck = logMsg;
     }
-    if (!isEmaBullish) return { signalTriggered: false, shouldContinue: true };
+    if (!isEmaBullish) return false;
 
     const highSinceBos = Math.max(...data.slice(bosIndexLong, i + 1).map(c => c.high));
     const fibRangeLong = highSinceBos - peakLow;
@@ -228,9 +234,7 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
         currentDebugInfo.long_fibCalc = logMsg;
     }
 
-    let signalTriggered = false;
     if (currentCandle.low <= fib50Long && data[i - 1].low > fib50Long) {
-        signalTriggered = true;
         if (debug) {
             const logMsg = `LONG SIGNAL TRIGGERED: fib50Long=${fib50Long}, low=${currentCandle.low}, price=${currentCandle.close}`;
             console.log(`%c[HPF DEBUG] ${logMsg} at candle ${i}`, 'color: green; font-weight: bold;');
@@ -243,9 +247,9 @@ function checkLongSetup(data: HistoricalData[], dataWithIndicators: any[], i: nu
         }
         dataWithIndicators[i].stopLossLevel = peakLow * 0.999;
         dataWithIndicators[i].peakPrice = peakLow;
+        return true;
     }
-
-    return { signalTriggered, shouldContinue: false };
+    return false;
 }
 
 const hyperPeakFormationStrategy: Strategy = {
@@ -253,7 +257,7 @@ const hyperPeakFormationStrategy: Strategy = {
     name: 'Hyper Peak Formation (NEW)',
     description: 'A non-repainting strategy that identifies market peaks, waits for a break of structure, and enters on a Fibonacci retracement.',
     async calculate(data: HistoricalData[], params: HyperPFFParams = defaultHyperPFFParams): Promise<HistoricalData[]> {
-        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, fibLevel2, signalStaleness, reverse, debug } = params;
+        const { peakLookaround, swingLookaround, emaShortPeriod, emaLongPeriod, fibLevel1, debug } = params;
 
         if (debug) console.log(`[HPF DEBUG] Calculating Hyper Peak Formation. Data length: ${data?.length}, Params:`, params);
 
@@ -273,7 +277,7 @@ const hyperPeakFormationStrategy: Strategy = {
         const emaShort = calculateEMA(closePrices, emaShortPeriod);
         const emaLong = calculateEMA(closePrices, emaLongPeriod);
 
-        dataWithIndicators.forEach((d: HistoricalData, i: number) => {
+        dataWithIndicators.forEach((d: any, i: number) => {
             d.ema_short = emaShort[i];
             d.ema_long = emaLong[i];
             if (debug) {
@@ -285,21 +289,34 @@ const hyperPeakFormationStrategy: Strategy = {
 
         for (let i = peakLookaround + swingLookaround; i < data.length; i++) {
             const currentCandle = data[i];
-            const currentDebugInfo = dataWithIndicators[i].debug_info;
             if (debug) {
+                const currentDebugInfo = dataWithIndicators[i].debug_info;
                 console.log(`\n[HPF DEBUG] Candle #${i} | Time: ${new Date(currentCandle.time).toLocaleString()} | O: ${currentCandle.open} H: ${currentCandle.high} L: ${currentCandle.low} C: ${currentCandle.close}`);
                 currentDebugInfo.candle = `#${i}`;
             }
 
+            const setupParams: SetupParams = {
+                data,
+                dataWithIndicators,
+                i,
+                peakLookaround,
+                swingLookaround,
+                emaShort,
+                emaLong,
+                fibLevel1,
+                reverse: params.reverse,
+                debug: params.debug
+            };
+
             // --- NON-REPAINTING SHORT SETUP ---
-            const shortResult = checkShortSetup(data, dataWithIndicators, i, params, emaShort, emaLong);
-            if (shortResult.signalTriggered) signals++;
-            if (shortResult.shouldContinue) continue;
+            if (processShortSetup(setupParams)) {
+                signals++;
+            }
 
             // --- NON-REPAINTING LONG SETUP ---
-            const longResult = checkLongSetup(data, dataWithIndicators, i, params, emaShort, emaLong);
-            if (longResult.signalTriggered) signals++;
-            if (longResult.shouldContinue) continue;
+            if (processLongSetup(setupParams)) {
+                signals++;
+            }
         }
 
         if (debug) {
