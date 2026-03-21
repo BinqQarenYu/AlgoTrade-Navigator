@@ -396,53 +396,6 @@ export class BotMonitor {
   }
 
   /**
-   * Run comprehensive system diagnostics
-   */
-  public runDiagnostics(): {
-    overallHealth: 'healthy' | 'warning' | 'critical';
-    issues: string[];
-    recommendations: string[];
-  } {
-    const systemHealth = this.getSystemHealth();
-    const issues: string[] = [];
-    const recommendations: string[] = [];
-    
-    // Check for critical bots
-    if (systemHealth.criticalBots > 0) {
-      issues.push(`${systemHealth.criticalBots} bot(s) in critical state`);
-      recommendations.push('Review and restart critical bots');
-    }
-
-    // Check for high API usage
-    if (systemHealth.totalApiCalls > 200) {
-      issues.push('High API call rate detected');
-      recommendations.push('Consider reducing bot polling frequency');
-    }
-
-    // Check for emergency state
-    if (systemHealth.emergencyStopActive) {
-      issues.push('Emergency stop is currently active');
-      recommendations.push('Review and resolve emergency conditions');
-    }
-
-    // Check for offline bots
-    if (systemHealth.offlineBots > systemHealth.totalBots / 2) {
-      issues.push('More than half of bots are offline');
-      recommendations.push('Check network connectivity and bot configurations');
-    }
-
-    let overallHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
-    
-    if (systemHealth.criticalBots > 0 || systemHealth.emergencyStopActive) {
-      overallHealth = 'critical';
-    } else if (issues.length > 0) {
-      overallHealth = 'warning';
-    }
-
-    return { overallHealth, issues, recommendations };
-  }
-
-  /**
    * Start monitoring loop
    */
   private startMonitoring(): void {
