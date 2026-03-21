@@ -623,6 +623,7 @@ const BacktestPageContent = () => {
         await new Promise(resolve => setTimeout(resolve, 0));
     }
 
+
     if (bestParams) {
         setStrategyParams(prev => ({ ...prev, [selectedStrategy]: bestParams }));
         toast({ title: "Auto-Tune Complete!", description: `Found best parameters with profit factor ${bestProfitFactor.toFixed(2)}.` });

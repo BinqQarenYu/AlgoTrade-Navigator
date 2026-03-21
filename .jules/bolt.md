@@ -29,3 +29,8 @@
 ## 2024-05-20 - More $O(N \times P)$ Anti-patterns in Technical Indicators
 **Learning:** Found more instances of `slice().reduce()` and `Math.max(...slice.map(...))` inside historical indicator loops, specifically in `calculateCCI` and `calculatePivotPoints`. These patterns force frequent garbage collection and redundant looping inside every tick calculation, leading to massive performance loss during large backtests.
 **Action:** Replaced `slice().reduce()` in `calculateCCI` with an iterative calculation against precomputed SMA inside a fixed inner loop. For `calculatePivotPoints`, replaced `Math.max(...slice)` with the existing $O(N)$ central `calculateSlidingWindowExtreme` helper utilizing a monotonic deque algorithm.
+
+## 2025-02-14 - Optimize Auto-Tune Backtests Loop
+**Learning:** Sequential async operations in UI loops (like running many backtest simulations one after the other) drastically block the execution pipeline, leading to long delays.
+**Action:** Use chunked parallel execution with `Promise.all` to batch the operations. This allows the network/computation overhead to run concurrently without overwhelming the backend or browser limits.
+
