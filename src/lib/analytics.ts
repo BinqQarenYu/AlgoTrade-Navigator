@@ -120,28 +120,6 @@ export class TradingAnalytics {
   }
 
   /**
-   * Update an existing trade (e.g., when closing)
-   */
-  public updateTrade(tradeId: string, updates: Partial<TradeRecord>): boolean {
-    const trade = this.trades.get(tradeId);
-    if (!trade) return false;
-
-    const updatedTrade = { ...trade, ...updates };
-    this.trades.set(tradeId, updatedTrade);
-    this.updateBotPerformance(trade.botId, updatedTrade);
-    this.saveToStorage();
-
-    logger.debug(
-      'Trade updated in analytics',
-      { tradeId, updates },
-      trade.botId,
-      'analytics'
-    );
-
-    return true;
-  }
-
-  /**
    * Get bot performance metrics
    */
   public getBotPerformance(botId: string): BotPerformance | undefined {
