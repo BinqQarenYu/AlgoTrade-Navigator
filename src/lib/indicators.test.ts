@@ -67,7 +67,37 @@ describe('calculateHeikinAshi', () => {
         const result = calculateHeikinAshi(input);
 
         expect(result).toHaveLength(2);
+        
+        // ha_close2 = (105 + 120 + 100 + 115) / 4 = 110
         expect(result[1].ha_close).toBe(110);
+        
+        // ha_open2 = (ha_open1 + ha_close1) / 2 = (102.5 + 101.25) / 2 = 101.875
         expect(result[1].ha_open).toBe(101.875);
+        
+        // ha_high2 = Math.max(120, 101.875, 110) = 120
+        expect(result[1].ha_high).toBe(120);
+        
+        // ha_low2 = Math.min(100, 101.875, 110) = 100
+        expect(result[1].ha_low).toBe(100);
+    });
+
+    it('calculates correct values when ha_open or ha_close are the extremes (doji-like)', () => {
+        const data: HistoricalData[] = [
+            { time: 1000, open: 100, high: 105, low: 95, close: 100, volume: 1000 }
+        ];
+
+        const result = calculateHeikinAshi(data);
+
+        // ha_close = (100 + 105 + 95 + 100) / 4 = 100
+        expect(result[0].ha_close).toBe(100);
+
+        // ha_open = (100 + 100) / 2 = 100
+        expect(result[0].ha_open).toBe(100);
+
+        // ha_high = Math.max(105, 100, 100) = 105
+        expect(result[0].ha_high).toBe(105);
+
+        // ha_low = Math.min(95, 100, 100) = 95
+        expect(result[0].ha_low).toBe(95);
     });
 });
