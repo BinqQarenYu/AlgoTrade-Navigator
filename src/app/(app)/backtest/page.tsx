@@ -766,18 +766,30 @@ const BacktestPageContent = () => {
         toast({ title: "Warning", description: `Testing first 50 of ${combinations.length} possible combinations.` });
     }
 
-    for (const params of testCombinations) {
+    const runBatch = async (batch: any[]) => {
+      const promises = batch.map(async (params) => {
         const { summary } = await runSilentBacktest(fullChartData, {
             strategyId: selectedStrategy,
             strategyParams: params,
             initialCapital, leverage, takeProfit, stopLoss, fee,
             symbol: symbol
         });
+        return { params, summary };
+      });
+      return Promise.all(promises);
+    };
 
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < testCombinations.length; i += BATCH_SIZE) {
+      const batch = testCombinations.slice(i, i + BATCH_SIZE);
+      const results = await runBatch(batch);
+
+      for (const { params, summary } of results) {
         if (summary && summary.profitFactor > bestProfitFactor) {
-            bestProfitFactor = summary.profitFactor;
-            bestParams = params;
+          bestProfitFactor = summary.profitFactor;
+          bestParams = params;
         }
+      }
     }
 
     if (bestParams) {
