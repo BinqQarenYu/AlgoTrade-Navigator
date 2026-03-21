@@ -30,6 +30,13 @@ export async function POST(request: NextRequest) {
           side: r.side || (r.isBuyerMaker ? 'sell' : 'buy'),
           timestamp: Number(r.timestamp),
           source: 'LIVE' as const,
+          entropy_score: r.microstructure?.entropyScore,
+          vpin: r.microstructure?.vpin,
+          is_synthetic: r.microstructure?.isSynthetic,
+          is_organic: r.microstructure?.isOrganic,
+          is_iceberg: r.microstructure?.isIceberg,
+          is_spoofing: r.microstructure?.isSpoofing,
+          funding_rate: r.microstructure?.fundingRate
         }))
       );
 

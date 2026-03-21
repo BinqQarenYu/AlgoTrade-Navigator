@@ -16,6 +16,7 @@ export interface OrderFlowData {
   riskScore: number;
   flags: ManipulationFlags;
   marketSource?: any;
+  microstructure?: any; // Contains Shannon Entropy and Toxicity scores
 }
 
 export interface BinanceOrderFlowData {
@@ -25,6 +26,7 @@ export interface BinanceOrderFlowData {
   quantity: number;
   side: 'buy' | 'sell';
   symbol: string;
+  microstructure?: any;
 }
 
 export interface VeryLargeActivity {
@@ -54,6 +56,8 @@ import { createDualApiService } from "@/lib/dual-coin-api-service";
 import { dataHub } from "@/lib/data-hub";
 import { getRecentTrades } from "@/lib/binance-service";
 import { wsManager } from "@/lib/websocket-manager";
+import { microstructureService } from "@/lib/microstructure-service";
+import { getFundingRate } from "@/lib/binance-service";
 
 export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: string, coingeckoApiKey?: string | null, coinmarketcapApiKey?: string | null) {
   const [orderFlowData, setOrderFlowData] = useState<OrderFlowData[]>([]);
@@ -227,11 +231,19 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       const coinDetails = await dualApiService.getCoinDetails(ticker);
       
       let binanceData = null;
+      let fundingRate = 0;
       try {
-        const tickerData = await dualApiService.getRealTimePrice(selectedSymbol);
+        const [tickerData, frate] = await Promise.all([
+            dualApiService.getRealTimePrice(selectedSymbol),
+            getFundingRate(selectedSymbol)
+        ]);
         binanceData = tickerData;
+        fundingRate = frate;
+        
+        // Update Microstructure Service with latest cost of carry
+        microstructureService.updateFundingRate(selectedSymbol, frate);
       } catch (binanceError) {
-        console.warn(`⚠️ Binance API price fetch failed for ${selectedSymbol}:`, binanceError);
+        console.warn(`⚠️ Binance API data fetch failed for ${selectedSymbol}:`, binanceError);
       }
       
       const apiStatus = dualApiService.getApiStatus();
@@ -239,6 +251,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         symbol: selectedSymbol,
         coinDetails: coinDetails,
         binanceData: binanceData,
+        fundingRate: fundingRate,
         timestamp: Date.now(),
         dataSource: {
           coinApi: coinDetails ? apiStatus.activeApi : 'None',
@@ -288,7 +301,8 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         suspiciousFlags: flags.reasons || [],
         riskScore: flags.riskScore || 0,
         flags,
-        marketSource: marketData?.dataSource
+        marketSource: marketData?.dataSource,
+        microstructure: microstructureService.analyzeTrade(order.symbol, order.size, order.price, order.side === 'buy'),
       };
     });
 
@@ -435,6 +449,20 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     return () => { isMounted = false; };
   }, [selectedSymbol]);
 
+  // Phase 3: Simulated Social Sentiment (Retail Fomo simulation)
+  useEffect(() => {
+    // Initial sentiment
+    microstructureService.updateSentiment(selectedSymbol, 0.45); // Start Bullish to test Traps
+    
+    const interval = setInterval(() => {
+        // Randomly adjust sentiment to simulate shifts in retail mood
+        const newSentiment = (Math.random() * 2) - 1; // -1 to 1
+        microstructureService.updateSentiment(selectedSymbol, newSentiment);
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [selectedSymbol]);
+
   // Effects
   useEffect(() => {
     loadInitialOrderData();
@@ -492,7 +520,8 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           suspiciousFlags: analyzed.reasons || [],
           riskScore: analyzed.riskScore || 0,
           flags: analyzed,
-          marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' }
+          marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' },
+          microstructure: orderData.microstructure
         };
       });
 

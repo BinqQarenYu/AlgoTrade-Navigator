@@ -32,4 +32,5 @@ export const strategyIndicatorMap: Record<string, string[]> = {
   'mtf-engulfing': ['EMA', 'ATR', 'Engulfing Pattern'],
   'smi-mfi-supertrend': ['SMI', 'MFI', 'Pivot Supertrend'],
   'ai-hybrid': ['EMA', 'RSI', 'CCI', 'Gemini AI'],
+  'toxicity-reversion': ['Volume Profile', 'CCI'],
 };

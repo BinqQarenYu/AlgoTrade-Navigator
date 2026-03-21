@@ -29,6 +29,15 @@ export interface TradeRecord {
   side: 'buy' | 'sell';
   timestamp: number; // Unix ms
   source: 'LIVE' | 'BACKFILL';
+  
+  // Microstructure Metrics
+  entropy_score?: number;
+  vpin?: number;
+  is_synthetic?: boolean;
+  is_organic?: boolean;
+  is_iceberg?: boolean;
+  is_spoofing?: boolean;
+  funding_rate?: number;
 }
 
 
@@ -87,13 +96,20 @@ const SCHEMA_SQL = `
   -- Raw tick-by-tick trade data. Composite PK prevents duplicates
   -- when live WebSocket catches up to a backfill chunk.
   CREATE TABLE IF NOT EXISTS trades (
-    trade_id  VARCHAR,
-    symbol    VARCHAR NOT NULL,
-    price     DOUBLE  NOT NULL,
-    quantity  DOUBLE  NOT NULL,
-    side      VARCHAR NOT NULL,
-    timestamp BIGINT  NOT NULL,
-    source    VARCHAR NOT NULL,
+    trade_id      VARCHAR,
+    symbol        VARCHAR NOT NULL,
+    price         DOUBLE  NOT NULL,
+    quantity      DOUBLE  NOT NULL,
+    side          VARCHAR NOT NULL,
+    timestamp     BIGINT  NOT NULL,
+    source        VARCHAR NOT NULL,
+    entropy_score DOUBLE,
+    vpin          DOUBLE,
+    is_synthetic  BOOLEAN,
+    is_organic    BOOLEAN,
+    is_iceberg    BOOLEAN,
+    is_spoofing   BOOLEAN,
+    funding_rate  DOUBLE,
     PRIMARY KEY (timestamp, trade_id)
   );
 
@@ -237,8 +253,15 @@ async function flushBuffers(): Promise<void> {
 
     try {
       await runQuery(`
-        INSERT OR IGNORE INTO trades (trade_id, symbol, price, quantity, side, timestamp, source)
-        VALUES ${values};
+        INSERT OR IGNORE INTO trades (
+          trade_id, symbol, price, quantity, side, timestamp, source,
+          entropy_score, vpin, is_synthetic, is_organic, is_iceberg, is_spoofing, funding_rate
+        )
+        VALUES ${batch.map(t => `(
+          '${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}',
+          ${t.entropy_score ?? 'NULL'}, ${t.vpin ?? 'NULL'}, ${t.is_synthetic ?? 'NULL'}, 
+          ${t.is_organic ?? 'NULL'}, ${t.is_iceberg ?? 'NULL'}, ${t.is_spoofing ?? 'NULL'}, ${t.funding_rate ?? 'NULL'}
+        )`).join(',\n')};
       `);
     } catch (e) {
       console.error('[DuckDB Flush] Trade batch error:', e);

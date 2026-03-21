@@ -9,6 +9,7 @@ import { cn, formatPrice } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from '@/lib/assets';
 import { AssetSelector } from '@/components/ui/asset-selector';
+import { microstructureService } from '@/lib/microstructure-service';
 
 interface OrderBookLevel {
     price: number;
@@ -36,6 +37,7 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [livePrice, setLivePrice] = useState<number | null>(null);
+    const [activeIcebergs, setActiveIcebergs] = useState<{ price: number, size: number, timestamp: number }[]>([]);
     const wsRef = useRef<WebSocket | null>(null);
 
     // Initial fetch
@@ -61,6 +63,14 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
         return () => {
             isMounted = false;
         };
+    }, [symbol]);
+
+    // Tick for Iceberg Polling
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setActiveIcebergs(microstructureService.getIcebergLevels(symbol));
+        }, 1000);
+        return () => clearInterval(interval);
     }, [symbol]);
 
     // WebSocket for 100ms updates (zero-lag real-time)
@@ -114,6 +124,13 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
         setAsks(parsedAsks.reverse());
         setBids(parsedBids);
         setLastUpdated(new Date());
+
+        // Update central Microstructure Service to compute resting liquidity vs Executed Volume variances
+        microstructureService.updateDepth(
+            symbol,
+            rawBids.map(b => [parseFloat(b[0]), parseFloat(b[1])]),
+            rawAsks.map(a => [parseFloat(a[0]), parseFloat(a[1])])
+        );
     };
 
     const spread = useMemo(() => {
@@ -186,8 +203,8 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                 </div>
             </CardHeader>
             <CardContent className="p-0 flex-1 flex flex-col relative z-10 overflow-hidden font-mono text-xs">
-                 <div className="grid grid-cols-[1fr_1fr_1fr] bg-black/40 text-[10px] text-muted-foreground p-2 border-b border-white/5 z-20">
-                    <div className="text-left font-semibold uppercase tracking-wider">Price (USDT)</div>
+                 <div className="grid grid-cols-[1fr_1fr_1fr] bg-black/40 text-[10px] text-muted-foreground p-2 border-b border-white/5 z-20 items-center">
+                    <div className="text-left font-semibold uppercase tracking-wider">Price (USDT) <span className="ml-2 text-cyan-500/50">🧊 Iceberg Tracker Active</span></div>
                     <div className="text-right font-semibold uppercase tracking-wider">Size</div>
                     <div className="text-right font-semibold uppercase tracking-wider">Total</div>
                 </div>
@@ -198,8 +215,15 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                         {asks.map((ask, i) => {
                             const intensity = (ask.volume / maxVolume) * 100;
                             const isWall = intensity > 70;
+                            
+                            // Check for Iceberg detection from persistent list
+                            const thisIceberg = activeIcebergs.find(ib => 
+                                Math.abs(ib.price - ask.price) < (spread * 0.1) // Range match for precision floating point
+                            );
+                            const isIceberg = !!thisIceberg;
+
                             return (
-                                <div key={`ask-${i}`} className="grid grid-cols-[1fr_1fr_1fr] relative group h-[18px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair">
+                                <div key={`ask-${i}`} className={cn("grid grid-cols-[1fr_1fr_1fr] relative group h-[20px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair", isIceberg && "bg-cyan-950/30 border-y border-cyan-500/20")}>
                                     {/* Heatmap Volume Bar */}
                                     <div 
                                         className={cn("absolute right-0 top-0 bottom-0 bg-red-500/10 transition-all duration-300 z-0", isWall && "bg-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.3)] border-r-2 border-red-500")}
@@ -210,9 +234,10 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                                         className="absolute right-0 top-0 bottom-0 bg-red-900/10 z-0"
                                         style={{ width: `${ask.depthPercentage}%` }} 
                                     />
-                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-red-400" : "text-red-500/80")}>
+                                    <div className={cn("text-left relative z-10 font-bold flex items-center gap-1", isIceberg ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.6)]" : isWall ? "text-red-400" : "text-red-500/80")}>
                                         {formatPrice(ask.price)}
-                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-red-500 animate-pulse" />}
+                                        {isIceberg && <Badge variant="outline" className="bg-cyan-950 text-cyan-400 border-cyan-500/50 text-[8px] py-0 px-1 uppercase tracking-widest"><Search className="w-2 h-2 mr-1 animate-pulse" />Iceberg {(thisIceberg!.size).toFixed(1)}</Badge>}
+                                        {isWall && !isIceberg && <Zap className="inline-block w-3 h-3 text-red-500 animate-pulse" />}
                                     </div>
                                     <div className="text-right relative z-10 text-slate-300">{ask.volume.toFixed(3)}</div>
                                     <div className="text-right relative z-10 text-slate-500">{ask.total.toFixed(3)}</div>
@@ -241,8 +266,15 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                         {bids.map((bid, i) => {
                              const intensity = (bid.volume / maxVolume) * 100;
                              const isWall = intensity > 70;
+                             
+                             // Check for Iceberg detection from persistent list
+                             const thisIceberg = activeIcebergs.find(ib => 
+                                 Math.abs(ib.price - bid.price) < (spread * 0.1)
+                             );
+                             const isIceberg = !!thisIceberg;
+
                              return (
-                                 <div key={`bid-${i}`} className="grid grid-cols-[1fr_1fr_1fr] relative group h-[18px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair">
+                                 <div key={`bid-${i}`} className={cn("grid grid-cols-[1fr_1fr_1fr] relative group h-[20px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair", isIceberg && "bg-cyan-950/30 border-y border-cyan-500/20")}>
                                     {/* Heatmap Volume Bar */}
                                     <div 
                                         className={cn("absolute right-0 top-0 bottom-0 bg-green-500/10 transition-all duration-300 z-0", isWall && "bg-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.3)] border-r-2 border-green-500")}
@@ -253,9 +285,10 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                                         className="absolute right-0 top-0 bottom-0 bg-green-900/10 z-0"
                                         style={{ width: `${bid.depthPercentage}%` }} 
                                     />
-                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-green-400" : "text-green-500/80")}>
+                                    <div className={cn("text-left relative z-10 font-bold flex items-center gap-1", isIceberg ? "text-cyan-400 drop-shadow-[0_0_5px_rgba(34,211,238,0.6)]" : isWall ? "text-green-400" : "text-green-500/80")}>
                                         {formatPrice(bid.price)}
-                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-green-500 animate-pulse" />}
+                                        {isIceberg && <Badge variant="outline" className="bg-cyan-950 text-cyan-400 border-cyan-500/50 text-[8px] py-0 px-1 uppercase tracking-widest"><Search className="w-2 h-2 mr-1 animate-pulse" />Iceberg {(thisIceberg!.size).toFixed(1)}</Badge>}
+                                        {isWall && !isIceberg && <Zap className="inline-block w-3 h-3 text-green-500 animate-pulse" />}
                                     </div>
                                     <div className="text-right relative z-10 text-slate-300">{bid.volume.toFixed(3)}</div>
                                     <div className="text-right relative z-10 text-slate-500">{bid.total.toFixed(3)}</div>
@@ -264,6 +297,30 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                         })}
                     </div>
                 </div>
+
+                {/* SHADOW LOG OVERLAY (Whales & Icebergs) */}
+                {activeIcebergs.length > 0 && (
+                    <div className="absolute top-20 right-4 w-48 z-40 space-y-2 pointer-events-none">
+                        <div className="text-[9px] font-bold text-cyan-400 bg-cyan-950/80 px-2 py-1 rounded border border-cyan-500/30 backdrop-blur-sm flex items-center justify-between">
+                            SHADOW LOG 🧊
+                            <span className="animate-pulse flex items-center gap-1">
+                                <Activity className="w-2 h-2" /> LIVE
+                            </span>
+                        </div>
+                        {activeIcebergs.slice(0, 5).map((ib, i) => (
+                            <div key={`log-${i}`} className="bg-black/60 border-l-2 border-cyan-500 p-1.5 rounded-sm backdrop-blur-md animate-in slide-in-from-right duration-300">
+                                <div className="flex justify-between items-start">
+                                    <span className="text-cyan-400 font-bold">{formatPrice(ib.price)}</span>
+                                    <Badge variant="outline" className="text-[8px] h-3 bg-cyan-500/10 text-cyan-500 border-cyan-500/20 px-1 py-0">{ib.size.toFixed(0)}</Badge>
+                                </div>
+                                <div className="text-[8px] text-slate-500 flex justify-between mt-1">
+                                    <span>ICEBERG RELOAD</span>
+                                    <span>{new Date(ib.timestamp).toLocaleTimeString([], { hour12: false, minute: '2-digit', second: '2-digit' })}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

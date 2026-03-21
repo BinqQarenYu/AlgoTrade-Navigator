@@ -9,6 +9,7 @@ import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { createDualApiService } from "@/lib/dual-coin-api-service"
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import { calculateRSI, calculateMACD, calculateBollingerBands } from "@/lib/indicators"
+import { microstructureService, type MicrostructureAnalysis } from "@/lib/microstructure-service"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
 
 // Modular Components
@@ -19,6 +20,7 @@ import { MarketMetricsGrid } from "@/components/research/MarketMetricsGrid"
 import { KeyPriceLevels } from "@/components/research/KeyPriceLevels"
 import { ManipulationAlert } from "@/components/research/ManipulationAlert"
 import { DetailedAnalysisTabs } from "@/components/research/DetailedAnalysisTabs"
+import { MicrostructureSummary } from "@/components/research/MicrostructureSummary"
 
 // AI Flows (Server Actions)
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow"
@@ -58,6 +60,7 @@ export default function AIResearchPage() {
   // Consolidated Data
   const [marketDetails, setMarketDetails] = useState<CoinDetails | null>(null)
   const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(null)
+  const [microstructureMetrics, setMicrostructureMetrics] = useState<MicrostructureAnalysis | null>(null)
 
   const analyzeMarket = async () => {
     if (!isConnected || !activeProfile) {
@@ -109,9 +112,14 @@ export default function AIResearchPage() {
       setMarketDetails(fetchedMarketDetails)
       setGlobalContext(fetchedGlobalContext)
       
-      // 4. Parallel AI Model Execution
-      const recentDataJson = JSON.stringify(enhancedData.slice(-30)) // Send last 30 candles to AI
+      // 4. Update Microstructure Metrics
+      const ms = microstructureService.getLatestMetrics(selectedAsset);
+      setMicrostructureMetrics(ms);
       
+      // 5. Parallel AI Model Execution
+      const toxicityContext = ms ? `\n\n--- MICROSTRUCTURE CONTEXT ---\nEntropy: ${ms.entropyScore}\nSpoofing: ${ms.isSpoofing}\nToxic Trap: ${ms.isToxicTrap}\nSkew: ${ms.orderBookSkew}\nVPIN: ${ms.vpin}` : '';
+      
+      const recentDataJson = JSON.stringify(enhancedData.slice(-30)) + toxicityContext; 
       const [prediction, manipulation] = await Promise.all([
         predictMarket({
           symbol: selectedAsset,
@@ -119,7 +127,8 @@ export default function AIResearchPage() {
           apiKey: geminiApiKey || undefined,
           model: geminiModel,
           marketDetails: fetchedMarketDetails || undefined,
-          globalContext: fetchedGlobalContext || undefined
+          globalContext: fetchedGlobalContext || undefined,
+          microstructure: ms || undefined
         }).catch(err => {
             console.error("AI Prediction failed:", err);
             return null;
@@ -130,7 +139,8 @@ export default function AIResearchPage() {
           apiKey: geminiApiKey || undefined,
           model: geminiModel,
           marketDetails: fetchedMarketDetails || undefined,
-          globalContext: fetchedGlobalContext || undefined
+          globalContext: fetchedGlobalContext || undefined,
+          microstructure: ms || undefined
         }).catch(err => {
             console.error("Manipulation Detect failed:", err);
             return null;
@@ -267,6 +277,11 @@ export default function AIResearchPage() {
               confidence={manipulationResult?.confidence || 0}
               currentPhase={manipulationResult?.currentPhase || 'None'}
               reasoning={manipulationResult?.reasoning || "Running forensic volumetric analysis..."}
+              isAnalyzing={isAnalyzing}
+            />
+            
+            <MicrostructureSummary 
+              metrics={microstructureMetrics}
               isAnalyzing={isAnalyzing}
             />
             

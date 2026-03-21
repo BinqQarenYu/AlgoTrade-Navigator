@@ -14,6 +14,12 @@ export interface CciMeanEngineParams {
   trendPeriod: number;
   requireTrend: boolean;
   discipline: DisciplineParams;
+  // Microstructure Filters (Institutional Safeguards)
+  maxVpin: number;         // Avoid toxic flow (Informed traders trend)
+  minEntropy: number;      // Avoid bot noise / padding
+  avoidSpoofing: boolean;  // Do not enter if phantom walls are active
+  avoidTraps: boolean;    // Do not enter if sentiment diverges from skew
+  avoidIcebergs: boolean; // Do not enter against hidden absorption
 }
 
 export const defaultCciMeanEngineParams: CciMeanEngineParams = {
@@ -27,8 +33,13 @@ export const defaultCciMeanEngineParams: CciMeanEngineParams = {
     maxConsecutiveLosses: 3,
     cooldownPeriodMinutes: 45,
     dailyDrawdownLimit: 4,
-    onFailure: 'StopTrading',
+    onFailure: 'Cooldown',
   },
+  maxVpin: 0.7,
+  minEntropy: 3.0,
+  avoidSpoofing: true,
+  avoidTraps: true,
+  avoidIcebergs: true,
 };
 
 const cciMeanEngine: Strategy = {
@@ -45,7 +56,7 @@ const cciMeanEngine: Strategy = {
 
     // 2. Pre-calculate indicators (Calculated once outside the loop for O(n) complexity)
     const cci = calculateCCI(data, params.cciPeriod);
-    const ema200 = calculateEMA(data, params.trendPeriod);
+    const ema200 = calculateEMA(data.map(d => d.close), params.trendPeriod);
 
     // 3. Map signals efficiently
     return data.map((d, i) => {
@@ -75,11 +86,24 @@ const cciMeanEngine: Strategy = {
       const longEntryTrigger = prevCCI <= params.oversold && currCCI > params.oversold;
       const shortEntryTrigger = prevCCI >= params.overbought && currCCI < params.overbought;
 
-      if (longEntryTrigger && (params.requireTrend ? isAboveTrend : true)) {
+      /**
+       * MICROSTRUCTURE FILTERS (The Institutional Hedge)
+       * We ignore signals if the flow is too toxic or synthetic.
+       */
+      const ms = d.microstructure;
+      const isToxic = ms ? (ms.vpin || 0) > params.maxVpin : false;
+      const isSynthetic = ms ? (ms.entropyScore || 5) < params.minEntropy : false;
+      const isSpoofed = ms ? (params.avoidSpoofing && ms.isSpoofing) : false;
+      const isTrapped = ms ? (params.avoidTraps && ms.isToxicTrap) : false;
+      const hasIceberg = ms ? (params.avoidIcebergs && ms.isIceberg) : false;
+
+      const isFlowSafe = !isToxic && !isSynthetic && !isSpoofed && !isTrapped && !hasIceberg;
+
+      if (longEntryTrigger && isFlowSafe && (params.requireTrend ? isAboveTrend : true)) {
         currentCandle.buySignal = d.low;
       }
 
-      if (shortEntryTrigger && (params.requireTrend ? isBelowTrend : true)) {
+      if (shortEntryTrigger && isFlowSafe && (params.requireTrend ? isBelowTrend : true)) {
         currentCandle.sellSignal = d.high;
       }
 

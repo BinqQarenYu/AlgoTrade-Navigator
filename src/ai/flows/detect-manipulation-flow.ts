@@ -22,6 +22,18 @@ const DetectManipulationInputSchema = z.object({
   apiKey: z.string().optional().describe('Optional API key from user settings.'),
   marketDetails: z.record(z.any()).optional().describe('Consolidated asset details from CoinGecko/CoinMarketCap (market cap, supply, category, etc.).'),
   globalContext: z.record(z.any()).optional().describe('Global market context like Fear & Greed Index.'),
+  microstructure: z.object({
+    entropyScore: z.number(),
+    isSynthetic: z.boolean(),
+    isOrganic: z.boolean(),
+    isIceberg: z.boolean(),
+    isSpoofing: z.boolean(),
+    vpin: z.number().optional(),
+    fundingRate: z.number().optional(),
+    isToxicTrap: z.boolean().optional(),
+    orderBookSkew: z.number().optional(),
+    sentimentScore: z.number().optional(),
+  }).optional().describe('Institutional Microstructure Context (Phase 3).'),
   model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type DetectManipulationInput = z.infer<typeof DetectManipulationInputSchema>;
@@ -61,9 +73,16 @@ const detectManipulationPrompt = ai.definePrompt({
 - Consolidated fundamental data unavailable.
 {{/if}}
 
-**2. Global Market Environment:**
 {{#if globalContext}}
 - Fear & Greed Index: {{{globalContext.value}}} ({{{globalContext.valueClassification}}})
+{{/if}}
+{{#if microstructure}}
+- Microstructure Fingerprints:
+  - Entropy Score: {{{microstructure.entropyScore}}} ({{#if microstructure.isSynthetic}}WASH TRADING SUSPECTED{{else}}ORGANIC FLOW{{/if}})
+  - VPIN (Toxicity): {{{microstructure.vpin}}}
+  - Spoofing (Phantom Walls): {{{microstructure.isSpoofing}}}
+  - Toxic Trap: {{{microstructure.isToxicTrap}}} ({{#if microstructure.isToxicTrap}}RUG PULL / EXIT DISTRIBUTION IN PROGRESS{{/if}})
+  - Institutional Absorption: {{{microstructure.isIceberg}}}
 {{/if}}
 
 **3. Forensic Task:**
@@ -85,12 +104,14 @@ Analyze the provided k-line data to identify the lifecycle of a potential manipu
 **Your Objective:**
 1. **Identify Phases**: Map the price/volume action to the Accumulation/Pump/Distribution phases.
 2. **Suspicion Level**: Set \`isManipulationSuspected\` based on structural anomalies.
-3. **Forensic Deep-Dive**: Provide a detailed analytical breakdown. Look for "Wash Trading" (high volume with no price movement) or "Painting the Tape" (slow, artificial price climbing on low volume).
+3. **Forensic Deep-Dive**: Provide a detailed analytical breakdown. 
+   - **Wash Trading**: Use **Entropy Score** ({{{microstructure.entropyScore}}}) to detect bot padding. If < 2.5, the volume is likely fake.
+   - **Painting the Tape**: Use **Spoofing** ({{{microstructure.isSpoofing}}}) flag. Are buy walls appearing/disappearing to force price up?
+   - **Exit Liquidity**: Use **Toxic Trap** ({{{microstructure.isToxicTrap}}}). Is positive sentiment being used to mask massive sell-side distribution?
+
 4. **Best Action Guidance**: Provide a clinical instruction. If manipulation is suspected, detail the safest exit or avoidance strategy. If organic, detail the confirmation level needed.
 
 Be suspicious. Your goal is to keep the trader from becoming "exit liquidity."
-
-Generate the output in the required JSON format.
 `,
 });
 

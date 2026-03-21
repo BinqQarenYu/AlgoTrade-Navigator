@@ -2,6 +2,7 @@ import { wsManager } from "./websocket-manager";
 import type { BinanceOrderFlowData } from "@/hooks/use-order-flow";
 import { PERFORMANCE_CONFIG } from "./performance-config";
 import { getHistoricalKlines } from "./binance-service";
+import { microstructureService } from "./microstructure-service";
 
 export type TradeListener = (data: BinanceOrderFlowData) => void;
 
@@ -156,7 +157,8 @@ class DataHub {
                     price: parseFloat(data.p),
                     quantity: parseFloat(data.q),
                     side: data.m ? 'sell' : 'buy',
-                    symbol: symbol
+                    symbol: symbol,
+                    microstructure: microstructureService.analyzeTrade(symbol, parseFloat(data.q), parseFloat(data.p), !data.m)
                 };
 
                 const state = this.symbolStates.get(symbol);
@@ -185,6 +187,13 @@ class DataHub {
                     // Broadcast to UI
                     state.listeners.forEach(listener => listener(orderData));
                 }
+            } else if (data && data.e === 'markPriceUpdate') {
+                // Parse funding rate and mark price variables
+                const symbol = data.s.toUpperCase();
+                const fundingRate = parseFloat(data.r);
+                import('./microstructure-service').then(({ microstructureService }) => {
+                    microstructureService.updateFundingRate(symbol, fundingRate);
+                });
             }
         });
 
@@ -211,6 +220,7 @@ class DataHub {
 
         symbolsToSub.forEach(sym => {
             desiredStreams.add(`${sym.toLowerCase()}@aggTrade`);
+            desiredStreams.add(`${sym.toLowerCase()}@markPrice@1s`);
         });
 
         // Calculate differences

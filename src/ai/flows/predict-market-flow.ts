@@ -29,6 +29,18 @@ const PredictMarketInputSchema = z.object({
   apiKey: z.string().optional().describe('Optional API key from user settings.'),
   marketDetails: z.record(z.any()).optional().describe('Consolidated asset details from CoinGecko/CoinMarketCap (market cap, supply, category, etc.).'),
   globalContext: z.record(z.any()).optional().describe('Global market context like Fear & Greed Index.'),
+  microstructure: z.object({
+    entropyScore: z.number(),
+    isSynthetic: z.boolean(),
+    isOrganic: z.boolean(),
+    isIceberg: z.boolean(),
+    isSpoofing: z.boolean(),
+    vpin: z.number().optional(),
+    fundingRate: z.number().optional(),
+    isToxicTrap: z.boolean().optional(),
+    orderBookSkew: z.number().optional(),
+    sentimentScore: z.number().optional(),
+  }).optional().describe('Institutional Microstructure Context (Phase 3).'),
   model: z.string().optional().describe('The specific Gemini model to use.'),
 });
 export type PredictMarketInput = z.infer<typeof PredictMarketInputSchema>;
@@ -43,6 +55,7 @@ const PredictionDetailSchema = z.object({
 const PredictMarketOutputSchema = z.object({
   aggressive: PredictionDetailSchema.describe('High-risk, short-term scalping strategy (1-5 periods). Focus on momentum and liquidity traps.'),
   conservative: PredictionDetailSchema.describe('Lower-risk, mid-to-long term trend following (12-48 periods). Focus on fundamentals and established levels.'),
+  microstructureIntegrity: z.number().min(0).max(100).describe('Score reflecting the lack of toxicity and synthetic noise (0 = Pure Manipulated Noise, 100 = Solid Institutional Flow).'),
   institutionalBias: z.string().describe('A single-sentence summary of where the "Big Money" is likely leaning based on MC/Volume.'),
 });
 export type PredictMarketOutput = z.infer<typeof PredictMarketOutputSchema>;
@@ -60,6 +73,14 @@ const predictMarketPrompt = ai.definePrompt({
 {{/if}}
 {{#if globalContext}}
 - Global Sentiment: {{{globalContext.value}}} ({{{globalContext.valueClassification}}})
+{{/if}}
+{{#if microstructure}}
+- Microstructure Context:
+  - Shannon Entropy: {{{microstructure.entropyScore}}} ({{#if microstructure.isSynthetic}}SYNTHETIC/BOT NOISE{{else}}ORGANIC FLOW{{/if}})
+  - VPIN (Toxicity): {{{microstructure.vpin}}} ({{#if microstructure.isToxicTrap}}TOXIC TRAP DETECTED - Retail Fomo vs Whale Distribution{{/if}})
+  - Order Book Skew: {{{microstructure.orderBookSkew}}}
+  - Spoofing/Phantom Walls: {{{microstructure.isSpoofing}}}
+  - Institutional Absorption (Iceberg): {{{microstructure.isIceberg}}}
 {{/if}}
 
 **Recent Candle Data (30p):**
@@ -80,14 +101,22 @@ const predictMarketPrompt = ai.definePrompt({
 
 3. **Institutional Bias:**
    - Detect if "Whales" are likely accumulating or distributing based on the Volume/MarketCap turnover.
+   - **CRITICAL**: If \`microstructure.isToxicTrap\` is true, the institutional bias is likely **Distribution** via retail manipulation.
+
+4. **Microstructure Weighting (The Quant Hedge):**
+   - If **Entropy** is low (< 3.0), de-weight short-term momentum signals; they are likely high-frequency bot padding.
+   - If **isIceberg** is true, expect significant price resistance/support at the current level despite what RSI suggests.
+   - Cross-reference **Social Sentiment** (sentimentScore) with **Order Book Skew**. A high positive sentiment with a negative skew is a "Toxic Trap."
 
 **Required JSON Structure:**
 Return an object with:
 - \`aggressive\`: {prediction, confidence, reasoning, recommendation}
 - \`conservative\`: {prediction, confidence, reasoning, recommendation}
+- \`microstructureIntegrity\`: number (0-100)
 - \`institutionalBias\`: string
 
 Be clinical, logical, and decisive. Avoid generic advice.
+**Note**: If Microstructure flags are high-risk (Trap/Toxicity), the AI MUST lower confidence in aggressive directional calls.
 `,
 });
 

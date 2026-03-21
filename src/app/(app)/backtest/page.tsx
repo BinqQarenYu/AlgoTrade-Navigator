@@ -62,6 +62,7 @@ import { applyFadeEngineFilters } from "@/lib/analysis/fade-engine"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { executeBacktestEngine, type BacktestEngineConfig } from "@/lib/analysis/backtest-engine"
+import { MicrostructureEnricher } from "@/lib/analysis/microstructure-enricher"
 
 
 // Import default parameters from all strategies to enable reset functionality
@@ -426,7 +427,8 @@ const BacktestPageContent = () => {
     const strategy = getStrategyById(strategyId);
     if (!strategy) return { summary: null, dataWithSignals: data, trades: [] };
 
-    let dataWithSignals = await strategy.calculate(data.map(d => ({ ...d })), strategyParams, symbol);
+    const enrichedData = MicrostructureEnricher.enrich(data.map(d => ({ ...d })));
+    let dataWithSignals = await strategy.calculate(enrichedData, strategyParams, symbol);
     
     // Apply Advanced Contrarian (Fade Engine) filters if enabled and in reverse mode
     if (strategyParams.advancedContrarian && strategyParams.reverse && strategyId !== 'code-based-consensus') {
@@ -512,11 +514,14 @@ const BacktestPageContent = () => {
     };
 
     try {
+        // Step 0: Enrich Data with Microstructure
+        const enrichedChartData = MicrostructureEnricher.enrich(fullChartData.map(d => ({ ...d })));
+
         // Step 1: Strategy Signal Generation (Heavy CPU)
         // We do this once for standard and once for contrarian if needed
         const [dataStandardRaw, dataContrarianRaw] = await Promise.all([
-          strategy.calculate(fullChartData.map(d => ({ ...d })), baseParams, symbol),
-          strategy.calculate(fullChartData.map(d => ({ ...d })), { ...baseParams, reverse: !baseParams.reverse }, symbol)
+          strategy.calculate(enrichedChartData.map(d => ({ ...d })), baseParams, symbol),
+          strategy.calculate(enrichedChartData.map(d => ({ ...d })), { ...baseParams, reverse: !baseParams.reverse }, symbol)
         ]);
 
         let dataStandard = dataStandardRaw;

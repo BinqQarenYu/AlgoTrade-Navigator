@@ -285,6 +285,16 @@ export const getLatestKlinesByLimit = async (
     }
 }
 
+export const getFundingRate = async (symbol: string): Promise<number> => {
+    try {
+        const { data } = await callProxy<any>(`/fapi/v1/premiumIndex?symbol=${symbol.toUpperCase()}`);
+        return data.lastFundingRate ? parseFloat(data.lastFundingRate) : 0;
+    } catch (error) {
+        console.error("Failed to fetch funding rate via proxy:", error);
+        return 0;
+    }
+};
+
 export const getOrderBook = async (
     symbol: string,
     limit: number = 100

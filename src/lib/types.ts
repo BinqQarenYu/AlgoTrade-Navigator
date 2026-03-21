@@ -109,6 +109,8 @@ export type HistoricalData = {
   volume: number;
   buySignal?: number;
   sellSignal?: number;
+  exitLongSignal?: number;
+  exitShortSignal?: number;
   sma_short?: number | null;
   sma_long?: number | null;
   ema_short?: number | null;
@@ -178,6 +180,18 @@ export type HistoricalData = {
   aiConfidence?: number;
   isProjected?: boolean;
   debug_info?: any;
+  microstructure?: {
+    entropyScore: number;
+    isSynthetic: boolean;
+    isOrganic: boolean;
+    isSpoofing: boolean;
+    isIceberg: boolean;
+    vpin?: number;
+    fundingRate?: number;
+    isToxicTrap?: boolean;
+    orderBookSkew?: number;
+    sentimentScore?: number;
+  };
 };
 
 
