@@ -90,6 +90,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               {activeItem?.label || 'Dashboard'}
             </h2>
           </div>
+
+          <div className="hidden md:flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+            <Link href="/order-flow" className={cn("px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all", pathname.startsWith('/order-flow') ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-slate-500 hover:text-slate-300 hover:bg-slate-900")}>
+               Order Flow
+            </Link>
+            <Link href="/settings" className={cn("px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all", pathname.startsWith('/settings') ? "bg-indigo-500/20 text-indigo-400 border border-indigo-500/30" : "text-slate-500 hover:text-slate-300 hover:bg-slate-900")}>
+               Settings
+            </Link>
+          </div>
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-8">
           <div className="max-w-[1600px] mx-auto">
