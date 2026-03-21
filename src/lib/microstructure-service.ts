@@ -11,6 +11,8 @@ export interface MicrostructureAnalysis {
     sentimentScore?: number;  // -1 to 1 (Social Sentiment)
     orderBookSkew?: number;   // -1 (Heavy Asks) to 1 (Heavy Bids)
     isToxicTrap?: boolean;    // If Sentiment is Bullish but Skew is Bearish
+    marketState?: 'Discovery' | 'Toxic pressure' | 'Equilibrium' | 'Bot Noise' | 'Chaos';
+    strategicImplication?: string;
 }
 
 class MicrostructureService {
@@ -156,6 +158,24 @@ class MicrostructureService {
 
         const fundingRate = this.fundingRates.get(upperSymbol);
 
+        // 5. Market State Classification Matrix
+        let marketState: MicrostructureAnalysis['marketState'] = 'Equilibrium';
+        let implication = 'Market is healthy and pricing efficiently.';
+
+        if (vpin > 0.7) {
+            marketState = 'Toxic pressure';
+            implication = 'Institutional dominance detected. Retail stops at risk.';
+        } else if (entropy < 2.5 && history.length > 50) {
+            marketState = 'Bot Noise';
+            implication = 'Wash trading or algorithmic testing in progress.';
+        } else if (entropy > 5.5) {
+            marketState = 'Chaos';
+            implication = 'High regime shift risk. Liquidity is fragmented.';
+        } else if (vpin < 0.2 && entropy > 4.5) {
+            marketState = 'Discovery';
+            implication = 'New price discovery via organic participation.';
+        }
+
         const metrics: MicrostructureAnalysis = {
             entropyScore: Number(entropy.toFixed(2)),
             isSynthetic,
@@ -166,6 +186,8 @@ class MicrostructureService {
             fundingRate,
             sentimentScore: this.socialSentiment.get(upperSymbol) || 0,
             orderBookSkew: this.calculateOrderBookSkew(upperSymbol),
+            marketState,
+            strategicImplication: implication
         };
 
         // Trap Detection (Sentiment vs Skew Divergence)

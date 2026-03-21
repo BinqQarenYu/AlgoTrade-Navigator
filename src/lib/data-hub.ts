@@ -28,12 +28,19 @@ class DataHub {
     private connectionListeners = new Set<(connected: boolean) => void>();
     private currentlySubscribedStreams = new Set<string>();
 
+    private globalFlushInterval: NodeJS.Timeout | null = null;
+
     constructor() {
+        if (typeof window === 'undefined') return;
+
         this.initSharedConnection();
         // Initialize Tier 1 assets immediately
         PERFORMANCE_CONFIG.PRIORITY_ASSETS.forEach(symbol => {
             this.initSymbolState(symbol, 1);
         });
+
+        // Professional Global Flush: One heartbeat for all assets
+        this.globalFlushInterval = setInterval(() => this.flushAllToDatabase(), PERFORMANCE_CONFIG.BATCH_FLUSH_MS * 5); // 5s Global Heartbeat
 
         // After initial setup, update subscriptions
         setTimeout(() => this.updateSubscriptions(), 1000);
@@ -58,7 +65,7 @@ class DataHub {
             listeners: new Set(),
             hotLayer: [],
             batchBuffer: [],
-            flushInterval: setInterval(() => this.flushToDatabase(upperSymbol), this.BATCH_FLUSH_MS),
+            flushInterval: null, // Per-symbol flushes deprecated for Global Bus
             tier: tier,
             cooldownTimeout: null,
             lastDataTimestamp: 0
@@ -107,6 +114,7 @@ class DataHub {
         if (state) {
             if (state.flushInterval) clearInterval(state.flushInterval);
             if (state.cooldownTimeout) clearTimeout(state.cooldownTimeout);
+            // Single flush on cleanup is still per-symbol, but rarely triggered
             this.flushToDatabase(symbol); // Final flush
             this.symbolStates.delete(symbol);
         }
@@ -289,16 +297,48 @@ class DataHub {
         }
     }
 
+    private async flushAllToDatabase() {
+        const batchPayload: { [symbol: string]: BinanceOrderFlowData[] } = {};
+        let totalCount = 0;
+
+        this.symbolStates.forEach((state, symbol) => {
+            if (state.batchBuffer.length > 0) {
+                batchPayload[symbol] = [...state.batchBuffer];
+                totalCount += state.batchBuffer.length;
+                state.batchBuffer = []; // Wipe local buffer
+            }
+        });
+
+        if (totalCount === 0) return;
+
+        try {
+             // Save to DuckDB via one single shared API call (Scale Rule: O(1) Transport)
+             await fetch('/api/db/save', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({
+                     source: 'BATCH_LIVE',
+                     payload: batchPayload
+                 })
+             });
+        } catch (e) {
+             console.error(`[DataHub] Global batch flush failed for ${totalCount} records`, e);
+             // On fail, restore buffers to prevent data loss (Simulation Integrity)
+             Object.entries(batchPayload).forEach(([symbol, data]) => {
+                 this.symbolStates.get(symbol)?.batchBuffer.unshift(...data);
+             });
+        }
+    }
+
     private async flushToDatabase(symbol: string) {
+        // Individual flushes maintained for manual cleanup triggers
         const state = this.symbolStates.get(symbol);
         if (!state || state.batchBuffer.length === 0) return;
 
-        // Take a snapshot and clear the buffer
         const batch = [...state.batchBuffer];
         state.batchBuffer = [];
 
         try {
-            // Save to duckdb via API route
             await fetch('/api/db/save', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -310,7 +350,6 @@ class DataHub {
             });
         } catch (e) {
             console.error(`[DataHub] Failed to write batch for ${symbol}`, e);
-            // Re-buffer on failure
             if (this.symbolStates.has(symbol)) {
                 this.symbolStates.get(symbol)!.batchBuffer.unshift(...batch);
             }

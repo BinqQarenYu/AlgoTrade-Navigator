@@ -62,9 +62,9 @@ async function callProxy<T>(
                 throw new Error(result.error || `Proxy Error: ${response.statusText}`);
             }
             return { data: result.data || result, usedWeight: result.usedWeight || 1 };
-        } catch (error: any) {
+        } catch (error) {
             clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
+            if (error instanceof Error && error.name === 'AbortError') {
                 console.warn(`[Timeout] Request to ${path} timed out. Retrying...`);
                 attempt++;
                 continue;
@@ -287,7 +287,7 @@ export const getLatestKlinesByLimit = async (
 
 export const getFundingRate = async (symbol: string): Promise<number> => {
     try {
-        const { data } = await callProxy<any>(`/fapi/v1/premiumIndex?symbol=${symbol.toUpperCase()}`);
+        const { data } = await callProxy<any>('/fapi/v1/premiumIndex', 'GET', { symbol: symbol.toUpperCase() });
         return data.lastFundingRate ? parseFloat(data.lastFundingRate) : 0;
     } catch (error) {
         console.error("Failed to fetch funding rate via proxy:", error);

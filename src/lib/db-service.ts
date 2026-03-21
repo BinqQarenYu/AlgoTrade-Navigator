@@ -41,6 +41,20 @@ export interface TradeRecord {
 }
 
 
+export interface SignalRecord {
+  signal_id: string;
+  timestamp: number;
+  symbol: string;
+  strategy_id: string;
+  signal_type: 'BUY' | 'SELL';
+  entry_price: number;
+  exit_price?: number;
+  outcome?: 'WIN' | 'LOSS' | 'OPEN';
+  profit_delta?: number;
+  feature_vector: string; // JSON snapshot of MFV
+}
+
+
 export interface SystemLogRecord {
   id: string;
   timestamp: number;
@@ -83,8 +97,8 @@ if (!globalForDuckDB.dbPath) {
 // In-memory write buffers — flushed every 10s
 const tradeBuffer: TradeRecord[] = [];
 const ohlcvBuffer: OHLCVRecord[] = [];
-
 const systemLogBuffer: SystemLogRecord[] = [];
+const signalBuffer: SignalRecord[] = [];
 
 const FLUSH_INTERVAL_MS = 10_000;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -144,12 +158,26 @@ const SCHEMA_SQL = `
     key   VARCHAR PRIMARY KEY,
     value VARCHAR
   );
+
+  -- AI Signals & Outcomes for Bayesian Feedback Loop
+  CREATE TABLE IF NOT EXISTS signals (
+    signal_id      VARCHAR PRIMARY KEY,
+    timestamp      BIGINT  NOT NULL,
+    symbol         VARCHAR NOT NULL,
+    strategy_id    VARCHAR NOT NULL,
+    signal_type    VARCHAR NOT NULL,
+    entry_price    DOUBLE  NOT NULL,
+    exit_price     DOUBLE,
+    outcome        VARCHAR DEFAULT 'OPEN',
+    profit_delta   DOUBLE,
+    feature_vector VARCHAR -- JSON snapshot of MFV
+  );
 `;
 
 // ──────────────────────────────────────────────────────────
 // Connection Management
 // ──────────────────────────────────────────────────────────
-function runQuery(query: string, params?: any[]): Promise<any[]> {
+export function runQuery(query: string, params?: any[]): Promise<any[]> {
   return new Promise((resolve, reject) => {
     if (!globalForDuckDB.conn) return reject(new Error('DuckDB not connected'));
     const cb = (err: Error | null, res: any[]) => err ? reject(err) : resolve(res || []);
@@ -159,6 +187,21 @@ function runQuery(query: string, params?: any[]): Promise<any[]> {
       globalForDuckDB.conn.all(query, cb);
     }
   });
+}
+
+export async function updateSignalOutcome(
+  signal_id: string, 
+  outcome: 'WIN' | 'LOSS', 
+  exit_price: number, 
+  profit_delta: number
+): Promise<void> {
+  await connectToDB();
+  const query = `
+    UPDATE signals 
+    SET outcome = ?, exit_price = ?, profit_delta = ? 
+    WHERE signal_id = ?
+  `;
+  await runQuery(query, [outcome, exit_price, profit_delta, signal_id]);
 }
 
 export async function connectToDB(customPath?: string): Promise<void> {
@@ -237,6 +280,14 @@ export function bufferSystemLogs(records: SystemLogRecord[]): void {
   systemLogBuffer.push(...records);
 }
 
+export function bufferSignal(record: SignalRecord): void {
+  signalBuffer.push(record);
+}
+
+export function bufferSignals(records: SignalRecord[]): void {
+  signalBuffer.push(...records);
+}
+
 export function bufferOHLCVBatch(records: OHLCVRecord[]): void {
   ohlcvBuffer.push(...records);
 }
@@ -247,10 +298,6 @@ async function flushBuffers(): Promise<void> {
   // --- Flush trades ---
   if (tradeBuffer.length > 0) {
     const batch = tradeBuffer.splice(0, tradeBuffer.length);
-    const values = batch
-      .map(t => `('${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}')`)
-      .join(',\n');
-
     try {
       await runQuery(`
         INSERT OR IGNORE INTO trades (
@@ -270,6 +317,30 @@ async function flushBuffers(): Promise<void> {
     }
   }
 
+  // --- Flush AI Signals (Bayesian Loop) ---
+  if (signalBuffer.length > 0) {
+    const batch = signalBuffer.splice(0, signalBuffer.length);
+    const values = batch
+      .map(s => `(
+        '${s.signal_id}', ${s.timestamp}, '${s.symbol}', '${s.strategy_id}', '${s.signal_type}', 
+        ${s.entry_price}, ${s.exit_price ?? 'NULL'}, '${s.outcome || 'OPEN'}', 
+        ${s.profit_delta ?? 'NULL'}, '${s.feature_vector.replace(/'/g, "''")}'
+      )`)
+      .join(',\n');
+
+    try {
+      await runQuery(`
+        INSERT OR IGNORE INTO signals (
+          signal_id, timestamp, symbol, strategy_id, signal_type, 
+          entry_price, exit_price, outcome, profit_delta, feature_vector
+        )
+        VALUES ${values};
+      `);
+    } catch (e) {
+      console.error('[DuckDB Flush] Signal batch error:', e);
+      signalBuffer.unshift(...batch);
+    }
+  }
 
   // --- Flush System Logs ---
   if (systemLogBuffer.length > 0) {
@@ -416,6 +487,19 @@ export async function getHistoricalOHLCV(symbol: string, interval: string, start
   `;
   const result = await runQuery(query, [symbol, interval, startTime, endTime]);
   return result as OHLCVRecord[];
+}
+
+
+export async function getRecentSignals(symbol: string, limit: number = 10): Promise<SignalRecord[]> {
+  await connectToDB();
+  const query = `
+    SELECT * FROM signals 
+    WHERE symbol = ? 
+    ORDER BY timestamp DESC 
+    LIMIT ?
+  `;
+  const result = await runQuery(query, [symbol, limit]);
+  return result as SignalRecord[];
 }
 
 

@@ -33,8 +33,10 @@ import mtfEngulfingStrategy from './mtf-engulfing';
 import smiMfiSupertrendStrategy from './smi-mfi-supertrend';
 import aiHybridStrategy from './ai-hybrid';
 import toxicityReversionStrategy from './toxicity-reversion';
+import quantOrderFlowStrategy from './quant-order-flow';
 
 export const strategies: Strategy[] = [
+  quantOrderFlowStrategy,
   codeBasedConsensusStrategy,
   peakFormationFibStrategy,
   hyperPeakFormationStrategy,

@@ -6,17 +6,50 @@ import { updateSyncState } from '@/lib/sync-state-manager';
 
 export async function POST(request: NextRequest) {
   try {
-    const { source, symbol, data } = await request.json();
+    const { source, symbol, data, payload } = await request.json();
 
-    if (!symbol || !data) {
+    if (source !== 'BATCH_LIVE' && (!symbol || !data)) {
       return NextResponse.json({ error: 'symbol and data are required' }, { status: 400 });
     }
 
     // Ensure DB is ready (idempotent)
     await connectToDB();
 
+    // ── BATCH LIVE trades (Global Bus) ──────────────────────
+    if (source === 'BATCH_LIVE' && payload) {
+      let totalBuffered = 0;
+      
+      for (const [sym, records] of Object.entries(payload as Record<string, any[]>)) {
+        bufferTrades(
+          records.map((r: any) => ({
+            trade_id: String(r.trade_id || r.id || `${sym}-${r.timestamp}-${Math.random()}`),
+            symbol: sym,
+            price: Number(r.price),
+            quantity: Number(r.quantity ?? r.qty ?? 0),
+            side: r.side || (r.isBuyerMaker ? 'sell' : 'buy'),
+            timestamp: Number(r.timestamp),
+            source: 'LIVE' as const,
+            entropy_score: r.microstructure?.entropyScore,
+            vpin: r.microstructure?.vpin,
+            is_synthetic: r.microstructure?.isSynthetic,
+            is_organic: r.microstructure?.isOrganic,
+            is_iceberg: r.microstructure?.isIceberg,
+            is_spoofing: r.microstructure?.isSpoofing,
+            funding_rate: r.microstructure?.fundingRate
+          }))
+        );
+
+        const newestTs = Math.max(...records.map(r => Number(r.timestamp)));
+        const oldestTs = Math.min(...records.map(r => Number(r.timestamp)));
+        updateSyncState(sym, oldestTs, newestTs, records.length, false);
+        totalBuffered += records.length;
+      }
+
+      return NextResponse.json({ success: true, totalBuffered, source: 'BATCH_LIVE' });
+    }
+
     // ── LIVE trades from WebSocket ──────────────────────────
-    if (source === 'LIVE') {
+    if (source === 'LIVE' && symbol) {
       const records: TradeRecord[] = Array.isArray(data)
         ? data
         : [data];
@@ -49,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // ── BACKFILL OHLCV chunks from CCXT REST ────────────────
-    if (source === 'BACKFILL' && Array.isArray(data)) {
+    if (source === 'BACKFILL' && Array.isArray(data) && symbol) {
       const ohlcvRecords: OHLCVRecord[] = data.map((k: any) => ({
         symbol,
         interval: k.interval || '1m',

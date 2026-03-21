@@ -31,6 +31,7 @@ import { OrderFlowThreatPatterns } from "@/components/order-flow/order-flow-thre
 import { OrderFlowLiveOrders } from "@/components/order-flow/order-flow-live-orders";
 import { OrderFlowWhaleActivity } from "@/components/order-flow/order-flow-whale-activity";
 import { OrderFlowAlerts } from "@/components/order-flow/order-flow-alerts";
+import { EntropyHUD } from "@/components/order-flow/entropy-hud";
 
 // Shadcn UI
 import { Card, CardContent } from "@/components/ui/card";
@@ -321,6 +322,11 @@ export default function OrderFlowPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* PRO ENHANCEMENT: Microstructure Entropy HUD Overlay */}
+      {isMonitoring && (
+        <EntropyHUD orderFlowData={orderFlowData} />
+      )}
     </div>
     </TooltipProvider>
   );

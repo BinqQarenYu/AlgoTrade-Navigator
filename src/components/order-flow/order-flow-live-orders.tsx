@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, TrendingUp, TrendingDown, Target, ShieldAlert, Zap, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, TrendingUp, TrendingDown, Target, ShieldAlert, Zap, AlertTriangle, MonitorPlay, List } from "lucide-react";
 import { type OrderFlowData, type VeryLargeActivity } from "@/hooks/use-order-flow";
+import { TradingCommandCenter } from "./trading-command-center";
 
 interface OrderFlowLiveOrdersProps {
   orderFlowData: OrderFlowData[];
@@ -13,9 +15,13 @@ export function OrderFlowLiveOrders({
   orderFlowData,
   activeVeryLargeActivity,
 }: OrderFlowLiveOrdersProps) {
+  // Look Backward: The user requested ensuring the "Filter Toggle" allows switching back to Classic View
+  const [isCommandCenter, setIsCommandCenter] = useState(true);
+
   return (
     <div className="space-y-6">
-      <div className="p-6 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
+      <div className="p-6 bg-slate-900 rounded-xl border border-slate-800 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
         <h3 className="text-2xl font-black text-white flex items-center gap-3 tracking-tight mb-2">
           <Activity className="h-8 w-8 text-blue-400" />
           Live Order Stream
@@ -23,9 +29,36 @@ export function OrderFlowLiveOrders({
         <p className="text-slate-400 font-medium">
           Real-time ticker tape of incoming orders. Filtered for manipulation mapping. Red scores (7-10) indicate highly actionable threats.
         </p>
+        </div>
+        
+        {/* The "Filter Toggle" specific rule to switch back to Classic view */}
+        <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800 self-stretch sm:self-auto shrink-0 animate-in fade-in slide-in-from-right-4 duration-500">
+          <Button 
+            variant={isCommandCenter ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setIsCommandCenter(true)}
+            className={`flex-1 sm:flex-none ${isCommandCenter ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}
+          >
+            <MonitorPlay className="w-4 h-4 mr-2" /> Command Center
+          </Button>
+          <Button 
+            variant={!isCommandCenter ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setIsCommandCenter(false)}
+            className={`flex-1 sm:flex-none ${!isCommandCenter ? 'bg-slate-700 hover:bg-slate-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}
+          >
+            <List className="w-4 h-4 mr-2" /> Classic List
+          </Button>
+        </div>
       </div>
       
-      <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden">
+      {isCommandCenter ? (
+        <TradingCommandCenter 
+          orderFlowData={orderFlowData} 
+          activeVeryLargeActivity={activeVeryLargeActivity} 
+        />
+      ) : (
+      <Card className="bg-slate-900 border-slate-800 shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
         <CardHeader className="bg-slate-950 border-b border-slate-800 pb-5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
@@ -176,6 +209,7 @@ export function OrderFlowLiveOrders({
           </div>
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }

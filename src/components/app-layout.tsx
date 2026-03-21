@@ -35,53 +35,66 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <Sidebar>
-        <SidebarContent>
-          <SidebarHeader className="p-4">
-            <div className="flex items-center gap-2">
-               <div className="p-2 bg-primary/20 rounded-lg">
-                <Bot className="text-primary" />
+      <Sidebar className="border-r border-slate-800 bg-slate-950">
+        <SidebarContent className="bg-slate-950">
+          <SidebarHeader className="p-4 border-b border-slate-800/50">
+            <div className="flex items-center gap-3">
+               <div className="p-2 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <Activity className="text-emerald-400 h-5 w-5" />
               </div>
-              <h1 className="text-xl font-semibold text-primary">AlgoTrade Nav</h1>
+              <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent drop-shadow-sm">
+                AlgoTrade Nav
+              </h1>
             </div>
           </SidebarHeader>
-          <SidebarMenu>
+          <SidebarMenu className="mt-4 px-2 space-y-1">
             {menuItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
                   isActive={pathname.startsWith(item.href)}
-                  tooltip={{
-                    children: item.label,
-                  }}
+                  tooltip={{ children: item.label }}
+                  className={cn(
+                    "transition-all duration-200",
+                    pathname.startsWith(item.href) 
+                      ? "bg-slate-800/80 text-emerald-400 border border-slate-700/50 shadow-sm" 
+                      : "text-slate-400 hover:text-emerald-300 hover:bg-slate-900"
+                  )}
                 >
-                  <Link href={item.href}>
-                    <item.icon />
-                    <span>{item.label}</span>
+                  <Link href={item.href} className="flex items-center gap-3 py-2">
+                    <item.icon className={cn("h-4 w-4", pathname.startsWith(item.href) ? "text-emerald-400" : "text-slate-500")} />
+                    <span className="font-semibold">{item.label}</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="p-4">
-           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Bot className="h-4 w-4" />
-            <span>AlgoTrade Navigator v1.0</span>
+        <SidebarFooter className="p-4 bg-slate-950 border-t border-slate-800/50">
+           <div className="flex items-center justify-center gap-2 text-[10px] font-bold tracking-widest uppercase text-slate-500">
+            <Bot className="h-3 w-3" />
+            <span>Navigator v2.0</span>
            </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <header className="sticky top-0 z-10 flex items-center h-14 px-4 border-b bg-background/80 backdrop-blur-sm">
-          <SidebarTrigger className="md:hidden" />
-          <div className="flex-1">
-            <h2 className="text-lg font-semibold">
+      <SidebarInset className="bg-[#0B0F19]">
+        <header className="sticky top-0 z-10 flex items-center h-16 px-6 border-b border-slate-800/80 bg-[#0B0F19]/80 backdrop-blur-md">
+          <SidebarTrigger className="md:hidden text-emerald-400 mr-4" />
+          <div className="flex-1 flex items-center gap-3">
+            {activeItem && (
+                <div className="p-1.5 bg-slate-900 rounded-md border border-slate-800">
+                    <activeItem.icon className="h-4 w-4 text-emerald-500" />
+                </div>
+            )}
+            <h2 className="text-lg font-bold text-slate-200">
               {activeItem?.label || 'Dashboard'}
             </h2>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">
-          {children}
+        <main className="flex-1 overflow-auto p-4 md:p-8">
+          <div className="max-w-[1600px] mx-auto">
+            {children}
+          </div>
         </main>
       </SidebarInset>
     </SidebarProvider>

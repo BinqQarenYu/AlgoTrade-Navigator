@@ -7,6 +7,7 @@ import { calculateRSI, calculateMACD, calculateBollingerBands } from "@/lib/indi
 
 // Types
 export interface OrderFlowData {
+  id: string;
   symbol: string;
   timestamp: number;
   orderType: 'buy' | 'sell';
@@ -293,6 +294,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
     const analyzedOrders: OrderFlowData[] = mockOrders.map(order => {
       const flags = orderFlowAnalyzer.analyzeOrder(order);
       return {
+        id: order.id || `${order.timestamp}-${order.price}`,
         symbol: order.symbol,
         timestamp: order.timestamp,
         orderType: order.side,
@@ -496,7 +498,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       const batch = [...wsMessageBuffer.current];
       wsMessageBuffer.current = []; // Clear buffer
 
-      setRealTimeOrders(prev => [...batch.reverse(), ...prev].slice(0, 1000));
+      setRealTimeOrders(prev => [...batch.reverse(), ...prev].slice(0, 200));
 
       const newOrderFlowItems: OrderFlowData[] = batch.map(orderData => {
         const analysisOrder: OrderData = {
@@ -512,6 +514,7 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         };
         const analyzed = orderFlowAnalyzer.analyzeOrder(analysisOrder);
         return {
+          id: orderData.id,
           symbol: orderData.symbol,
           timestamp: orderData.timestamp,
           orderType: orderData.side,
@@ -520,13 +523,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           suspiciousFlags: analyzed.reasons || [],
           riskScore: analyzed.riskScore || 0,
           flags: analyzed,
-          marketSource: { coinApi: 'binance-ws', priceApi: 'binance-ws' },
+          marketSource: { coinapi: 'binance-ws', priceApi: 'binance-ws' },
           microstructure: orderData.microstructure
         };
       });
 
       setOrderFlowData(prev => {
-        const newData = [...newOrderFlowItems.reverse(), ...prev].slice(0, 500);
+        const newData = [...newOrderFlowItems.reverse(), ...prev].slice(0, 200);
         updateChartData(newData.slice(0, 50));
         detectVeryLargeActivity(newData.slice(0, 20));
 
@@ -569,14 +572,49 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       return sentiment > 0.6 ? 'bullish' : sentiment < 0.4 ? 'bearish' : 'neutral';
     },
     getTradingSignal: () => {
-      if (!stats) return { signal: 'wait', confidence: 0, reason: 'No data available' };
+      if (!stats || orderFlowData.length === 0) return { signal: 'wait', confidence: 0, reason: 'No data available' };
+      
       const riskScore = stats.averageRiskScore;
+      const recentOrders = orderFlowData.slice(-50);
+      let buyVol = 0; let sellVol = 0;
+      let totalVpin = 0; let vpinCount = 0;
+      let totalEntropy = 0; let entropyCount = 0;
+      
+      recentOrders.forEach(o => {
+        if (o.orderType === 'buy') buyVol += o.size;
+        if (o.orderType === 'sell') sellVol += o.size;
+        
+        if (o.microstructure) {
+          if (o.microstructure.vpin !== undefined) { totalVpin += o.microstructure.vpin; vpinCount++; }
+          if (o.microstructure.entropyScore !== undefined) { totalEntropy += o.microstructure.entropyScore; entropyCount++; }
+        }
+      });
+      
+      const avgVpin = vpinCount > 0 ? totalVpin / vpinCount : 0;
+      const avgEntropy = entropyCount > 0 ? totalEntropy / entropyCount : 0;
+      const totalVol = buyVol + sellVol;
+      const imbalance = totalVol > 0 ? (buyVol - sellVol) / totalVol : 0;
       const sentiment = helpers.calculateMarketSentiment();
-      if (riskScore > 7) return { signal: 'strong_sell', confidence: 90, reason: 'High manipulation risk detected!' };
-      if (sentiment > 0.7 && riskScore < 4) return { signal: 'strong_buy', confidence: 85, reason: 'Strong bullish momentum with low risk' };
-      if (sentiment > 0.6 && riskScore < 5) return { signal: 'buy', confidence: 70, reason: 'Positive sentiment and manageable risk' };
-      if (sentiment < 0.4 || riskScore > 5) return { signal: 'sell', confidence: 65, reason: 'Negative sentiment or elevated risk' };
-      return { signal: 'wait', confidence: 50, reason: 'Market is neutral or signals are conflicting' };
+
+      if (avgVpin > 0.7 && imbalance < -0.1) {
+        return { signal: 'release_long', confidence: 95, reason: 'Toxic flow detected (VPIN spike). Liquidate longs immediately to avoid crash.' };
+      }
+      if (avgVpin > 0.7 && imbalance > 0.1) {
+        return { signal: 'release_short', confidence: 95, reason: 'Toxic buying detected. Cover shorts before squeeze.' };
+      }
+
+      if (imbalance > 0.3 && avgEntropy > 0.5 && riskScore < 4) {
+        return { signal: 'strong_buy', confidence: 85, reason: 'Organic bullish imbalance detected with low manipulation risk.' };
+      }
+      
+      if (imbalance < -0.3 && avgEntropy > 0.5 && riskScore < 4) {
+        return { signal: 'strong_sell', confidence: 85, reason: 'Organic bearish momentum. Recommended to execute shorts.' };
+      }
+
+      if (sentiment > 0.6 && riskScore < 5) return { signal: 'buy', confidence: 70, reason: 'Positive sentiment flow detected' };
+      if (sentiment < 0.4 || riskScore > 6) return { signal: 'sell', confidence: 65, reason: 'Order flow decaying or elevated risk' };
+      
+      return { signal: 'wait', confidence: 50, reason: 'Neutral flow state. Recommending holding pattern.' };
     },
     getVolumeIndicator: () => {
       const avgVolume = stats?.averageVolume || 0;
@@ -618,9 +656,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       const signal = helpers.getTradingSignal();
       const riskScore = stats?.averageRiskScore || 0;
       const actions = [];
-      if (signal.signal.includes('buy')) actions.push({ title: 'Consider Buying', description: `Market shows ${signal.reason}` });
-      if (signal.signal.includes('sell')) actions.push({ title: 'Consider Selling', description: `Warning: ${signal.reason}` });
-      if (riskScore > 5) actions.push({ title: 'Reduce Risk', description: 'Elevated manipulation detected. Use tight stop losses.' });
+      
+      if (signal.signal === 'release_long') actions.push({ title: 'Asset Release (Long)', description: signal.reason });
+      else if (signal.signal === 'release_short') actions.push({ title: 'Asset Release (Short)', description: signal.reason });
+      else if (signal.signal.includes('buy')) actions.push({ title: 'Consider Buying', description: `Market shows ${signal.reason}` });
+      else if (signal.signal.includes('sell')) actions.push({ title: 'Consider Selling', description: `Warning: ${signal.reason}` });
+      
+      if (riskScore > 5 && !signal.signal.includes('release')) actions.push({ title: 'Reduce Risk', description: 'Elevated manipulation detected. Use tight stop losses.' });
       if (actions.length === 0) actions.push({ title: 'Hold / Wait', description: 'No clear signals at the moment.' });
       return actions;
     }

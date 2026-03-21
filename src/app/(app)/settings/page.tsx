@@ -253,7 +253,8 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between bg-primary/10 border border-primary/20 p-6 rounded-3xl gap-4 shadow-xl shadow-primary/5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between bg-slate-900/80 border border-slate-800 p-6 rounded-3xl gap-4 shadow-2xl shadow-black/40 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent pointer-events-none" />
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
                     <HardDrive className="text-primary h-6 w-6" />
@@ -282,7 +283,7 @@ export default function SettingsPage() {
             </Button>
         </div>
 
-      <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isStorageOpen} onOpenChange={setIsStorageOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -322,7 +323,7 @@ export default function SettingsPage() {
                       value: dbConfig?.isActive ? 'Connected' : 'Offline',
                     },
                   ].map((stat) => (
-                    <div key={stat.label} className="flex flex-col gap-1 p-3 rounded-xl border bg-primary/5">
+                    <div key={stat.label} className="flex flex-col gap-1 p-3 rounded-xl border border-slate-700/50 bg-slate-900/50">
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         {stat.icon}
                         {stat.label}
@@ -334,19 +335,19 @@ export default function SettingsPage() {
 
                 {/* ── Stream Status Row ─────────────────────────── */}
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <div className="flex-1 flex items-center justify-between border rounded-lg p-3 bg-primary/5">
+                  <div className="flex-1 flex items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
                       <div>
-                          <Label className="text-sm font-bold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5"/>Live Sync Stream</Label>
-                          <p className="text-xs text-muted-foreground mt-0.5">WebSocket → DuckDB instant write</p>
+                          <Label className="text-sm font-bold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-yellow-500"/>Live Sync Stream</Label>
+                          <p className="text-xs text-slate-400 mt-0.5">WebSocket → DuckDB instant write</p>
                       </div>
-                      <Badge className={isConnected ? "bg-green-600 text-white text-xs" : "text-xs"} variant={isConnected ? "default" : "secondary"}>
+                      <Badge className={isConnected ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs" : "bg-slate-800/50 text-slate-400 border border-slate-700 text-xs"} variant={isConnected ? "default" : "secondary"}>
                           {isConnected ? "🟢 Active" : "⚪ Paused"}
                       </Badge>
                   </div>
-                  <div className="flex-1 flex items-center justify-between border rounded-lg p-3 bg-primary/5">
+                  <div className="flex-1 flex items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
                       <div>
-                          <Label className="text-sm font-bold flex items-center gap-1.5"><Activity className="h-3.5 w-3.5"/>Backfill Engine</Label>
-                          <p className="text-xs text-muted-foreground mt-0.5">Background REST gap fill</p>
+                          <Label className="text-sm font-bold flex items-center gap-1.5"><Activity className="h-3.5 w-3.5 text-blue-500"/>Backfill Engine</Label>
+                          <p className="text-xs text-slate-400 mt-0.5">Background REST gap fill</p>
                       </div>
                       <Badge className="text-xs" variant={backfillProgress >= 100 ? "default" : "secondary"}>
                           {backfillProgress >= 100 ? "✅ Complete" : "⏳ Running"}
@@ -417,7 +418,7 @@ export default function SettingsPage() {
         </Collapsible>
       </Card>
 
-       <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isConnectionOpen} onOpenChange={setConnectionOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -475,7 +476,7 @@ export default function SettingsPage() {
           </Collapsible>
       </Card>
       
-      <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isIpOpen} onOpenChange={setIpOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -486,9 +487,9 @@ export default function SettingsPage() {
           </CardHeader>
           <CollapsibleContent>
             <CardContent className="space-y-4">
-                <Alert><ShieldCheck className="h-4 w-4" /><AlertTitle>Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API keys are stored on the server for security. This means all requests to Binance originate from the server, not your browser. To use an IP-restricted key, you MUST add the **Server IP** below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
-                <div className="flex items-center justify-between rounded-lg border p-3"><div className="space-y-1"><Label>Your Browser IP (For Reference Only)</Label><p className="font-mono text-sm">{clientIpAddress || "Loading..."}</p></div></div>
-                <div className="flex items-center justify-between rounded-lg border bg-primary/10 p-3">
+                <Alert className="bg-amber-950/20 border-amber-900/50 text-amber-200"><ShieldCheck className="h-4 w-4 text-amber-500" /><AlertTitle className="text-amber-400">Action Required for Restricted Keys</AlertTitle><AlertDescription>Your API keys are stored on the server for security. This means all requests to Binance originate from the server, not your browser. To use an IP-restricted key, you MUST add the **Server IP** below to your whitelist in the Binance API management panel.</AlertDescription></Alert>
+                <div className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/30 p-3"><div className="space-y-1"><Label className="text-slate-400">Your Browser IP (For Reference Only)</Label><p className="font-mono text-sm text-slate-300">{clientIpAddress || "Loading..."}</p></div></div>
+                <div className="flex items-center justify-between rounded-lg border border-indigo-900/30 bg-indigo-950/20 p-3">
                     <div className="space-y-1"><Label>Application Server IP (Whitelist this one)</Label><p className="font-mono text-sm font-semibold text-primary">{serverIpAddress || "Loading..."}</p></div>
                     <Button variant="ghost" size="sm" onClick={() => { if(serverIpAddress) { navigator.clipboard.writeText(serverIpAddress); toast({ title: "Copied!", description: "Server IP copied to clipboard." }); } }} disabled={!serverIpAddress || serverIpAddress === 'Unavailable'}><Copy className="mr-2 h-4 w-4" /> Copy</Button>
                 </div>
@@ -497,7 +498,7 @@ export default function SettingsPage() {
         </Collapsible>
     </Card>
 
-    <Card>
+    <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
       <Collapsible open={isIntegrationsOpen} onOpenChange={setIntegrationsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div><CardTitle>Third-Party Integrations</CardTitle><CardDescription>Manage API keys for external data services and notifications. Add more providers as needed.</CardDescription></div>
@@ -508,7 +509,7 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 gap-4">
 
               {/* Google AI (Gemini) Provider */}
-              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+              <div className="flex flex-col p-4 bg-slate-900/50 rounded-2xl border border-slate-800 gap-3">
                 <div className="flex items-center gap-2">
                     <Brain className="h-5 w-5 text-primary" />
                     <Label htmlFor="gemini-key" className="text-base font-bold">Google AI (Gemini)</Label>
@@ -576,7 +577,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Telegram Provider */}
-              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+              <div className="flex flex-col p-4 bg-slate-900/50 rounded-2xl border border-slate-800 gap-3">
                 <div className="flex items-center gap-2">
                     <Send className="h-5 w-5 text-[#2AABEE]" />
                     <Label className="text-base font-bold">Telegram Notifications</Label>
@@ -597,7 +598,7 @@ export default function SettingsPage() {
               </div>
 
               {/* CoinGecko Provider */}
-              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+              <div className="flex flex-col p-4 bg-slate-900/50 rounded-2xl border border-slate-800 gap-3">
                 <div className="flex items-center gap-2">
                     <Globe className="h-5 w-5 text-green-500" />
                     <Label className="text-base font-bold">CoinGecko</Label>
@@ -611,7 +612,7 @@ export default function SettingsPage() {
               </div>
 
               {/* CoinMarketCap Provider */}
-              <div className="flex flex-col p-4 bg-primary/5 rounded-2xl border border-primary/10 gap-3">
+              <div className="flex flex-col p-4 bg-slate-900/50 rounded-2xl border border-slate-800 gap-3">
                 <div className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-blue-500" />
                     <Label className="text-base font-bold">CoinMarketCap</Label>
@@ -625,7 +626,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Placeholder for future providers */}
-              <div className="flex items-center justify-center p-6 border-2 border-dashed border-primary/20 rounded-2xl bg-primary/5">
+              <div className="flex items-center justify-center p-6 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/20">
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
                   <PlusCircle className="h-4 w-4" /> More providers coming soon...
                 </p>
@@ -637,7 +638,7 @@ export default function SettingsPage() {
       </Collapsible>
     </Card>
 
-      <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isRateLimitOpen} onOpenChange={setRateLimitOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div><CardTitle className="flex items-center gap-2"><ShieldAlert/> Rate Limit Settings</CardTitle><CardDescription>Set a threshold to prevent hitting Binance API rate limits. The official limit is 1200 requests per minute.</CardDescription></div>
@@ -651,7 +652,7 @@ export default function SettingsPage() {
         </Collapsible>
       </Card>
       
-      <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isAiQuotaOpen} onOpenChange={setAiQuotaOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div><CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Quota Management</CardTitle><CardDescription>Set a custom daily limit for AI requests to manage your free tier quota.</CardDescription></div>
@@ -666,7 +667,7 @@ export default function SettingsPage() {
         </Collapsible>
       </Card>
 
-    <Card>
+    <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isTestCardOpen} onOpenChange={setTestCardOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div><CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle><CardDescription>Manually execute trades to test your API connection and settings.</CardDescription></div>
@@ -705,7 +706,7 @@ export default function SettingsPage() {
         </Collapsible>
     </Card>
 
-      <Card>
+      <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
         <Collapsible open={isProfilesOpen} onOpenChange={setProfilesOpen}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div><CardTitle className="flex items-center gap-2"><KeyRound/> API Profiles</CardTitle><CardDescription>Manage your Binance API keys. Keys are now stored on the server.</CardDescription></div>

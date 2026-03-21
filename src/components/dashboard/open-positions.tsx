@@ -52,12 +52,12 @@ export function OpenPositions({ positions, isLoading, onClosePosition, permissio
   const [isOpen, setIsOpen] = usePersistentState<boolean>('dashboard-positions-open', true);
 
   return (
-    <Card>
+    <Card className="bg-slate-950/50 border-slate-800 shadow-lg">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Open Positions</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between border-b border-slate-800/50 pb-4">
+          <CardTitle className="font-bold text-slate-200">Open Positions</CardTitle>
            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-400">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
                   <span className="sr-only">Toggle</span>
               </Button>
@@ -140,8 +140,8 @@ export function OpenPositions({ positions, isLoading, onClosePosition, permissio
                       </TableRow>
                     ))
                 ) : (
-                    <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
+                    <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={8} className="text-center text-slate-500 h-24">
                             No open positions
                         </TableCell>
                     </TableRow>

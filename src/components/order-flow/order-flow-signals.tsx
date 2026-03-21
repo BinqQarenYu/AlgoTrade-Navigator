@@ -50,11 +50,13 @@ export function OrderFlowSignals({
           </CardTitle>
           <div className="flex flex-wrap items-center gap-2">
             <Badge className={`px-3 py-1 text-sm font-black border-2 uppercase tracking-widest ${
-              signal.signal.includes('sell') ? 'bg-red-500 text-white border-red-400 hover:bg-red-600' :
-              signal.signal.includes('buy') ? 'bg-green-500 text-white border-green-400 hover:bg-green-600' :
+              signal.signal.includes('release') ? 'bg-purple-600 text-white border-purple-400 hover:bg-purple-700 shadow-[0_0_15px_rgba(147,51,234,0.4)]' :
+              signal.signal.includes('sell') ? 'bg-red-500 text-white border-red-400 hover:bg-red-600 shadow-[0_0_15px_rgba(239,68,68,0.4)]' :
+              signal.signal.includes('buy') ? 'bg-green-500 text-white border-green-400 hover:bg-green-600 shadow-[0_0_15px_rgba(34,197,94,0.4)]' :
               'bg-yellow-500 text-white border-yellow-400 hover:bg-yellow-600'
             }`}>
-              {sentiment === 'bullish' ? 'BULLISH MARKET' :
+              {signal.signal.includes('release') ? 'LIQUIDATION WARNING' :
+               sentiment === 'bullish' ? 'BULLISH MARKET' :
                sentiment === 'bearish' ? 'BEARISH MARKET' :
                'NEUTRAL MARKET'}
             </Badge>
@@ -64,7 +66,7 @@ export function OrderFlowSignals({
           </div>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             
             {/* Buy Signal Card */}
             <div className={`p-6 rounded-xl border-2 transition-all duration-300 ${
@@ -107,8 +109,8 @@ export function OrderFlowSignals({
                 <div className="space-y-4">
                   <p className="text-slate-500 font-bold text-lg">Wait for execution parameters.</p>
                   <ul className="text-sm text-slate-500 space-y-2">
-                    <li className="flex items-center gap-2">Current Risk: {stats?.averageRiskScore.toFixed(1)}/10</li>
-                    <li className="flex items-center gap-2">Signal Blocked: {signal.signal.replace('_', ' ').toUpperCase()} active</li>
+                     <li className="flex items-center gap-2">Current Risk: {stats?.averageRiskScore.toFixed(1)}/10</li>
+                     <li className="flex items-center gap-2">Signal Blocked: {(signal.signal === 'wait' ? 'waiting' : signal.signal.replace('_', ' ')).toUpperCase()} active</li>
                   </ul>
                   <div className="mt-4 p-4 bg-slate-900/50 border border-slate-800 rounded-lg text-sm text-slate-500">
                     Monitor market flow for shifting conditions.
@@ -134,7 +136,7 @@ export function OrderFlowSignals({
                     Sell Signal
                   </h4>
                   {signal.signal === 'strong_sell' && (
-                    <Badge className="bg-red-500 text-white text-[10px] mt-1 px-2 uppercase font-black tracking-widest">Liquidate</Badge>
+                    <Badge className="bg-red-500 text-white text-[10px] mt-1 px-2 uppercase font-black tracking-widest">Execute Short</Badge>
                   )}
                 </div>
               </div>
@@ -142,16 +144,16 @@ export function OrderFlowSignals({
               {signal.signal.includes('sell') ? (
                 <div className="space-y-4">
                   <p className="text-red-400 font-bold text-lg leading-tight">
-                    {signal.signal === 'strong_sell' ? 'Critical threat. Exit positions immediately.' : 'Warning: Reduce market exposure.'}
+                    {signal.signal === 'strong_sell' ? 'Critical threat. Execute short position.' : 'Warning: Reduce market exposure.'}
                   </p>
                   <ul className="text-sm text-slate-300 space-y-2 font-medium">
                     <li className="flex items-start gap-2"><AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" /> <span className="text-slate-200">{signal.reason}</span></li>
                     <li className="flex items-center gap-2"><Target className="h-4 w-4 text-orange-400 shrink-0" /> Threat Vectors: <strong className="text-white">{stats?.scamCount} patterns detected</strong></li>
-                    <li className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-red-400 shrink-0" /> Manipulation Risk: <strong className="text-white">{stats?.averageRiskScore.toFixed(1)}/10</strong></li>
+                    <li className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-red-400 shrink-0" /> Risk Score: <strong className="text-white">{stats?.averageRiskScore.toFixed(1)}/10</strong></li>
                   </ul>
                   <div className="mt-4 p-4 bg-red-900/30 border border-red-800/50 rounded-lg text-sm text-red-300 font-medium">
                     <span className="font-black text-red-400 block mb-1 uppercase tracking-wider text-xs">Recommended Action</span>
-                    {signal.signal === 'strong_sell' ? 'Close long positions or open short positions.' : 'Consider taking profits or tightening stop losses.'}
+                    {signal.signal === 'strong_sell' ? 'Execute short position with tight stops.' : 'Consider taking short trades.'}
                   </div>
                 </div>
               ) : (
@@ -167,6 +169,58 @@ export function OrderFlowSignals({
                 </div>
               )}
             </div>
+
+            {/* Asset Release Card (Take Profit/Exit) */}
+            <div className={`p-6 rounded-xl border-2 transition-all duration-300 ${
+              signal.signal.includes('release') ? 
+              'bg-purple-950/40 border-purple-500/50 shadow-[0_0_20px_rgba(147,51,234,0.15)] scale-[1.02]' : 
+              'bg-slate-950/50 border-slate-800 opacity-60'
+            }`}>
+              <div className="flex items-center gap-3 mb-5 border-b border-slate-800/50 pb-4">
+                <div className={`p-3 rounded-full ${signal.signal.includes('release') ? 'bg-purple-900/50 text-purple-400 p-2 border border-purple-500/30 shadow-inner' : 'bg-slate-800 text-slate-500'}`}>
+                   {/* Custom Exit Icon */}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
+                </div>
+                <div>
+                  <h4 className={`font-black text-2xl tracking-tighter uppercase ${
+                    signal.signal.includes('release') ? 'text-purple-400' : 'text-slate-500'
+                  }`}>
+                    Asset Release
+                  </h4>
+                  {signal.signal.includes('release') && (
+                    <Badge className="bg-purple-500 text-white text-[10px] mt-1 px-2 uppercase font-black tracking-widest animate-pulse">Exit Position</Badge>
+                  )}
+                </div>
+              </div>
+
+              {signal.signal.includes('release') ? (
+                <div className="space-y-4">
+                  <p className="text-purple-300 font-bold text-lg leading-tight">
+                    Critical toxicity detected. Liquidate positions.
+                  </p>
+                  <ul className="text-sm text-slate-300 space-y-2 font-medium">
+                    <li className="flex items-start gap-2"><Target className="h-4 w-4 text-purple-500 shrink-0 mt-0.5" /> <span className="text-slate-200">{signal.reason}</span></li>
+                    <li className="flex items-center gap-2"><ShieldAlert className="h-4 w-4 text-purple-400 shrink-0" /> Target Action: <strong className="text-white uppercase">{signal.signal.replace('_', ' ')}</strong></li>
+                  </ul>
+                  <div className="mt-4 p-4 bg-purple-900/30 border border-purple-800/50 rounded-lg text-sm text-purple-200 font-medium">
+                    <span className="font-black text-purple-400 block mb-1 uppercase tracking-wider text-xs">Recommended Action</span>
+                    Close open {signal.signal.split('_')[1]} positions immediately to lock in profits or mitigate losses. Waiting could result in slippage.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-slate-500 font-bold text-lg">No liquidation triggers.</p>
+                  <ul className="text-sm text-slate-500 space-y-2">
+                    <li className="flex items-center gap-2">VPIN indicates non-toxic flow.</li>
+                    <li className="flex items-center gap-2">Market conditions stable.</li>
+                  </ul>
+                  <div className="mt-4 p-4 bg-slate-900/50 border border-slate-800 rounded-lg text-sm text-slate-500">
+                    No signs of imminent crash or squeeze. Keep open positions active.
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
         </CardContent>
       </Card>

@@ -2,8 +2,9 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, Shield, Target, AlertTriangle, HelpCircle } from "lucide-react";
+import { TrendingUp, TrendingDown, Activity, Shield, Target, AlertTriangle, HelpCircle, ShieldAlert } from "lucide-react";
 import { orderFlowAnalyzer } from "@/lib/order-flow-analyzer";
+import { DraggableOverlay } from "./draggable-overlay";
 
 interface OrderFlowChartsProps {
   chartData: any[];
@@ -26,47 +27,57 @@ export function OrderFlowCharts({
 }: OrderFlowChartsProps) {
   return (
     <div className="space-y-4">
-          <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-gray-200">
-            <h3 className="font-semibold text-gray-800 mb-2">📊 Order Flow Visualization</h3>
-            <p className="text-sm text-gray-700">
-              Real-time charts showing buy/sell flow, volume patterns, and risk levels for {selectedSymbol}
+          <div className="mb-4 p-5 bg-slate-900 rounded-xl border border-slate-800 shadow-xl">
+            <h3 className="text-xl font-black text-white flex items-center gap-3 tracking-tight mb-2">
+              <Activity className="h-6 w-6 text-blue-500" /> Order Flow Visualization
+            </h3>
+            <p className="text-sm text-slate-400 font-medium">
+              Real-time charts showing buy/sell flow, volume patterns, and risk levels for <span className="text-blue-400">{selectedSymbol}</span>
             </p>
-            <div className="text-xs bg-yellow-100 p-2 rounded mt-2 border border-yellow-300">
-              🔍 Debug Info: Chart data length: {chartData.length} | Selected interval: {selectedTimeInterval}
+            <div className="text-xs text-slate-400 bg-slate-950 p-3 rounded-lg mt-4 border border-slate-800 font-mono shadow-inner">
+              <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-widest text-slate-500 mb-2 border-b border-white/5 pb-2">
+                 <Target className="h-3 w-3 text-blue-500" /> Debug Telemetry
+              </div>
+              <div className="flex flex-wrap gap-4 items-center">
+                 <span>Length: <strong className="text-white">{chartData.length}</strong></span>
+                 <span>Interval: <strong className="text-white">{selectedTimeInterval}</strong></span>
+              </div>
+              
               {chartData.length > 0 && (
-                <div className="mt-1">
-                  Latest data: Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)} | 
-                  Sell Vol: {chartData[chartData.length - 1]?.sellVolume?.toFixed(2)}
+                <div className="mt-2 flex flex-wrap items-center gap-3 pt-2">
+                  <span className="text-green-400 bg-green-950/30 px-2 py-0.5 rounded border border-green-900/50 flex items-center gap-1">
+                     <TrendingUp className="h-3 w-3" /> Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)}
+                  </span>
+                  <span className="text-red-400 bg-red-950/30 px-2 py-0.5 rounded border border-red-900/50 flex items-center gap-1">
+                     <TrendingDown className="h-3 w-3" /> Sell Vol: {chartData[chartData.length - 1]?.sellVolume?.toFixed(2)}
+                  </span>
                 </div>
               )}
               {chartData.length === 0 && (
-                <div className="mt-1 text-red-600 font-semibold">⚠️ No chart data available! Check console for data generation logs.</div>
+                <div className="mt-2 pt-2 text-orange-400 font-semibold animate-pulse tracking-widest uppercase text-[10px] flex items-center gap-1">
+                   <AlertTriangle className="h-3 w-3" /> No chart data available! Awaiting buffer fill.
+                </div>
               )}
             </div>
           </div>
 
           {/* Time Interval Selector */}
-          <Card className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-indigo-200">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 bg-slate-900 border-slate-800 shadow-md">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-indigo-800">⏰ Time Interval:</label>
+                <label className="text-xs uppercase font-black tracking-widest text-slate-500">Time Interval:</label>
                 <select 
                   value={selectedTimeInterval}
                   onChange={(e) => setSelectedTimeInterval(e.target.value)}
-                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
-                  style={{ 
-                    color: '#1f2937', 
-                    backgroundColor: '#ffffff',
-                    fontWeight: '600'
-                  }}
+                  className="px-3 py-1.5 border border-slate-700 rounded-md bg-slate-950 text-white text-sm font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all tracking-wider"
                 >
-                  <option value="30s" className="text-gray-800 font-semibold bg-white">30 Seconds</option>
-                  <option value="5m" className="text-gray-800 font-semibold bg-white">5 Minutes</option>
-                  <option value="1h" className="text-gray-800 font-semibold bg-white">1 Hour</option>
-                  <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
+                  <option value="30s">30 Seconds</option>
+                  <option value="5m">5 Minutes</option>
+                  <option value="1h">1 Hour</option>
+                  <option value="4h">4 Hours</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
                     console.log('🔄 Manual data generation triggered');
@@ -88,54 +99,55 @@ export function OrderFlowCharts({
                     setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
                     updateChartData(analyzed);
                   }}
-                  className="px-3 py-1 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 transition-colors"
+                  className="px-3 py-1.5 bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 rounded text-xs font-black uppercase tracking-widest hover:bg-indigo-600/40 transition-colors flex items-center gap-2"
                 >
-                  🔄 Generate Data
+                  <Activity className="h-3 w-3" /> Generate Pulse
                 </button>
-                <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
-                  Updates every 1 minute
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest animate-pulse">
+                  Live Buffer Active
                 </span>
               </div>
             </div>
           </Card>
 
           {/* Order Flow Chart */}
-          <Card className="border-2 border-blue-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-800">
-                📈 Buy vs Sell Flow Over Time
+          <Card className="border-slate-800 bg-slate-900/50 shadow-xl overflow-hidden mt-4">
+            <CardHeader className="bg-slate-950 pb-4 border-b border-white/5">
+              <CardTitle className="flex items-center gap-2 text-white font-black text-xl tracking-tighter uppercase">
+                <TrendingUp className="h-5 w-5 text-indigo-500" />
+                Aggregated Volume Flow
                 {isMonitoring && (
-                  <Badge className="bg-green-500 animate-pulse text-xs">LIVE</Badge>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse text-[9px] font-black uppercase tracking-widest ml-2">LIVE</Badge>
                 )}
               </CardTitle>
-              <CardDescription>
-                Green areas show buying pressure, red areas show selling pressure
+              <CardDescription className="text-slate-500 font-medium">
+                Differential buy vs sell pressure mapped against time.
               </CardDescription>
             </CardHeader>
             <CardContent>
               {/* Chart Guide */}
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="mb-4 p-3 bg-indigo-950/20 rounded-lg border border-indigo-900/30">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] uppercase font-bold tracking-widest text-slate-400">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-500 rounded"></div>
-                      <span className="font-semibold">Green Area ↑</span>
+                      <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+                      <span className="text-green-400">Green Area ↑</span>
                     </div>
-                    <span className="text-muted-foreground">High buying pressure = Bullish sentiment</span>
+                    <span className="text-slate-500/80">Bullish Pressure</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-500 rounded"></div>
-                      <span className="font-semibold">Red Area ↓</span>
+                      <div className="w-2 h-2 bg-red-500 rounded-full shadow-[0_0_5px_rgba(239,68,68,0.5)]"></div>
+                      <span className="text-red-400">Red Area ↓</span>
                     </div>
-                    <span className="text-muted-foreground">High selling pressure = Bearish sentiment</span>
+                    <span className="text-slate-500/80">Bearish Pressure</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <TrendingUp className="w-3 h-3 text-blue-500" />
-                      <span className="font-semibold">Look for:</span>
+                      <TrendingUp className="w-3 h-3 text-indigo-400" />
+                      <span className="text-indigo-400">Look for:</span>
                     </div>
-                    <span className="text-muted-foreground">Green &gt; Red for buy signals</span>
+                    <span className="text-slate-500/80">Green &gt; Red = Buy</span>
                   </div>
                 </div>
               </div>
@@ -299,7 +311,7 @@ export function OrderFlowCharts({
                 
                 {/* Floating annotations */}
                 {chartData.length > 0 && (
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                  <DraggableOverlay id="current-trend-overlay" defaultPosition={{ x: 250, y: 16 }}>
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <span className="font-semibold">Current Trend ({selectedTimeInterval}):</span>
@@ -339,35 +351,35 @@ export function OrderFlowCharts({
                         }
                       </div>
                     </div>
-                  </div>
+                  </DraggableOverlay>
                 )}
               </div>
               
               {/* Quick Analysis */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-red-50 rounded-lg">
-                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                  <Target className="w-4 h-4" />
+              <div className="mt-4 p-4 bg-slate-950/50 rounded-xl border border-white/5">
+                <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                  <Target className="w-4 h-4 text-indigo-500" />
                   Quick Analysis Guide
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-600 font-semibold">✅ Buy Signal:</span>
-                      <span>Green area consistently above red</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-medium">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded bg-green-950/20 border border-green-900/30">
+                      <span className="text-green-500 font-bold uppercase tracking-wider text-[9px] w-20">Buy Signal</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Green consistently above red</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-600 font-semibold">❌ Sell Signal:</span>
-                      <span>Red area dominates over green</span>
+                    <div className="flex items-center gap-2 p-2 rounded bg-red-950/20 border border-red-900/30">
+                      <span className="text-red-500 font-bold uppercase tracking-wider text-[9px] w-20">Sell Signal</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Red area dominates over green</span>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-yellow-600 font-semibold">⚠️ Caution:</span>
-                      <span>Equal areas = sideways market</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded bg-yellow-950/20 border border-yellow-900/30">
+                      <span className="text-yellow-500 font-bold uppercase tracking-wider text-[9px] w-20">Caution</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Equal areas = sideways market</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-blue-600 font-semibold">💡 Tip:</span>
-                      <span>Watch for trend changes at peaks</span>
+                    <div className="flex items-center gap-2 p-2 rounded bg-indigo-950/20 border border-indigo-900/30">
+                      <span className="text-indigo-400 font-bold uppercase tracking-wider text-[9px] w-20">Edge Tip</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Watch for reversals at volume peaks</span>
                     </div>
                   </div>
                 </div>
@@ -376,39 +388,39 @@ export function OrderFlowCharts({
           </Card>
 
           {/* Risk Level Chart */}
-          <Card className="border-2 border-red-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-red-800">
-                ⚠️ Risk Level Tracking
+          <Card className="border-slate-800 bg-slate-900/50 shadow-xl overflow-hidden mt-4">
+            <CardHeader className="bg-slate-950 pb-4 border-b border-white/5">
+              <CardTitle className="flex items-center gap-2 text-white font-black text-xl tracking-tighter uppercase">
+                <Shield className="h-5 w-5 text-red-500" /> Risk Level Tracking
               </CardTitle>
-              <CardDescription>
-                Average risk score over time intervals (0-10 scale)
+              <CardDescription className="text-slate-500 font-medium">
+                Average risk score mapped over time (0-10 scale).
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               {/* Risk Guide */}
-              <div className="mb-4 p-3 bg-red-50 rounded-lg border border-red-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div className="mb-6 p-3 bg-red-950/10 rounded-lg border border-red-900/20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-[10px] uppercase font-bold tracking-widest text-slate-400">
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-500 rounded"></div>
-                      <span className="font-semibold">0-3 Safe ✅</span>
+                      <div className="w-2 h-2 bg-green-500 rounded-full shadow-[0_0_5px_rgba(34,197,94,0.5)]"></div>
+                      <span className="text-green-500">0-3 Range</span>
                     </div>
-                    <span className="text-muted-foreground">Low manipulation risk</span>
+                    <span className="text-slate-500/80">Low Risk</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-yellow-500 rounded"></div>
-                      <span className="font-semibold">4-6 Caution ⚠️</span>
+                      <div className="w-2 h-2 bg-orange-500 rounded-full shadow-[0_0_5px_rgba(249,115,22,0.5)]"></div>
+                      <span className="text-orange-500">4-6 Range</span>
                     </div>
-                    <span className="text-muted-foreground">Moderate risk - be careful</span>
+                    <span className="text-slate-500/80">Medium Risk</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-500 rounded animate-pulse"></div>
-                      <span className="font-semibold">7-10 Danger 🚨</span>
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+                      <span className="text-red-500 font-black">7-10 Danger</span>
                     </div>
-                    <span className="text-muted-foreground">High risk - avoid trading</span>
+                    <span className="text-slate-500/80">High Manipulation</span>
                   </div>
                 </div>
               </div>
@@ -513,7 +525,7 @@ export function OrderFlowCharts({
                 
                 {/* Risk level indicator */}
                 {chartData.length > 0 && (
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                  <DraggableOverlay id="danger-level-overlay" defaultPosition={{ x: 250, y: 16 }}>
                     <div className="flex items-center gap-2 mb-1">
                       <div className={`w-2 h-2 rounded-full ${
                         chartData[chartData.length - 1]?.avgRisk <= 3 ? 'bg-green-500' :
@@ -527,7 +539,7 @@ export function OrderFlowCharts({
                        chartData[chartData.length - 1]?.avgRisk <= 6 ? '🟡 Use Caution' :
                        '🔴 High Risk - Avoid'}
                     </div>
-                  </div>
+                  </DraggableOverlay>
                 )}
                 
                 {/* Risk threshold annotations */}
@@ -540,32 +552,29 @@ export function OrderFlowCharts({
               </div>
               
               {/* Risk Analysis Guide */}
-              <div className="mt-4 p-3 bg-gradient-to-r from-red-50 to-green-50 rounded-lg">
-                <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Risk Analysis Guide
+              <div className="mt-4 p-4 bg-slate-950/50 rounded-xl border border-white/5">
+                <h4 className="font-black text-[10px] uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-500" />
+                  Risk Protocols
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-green-600 font-semibold">🟢 Safe (0-3):</span>
-                      <span>Normal trading, low manipulation</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-medium">
+                  <div className="space-y-2">
+                    <div className="flex flex-col p-2 rounded bg-green-950/20 border border-green-900/30 h-full justify-center">
+                      <span className="text-green-500 font-bold uppercase tracking-wider text-[9px] mb-1">Level 0-3: Optimal</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Low manipulation. Ideal for position building.</span>
                     </div>
-                    <div className="text-muted-foreground">Good time to enter positions</div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-yellow-600 font-semibold">🟡 Caution (4-6):</span>
-                      <span>Some suspicious activity detected</span>
+                  <div className="space-y-2">
+                    <div className="flex flex-col p-2 rounded bg-orange-950/20 border border-orange-900/30 h-full justify-center">
+                      <span className="text-orange-500 font-bold uppercase tracking-wider text-[9px] mb-1">Level 4-6: Caution</span>
+                      <span className="text-slate-400 text-[10px] uppercase">Suspicious patterns detected. Scale down sizing.</span>
                     </div>
-                    <div className="text-muted-foreground">Reduce position sizes, monitor closely</div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-red-600 font-semibold">🔴 Danger (7-10):</span>
-                      <span>High manipulation risk</span>
+                  <div className="space-y-2">
+                    <div className="flex flex-col p-2 rounded bg-red-950/20 border border-red-900/30 h-full justify-center">
+                      <span className="text-red-500 font-black uppercase tracking-wider text-[9px] mb-1 animate-pulse">Level 7-10: Critical</span>
+                      <span className="text-slate-400 text-[10px] uppercase">High toxicity. Hedge or liquidate immediately.</span>
                     </div>
-                    <div className="text-muted-foreground">Exit positions, avoid new trades</div>
                   </div>
                 </div>
               </div>
@@ -664,7 +673,7 @@ export function OrderFlowCharts({
                   
                   {/* Order imbalance indicator */}
                   {chartData.length > 0 && (
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                    <DraggableOverlay id="imbalance-overlay" defaultPosition={{ x: 250, y: 16 }}>
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`w-2 h-2 rounded-full ${
                           (chartData[chartData.length - 1]?.buyCount || 0) > (chartData[chartData.length - 1]?.sellCount || 0) ? 
@@ -677,7 +686,7 @@ export function OrderFlowCharts({
                           '🟢 Buy Dominated' : 
                           '🔴 Sell Dominated'}
                       </div>
-                    </div>
+                    </DraggableOverlay>
                   )}
                 </div>
                 
@@ -821,7 +830,7 @@ export function OrderFlowCharts({
                   
                   {/* Flow direction indicator */}
                   {chartData.length > 0 && (
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800">
+                    <DraggableOverlay id="flow-direction-overlay" defaultPosition={{ x: 250, y: 16 }}>
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`w-2 h-2 rounded-full ${
                           (chartData[chartData.length - 1]?.netFlow || 0) > 0 ? 'bg-green-500' : 'bg-red-500'
@@ -833,7 +842,7 @@ export function OrderFlowCharts({
                           '🟢 Bullish Flow' : 
                           '🔴 Bearish Flow'}
                       </div>
-                    </div>
+                    </DraggableOverlay>
                   )}
                   
                   {/* Zero line annotation */}
