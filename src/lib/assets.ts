@@ -8,7 +8,6 @@ export const allPairs = assetRegistry.getAllPairs();
 
 export const parseSymbolString = (symbol: string) => assetRegistry.parseSymbolString(symbol);
 export const getAvailableQuotesForBase = (base: string) => assetRegistry.getAvailableQuotesForBase(base);
-export const getAvailableBases = () => assetRegistry.getAvailableBases();
 
 export const topBases = assetRegistry.getTopAssets().map(a => a.ticker);
 export const topAssets = assetRegistry.getTopAssets();
