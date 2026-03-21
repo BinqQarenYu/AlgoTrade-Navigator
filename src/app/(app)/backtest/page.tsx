@@ -19,15 +19,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, GitCompareArrows, Play, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, BarChart2, TrendingUp, DollarSign, Settings, ShieldCheck, Info } from "lucide-react"
+import { Loader2, Terminal, Bot, ChevronDown, BrainCircuit, Wand2, RotateCcw, GripHorizontal, Pause, StepForward, StepBack, History, CalendarIcon, Send, Trash2, TestTube, ShieldAlert, AreaChart, ShieldCheck, Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade, Strategy } from "@/lib/types"
 import { BacktestResults } from "@/components/backtest-results"
