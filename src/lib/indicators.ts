@@ -534,58 +534,59 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
     return haData;
 };
 
-export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
-    const pp: (number | null)[] = [];
-    const s1: (number | null)[] = [];
-    const s2: (number | null)[] = [];
-    const s3: (number | null)[] = [];
-    const r1: (number | null)[] = [];
-    const r2: (number | null)[] = [];
-    const r3: (number | null)[] = [];
+/**
+ * Calculates Pivot Points (Standard/Classic) for a given set of data.
+ * Optimized to O(N) using sliding window extremes.
+ *
+ * Note: Standard Pivot Points for a period typically use the high/low/close
+ * of the *previous* period. This implementation matches that by sliding
+ * the window up to (but not including) the current index.
+ *
+ * @param data Array of historical candle data
+ * @param period Lookback period
+ * @returns Object containing arrays for PP, S1-S3, and R1-R3
+ */
+export const calculatePivotPoints = (data: HistoricalData[], period: number): {
+  pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[],
+  r1: (number|null)[], r2: (number|null)[], r3: (number|null)[]
+} => {
+    const n = data.length;
+    const pp: (number | null)[] = Array(n).fill(null);
+    const s1: (number | null)[] = Array(n).fill(null);
+    const s2: (number | null)[] = Array(n).fill(null);
+    const s3: (number | null)[] = Array(n).fill(null);
+    const r1: (number | null)[] = Array(n).fill(null);
+    const r2: (number | null)[] = Array(n).fill(null);
+    const r3: (number | null)[] = Array(n).fill(null);
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period) {
-            pp.push(null);
-            s1.push(null);
-            s2.push(null);
-            s3.push(null);
-            r1.push(null);
-            r2.push(null);
-            r3.push(null);
-        } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
-                 pp.push(null);
-                 s1.push(null);
-                 s2.push(null);
-                 s3.push(null);
-                 r1.push(null);
-                 r2.push(null);
-                 r3.push(null);
-                 continue;
-            }
+    if (n < period) return { pp, s1, s2, s3, r1, r2, r3 };
 
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
 
-            const ppVal = (high + low + close) / 3;
-            const r1Val = (2 * ppVal) - low;
-            const s1Val = (2 * ppVal) - high;
-            const r2Val = ppVal + (high - low);
-            const s2Val = ppVal - (high - low);
-            const r3Val = high + 2 * (ppVal - low);
-            const s3Val = low - 2 * (high - ppVal);
+    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
 
-            pp.push(ppVal);
-            r1.push(r1Val);
-            s1.push(s1Val);
-            r2.push(r2Val);
-            s2.push(s2Val);
-            r3.push(r3Val);
-            s3.push(s3Val);
-        }
+    for (let i = period; i < n; i++) {
+        // Pivot points for current candle use high/low from PREVIOUS 'period' candles
+        // and the close price of the candle immediately preceding the current one.
+        const prevIdx = i - 1;
+        const high = periodHighs[prevIdx];
+        const low = periodLows[prevIdx];
+        const close = data[prevIdx].close;
+
+        if (high === null || low === null) continue;
+
+        const ppVal = (high + low + close) / 3;
+        pp[i] = ppVal;
+        r1[i] = (2 * ppVal) - low;
+        s1[i] = (2 * ppVal) - high;
+        r2[i] = ppVal + (high - low);
+        s2[i] = ppVal - (high - low);
+        r3[i] = high + 2 * (ppVal - low);
+        s3[i] = low - 2 * (high - ppVal);
     }
+
     return { pp, s1, s2, s3, r1, r2, r3 };
 };
 
