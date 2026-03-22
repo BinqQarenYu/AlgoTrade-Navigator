@@ -25,7 +25,7 @@ export function KeyPriceLevels({ levels, isAnalyzing }: KeyPriceLevelsProps) {
       isAnalyzing && "opacity-50 grayscale animate-pulse pointer-events-none"
     )}>
       <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <CardTitle className="text-xl flex items-center gap-2">
               <LineChart className="h-5 w-5 text-primary" />
@@ -36,7 +36,7 @@ export function KeyPriceLevels({ levels, isAnalyzing }: KeyPriceLevelsProps) {
             </CardDescription>
           </div>
           {levels.length > 0 && (
-            <Badge variant="outline" className="text-[10px] tracking-widest uppercase">
+            <Badge variant="outline" className="w-fit self-start sm:self-auto text-[10px] tracking-widest uppercase">
               {levels.length} LEVELS DETECTED
             </Badge>
           )}
@@ -49,16 +49,16 @@ export function KeyPriceLevels({ levels, isAnalyzing }: KeyPriceLevelsProps) {
               <div key={i} className="flex items-center justify-between p-3.5 rounded-xl border border-primary/10 bg-muted/30 hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3">
                   <div className={cn(
-                    "p-2 rounded-lg",
+                    "p-2 rounded-lg shrink-0",
                     level.type === 'resistance' ? "bg-red-500/10 text-red-500" : "bg-green-500/10 text-green-500"
                   )}>
                     {level.type === 'resistance' ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
                   </div>
-                  <div>
+                  <div className="flex flex-col items-start gap-1">
                     <Badge 
                       variant="outline"
                       className={cn(
-                        "text-[9px] font-bold px-1.5 py-0 mb-1",
+                        "text-[9px] font-bold px-1.5 py-0",
                         level.type === 'resistance' ? "text-red-500 border-red-500/20" : "text-green-500 border-green-500/20"
                       )}
                     >
