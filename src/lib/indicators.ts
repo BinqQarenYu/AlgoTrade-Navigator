@@ -589,7 +589,6 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
     const highs = data.map(d => d.high);
     const lows = data.map(d => d.low);
-
     const rollingMaxHigh = calculateSlidingWindowExtreme(highs, period, 'max');
     const rollingMinLow = calculateSlidingWindowExtreme(lows, period, 'min');
 
