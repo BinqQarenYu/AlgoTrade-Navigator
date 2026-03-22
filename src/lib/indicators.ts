@@ -161,28 +161,31 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
 
 export const calculateStandardDeviation = (data: number[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
-    const stdDev: (number | null)[] = Array(period - 1).fill(null);
 
+    // ⚡ Bolt Optimization: Replace push() and closures with pre-allocated array and inline math
+    const stdDev: (number | null)[] = new Array(data.length);
     let sum = 0;
     let sumSq = 0;
 
     for (let i = 0; i < period; i++) {
+        stdDev[i] = null;
         sum += data[i];
         sumSq += data[i] * data[i];
     }
 
-    const calcStd = (s: number, sSq: number, p: number) => {
-        const mean = s / p;
-        const variance = (sSq / p) - (mean * mean);
-        return Math.sqrt(Math.max(0, variance));
-    };
-
-    stdDev.push(calcStd(sum, sumSq, period));
+    let mean = sum / period;
+    let variance = (sumSq / period) - (mean * mean);
+    stdDev[period - 1] = Math.sqrt(variance > 0 ? variance : 0);
 
     for (let i = period; i < data.length; i++) {
-        sum = sum - data[i - period] + data[i];
-        sumSq = sumSq - (data[i - period] * data[i - period]) + (data[i] * data[i]);
-        stdDev.push(calcStd(sum, sumSq, period));
+        const outVal = data[i - period];
+        const inVal = data[i];
+        sum = sum - outVal + inVal;
+        sumSq = sumSq - (outVal * outVal) + (inVal * inVal);
+
+        mean = sum / period;
+        variance = (sumSq / period) - (mean * mean);
+        stdDev[i] = Math.sqrt(variance > 0 ? variance : 0);
     }
 
     return stdDev;
@@ -191,33 +194,70 @@ export const calculateStandardDeviation = (data: number[], period: number): (num
 export const calculateBollingerBands = (data: number[], period: number, stdDevMultiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
     const middle = calculateSMA(data, period);
     const stdDev = calculateStandardDeviation(data, period);
-    const upper = middle.map((val, i) => val !== null && stdDev[i] !== null ? val + (stdDev[i]! * stdDevMultiplier) : null);
-    const lower = middle.map((val, i) => val !== null && stdDev[i] !== null ? val - (stdDev[i]! * stdDevMultiplier) : null);
+
+    // ⚡ Bolt Optimization: Replace chained .map() with single pass using pre-allocated arrays
+    const upper: (number | null)[] = new Array(data.length);
+    const lower: (number | null)[] = new Array(data.length);
+
+    for (let i = 0; i < data.length; i++) {
+        const midVal = middle[i];
+        const stdVal = stdDev[i];
+        if (midVal !== null && stdVal !== null) {
+            const dev = stdVal * stdDevMultiplier;
+            upper[i] = midVal + dev;
+            lower[i] = midVal - dev;
+        } else {
+            upper[i] = null;
+            lower[i] = null;
+        }
+    }
+
     return { upper, middle, lower };
 };
 
 export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: number, signalPeriod: number): { macd: (number | null)[], signal: (number | null)[], histogram: (number | null)[] } => {
     const emaShort = calculateEMA(data, shortPeriod);
     const emaLong = calculateEMA(data, longPeriod);
-    const macdLine = emaShort.map((shortVal, i) => {
+
+    // ⚡ Bolt Optimization: Replace chained array mutations (.map, .filter, array spreads)
+    // with single-pass iterative loops using pre-allocated arrays
+    const macdLine: (number | null)[] = new Array(data.length);
+    const validMacd: number[] = [];
+    let padding = 0;
+
+    for (let i = 0; i < data.length; i++) {
+        const shortVal = emaShort[i];
         const longVal = emaLong[i];
         if (shortVal !== null && longVal !== null) {
-            return shortVal - longVal;
+            const val = shortVal - longVal;
+            macdLine[i] = val;
+            validMacd.push(val);
+        } else {
+            macdLine[i] = null;
+            padding++;
         }
-        return null;
-    });
+    }
 
-    const validMacd = macdLine.filter((v): v is number => v !== null);
-    const padding = macdLine.length - validMacd.length;
-    const signalLinePadded = [...Array(padding).fill(null), ...calculateEMA(validMacd, signalPeriod)];
+    const signalEMA = calculateEMA(validMacd, signalPeriod);
+    const signalLinePadded: (number | null)[] = new Array(data.length);
     
-    const histogram = macdLine.map((macdVal, i) => {
+    for (let i = 0; i < padding; i++) {
+        signalLinePadded[i] = null;
+    }
+    for (let i = 0; i < signalEMA.length; i++) {
+        signalLinePadded[padding + i] = signalEMA[i];
+    }
+
+    const histogram: (number | null)[] = new Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+        const macdVal = macdLine[i];
         const signalVal = signalLinePadded[i];
         if (macdVal !== null && signalVal !== null) {
-            return macdVal - signalVal;
+            histogram[i] = macdVal - signalVal;
+        } else {
+            histogram[i] = null;
         }
-        return null;
-    });
+    }
 
     return { macd: macdLine, signal: signalLinePadded, histogram };
 };
