@@ -543,8 +543,18 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
     const r2: (number | null)[] = [];
     const r3: (number | null)[] = [];
 
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const windowHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const windowLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     for (let i = 0; i < data.length; i++) {
-        if (i < period) {
+        // Pivot points for index i use data from (i-period) to (i-1)
+        const prevIdx = i - 1;
+        const high = prevIdx >= 0 ? windowHighs[prevIdx] : null;
+        const low = prevIdx >= 0 ? windowLows[prevIdx] : null;
+
+        if (i < period || high === null || low === null) {
             pp.push(null);
             s1.push(null);
             s2.push(null);
@@ -553,22 +563,7 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             r2.push(null);
             r3.push(null);
         } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
-                 pp.push(null);
-                 s1.push(null);
-                 s2.push(null);
-                 s3.push(null);
-                 r1.push(null);
-                 r2.push(null);
-                 r3.push(null);
-                 continue;
-            }
-
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
-
+            const close = data[prevIdx].close;
             const ppVal = (high + low + close) / 3;
             const r1Val = (2 * ppVal) - low;
             const s1Val = (2 * ppVal) - high;
