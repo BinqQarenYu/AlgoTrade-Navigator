@@ -34,3 +34,7 @@
 **Learning:** Sequential async operations in UI loops (like running many backtest simulations one after the other) drastically block the execution pipeline, leading to long delays.
 **Action:** Use chunked parallel execution with `Promise.all` to batch the operations. This allows the network/computation overhead to run concurrently without overwhelming the backend or browser limits.
 
+
+## 2025-02-14 - Replace O(N * P) WMA with O(N) Sliding Window
+**Learning:** Found an $O(N \times P)$ complexity bottleneck in `calculateCoppockCurve` where a nested `for` loop was used to recalculate the numerator of a Weighted Moving Average (WMA) at every tick. This degraded performance during backtesting when computing across large arrays.
+**Action:** Replaced the nested loop with an $O(N)$ sliding window by maintaining a `windowSum` alongside the running numerator. The new element is weighted at $P$, while all previous elements shift weight by exactly $-1$, reducing the WMA step to a single $O(1)$ calculation per tick.

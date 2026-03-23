@@ -645,21 +645,24 @@ export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC:
     const validSumRoc = sumRoc.filter((v): v is number => v !== null);
     const padding = sumRoc.length - validSumRoc.length;
 
+    // ⚡ Bolt Optimization: Replaced O(N * wmaPeriod) nested loop WMA calculation
+    // with an O(N) sliding window to drastically reduce execution latency
+    // and redundant iterations when computing the Coppock Curve.
     const wma: (number | null)[] = [];
     if (validSumRoc.length >= wmaPeriod) {
         let num = 0;
-        let den = 0;
+        let den = (wmaPeriod * (wmaPeriod + 1)) / 2;
+        let windowSum = 0;
+
         for (let j = 0; j < wmaPeriod; j++) {
             num += validSumRoc[j] * (j + 1);
-            den += (j + 1);
+            windowSum += validSumRoc[j];
         }
         wma.push(den > 0 ? num / den : null);
 
         for (let i = wmaPeriod; i < validSumRoc.length; i++) {
-            num = 0;
-            for (let j = 0; j < wmaPeriod; j++) {
-                num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
-            }
+            num = num - windowSum + wmaPeriod * validSumRoc[i];
+            windowSum = windowSum - validSumRoc[i - wmaPeriod] + validSumRoc[i];
             wma.push(den > 0 ? num / den : null);
         }
     }
