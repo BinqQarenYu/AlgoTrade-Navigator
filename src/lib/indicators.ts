@@ -543,7 +543,13 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
     const r2: (number | null)[] = [];
     const r3: (number | null)[] = [];
 
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const rollingHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const rollingLows = calculateSlidingWindowExtreme(lows, period, 'min');
+
     for (let i = 0; i < data.length; i++) {
+        // Pivot points for candle i are calculated using data from the PREVIOUS 'period' candles (i-period to i-1)
         if (i < period) {
             pp.push(null);
             s1.push(null);
@@ -553,8 +559,12 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
             r2.push(null);
             r3.push(null);
         } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
+            // High/Low of previous 'period' candles are available in rolling results at index i-1
+            const high = rollingHighs[i - 1];
+            const low = rollingLows[i - 1];
+            const close = data[i - 1].close;
+
+            if (high === null || low === null) {
                  pp.push(null);
                  s1.push(null);
                  s2.push(null);
@@ -564,10 +574,6 @@ export const calculatePivotPoints = (data: HistoricalData[], period: number): { 
                  r3.push(null);
                  continue;
             }
-
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
 
             const ppVal = (high + low + close) / 3;
             const r1Val = (2 * ppVal) - low;
