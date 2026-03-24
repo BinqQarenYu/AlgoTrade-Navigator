@@ -134,7 +134,15 @@ function processShortSetup(params: SetupParams): boolean {
     }
     if (!isEmaBearish) return false;
 
-    const lowSinceBos = Math.min(...data.slice(bosIndex, i + 1).map(c => c.low));
+    // ⚡ Bolt Optimization: Replacing O(N) slice + map + spread Math.min
+    // with a single loop that doesn't allocate memory and drastically reduces GC overhead
+    let lowSinceBos = Infinity;
+    for (let k = bosIndex; k <= i; k++) {
+        if (data[k].low < lowSinceBos) {
+            lowSinceBos = data[k].low;
+        }
+    }
+
     const fibRange = peakHigh - lowSinceBos;
     const fib50 = lowSinceBos + fibRange * fibLevel1;
     if (debug) {
@@ -225,7 +233,15 @@ function processLongSetup(params: SetupParams): boolean {
     }
     if (!isEmaBullish) return false;
 
-    const highSinceBos = Math.max(...data.slice(bosIndexLong, i + 1).map(c => c.high));
+    // ⚡ Bolt Optimization: Replacing O(N) slice + map + spread Math.max
+    // with a single loop that doesn't allocate memory and drastically reduces GC overhead
+    let highSinceBos = -Infinity;
+    for (let k = bosIndexLong; k <= i; k++) {
+        if (data[k].high > highSinceBos) {
+            highSinceBos = data[k].high;
+        }
+    }
+
     const fibRangeLong = highSinceBos - peakLow;
     const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
     if (debug) {

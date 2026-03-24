@@ -34,3 +34,7 @@
 **Learning:** Sequential async operations in UI loops (like running many backtest simulations one after the other) drastically block the execution pipeline, leading to long delays.
 **Action:** Use chunked parallel execution with `Promise.all` to batch the operations. This allows the network/computation overhead to run concurrently without overwhelming the backend or browser limits.
 
+
+## 2024-05-20 - [Optimize N+1 Iteration Operations in Next.js Algorithmic Paths]
+**Learning:** Chained array mutations like `slice().reduce()` and `slice().map()` inside nested loops or tight sequential loops (like those in trading strategies and data enrichers) create massive garbage collection (GC) pressure via unneeded intermediate array allocations and can potentially blow up call stack sizes in V8 when paired with the spread operator (`...`). In `MicrostructureEnricher`, the `slice().reduce()` operation caused an O(N * windowSize) complexity and artificial GC spikes.
+**Action:** Explicitly enforce single-pass array processing (e.g., sliding windows, precomputed running trackers, pointer tracking) to achieve O(N) time complexity and eliminate internal memory allocations inside high-frequency loops. Pre-allocate fixed-size result arrays where output lengths are known to avoid V8 dynamic resizing.
