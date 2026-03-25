@@ -376,6 +376,7 @@ export function TradingChart({
                 className="h-8 w-8"
                 onClick={handleTakeSnapshot}
                 title="Take Snapshot"
+                aria-label="Take chart snapshot"
               >
                 <Camera className="h-4 w-4" />
               </Button>
