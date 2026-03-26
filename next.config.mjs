@@ -19,6 +19,7 @@ const nextConfig = {
   },
   experimental: {
     ppr: false,
+    instrumentationHook: true,
   },
 };
 

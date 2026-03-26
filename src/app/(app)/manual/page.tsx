@@ -1,5 +1,3 @@
-
-
 "use client"
 
 import React, { useState, useEffect, memo, useCallback, useRef } from "react"
@@ -13,14 +11,58 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, Layers } from "lucide-react"
+import { Bot, Play, StopCircle, ChevronDown, PlusCircle, Trash2, Settings, BrainCircuit, RotateCcw, CheckCircle, Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, Layers, Eye, FileText , LayoutDashboard, X, GripHorizontal } from "lucide-react"
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
+import { VisualHudPanel } from "@/components/manual/visual-hud-panel"
+import { EventDossierPanel } from "@/components/manual/event-dossier-panel"
+import { AnomalyTicker } from "@/components/anomaly-ticker"
 import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn, formatPrice } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+const DraggableOverlay = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => {
+    const [position, setPosition] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 450 : 800, y: 100 });
+    const [isDragging, setIsDragging] = useState(false);
+    const dragRef = useRef<HTMLDivElement>(null);
+    const offsetRef = useRef({ x: 0, y: 0 });
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        setIsDragging(true);
+        if (dragRef.current) {
+            const rect = dragRef.current.getBoundingClientRect();
+            offsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isDragging) return;
+        const handleMouseMove = (e: MouseEvent) => {
+             e.preventDefault();
+             setPosition({ x: e.clientX - offsetRef.current.x, y: e.clientY - offsetRef.current.y });
+        };
+        const handleMouseUp = () => setIsDragging(false);
+
+        window.addEventListener('mousemove', handleMouseMove, { passive: false });
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
+    return (
+        <div ref={dragRef} style={{ left: position.x, top: position.y, position: 'fixed' }} className="z-[100] shadow-2xl bg-slate-950/95 backdrop-blur-xl border border-indigo-500/50 rounded-xl w-[400px] flex flex-col overflow-hidden">
+            <div className="p-3 border-b border-white/10 bg-indigo-950/40 cursor-move flex justify-between items-center" onMouseDown={handleMouseDown}>
+                <div className="flex items-center gap-2 select-none"><GripHorizontal className="w-4 h-4 text-indigo-400 opacity-70" /><span className="text-sm font-bold tracking-wider text-slate-200 uppercase">{title}</span></div>
+                <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><X className="w-4 h-4"/></button>
+            </div>
+            <div className="p-4 max-h-[70vh] overflow-y-auto custom-scrollbar">{children}</div>
+        </div>
+    );
+};
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { LiquidityHeatmap } from "@/components/live/LiquidityHeatmap"
 import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/lib/types"
@@ -251,45 +293,45 @@ export default function ManualTradingPage() {
         setBotInstances,
         addBotInstance: addBotContextInstance,
     } = useBot();
+    
     const { bots: runningBots } = liveBotState;
-    const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
+    const [activeBotId, setActiveBotId] = useState<string | null>(null);
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
     const addBotInstance = useCallback(() => {
-        addBotContextInstance({}); // Add an empty bot config
+        addBotContextInstance({}); 
     }, [addBotContextInstance]);
 
     useEffect(() => {
         if (botInstances.length === 0) {
-            addBotInstance(); // Ensure there's always at least one row
+            addBotInstance();
+        } else if (!activeBotId && botInstances.length > 0) {
+            setActiveBotId(botInstances[0].id);
         }
-    }, [botInstances, addBotInstance]);
+    }, [botInstances, addBotInstance, activeBotId]);
 
-
-    const handleBotConfigChange = useCallback(<K extends keyof LiveBotConfig>(id: string, field: K, value: LiveBotConfig[K]) => {
+    const handleBotConfigChange = useCallback((id: string, field: any, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
-                const updatedValue = value;
-                const updatedBot = { ...bot, [field]: updatedValue };
+                const updatedBot: any = { ...bot, [field]: value };
                 if (field === 'strategy') {
                     updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || {};
                 }
-                return updatedBot;
+                return updatedBot as LiveBotConfig & { id: string };
             }
             return bot;
         }));
     }, [setBotInstances]);
     
     const handleStrategyParamChange = useCallback((botId: string, param: string, value: any) => {
-        setBotInstances(prev => prev.map(bot => {
+        setBotInstances((prev: any[]) => prev.map((bot: any) => {
             if (bot.id === botId) {
                 const updatedParams = { ...bot.strategyParams };
-                 if (typeof value === 'object') {
-                   updatedParams[param] = value;
-                } else if (typeof value === 'boolean') {
+                 if (typeof value === 'object' || typeof value === 'boolean') {
                    updatedParams[param] = value;
                 } else {
-                   const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-                   updatedParams[param] = isNaN(parsedValue as number) ? 0 : parsedValue;
+                   const parsedValue = (value === '' || isNaN(value as any)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                   updatedParams[param] = isNaN(parsedValue as any) ? 0 : parsedValue;
                 }
                return { ...bot, strategyParams: updatedParams };
            }
@@ -299,381 +341,181 @@ export default function ManualTradingPage() {
     
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
         handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultSmaCrossoverParams.discipline),
+            ...(botInstances.find(b => b.id === botId)?.strategyParams?.discipline || defaultSmaCrossoverParams.discipline),
             [paramName]: value
         });
     }, [botInstances, handleStrategyParamChange]);
 
     const handleResetParams = useCallback((botId: string) => {
         const bot = botInstances.find(b => b.id === botId);
-        if (bot) {
-            const defaultParams = DEFAULT_PARAMS_MAP[bot.strategy];
-            if (defaultParams) {
-                setBotInstances(prev => prev.map(b => b.id === botId ? { ...b, strategyParams: defaultParams } : b));
-                toast({ title: "Parameters Reset", description: "Parameters have been reset to their default values." });
-            }
+        if (bot && DEFAULT_PARAMS_MAP[bot.strategy]) {
+            setBotInstances(prev => prev.map(b => b.id === botId ? { ...b, strategyParams: DEFAULT_PARAMS_MAP[bot.strategy] } : b));
+            toast({ title: "Parameters Reset" });
         }
     }, [botInstances, setBotInstances, toast]);
 
-    const removeBotInstance = useCallback((id: string) => {
-        if (botInstances.length <= 1 && botInstances[0].id === id) {
-            toast({ title: "Cannot Remove", description: "At least one bot configuration must remain.", variant: "destructive" });
-            return;
-        }
+    const removeBot = useCallback((id: string) => {
         setBotInstances(prev => prev.filter(bot => bot.id !== id));
-    }, [botInstances, setBotInstances, toast]);
-
-    const toggleParams = useCallback((id: string) => {
-        setOpenParams(prev => ({ ...prev, [id]: !prev[id] }));
-    }, []);
+        if (activeBotId === id) setActiveBotId(null);
+    }, [setBotInstances, activeBotId]);
 
     const handleToggleBot = useCallback((botId: string) => {
         const botConfig = botInstances.find(b => b.id === botId);
-        if (!botConfig || !botConfig.asset || !botConfig.strategy) {
-            toast({ title: "Incomplete Config", description: "Please select an asset and strategy for the bot.", variant: "destructive" });
+        if (!botConfig?.asset || !botConfig?.strategy) {
+            toast({ title: "Incomplete Config", description: "Select asset and strategy first.", variant: "destructive" });
             return;
         }
 
         const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open';
         
-        if (isRunning) {
-            stopBotInstance(botId);
-        } else {
-            // For manual trading, we don't need FuturesTrading permission to just monitor
-            startBotInstance({ ...botConfig, isManual: true });
-        }
+        if (isRunning) stopBotInstance(botId);
+        else startBotInstance({ ...botConfig, isManual: true });
     }, [botInstances, runningBots, startBotInstance, stopBotInstance, toast]);
 
+    const activeBot = botInstances.find(b => b.id === activeBotId);
+    const activeBotLiveState = activeBotId ? runningBots[activeBotId] : undefined;
+    const isTradingActive = !!activeBotLiveState && activeBotLiveState.status !== 'idle' && activeBotLiveState.status !== 'error';
+
     return (
-        <div className="space-y-6">
-            <div className="text-left">
-                <h1 className="text-3xl font-bold tracking-tight text-primary">Manual Trading Dashboard</h1>
-                <p className="text-muted-foreground mt-2">
-                    Configure and monitor multiple strategies, but execute trades manually based on the bot's signals.
-                </p>
+        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden">
+            <div className="flex justify-between items-center mb-4 shrink-0">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight text-primary">Trading Command Terminal</h1>
+                    <p className="text-muted-foreground text-sm mt-1">Beginner-Friendly Synthesis Engine (Master-Detail View)</p>
+                </div>
+                {!isConnected && (
+                    <Alert variant="destructive" className="py-2 w-auto flex items-center">
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        <AlertTitle className="mb-0 text-sm">Offline: Connect API in settings.</AlertTitle>
+                    </Alert>
+                )}
             </div>
             
-            <div className="flex flex-col md:flex-row gap-4 mb-4">
-                <Button 
-                    variant="destructive" 
-                    size="lg" 
-                    className="w-full md:w-auto font-bold uppercase tracking-wider animate-pulse border border-red-900 shadow-[0_0_15px_rgba(239,68,68,0.5)] hover:shadow-[0_0_25px_rgba(239,68,68,0.8)]"
-                    onClick={() => {
-                        Object.keys(runningBots).forEach(id => stopBotInstance(id));
-                        toast({ title: "🚨 PANIC ENGAGED 🚨", description: "All active monitors stopped. Liquidating active positions to USDT...", variant: "destructive" });
-                        // Next step: Loop through open positions and market sell
-                    }}
-                >
-                    <AlertTriangle className="mr-2 h-5 w-5" />
-                    KILL SWITCH: Close ALL & Convert to USDT
-                </Button>
+            <div className="flex flex-1 gap-6 overflow-hidden">
+                {/* LEFT SIDEBAR: WATCHLIST & ANOMALIES */}
+                <div className="w-80 flex flex-col shrink-0 gap-4">
+                    <Card className="flex flex-col shrink-0 border border-slate-800 bg-slate-950/40 max-h-[50%] overflow-hidden shadow-lg shadow-black/20">
+                        <CardHeader className="py-4 border-b border-white/5 flex flex-row items-center justify-between">
+                            <CardTitle className="text-sm font-bold tracking-wider uppercase text-slate-300">Watchlist monitors</CardTitle>
+                            <Button onClick={addBotInstance} size="icon" variant="ghost" className="h-6 w-6"><PlusCircle className="h-4 w-4 text-indigo-400"/></Button>
+                        </CardHeader>
+                        <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
+                            {botInstances.map(bot => {
+                                const st = runningBots[bot.id]?.status || 'idle';
+                                const isActive = activeBotId === bot.id;
+                                const signal = runningBots[bot.id]?.activePosition;
+                                
+                                return (
+                                    <div 
+                                        key={bot.id} 
+                                        onClick={() => setActiveBotId(bot.id)}
+                                        className={`p-4 border-b border-white/5 cursor-pointer transition-colors ${isActive ? 'bg-indigo-950/30 border-l-2 border-l-indigo-500' : 'hover:bg-slate-900'}`}
+                                    >
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold text-sm">{bot.asset || "Select Asset"}</span>
+                                            <StatusBadge status={st} />
+                                        </div>
+                                        <div className="text-xs text-muted-foreground truncate">
+                                            {strategyMetadatas.find(s => s.id === bot.strategy)?.name || "No strategy"}
+                                        </div>
+                                        {signal && (
+                                            <div className={`mt-2 px-2 py-1 text-[10px] font-bold rounded flex items-center gap-1 ${signal.action === 'UP' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                <Activity className="w-3 h-3" /> SIGNAL ACTIVE
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </CardContent>
+                    </Card>
 
-                <Dialog>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="lg" className="w-full md:w-auto border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 transition-all duration-300 group">
-                            <Layers className="mr-2 h-5 w-5 group-hover:scale-110 transition-transform" />
-                            Open Liquidity Heatmap
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-4xl p-0 h-[80vh] bg-black/50 border-white/10 backdrop-blur-md overflow-hidden flex flex-col">
-                        <DialogHeader className="px-4 py-2 border-b border-white/5 bg-black/40">
-                            <DialogTitle className="text-white flex items-center gap-2">
-                                <Activity className="h-4 w-4 text-purple-400" />
-                                Order Book Heatmap Analysis
-                            </DialogTitle>
-                        </DialogHeader>
-                        <div className="flex-1 overflow-hidden relative">
-                           <LiquidityHeatmap symbol={botInstances[0]?.asset || 'BTCUSDT'} />
+                    <div className="flex-1 overflow-hidden flex flex-col pb-4">
+                        <AnomalyTicker className="h-full flex-1 border-slate-800" />
+                    </div>
+                </div>
+
+                {/* CENTER STAGE: COMMAND TERMINAL */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 pb-12 pr-4">
+                    {!activeBot ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-12 text-center bg-slate-950/20 rounded-lg border border-dashed border-white/10">
+                            <Activity className="w-12 h-12 mb-4 opacity-20" />
+                            <h2 className="text-xl font-bold">No Asset Selected</h2>
+                            <p className="mt-2 text-sm max-w-md">Select an asset from the Watchlist on the left to initialize the visual HUD and Formidable Hindsight engine.</p>
                         </div>
-                    </DialogContent>
-                </Dialog>
+                    ) : (
+                        <>
+                            {/* ACTIVE BOT HEADER CONFIG */}
+                            <Card className="shrink-0 border-indigo-500/20 bg-slate-950/40">
+                                <CardHeader className="py-3 items-center flex flex-row justify-between border-b border-white/5">
+                                    <div className="flex items-center gap-4">
+                                        <div className="flex items-center gap-2">
+                                            <LayoutDashboard className="text-indigo-400 w-5 h-5"/>
+                                            <CardTitle className="text-lg">{activeBot.asset || 'New Monitor'}</CardTitle>
+                                        </div>
+                                        <StatusBadge status={activeBotLiveState?.status} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button variant={isTradingActive ? "destructive" : "default"} size="sm" onClick={() => handleToggleBot(activeBot.id)} disabled={!isConnected} className={isTradingActive ? "animate-pulse" : ""}>
+                                            {isTradingActive ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
+                                            {isTradingActive ? 'Halt Engine' : 'Deploy Engine'}
+                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={() => removeBot(activeBot.id)} disabled={isTradingActive} className="text-red-400 hover:bg-red-950/50 hover:text-red-300">
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="p-4 bg-slate-900/40">
+                                    <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+                                        <div className="col-span-2">
+                                            <Label className="text-xs mb-1 block">Strategy Core</Label>
+                                            <Select value={activeBot.strategy} onValueChange={(val) => handleBotConfigChange(activeBot.id, 'strategy', val)} disabled={isTradingActive}>
+                                                <SelectTrigger><SelectValue placeholder="Select Strategy" /></SelectTrigger>
+                                                <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div>
+                                            {(() => {
+                                                const parsed = parseSymbolString(activeBot.asset) || { base: activeBot.asset.replace('USDT', ''), quote: 'USDT' };
+                                                const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
+                                                return (
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs">Asset Pair</Label>
+                                                        <AssetSelector baseAsset={parsed.base} quoteAsset={parsed.quote} onBaseChange={(newBase) => handleBotConfigChange(activeBot.id, 'asset', `${newBase}${parsed.quote}`)} onQuoteChange={(newQuote) => handleBotConfigChange(activeBot.id, 'asset', `${parsed.base}${newQuote}`)} disabled={isTradingActive} availableQuotes={availableQuotes} />
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                        <div>
+                                            <Label className="text-xs mb-1 block">Interval</Label>
+                                            <Select value={activeBot.interval} onValueChange={(val) => handleBotConfigChange(activeBot.id, 'interval', val)} disabled={isTradingActive}>
+                                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                                <SelectContent><SelectItem value="1m">1m</SelectItem><SelectItem value="5m">5m</SelectItem><SelectItem value="15m">15m</SelectItem><SelectItem value="1h">1h</SelectItem><SelectItem value="4h">4h</SelectItem><SelectItem value="1d">1d</SelectItem></SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Button variant="outline" size="sm" className="w-full flex justify-between group" onClick={() => setShowAdvancedSettings(true)}>
+                                                <span>Advanced Settings</span> <Settings className="h-4 w-4 text-indigo-400 group-hover:rotate-90 transition-transform duration-500" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* UNIFIED HINDSIGHT PANELS (Macro + Micro + History) */}
+                            <EventDossierPanel bot={activeBot} botState={activeBotLiveState} />
+                            
+                            {/* VISUAL HUD */}
+                            <VisualHudPanel symbol={activeBot.asset || 'BTCUSDT'} />
+                        </>
+                    )}
+                </div>
             </div>
-
-            {isConnected ? (
-                <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>API Connected</AlertTitle>
-                    <AlertDescription>
-                        You are connected to the Binance API. Signal monitoring is enabled.
-                    </AlertDescription>
-                </Alert>
-            ) : (
-                <Alert variant="destructive">
-                    <AlertTitle>API Disconnected</AlertTitle>
-                    <AlertDescription>
-                        Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable signal monitoring.
-                    </AlertDescription>
-                </Alert>
+            
+            {showAdvancedSettings && activeBot && (
+                <DraggableOverlay title={`${activeBot.asset} Strategy Control`} onClose={() => setShowAdvancedSettings(false)}>
+                    <StrategyParamsCard bot={activeBot} onParamChange={(p, v) => handleStrategyParamChange(activeBot.id, p, v)} onDisciplineChange={(p, v) => handleDisciplineParamChange(activeBot.id, p, v)} onReset={() => handleResetParams(activeBot.id)} isTradingActive={isTradingActive} />
+                </DraggableOverlay>
             )}
-
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Signal Monitoring Matrix</CardTitle>
-                        <CardDescription>Add, remove, and configure your signal monitors.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                         <Button onClick={addBotInstance} size="sm" variant="outline">
-                            <PlusCircle className="mr-2 h-4 w-4"/> Add Monitor
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="border rounded-md">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px]">#</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Asset</TableHead>
-                                    <TableHead>Live Price</TableHead>
-                                    <TableHead>Trade Signal (Entry/SL/TP)</TableHead>
-                                    <TableHead>Capital ($)</TableHead>
-                                    <TableHead>Leverage (x)</TableHead>
-                                    <TableHead>Interval</TableHead>
-                                    <TableHead>TP (%)</TableHead>
-                                    <TableHead>SL (%)</TableHead>
-                                    <TableHead>Strategy</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {botInstances.map((bot, index) => {
-                                    const botLiveState = runningBots[bot.id];
-                                    const isRunning = !!botLiveState && botLiveState?.status !== 'idle' && botLiveState?.status !== 'error';
-
-                                    return (
-                                        <BotInstanceRow
-                                            key={bot.id}
-                                            bot={bot}
-                                            index={index}
-                                            botState={botLiveState}
-                                            openParams={openParams}
-                                            onConfigChange={handleBotConfigChange}
-                                            onParamChange={handleStrategyParamChange}
-                                            onDisciplineChange={handleDisciplineParamChange}
-                                            onResetParams={handleResetParams}
-                                            onToggleBot={handleToggleBot}
-                                            onToggleParams={toggleParams}
-                                            onRemoveBot={removeBotInstance}
-                                            isBotRunning={isRunning}
-                                            isConnected={isConnected}
-                                        />
-                                    )})}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }
-
-const BotInstanceRow = memo(({
-    bot,
-    index,
-    botState,
-    openParams,
-    onConfigChange,
-    onParamChange,
-    onDisciplineChange,
-    onResetParams,
-    onToggleBot,
-    onToggleParams,
-    onRemoveBot,
-    isBotRunning,
-    isConnected,
-}: {
-    bot: BotInstance,
-    index: number,
-    botState?: LiveBotStateForAsset,
-    openParams: Record<string, boolean>,
-    onConfigChange: (id: string, field: keyof LiveBotConfig, value: any) => void,
-    onParamChange: (botId: string, param: string, value: any) => void,
-    onDisciplineChange: (botId: string, param: keyof DisciplineParams, value: any) => void,
-    onResetParams: (botId: string) => void,
-    onToggleBot: (botId: string) => void,
-    onToggleParams: (botId: string) => void,
-    onRemoveBot: (botId: string) => void,
-    isBotRunning: boolean,
-    isConnected: boolean,
-}) => {
-    const lastSignal = botState?.activePosition;
-    const chartData = botState?.chartData || [];
-    const lastPrice = chartData.length > 0 ? chartData[chartData.length - 1].close : null;
-    
-    return (
-        <>
-            <TableRow className={cn(openParams[bot.id] && "bg-muted/50")}>
-                <TableCell>{index + 1}</TableCell>
-                <TableCell><StatusBadge status={botState?.status}/></TableCell>
-                <TableCell>
-                    {(() => {
-                        const parsed = parseSymbolString(bot.asset) || { base: bot.asset.replace('USDT', ''), quote: 'USDT' };
-                        const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
-                        return (
-                            <AssetSelector
-                                baseAsset={parsed.base}
-                                quoteAsset={parsed.quote}
-                                onBaseChange={(newBase) => onConfigChange(bot.id, 'asset', `${newBase}${parsed.quote}`)}
-                                onQuoteChange={(newQuote) => onConfigChange(bot.id, 'asset', `${parsed.base}${newQuote}`)}
-                                disabled={isBotRunning}
-                                availableQuotes={availableQuotes}
-                            />
-                        );
-                    })()}
-                </TableCell>
-                <TableCell>
-                    {isBotRunning && lastPrice !== null ? (
-                         <div className="flex items-center gap-1">
-                            <Activity className="h-3 w-3 text-muted-foreground animate-pulse" />
-                            <span className="font-mono text-xs text-muted-foreground">
-                                ${formatPrice(lastPrice)}
-                            </span>
-                        </div>
-                    ) : <span className="text-xs text-muted-foreground">--</span>}
-                </TableCell>
-                <TableCell>
-                    {lastSignal ? (
-                        <div className="flex flex-col text-xs font-mono">
-                           <span className={cn(
-                                "flex items-center font-semibold", 
-                                lastSignal.action === 'UP' ? 'text-green-500' : 'text-red-500'
-                            )}>
-                                {lastSignal.action === 'UP' 
-                                    ? <><TrendingUp className="mr-1 h-4 w-4"/> BUY SIGNAL</> 
-                                    : <><TrendingDown className="mr-1 h-4 w-4"/> SELL SIGNAL</>
-                                }
-                            </span>
-                            <span className="text-muted-foreground mt-1 flex items-center gap-1">
-                                Entry: {formatPrice(lastSignal.entryPrice)} 
-                                {lastSignal.confidence && (
-                                    <Badge variant="outline" className={lastSignal.confidence > 0.8 ? "text-green-400 border-green-500/30" : "text-yellow-400 border-yellow-500/30"}>
-                                        {(lastSignal.confidence * 100).toFixed(0)}% AI Confidence
-                                    </Badge>
-                                )}
-                            </span>
-                            <span className="text-muted-foreground">
-                                SL: {formatPrice(lastSignal.stopLoss)} / TP: {formatPrice(lastSignal.takeProfit)}
-                            </span>
-                        </div>
-                    ) : <span className="text-xs text-muted-foreground">--</span>}
-                </TableCell>
-                <TableCell>
-                    <Input
-                        type="number"
-                        value={bot.capital}
-                        onChange={(e) => onConfigChange(bot.id, 'capital', parseFloat(e.target.value) || 0)}
-                        className="w-28"
-                        disabled={isBotRunning}
-                    />
-                </TableCell>
-                <TableCell>
-                    <Input
-                        type="number"
-                        value={bot.leverage}
-                        onChange={(e) => onConfigChange(bot.id, 'leverage', parseInt(e.target.value, 10) || 1)}
-                        className="w-24"
-                        disabled={isBotRunning}
-                    />
-                </TableCell>
-                <TableCell>
-                    <Select
-                        value={bot.interval}
-                        onValueChange={(val) => onConfigChange(bot.id, 'interval', val)}
-                        disabled={isBotRunning}
-                    >
-                        <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="1m">1m</SelectItem>
-                            <SelectItem value="5m">5m</SelectItem>
-                            <SelectItem value="15m">15m</SelectItem>
-                            <SelectItem value="1h">1h</SelectItem>
-                            <SelectItem value="4h">4h</SelectItem>
-                            <SelectItem value="1d">1d</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </TableCell>
-                <TableCell>
-                    <Input
-                        type="number"
-                        value={bot.takeProfit}
-                        onChange={(e) => onConfigChange(bot.id, 'takeProfit', parseFloat(e.target.value) || 0)}
-                        className="w-24"
-                        disabled={isBotRunning}
-                    />
-                </TableCell>
-                <TableCell>
-                    <Input
-                        type="number"
-                        value={bot.stopLoss}
-                        onChange={(e) => onConfigChange(bot.id, 'stopLoss', parseFloat(e.target.value) || 0)}
-                        className="w-24"
-                        disabled={isBotRunning}
-                    />
-                </TableCell>
-                <TableCell>
-                    <Select
-                        value={bot.strategy}
-                        onValueChange={(val) => onConfigChange(bot.id, 'strategy', val)}
-                        disabled={isBotRunning}
-                    >
-                        <SelectTrigger className="w-52"><SelectValue placeholder="Select Strategy" /></SelectTrigger>
-                        <SelectContent>
-                            {strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}
-                        </SelectContent>
-                    </Select>
-                </TableCell>
-                <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <div tabIndex={0}> 
-                                        <Button
-                                            variant={isBotRunning ? "destructive" : "default"}
-                                            size="sm"
-                                            onClick={() => onToggleBot(bot.id)}
-                                            disabled={!isConnected}
-                                        >
-                                            {isBotRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
-                                            {isBotRunning ? 'Stop Monitor' : 'Start Monitor'}
-                                        </Button>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Start or stop monitoring for signals.</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
-                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                    </div>
-                </TableCell>
-            </TableRow>
-            {openParams[bot.id] && bot.strategy && (
-                <TableRow>
-                    <TableCell colSpan={12} className="p-0">
-                        <div className="p-4 bg-muted/30">
-                            <StrategyParamsCard
-                                bot={bot}
-                                onParamChange={(param, value) => onParamChange(bot.id, param, value)}
-                                onDisciplineChange={(param, value) => onDisciplineChange(bot.id, param, value)}
-                                onReset={() => onResetParams(bot.id)}
-                                isTradingActive={isBotRunning}
-                            />
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-});
-BotInstanceRow.displayName = 'BotInstanceRow';
-
-
-    

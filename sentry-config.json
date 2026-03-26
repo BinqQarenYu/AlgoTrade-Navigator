@@ -1,0 +1,6 @@
+{
+  "whaleThresholdUsd": 50000,
+  "vpinThreshold": 0.8,
+  "entropyThreshold": 2.5,
+  "enabled": true
+}

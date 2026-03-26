@@ -272,6 +272,9 @@ class MicrostructureService {
             if (oldVol > newVol) {
                 const drop = oldVol - newVol;
                 if (drop > 15 && executed < drop * 0.1) {
+                    if (!this.spoofingEvents.has(symbol)) {
+                        this.spoofingEvents.set(symbol, []);
+                    }
                     this.spoofingEvents.get(symbol)!.push({ price, timestamp: Date.now() });
                 }
             }

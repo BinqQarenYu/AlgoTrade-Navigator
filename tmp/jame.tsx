@@ -1,4 +1,4 @@
-
+﻿
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -25,7 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap, Database, FolderOpen, Activity, Clock, StopCircle, PlayCircle } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap, Database, FolderOpen, Activity, Clock } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -40,7 +40,6 @@ import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/a
 import { AssetSelector } from "@/components/ui/asset-selector"
 import Link from "next/link"
 import { Separator } from "@/components/ui/separator"
-import { assetSyncService, type SyncStatus } from '@/lib/sync-all-assets';
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -86,7 +85,7 @@ export default function SettingsPage() {
   const [isTelegramOpen, setIsTelegramOpen] = useState(false);
   const [isStorageOpen, setIsStorageOpen] = useState(true);
 
-  // ── DuckDB Data Health Card state ───────────────────────
+  // ΓöÇΓöÇ DuckDB Data Health Card state ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   interface DbConfig {
     path: string;
     sizeMb: number;
@@ -109,74 +108,6 @@ export default function SettingsPage() {
   const [isRelocating, setIsRelocating] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState(0);
   const [backfillDays, setBackfillDays] = useState({ covered: 0, total: 60 });
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-
-  // ── Sentry State ─────────────────────────────────────────
-  const [sentryStatus, setSentryStatus] = useState<any>(null);
-  const [whaleThreshold, setWhaleThreshold] = useState(50000);
-  const [isSentryLoading, setIsSentryLoading] = useState(false);
-
-  const refreshSentryStatus = async () => {
-      try {
-          const res = await fetch('/api/sentry');
-          const data = await res.json();
-          setSentryStatus(data);
-          if (data?.config) {
-              setWhaleThreshold(data.config.whaleThresholdUsd);
-          }
-      } catch (e) { console.error("Sentry fetch error", e); }
-  };
-
-  const handleToggleSentry = async () => {
-      if (!sentryStatus) return;
-      setIsSentryLoading(true);
-      const action = sentryStatus.isRunning ? 'stop' : 'start';
-      try {
-         const res = await fetch('/api/sentry', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ action })
-         });
-         const data = await res.json();
-         if (data.success) {
-            setSentryStatus(data.status);
-            toast({ title: `Sentry ${action === 'start' ? 'Started' : 'Stopped'}` });
-         }
-      } catch (e) { console.error(e) } 
-      finally { setIsSentryLoading(false); }
-  };
-
-  const handleUpdateSentryConfig = async () => {
-      try {
-          const res = await fetch('/api/sentry', {
-             method: 'PUT',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ whaleThresholdUsd: whaleThreshold })
-          });
-          const data = await res.json();
-          if (data.success) {
-              setSentryStatus(data.status);
-              toast({ title: "Sentry Configuration Saved" });
-          }
-      } catch (e) {}
-  };
-
-  const startManualSync = (days: number) => {
-    toast({ title: "Sync Started", description: `Fetching past ${days} days for all assets sequentially via CCXT.` });
-    assetSyncService.startGlobalSync(days, '1h', (status) => {
-        setSyncStatus(status);
-        if(!status.isRunning) {
-            toast({ title: "Sync Finished", description: `Completed sync. Status: ${status.currentSymbol}`});
-            refreshDbConfig();
-        }
-    });
-  };
-
-  const stopManualSync = () => {
-    assetSyncService.stop();
-    setSyncStatus(prev => prev ? { ...prev, isRunning: false, currentSymbol: 'Stopped' } : null);
-    toast({ title: "Sync Stopped", description: "Manual sync was aborted by user." });
-  };
 
   const refreshDbConfig = async (symbol = 'BTCUSDT') => {
     try {
@@ -200,11 +131,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     refreshDbConfig();
-    refreshSentryStatus();
-    const t = setInterval(() => {
-        refreshDbConfig();
-        refreshSentryStatus();
-    }, 15_000);
+    const t = setInterval(() => refreshDbConfig(), 15_000);
     return () => clearInterval(t);
   }, []);
 
@@ -219,7 +146,7 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (data.success) {
-        toast({ title: '✅ Database Relocated', description: `Mounted at ${dbPathInput}` });
+        toast({ title: 'Γ£à Database Relocated', description: `Mounted at ${dbPathInput}` });
         await refreshDbConfig();
       } else {
         toast({ title: 'Relocation Failed', description: data.error, variant: 'destructive' });
@@ -372,23 +299,23 @@ export default function SettingsPage() {
             <CollapsibleContent>
             <CardContent className="space-y-5">
 
-                {/* ── Stats Grid ─────────────────────────────────── */}
+                {/* ΓöÇΓöÇ Stats Grid ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     {
                       icon: <HardDrive className="h-4 w-4 text-primary"/>,
                       label: 'DB Size',
-                      value: dbConfig ? `${dbConfig.sizeMb} MB` : '—',
+                      value: dbConfig ? `${dbConfig.sizeMb} MB` : 'ΓÇö',
                     },
                     {
                       icon: <Activity className="h-4 w-4 text-green-500"/>,
                       label: 'Trade Records',
-                      value: dbConfig ? dbConfig.tradeCount.toLocaleString() : '—',
+                      value: dbConfig ? dbConfig.tradeCount.toLocaleString() : 'ΓÇö',
                     },
                     {
                       icon: <Clock className="h-4 w-4 text-yellow-500"/>,
                       label: 'Buffer Pending',
-                      value: dbConfig ? `${dbConfig.bufferPending} rows` : '—',
+                      value: dbConfig ? `${dbConfig.bufferPending} rows` : 'ΓÇö',
                     },
                     {
                       icon: <Zap className="h-4 w-4 text-blue-500"/>,
@@ -406,15 +333,15 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
-                {/* ── Stream Status Row ─────────────────────────── */}
+                {/* ΓöÇΓöÇ Stream Status Row ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 <div className="flex flex-col sm:flex-row gap-3">
                   <div className="flex-1 flex items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
                       <div>
                           <Label className="text-sm font-bold flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-yellow-500"/>Live Sync Stream</Label>
-                          <p className="text-xs text-slate-400 mt-0.5">WebSocket → DuckDB instant write</p>
+                          <p className="text-xs text-slate-400 mt-0.5">WebSocket ΓåÆ DuckDB instant write</p>
                       </div>
                       <Badge className={isConnected ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs" : "bg-slate-800/50 text-slate-400 border border-slate-700 text-xs"} variant={isConnected ? "default" : "secondary"}>
-                          {isConnected ? "🟢 Active" : "⚪ Paused"}
+                          {isConnected ? "≡ƒƒó Active" : "ΓÜ¬ Paused"}
                       </Badge>
                   </div>
                   <div className="flex-1 flex items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
@@ -423,12 +350,12 @@ export default function SettingsPage() {
                           <p className="text-xs text-slate-400 mt-0.5">Background REST gap fill</p>
                       </div>
                       <Badge className="text-xs" variant={backfillProgress >= 100 ? "default" : "secondary"}>
-                          {backfillProgress >= 100 ? "✅ Complete" : "⏳ Running"}
+                          {backfillProgress >= 100 ? "Γ£à Complete" : "ΓÅ│ Running"}
                       </Badge>
                   </div>
                 </div>
 
-                {/* ── Timeline Map ──────────────────────────────── */}
+                {/* ΓöÇΓöÇ Timeline Map ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 <div className="space-y-2 border rounded-lg p-4 bg-black/20">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-muted-foreground">Historical Coverage Timeline</span>
@@ -459,7 +386,7 @@ export default function SettingsPage() {
                   <p className="text-center text-xs font-bold">{backfillProgress}% Complete</p>
                 </div>
 
-                {/* ── Relocation Section ───────────────────────── */}
+                {/* ΓöÇΓöÇ Relocation Section ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ */}
                 <div className="space-y-2 pt-2 border-t">
                   <Label className="text-sm font-bold flex items-center gap-1.5">
                     <FolderOpen className="h-4 w-4"/> Relocate Repository
@@ -484,85 +411,6 @@ export default function SettingsPage() {
                   <p className="text-[10px] text-muted-foreground italic leading-relaxed">
                     Atomically flushes all pending writes, closes the database, physically moves the <code>.duckdb</code> file to the new path, and remounts. Zero data loss.
                   </p>
-                </div>
-
-                {/* ── Manual Backfill Sync ─────────────────────── */}
-                <div className="space-y-3 pt-2 border-t">
-                  <Label className="text-sm font-bold flex items-center gap-1.5">
-                    <CloudUpload className="h-4 w-4"/> Manual Data Sync (CCXT)
-                  </Label>
-                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                    Force a sequential CCXT engine download of all supported assets to fill DuckDB gaps instantly without hitting Binance 429 rate limits.
-                  </p>
-                  
-                  {syncStatus && syncStatus.isRunning ? (
-                      <div className="flex flex-col gap-2 p-3 bg-indigo-950/20 border border-indigo-900/50 rounded-lg">
-                          <div className="flex items-center justify-between">
-                              <span className="text-xs font-bold text-indigo-400">Syncing {syncStatus.currentSymbol}...</span>
-                              <span className="text-xs font-bold">{syncStatus.progressPercent}%</span>
-                          </div>
-                          <Progress value={syncStatus.progressPercent} className="h-1.5 bg-indigo-500" />
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                              <span>{syncStatus.completedSymbols.length} / {syncStatus.totalSymbols} Assets</span>
-                              <Button variant="ghost" size="sm" onClick={stopManualSync} className="h-6 text-red-400 hover:bg-red-950/30 hover:text-red-300">
-                                  <StopCircle className="h-3 w-3 mr-1" /> Abort
-                              </Button>
-                          </div>
-                      </div>
-                  ) : (
-                      <div className="flex gap-2">
-                       <Button variant="outline" size="sm" className="flex-1 bg-slate-900/50 hover:bg-indigo-950/50 hover:text-indigo-300 hover:border-indigo-800 transition-colors" onClick={() => startManualSync(7)}>
-                           <Database className="h-4 w-4 mr-2" /> Sync 7 Days
-                       </Button>
-                       <Button variant="outline" size="sm" className="flex-1 bg-slate-900/50 hover:bg-indigo-950/50 hover:text-indigo-300 hover:border-indigo-800 transition-colors" onClick={() => startManualSync(30)}>
-                           <Database className="h-4 w-4 mr-2" /> Sync 30 Days
-                       </Button>
-                      </div>
-                  )}
-                </div>
-
-                {/* ── Headless Sentry Control ──────────────────────── */}
-                <div className="space-y-3 pt-4 border-t border-slate-800">
-                  <div className="flex items-center justify-between">
-                      <div>
-                          <Label className="text-sm font-bold flex items-center gap-1.5">
-                              <ShieldAlert className="h-4 w-4 text-rose-500"/> Headless Anomaly Sentry
-                          </Label>
-                          <p className="text-[10px] text-muted-foreground italic mt-1">
-                              Runs 24/7 in the background (Node.js). Detects and saves Whales, Icebergs, and VPIN spikes directly to DuckDB.
-                          </p>
-                      </div>
-                      <Badge className={sentryStatus?.isRunning ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-slate-800/50 text-slate-400"} variant={sentryStatus?.isRunning ? "default" : "secondary"}>
-                          {sentryStatus?.isRunning ? "🟢 Online" : "⚪ Offline"}
-                      </Badge>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row gap-3 mt-2 bg-slate-900/50 p-3 rounded-lg border border-slate-800/50">
-                      <div className="flex-1 space-y-2">
-                          <Label className="text-xs font-semibold text-slate-300">Minimum Whale Threshold (USD)</Label>
-                          <div className="flex gap-2">
-                              <Input 
-                                  type="number" 
-                                  value={whaleThreshold} 
-                                  onChange={(e) => setWhaleThreshold(Number(e.target.value))}
-                                  className="h-8 text-xs font-mono bg-background/50"
-                              />
-                              <Button size="sm" variant="secondary" className="h-8" onClick={handleUpdateSentryConfig}>Save</Button>
-                          </div>
-                      </div>
-                      <div className="flex-1 flex flex-col justify-end">
-                           <Button 
-                              variant={sentryStatus?.isRunning ? "destructive" : "default"} 
-                              size="sm" 
-                              onClick={handleToggleSentry}
-                              disabled={isSentryLoading}
-                              className="w-full h-8"
-                           >
-                              {isSentryLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : (sentryStatus?.isRunning ? <StopCircle className="h-4 w-4 mr-2"/> : <PlayCircle className="h-4 w-4 mr-2"/>)}
-                              {sentryStatus?.isRunning ? "Stop Sentry Worker" : "Start Sentry Worker"}
-                           </Button>
-                      </div>
-                  </div>
                 </div>
 
             </CardContent>

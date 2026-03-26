@@ -68,7 +68,7 @@ export const ApiProvider = ({ children }: { children: ReactNode }) => {
   const [geminiModel, setGeminiModel] = useState<string>('gemini-2.5-flash');
   const [aiQuota, setAiQuota] = useState({
     used: 0,
-    limit: 49,
+    limit: 500,
     lastReset: new Date().toISOString().split('T')[0],
   });
 

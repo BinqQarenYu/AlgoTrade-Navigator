@@ -43,3 +43,10 @@
 **Learning:** WMA Calculation in CoppockCurve indicator was bottlenecked by $O(N \times P)$ where P is the length of period the metric was calculated on.
 **Action:** Convert to a sliding window iteration pattern updating `num` and `windowSum` in place: `num = num + P * new_value - windowSum` and `windowSum = windowSum + new_value - old_value` to reduce the calculation down to $O(N)$.
 
+## 2026-03-26 - Persistent Headless Workers in Next.js Server
+**Learning:** Background data ingestion processes (like `HeadlessSentry` for WebSocket anomaly tracking) die across hot-reloads and server restarts because Next.js has no default persistent entrypoint. Relying on user UI clicks to start a 24/7 worker defeats the purpose of "headless".
+**Action:** Enable `experimental: { instrumentationHook: true }` in `next.config.mjs` and use `src/instrumentation.ts` to execute an `autoBoot()` function on the Node.js server init. Save the running state in a local file (`sentry-config.json`) so the instrumentation hook can rehydrate and resume the worker identically after restarts.
+
+## 2026-03-26 - Gemini API Quota "Greediness" & Protection
+**Learning:** Automatically triggering multiple parallel Gemini AI flows (`predict-market`, `detect-manipulation`) on component mount or high-frequency bot intervals (15s) results in immediate 429 "Quota Exceeded" errors for free-tier users. $50$ calls per day is insufficient for auto-running labs.
+**Action:** Decoupled technical indicator calculation from AI analysis in the `AIResearchPage`. Implemented a **Manual Trigger** UI (Standby Mode) where AI is only invoked on explicit user click. Added a **10-minute AI Cooldown** per bot in `BotContext` to protect credits while keeping strategies active. Increased default `aiQuota` limit to $500$ to accommodate professional free-tier usage.

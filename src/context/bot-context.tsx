@@ -180,9 +180,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const addLiveLog = useCallback((botId: string, message: string) => addLog(setLiveBotState, message, botId), [addLog]);
   
+  const botAiLastRunRef = useRef<Record<string, number>>({});
+
   const analyzeAsset = useCallback(async (
     config: { symbol: string; interval: string; strategy: string; strategyParams: any; takeProfit: number; stopLoss: number; useAIPrediction: boolean; reverse: boolean; },
-    existingData?: HistoricalData[]
+    existingData?: HistoricalData[],
+    botId?: string
   ) => {
     try {
         const dataToAnalyze = existingData && existingData.length > 50 ? existingData : await getLatestKlinesByLimit(config.symbol, config.interval, 1000);
@@ -201,9 +204,32 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         let strategySignal: 'BUY' | 'SELL' | null = lastCandle.buySignal ? 'BUY' : 'SELL';
         if (config.reverse) strategySignal = strategySignal === 'BUY' ? 'SELL' : 'BUY';
         
-        const aiData = config.useAIPrediction ? ( canUseAi() ? await predictMarket({ symbol: config.symbol, recentData: JSON.stringify(dataWithIndicators.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))), strategySignal: strategySignal }) : null ) : { aggressive: { prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', confidence: 1, reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).`, recommendation: 'Standard' } };
+        // --- QUOTA PROTECTION FOR BOTS ---
+        let aiData = null;
+        if (config.useAIPrediction) {
+            const now = Date.now();
+            const lastRun = botId ? (botAiLastRunRef.current[botId] || 0) : 0;
+            const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes minimum between AI calls for same bot
+            
+            if (now - lastRun < COOLDOWN_MS) {
+                return { status: 'no_signal', log: `AI Cooldown Active (${Math.ceil((COOLDOWN_MS - (now - lastRun))/1000)}s remaining). Skipping validation.`, signal: null };
+            }
 
-        if (!aiData) return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
+            if (canUseAi()) {
+                aiData = await predictMarket({ 
+                    symbol: config.symbol, 
+                    recentData: JSON.stringify(dataWithIndicators.slice(-50).map(d => ({ t: d.time, o: d.open, h: d.high, l: d.low, c: d.close, v: d.volume }))), 
+                    strategySignal: strategySignal 
+                });
+                if (botId) botAiLastRunRef.current[botId] = now;
+            } else {
+                return { status: 'no_signal', log: 'AI quota reached, cannot validate signal.', signal: null };
+            }
+        } else {
+            aiData = { aggressive: { prediction: strategySignal === 'BUY' ? 'UP' : 'DOWN', confidence: 1, reasoning: `Signal from '${config.strategy}' (${config.reverse ? 'Reversed' : 'Standard'}).`, recommendation: 'Standard' } };
+        }
+
+        if (!aiData) return { status: 'no_signal', log: 'AI validation skipped or failed.', signal: null };
         
         const prediction = aiData.aggressive;
         
@@ -282,6 +308,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 addLiveLog(botId, `Exit signal: ${closeReason} hit.`);
                 if (config.isManual) {
                     toast({ title: `Manual Exit Signal: ${config.asset}`, description: `Reason: ${closeReason}.` });
+                    if (typeof window !== 'undefined' && 'Notification' in window) {
+                        const Notif = (window as any).Notification;
+                        const notify = () => {
+                            const n = new Notif(`CLOSE: ${config.asset}`, { body: `Reason: ${closeReason}. Action required.` });
+                            n.onclick = () => window.focus();
+                        };
+                        if (Notif.permission === 'granted') notify();
+                        else if (Notif.permission !== 'denied') Notif.requestPermission().then((p: string) => p === 'granted' && notify());
+                    }
                 } else {
                     const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
                     const quantity = new Decimal(config.capital).mul(config.leverage).div(currentPosition.entryPrice).toNumber();
@@ -314,6 +349,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
               addLiveLog(botId, `New trade signal: ${signal.action} at ${signal.entryPrice}`);
               if (config.isManual) {
                  toast({ title: `Manual Entry Signal: ${config.asset}`, description: `Action: ${signal.action}, Entry: ${signal.entryPrice.toFixed(4)}` });
+                 if (typeof window !== 'undefined' && 'Notification' in window) {
+                     const Notif = (window as any).Notification;
+                     const notify = () => {
+                         const n = new Notif(`SIGNAL: ${signal.action} ${config.asset}`, { body: `Setup at ${signal.entryPrice.toFixed(4)}. Click to view terminal.` });
+                         n.onclick = () => window.focus();
+                     };
+                     if (Notif.permission === 'granted') notify();
+                     else if (Notif.permission !== 'denied') Notif.requestPermission().then((p: string) => p === 'granted' && notify());
+                 }
               } else {
                   const side = signal.action === 'UP' ? 'BUY' : 'SELL';
                   const quantity = new Decimal(config.capital).mul(config.leverage).div(signal.entryPrice).toNumber();

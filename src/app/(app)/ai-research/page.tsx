@@ -62,6 +62,48 @@ export default function AIResearchPage() {
   const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(null)
   const [microstructureMetrics, setMicrostructureMetrics] = useState<MicrostructureAnalysis | null>(null)
 
+  const [hasFetchedBasics, setHasFetchedBasics] = useState(false)
+
+  const fetchMarketBasics = async () => {
+    if (!isConnected || !activeProfile) return;
+    
+    try {
+        const data = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
+        const closePrices = data.map(d => d.close)
+        const rsiValues = calculateRSI(closePrices, 14)
+        const macdValues = calculateMACD(closePrices, 12, 26, 9)
+        const bbValues = calculateBollingerBands(closePrices, 20, 2)
+        
+        const enhancedData = data.map((d, i) => ({
+            ...d,
+            rsi: rsiValues[i],
+            macd: macdValues.macd[i],
+            bb_upper: bbValues.upper[i],
+            bb_lower: bbValues.lower[i],
+            bb_middle: bbValues.middle[i]
+        }))
+
+        setChartData(enhancedData)
+        setMetrics(calculateMetrics(enhancedData))
+        setKeyLevels(identifyKeyLevels(enhancedData))
+        
+        const tickerOnly = selectedAsset.replace('USDT', '').toLowerCase()
+        const dualApi = createDualApiService(coingeckoApiKey, coinmarketcapApiKey)
+        
+        const [fetchedMarketDetails, fetchedGlobalContext] = await Promise.all([
+            dualApi.getCoinDetails(tickerOnly).catch(() => null),
+            getFearAndGreedIndex().catch(() => null)
+        ])
+        
+        setMarketDetails(fetchedMarketDetails)
+        setGlobalContext(fetchedGlobalContext)
+        setMicrostructureMetrics(microstructureService.getLatestMetrics(selectedAsset))
+        setHasFetchedBasics(true)
+    } catch (error) {
+        console.error("Failed to load market basics:", error)
+    }
+  }
+
   const analyzeMarket = async () => {
     if (!isConnected || !activeProfile) {
       toast({
@@ -75,59 +117,25 @@ export default function AIResearchPage() {
     setIsAnalyzing(true)
     
     try {
-      // 1. Fetch Latest K-line Data
-      const data = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
+      // 1. Ensure we have data
+      if (!hasFetchedBasics) {
+          await fetchMarketBasics();
+      }
       
-      // Enhance data with Technical Indicators
-      const closePrices = data.map(d => d.close)
-      const rsiValues = calculateRSI(closePrices, 14)
-      const macdValues = calculateMACD(closePrices, 12, 26, 9)
-      const bbValues = calculateBollingerBands(closePrices, 20, 2)
-      
-      const enhancedData = data.map((d, i) => ({
-          ...d,
-          rsi: rsiValues[i],
-          macd: macdValues.macd[i],
-          bb_upper: bbValues.upper[i],
-          bb_lower: bbValues.lower[i],
-          bb_middle: bbValues.middle[i]
-      }))
-
-      setChartData(enhancedData)
-      
-      // 2. Calculate Local Technical Metrics (Immediate Feedback)
-      const calculatedMetrics = calculateMetrics(enhancedData)
-      setMetrics(calculatedMetrics)
-      setKeyLevels(identifyKeyLevels(enhancedData))
-      
-      // 3. Fetch Institutional Analytics (CMC/CG/FearGreed)
-      const tickerOnly = selectedAsset.replace('USDT', '').toLowerCase()
-      const dualApi = createDualApiService(coingeckoApiKey, coinmarketcapApiKey)
-      
-      const [fetchedMarketDetails, fetchedGlobalContext] = await Promise.all([
-          dualApi.getCoinDetails(tickerOnly).catch(() => null),
-          getFearAndGreedIndex().catch(() => null)
-      ])
-      
-      setMarketDetails(fetchedMarketDetails)
-      setGlobalContext(fetchedGlobalContext)
-      
-      // 4. Update Microstructure Metrics
-      const ms = microstructureService.getLatestMetrics(selectedAsset);
-      setMicrostructureMetrics(ms);
-      
-      // 5. Parallel AI Model Execution
+      const ms = microstructureMetrics || microstructureService.getLatestMetrics(selectedAsset);
       const toxicityContext = ms ? `\n\n--- MICROSTRUCTURE CONTEXT ---\nEntropy: ${ms.entropyScore}\nSpoofing: ${ms.isSpoofing}\nToxic Trap: ${ms.isToxicTrap}\nSkew: ${ms.orderBookSkew}\nVPIN: ${ms.vpin}` : '';
       
-      const recentDataJson = JSON.stringify(enhancedData.slice(-30)) + toxicityContext; 
+      const recentDataJson = JSON.stringify(chartData.slice(-30)) + toxicityContext; 
+      
+      // 2. Execute AI Model Flow
       const [prediction, manipulation] = await Promise.all([
         predictMarket({
           symbol: selectedAsset,
           recentData: recentDataJson,
           apiKey: geminiApiKey || undefined,
           model: geminiModel,
-          marketDetails: fetchedMarketDetails || undefined,
-          globalContext: fetchedGlobalContext || undefined,
+          marketDetails: marketDetails || undefined,
+          globalContext: globalContext || undefined,
           microstructure: ms || undefined
         }).catch(err => {
             console.error("AI Prediction failed:", err);
@@ -138,8 +146,8 @@ export default function AIResearchPage() {
           historicalData: recentDataJson,
           apiKey: geminiApiKey || undefined,
           model: geminiModel,
-          marketDetails: fetchedMarketDetails || undefined,
-          globalContext: fetchedGlobalContext || undefined,
+          marketDetails: marketDetails || undefined,
+          globalContext: globalContext || undefined,
           microstructure: ms || undefined
         }).catch(err => {
             console.error("Manipulation Detect failed:", err);
@@ -151,8 +159,8 @@ export default function AIResearchPage() {
       if (manipulation) setManipulationResult(manipulation);
       
       toast({
-        title: "AI Analysis Complete",
-        description: `Successfully researched ${selectedAsset} using advanced models.`,
+        title: "Deep Research Complete",
+        description: `Successfully analyzed ${selectedAsset} using Gemini AI.`,
       })
     } catch (error: any) {
       console.error(error)
@@ -166,7 +174,6 @@ export default function AIResearchPage() {
     }
   }
 
-  // Helper Logic (Move to Lib later if shared)
   const calculateMetrics = (data: HistoricalData[]): MarketMetrics => {
     const prices = data.map(d => d.close)
     const volumes = data.map(d => d.volume)
@@ -207,12 +214,12 @@ export default function AIResearchPage() {
     }
     return levels.sort((a, b) => b.strength - a.strength).slice(0, 6).sort((a, b) => b.price - a.price)
   }
-
+  
   useEffect(() => {
     if (isConnected && activeProfile) {
-      analyzeMarket()
+      fetchMarketBasics()
     }
-  }, [])
+  }, [selectedAsset, selectedInterval, isConnected])
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">

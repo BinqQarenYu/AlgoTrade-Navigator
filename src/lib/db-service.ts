@@ -77,6 +77,18 @@ export interface OHLCVRecord {
   source: 'LIVE' | 'BACKFILL';
 }
 
+export interface MicrostructureEventRecord {
+  event_id: string;
+  timestamp: number;
+  symbol: string;
+  event_type: 'WHALE_TX' | 'ICEBERG' | 'SPOOF_CANCEL' | 'VPIN_SPIKE' | 'LIQUIDATION' | 'ENTROPY_SHIFT';
+  price: number;
+  volume_base: number;
+  volume_usd: number;
+  severity_score: number;
+  metadata?: string;
+}
+
 // ──────────────────────────────────────────────────────────
 // State
 // ──────────────────────────────────────────────────────────
@@ -99,6 +111,7 @@ const tradeBuffer: TradeRecord[] = [];
 const ohlcvBuffer: OHLCVRecord[] = [];
 const systemLogBuffer: SystemLogRecord[] = [];
 const signalBuffer: SignalRecord[] = [];
+const microstructureEventBuffer: MicrostructureEventRecord[] = [];
 
 const FLUSH_INTERVAL_MS = 10_000;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -171,6 +184,19 @@ const SCHEMA_SQL = `
     outcome        VARCHAR DEFAULT 'OPEN',
     profit_delta   DOUBLE,
     feature_vector VARCHAR -- JSON snapshot of MFV
+  );
+
+  -- Deep Microscopy: Retained high-IQ anomalies
+  CREATE TABLE IF NOT EXISTS microstructure_events (
+    event_id VARCHAR PRIMARY KEY,
+    timestamp BIGINT NOT NULL,
+    symbol VARCHAR NOT NULL,
+    event_type VARCHAR NOT NULL,
+    price DOUBLE NOT NULL,
+    volume_base DOUBLE NOT NULL,
+    volume_usd DOUBLE NOT NULL,
+    severity_score DOUBLE,
+    metadata VARCHAR
   );
 `;
 
@@ -292,6 +318,14 @@ export function bufferOHLCVBatch(records: OHLCVRecord[]): void {
   ohlcvBuffer.push(...records);
 }
 
+export function bufferMicrostructureEvent(record: MicrostructureEventRecord): void {
+  microstructureEventBuffer.push(record);
+}
+
+export function bufferMicrostructureEvents(records: MicrostructureEventRecord[]): void {
+  microstructureEventBuffer.push(...records);
+}
+
 async function flushBuffers(): Promise<void> {
   if (!globalForDuckDB.conn) return;
 
@@ -375,6 +409,24 @@ async function flushBuffers(): Promise<void> {
     } catch (e) {
       console.error('[DuckDB Flush] OHLCV batch error:', e);
       ohlcvBuffer.unshift(...batch);
+    }
+  }
+
+  // --- Flush Microstructure Events ---
+  if (microstructureEventBuffer.length > 0) {
+    const batch = microstructureEventBuffer.splice(0, microstructureEventBuffer.length);
+    const values = batch
+      .map(e => `('${e.event_id}', ${e.timestamp}, '${e.symbol}', '${e.event_type}', ${e.price}, ${e.volume_base}, ${e.volume_usd}, ${e.severity_score}, ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'})`)
+      .join(',\n');
+
+    try {
+      await runQuery(`
+        INSERT OR IGNORE INTO microstructure_events (event_id, timestamp, symbol, event_type, price, volume_base, volume_usd, severity_score, metadata)
+        VALUES ${values};
+      `);
+    } catch (err) {
+      console.error('[DuckDB Flush] Microstructure Event batch error:', err);
+      microstructureEventBuffer.unshift(...batch);
     }
   }
 }
