@@ -81,6 +81,16 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [logHeight, setLogHeight]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setLogHeight(prev => Math.max(150, prev - 40));
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setLogHeight(prev => Math.min(800, prev + 40));
+    }
+  }, [setLogHeight]);
+
   const isForwardTest = title.includes("Forward");
   const isContrarianTest = title.includes("Contrarian");
 
@@ -280,7 +290,15 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                 </ScrollArea>
                 <div
                     onMouseDown={startResizing}
-                    className="absolute -bottom-4 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group"
+                    onKeyDown={handleKeyDown}
+                    role="separator"
+                    tabIndex={0}
+                    aria-label="Resize trade log"
+                    aria-orientation="horizontal"
+                    aria-valuenow={logHeight}
+                    aria-valuemin={150}
+                    aria-valuemax={800}
+                    className="absolute -bottom-4 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none rounded-full"
                 >
                     <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
                 </div>

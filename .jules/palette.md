@@ -1,0 +1,3 @@
+## 2025-05-15 - [Accessible Vertical Resizers]
+**Learning:** Vertical resizers (handles that control height) in this application (e.g., in `BacktestResults` and `BacktestPage`) were initially only mouse-accessible. To make them keyboard-accessible and screen-reader-friendly, they should use `role="separator"`, `aria-orientation="horizontal"`, `tabIndex={0}`, and have `onKeyDown` handlers for `ArrowUp`/`ArrowDown` keys.
+**Action:** Use the pattern implemented in `src/components/backtest-results.tsx` for any other resizer components: add `role="separator"`, `tabIndex={0}`, ARIA attributes, and a `handleKeyDown` callback to adjust height.
