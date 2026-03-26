@@ -38,3 +38,8 @@
 ## 2025-02-14 - Optimize Indicators with Chained Array Methods
 **Learning:** Functions like `calculateMACD`, `calculateBollingerBands`, and `calculateStandardDeviation` extensively used chained array mutations (e.g., `.map().filter()`, spreading arrays `[...Array(padding)]`, and pushing inside loops). In tight loops processing 100k+ candles, these functional abstractions create huge memory allocation/GC overhead and high execution latency compared to single-pass standard `for` loops.
 **Action:** Replace all chained array mutations and dynamic `.push()` calls with single-pass iterative `for` loops. Pre-allocate the arrays upfront `new Array(data.length)` to drastically reduce garbage collection spikes and boost execution speed (e.g., improving MACD calculation speed by over ~25%).
+
+## 2025-02-14 - WMA O(N*P) nested loops calculation
+**Learning:** WMA Calculation in CoppockCurve indicator was bottlenecked by $O(N \times P)$ where P is the length of period the metric was calculated on.
+**Action:** Convert to a sliding window iteration pattern updating `num` and `windowSum` in place: `num = num + P * new_value - windowSum` and `windowSum = windowSum + new_value - old_value` to reduce the calculation down to $O(N)$.
+
