@@ -68,6 +68,14 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
       }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'ArrowUp') {
+        setLogHeight(prev => Math.max(150, prev - 10));
+      } else if (e.key === 'ArrowDown') {
+        setLogHeight(prev => Math.min(800, prev + 10));
+      }
+    };
+
     const onMouseUp = () => {
       document.body.style.cursor = 'default';
       document.body.style.userSelect = 'auto';
@@ -80,16 +88,6 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [logHeight, setLogHeight]);
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setLogHeight(prev => Math.max(150, prev - 40));
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setLogHeight(prev => Math.min(800, prev + 40));
-    }
-  }, [setLogHeight]);
 
   const isForwardTest = title.includes("Forward");
   const isContrarianTest = title.includes("Contrarian");
@@ -104,7 +102,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
               <CardDescription>Run a backtest to see the results here.</CardDescription>
             </div>
             <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isOpen ? `Collapse ${title}` : `Expand ${title}`}>
                     <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
                     <span className="sr-only">Toggle</span>
                 </Button>
@@ -143,7 +141,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
             <CardDescription>{isForwardTest ? "Performance on the hypothetical projected data." : "A summary of the simulated trading performance. Click a trade to view it on the chart."}</CardDescription>
           </div>
           <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isOpen ? `Collapse ${title}` : `Expand ${title}`}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
               </Button>
           </CollapsibleTrigger>
@@ -291,14 +289,13 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                 <div
                     onMouseDown={startResizing}
                     onKeyDown={handleKeyDown}
+                    className="absolute -bottom-4 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
                     role="separator"
-                    tabIndex={0}
                     aria-label="Resize trade log"
-                    aria-orientation="horizontal"
-                    aria-valuenow={logHeight}
                     aria-valuemin={150}
                     aria-valuemax={800}
-                    className="absolute -bottom-4 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none rounded-full"
+                    aria-valuenow={logHeight}
+                    tabIndex={0}
                 >
                     <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
                 </div>

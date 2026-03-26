@@ -1264,7 +1264,7 @@ const BacktestPageContent = () => {
             <div className="flex items-center justify-between pb-2">
                 <div className="flex items-center gap-2">
                     <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isChartOpen ? "Collapse chart" : "Expand chart"}>
                             <ChevronDown className={cn("h-4 w-4 transition-transform", isChartOpen && "rotate-180")} />
                         </Button>
                     </CollapsibleTrigger>
@@ -1344,7 +1344,7 @@ const BacktestPageContent = () => {
                     <CardDescription>Configure your backtesting parameters.</CardDescription>
                   </div>
                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConfigOpen ? "Collapse configuration" : "Expand configuration"}>
                           <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
                       </Button>
                     </CollapsibleTrigger>
@@ -1454,9 +1454,9 @@ const BacktestPageContent = () => {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                     <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50}><StepBack/></Button>
-                        <Button variant="outline" size="icon" onClick={togglePlayPause}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying}><StepForward/></Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50} aria-label="Step backward"><StepBack/></Button>
+                        <Button variant="outline" size="icon" onClick={togglePlayPause} aria-label={isPlaying ? "Pause replay" : "Start replay"}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying} aria-label="Step forward"><StepForward/></Button>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
@@ -1471,7 +1471,7 @@ const BacktestPageContent = () => {
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                     <div><CardTitle className="flex items-center gap-2"><AreaChart/> Future Projection &amp; Forward Testing</CardTitle><CardDescription>Stress-test your strategy against hypothetical future data.</CardDescription></div>
-                     <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
+                     <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isProjectionCardOpen ? "Collapse projection settings" : "Expand projection settings"}><ChevronDown className={cn("h-4 w-4 transition-transform", isProjectionCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
                 </CardHeader>
                 <CollapsibleContent>
                     <CardContent className="space-y-4">
