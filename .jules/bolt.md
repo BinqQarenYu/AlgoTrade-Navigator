@@ -34,3 +34,6 @@
 **Learning:** Sequential async operations in UI loops (like running many backtest simulations one after the other) drastically block the execution pipeline, leading to long delays.
 **Action:** Use chunked parallel execution with `Promise.all` to batch the operations. This allows the network/computation overhead to run concurrently without overwhelming the backend or browser limits.
 
+## 2025-02-14 - WMA O(N*P) nested loops calculation
+**Learning:** WMA Calculation in CoppockCurve indicator was bottlenecked by $O(N \times P)$ where P is the length of period the metric was calculated on.
+**Action:** Convert to a sliding window iteration pattern updating `num` and `windowSum` in place: `num = num + P * new_value - windowSum` and `windowSum = windowSum + new_value - old_value` to reduce the calculation down to $O(N)$.

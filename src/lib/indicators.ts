@@ -649,17 +649,18 @@ export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC:
     if (validSumRoc.length >= wmaPeriod) {
         let num = 0;
         let den = 0;
+        let windowSum = 0; // ⚡ Bolt Optimization: Keep track of sum for O(N) WMA calculation
         for (let j = 0; j < wmaPeriod; j++) {
             num += validSumRoc[j] * (j + 1);
             den += (j + 1);
+            windowSum += validSumRoc[j];
         }
         wma.push(den > 0 ? num / den : null);
 
         for (let i = wmaPeriod; i < validSumRoc.length; i++) {
-            num = 0;
-            for (let j = 0; j < wmaPeriod; j++) {
-                num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
-            }
+            // ⚡ Bolt Optimization: Replace O(N*P) nested loop with O(N) sliding window
+            num = num + wmaPeriod * validSumRoc[i] - windowSum;
+            windowSum = windowSum + validSumRoc[i] - validSumRoc[i - wmaPeriod];
             wma.push(den > 0 ? num / den : null);
         }
     }
