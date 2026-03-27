@@ -607,12 +607,34 @@ const BotInstanceRow = memo(({
                                 )}
                             </Tooltip>
                         </TooltipProvider>
-                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
-                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button variant="ghost" size="icon" aria-label="Strategy Settings" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
+                                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Strategy Settings</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span>
+                                        <Button variant="ghost" size="icon" aria-label="Remove Bot" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Remove Bot</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </TableCell>
             </TableRow>
