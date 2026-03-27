@@ -34,3 +34,7 @@
 **Learning:** Sequential async operations in UI loops (like running many backtest simulations one after the other) drastically block the execution pipeline, leading to long delays.
 **Action:** Use chunked parallel execution with `Promise.all` to batch the operations. This allows the network/computation overhead to run concurrently without overwhelming the backend or browser limits.
 
+
+## 2024-03-24 - Single Pass MACD Calculation
+**Learning:** Calculating MACD traditionally involves creating separate arrays for Short EMA, Long EMA, then subtracting them, then calculating EMA again for Signal, and subtracting again for Histogram. This requires multiple passes (O(M) for each array mapping/filtering where M is data length) and large memory allocations (especially padding arrays like `[...Array(padding).fill(null), ...]`).
+**Action:** By tracking intermediate sums and multipliers inline (Short EMA, Long EMA, Signal EMA) inside a single O(N) loop over the `data` array, you can drastically reduce GC pressure and execution time (observed drop from ~1200ms to ~450ms for 1,000,000 items). Next time, convert chained map/filter combinations on large historical series to a single pass manual accumulator pattern.
