@@ -1,4 +1,6 @@
-import React from 'react';
+const fs = require('fs');
+
+const fileContent = `import React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
@@ -42,7 +44,7 @@ export function OrderFlowCharts({
               🔍 Debug Info: Chart data length: {chartData.length} | Selected interval: {selectedTimeInterval}
               {chartData.length > 0 && (
                 <div className="mt-1">
-                  Latest data: Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)} | 
+                  Latest data: Buy Vol: {chartData[chartData.length - 1]?.buyVolume?.toFixed(2)} |
                   Sell Vol: {chartData[chartData.length - 1]?.sellVolume?.toFixed(2)}
                 </div>
               )}
@@ -57,12 +59,12 @@ export function OrderFlowCharts({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <label className="text-sm font-semibold text-indigo-800">⏰ Time Interval:</label>
-                <select 
+                <select
                   value={selectedTimeInterval}
                   onChange={(e) => setSelectedTimeInterval(e.target.value)}
                   className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
-                  style={{ 
-                    color: '#1f2937', 
+                  style={{
+                    color: '#1f2937',
                     backgroundColor: '#ffffff',
                     fontWeight: '600'
                   }}
@@ -119,3 +121,7 @@ export function OrderFlowCharts({
     </div>
   );
 }
+`;
+
+fs.writeFileSync('src/components/order-flow/order-flow-charts.tsx', fileContent);
+console.log('Done!');
