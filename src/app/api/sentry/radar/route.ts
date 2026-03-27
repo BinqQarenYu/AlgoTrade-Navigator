@@ -58,17 +58,19 @@ export async function GET(req: Request) {
             ORDER BY timestamp DESC
         `);
 
+        const safeData = JSON.parse(JSON.stringify({
+            symbol,
+            cutoff,
+            eventCounts,
+            icebergs,
+            entropySeries,
+            vpinSeries,
+            liquidations
+        }, (key, value) => typeof value === 'bigint' ? value.toString() : value));
+
         return NextResponse.json({
             success: true,
-            data: {
-                symbol,
-                cutoff,
-                eventCounts,
-                icebergs,
-                entropySeries,
-                vpinSeries,
-                liquidations
-            }
+            data: safeData
         });
     } catch (e: any) {
         if (e.message?.includes("Table with name microstructure_events does not exist")) {

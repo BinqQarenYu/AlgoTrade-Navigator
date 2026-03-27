@@ -1,4 +1,8 @@
-
+/**
+ * 🛰️ Sentinel Machine: Settings Vault (The Command Center)
+ * Documentation: src/app/(app)/settings/README.md
+ * Mission: System-wide configuration, API keys, and safety limits.
+ */
 "use client"
 
 import React, { useState, useEffect } from "react"
@@ -25,7 +29,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap, Database, FolderOpen, Activity, Clock, StopCircle, PlayCircle } from "lucide-react"
+import { KeyRound, Power, PowerOff, Loader2, PlusCircle, Trash2, Edit, CheckCircle, ShieldAlert, Globe, Copy, ShieldCheck, Save, ChevronDown, BookOpen, Send, BrainCircuit, Wallet, TestTube, TrendingUp, TrendingDown, XCircle, Eye, EyeOff, Brain, HardDrive, CloudUpload, Zap, Database, FolderOpen, Activity, Clock, StopCircle, PlayCircle, Server } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import type { ApiProfile } from "@/lib/types"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
@@ -115,6 +119,27 @@ export default function SettingsPage() {
   const [sentryStatus, setSentryStatus] = useState<any>(null);
   const [whaleThreshold, setWhaleThreshold] = useState(50000);
   const [isSentryLoading, setIsSentryLoading] = useState(false);
+  const [childNodes, setChildNodes] = useState<any[]>([]);
+  const [isLocalChildRunning, setIsLocalChildRunning] = useState(false);
+  const [isLoadingChildToggle, setIsLoadingChildToggle] = useState(false);
+
+  const refreshLocalChildStatus = async () => {
+      try {
+          const res = await fetch('/api/child/control');
+          if (res.ok) {
+              const data = await res.json();
+              setIsLocalChildRunning(data.running);
+          }
+      } catch (e) {}
+  };
+
+  const refreshChildNodes = async () => {
+      try {
+          const res = await fetch('/api/sentry/status?t=' + Date.now());
+          const data = await res.json();
+          setChildNodes(data.sentries || []);
+      } catch (e) {}
+  };
 
   const refreshSentryStatus = async () => {
       try {
@@ -201,9 +226,13 @@ export default function SettingsPage() {
   useEffect(() => {
     refreshDbConfig();
     refreshSentryStatus();
+    refreshChildNodes();
+    refreshLocalChildStatus();
     const t = setInterval(() => {
         refreshDbConfig();
         refreshSentryStatus();
+        refreshChildNodes();
+        refreshLocalChildStatus();
     }, 15_000);
     return () => clearInterval(t);
   }, []);
@@ -405,6 +434,86 @@ export default function SettingsPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* ── Local Sentry Control ─────────────────────────── */}
+                <div className="flex flex-col sm:flex-row items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
+                  <div>
+                      <Label className="text-sm font-bold flex items-center gap-1.5"><Server className="h-3.5 w-3.5 text-orange-500"/>Local Child Node Sentry</Label>
+                      <p className="text-xs text-slate-400 mt-0.5">Control the local failover Orange Pi replica running in the `child-node/` directory.</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <Button 
+                          size="sm" 
+                          disabled={isLoadingChildToggle}
+                          onClick={async () => {
+                              try {
+                                 setIsLoadingChildToggle(true);
+                                 const action = isLocalChildRunning ? 'stop' : 'start';
+                                 toast({ title: isLocalChildRunning ? 'Stopping local Child Sentry...' : 'Starting local Child Sentry...' });
+                                 
+                                 await fetch('/api/child/control', { method: 'POST', body: JSON.stringify({action}) });
+                                 
+                                 if (action === 'start') {
+                                     toast({ title: '✅ Child Node started successfully. Awaiting heartbeat...' });
+                                 } else {
+                                     toast({ title: '🛑 Child Node stopped.' });
+                                 }
+                                 
+                                 // Instantly reflect state
+                                 setIsLocalChildRunning(action === 'start');
+                                 
+                                 // Background verify
+                                 setTimeout(refreshLocalChildStatus, 1500);
+                                 setTimeout(refreshChildNodes, 3000);
+                              } catch (e) {
+                                 toast({ title: 'Failed to toggle child node', variant: 'destructive' });
+                              } finally {
+                                 setIsLoadingChildToggle(false);
+                              }
+                          }}
+                          className={cn(
+                              "w-32 transition-all duration-300", 
+                              isLocalChildRunning 
+                                ? "bg-transparent border border-rose-500/50 hover:bg-rose-500/10 text-rose-400" 
+                                : "bg-transparent border border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400"
+                          )}
+                      >
+                          {isLoadingChildToggle ? (
+                              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {isLocalChildRunning ? 'Stopping...' : 'Starting...'}</>
+                          ) : isLocalChildRunning ? (
+                              <><StopCircle className="h-4 w-4 mr-1.5" /> Stop Sync</>
+                          ) : (
+                              <><PlayCircle className="h-4 w-4 mr-1.5" /> Start Node</>
+                          )}
+                      </Button>
+                  </div>
+                </div>
+
+                {/* ── Child Nodes Backlog ─────────────────────────── */}
+                {childNodes.length > 0 && (
+                <div className="space-y-2 border rounded-lg p-3 bg-slate-900/50">
+                  <Label className="text-sm font-bold flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><Server className="h-4 w-4 text-orange-500"/> Remote Child Node Backlogs</span>
+                      <Badge variant="secondary" className="text-[10px]">{childNodes.reduce((acc, c) => acc + (c.bufferSize || 0), 0)} Total Rows Pending</Badge>
+                  </Label>
+                  <p className="text-[10px] text-muted-foreground italic">
+                    Data sitting on external sentry nodes waiting to be ingested over the network into this Mother Node's Data Vault.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                     {childNodes.map(c => (
+                         <div key={c.id} className={cn("p-2 border rounded flex items-center justify-between", c.online ? "bg-emerald-500/10 border-emerald-500/20" : c.bufferSize > 0 ? "bg-orange-500/10 border-orange-500/30 text-orange-400" : "bg-slate-800/50 border-slate-700/50")}>
+                             <div className="flex flex-col">
+                                <span className="text-xs font-bold font-mono">{c.id.replace('sentry-', '').replace('SENTINEL-', '')} {c.id.includes('ORANGE') ? '(Orange Pi)' : ''}</span>
+                                <span className="text-[10px] text-muted-foreground">{c.online ? "🟢 Connected / Syncing" : "🔴 Offline / Hoarding Data"}</span>
+                             </div>
+                             <div className="text-right flex flex-col items-end">
+                                <span className={cn("text-xs font-black font-mono", c.bufferSize > 0 && !c.online ? "text-orange-500 animate-pulse" : c.bufferSize > 0 ? "text-amber-500" : "opacity-50")}>{c.bufferSize} rows</span>
+                             </div>
+                         </div>
+                     ))}
+                  </div>
+                </div>
+                )}
 
                 {/* ── Stream Status Row ─────────────────────────── */}
                 <div className="flex flex-col sm:flex-row gap-3">

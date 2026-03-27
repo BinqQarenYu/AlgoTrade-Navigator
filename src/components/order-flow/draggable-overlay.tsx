@@ -1,65 +1,85 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { cn } from '@/lib/utils';
+import { X, GripVertical } from 'lucide-react';
 
 interface DraggableOverlayProps {
   id: string;
+  title?: string;
   defaultPosition?: { x: number; y: number };
   children: React.ReactNode;
   className?: string;
+  onClose?: () => void;
   zIndex?: number;
 }
 
+/**
+ * Gold Standard Draggable Overlay
+ * Optimized for high-frequency trading dashboards where UI blocking is unacceptable.
+ * Uses direct DOM manipulation via refs and hardware-accelerated transforms.
+ */
 export function DraggableOverlay({ 
   id, 
-  defaultPosition = { x: 20, y: 20 }, 
+  title,
+  defaultPosition = { x: 100, y: 100 }, 
   children, 
   className = '',
-  zIndex = 40
+  onClose,
+  zIndex = 50
 }: DraggableOverlayProps) {
-  const [position, setPosition] = useState({ x: defaultPosition.x, y: defaultPosition.y });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef({ x: defaultPosition.x, y: defaultPosition.y });
+  const startPosRef = useRef({ x: 0, y: 0, mouseX: 0, mouseY: 0 });
   const [isDragging, setIsDragging] = useState(false);
   
-  const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  
-  // Track the most recent position via a ref so we don't need it in the mouseUp closure dependency exactly,
-  // but we can just read the state.
-  const posRef = useRef(position);
-  useEffect(() => {
-    posRef.current = position;
-  }, [position]);
+  // Storage Key
+  const storageKey = `draggable_pos_${id}`;
 
-  // Load from localStorage on mount
+  // Initialize position from storage
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(`draggable_pos_${id}`);
-      if (saved) {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
         const parsed = JSON.parse(saved);
         if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
-           setPosition(parsed);
+          posRef.current = parsed;
+          if (containerRef.current) {
+            containerRef.current.style.transform = `translate3d(${parsed.x}px, ${parsed.y}px, 0)`;
+          }
         }
+      } catch (e) {
+        console.warn('DraggableOverlay: Failed to load position', e);
       }
-    } catch (e) {
-      console.warn('Failed to load drag position', e);
+    } else {
+      // Set initial position
+      if (containerRef.current) {
+        containerRef.current.style.transform = `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)`;
+      }
     }
-  }, [id]);
+  }, [storageKey]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Only start drag on left click
-    if (e.button !== 0) return;
+    if (e.button !== 0) return; // Only left click
     
-    // Prevent dragging if clicking inside standard interactive elements
-    if ((e.target as HTMLElement).closest('button, a, input, select')) return;
+    // Check if we clicked on a form element or button inside the overlay
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, select, textarea, [role="button"]')) {
+        // If it's the close button, let it handle its own click
+        if (target.closest('.close-btn')) return;
+        // If it's any other interactive element, don't drag
+        return;
+    }
 
     setIsDragging(true);
-    dragRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      initialX: posRef.current.x,
-      initialY: posRef.current.y
+    startPosRef.current = {
+      x: posRef.current.x,
+      y: posRef.current.y,
+      mouseX: e.clientX,
+      mouseY: e.clientY
     };
-    e.preventDefault(); // Prevent text selection
+
+    e.preventDefault();
   }, []);
 
   useEffect(() => {
@@ -68,73 +88,92 @@ export function DraggableOverlay({
     let rafId: number;
 
     const handleMouseMove = (e: MouseEvent) => {
-      // Throttle via rAF for high performance drag (Gold Standard Resource Tax: UI thread optimization)
-      cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
-        if (!dragRef.current || !containerRef.current) return;
+        if (!containerRef.current) return;
         
-        const dx = e.clientX - dragRef.current.startX;
-        const dy = e.clientY - dragRef.current.startY;
+        const dx = e.clientX - startPosRef.current.mouseX;
+        const dy = e.clientY - startPosRef.current.mouseY;
         
-        let newX = dragRef.current.initialX + dx;
-        let newY = dragRef.current.initialY + dy;
+        const newX = startPosRef.current.x + dx;
+        const newY = startPosRef.current.y + dy;
         
-        // Bounds checking: Look Forward Scalability constraint
-        const rect = containerRef.current.getBoundingClientRect();
-        const parentRect = containerRef.current.parentElement?.getBoundingClientRect();
+        // Update Ref (Current State)
+        posRef.current = { x: newX, y: newY };
         
-        if (parentRect) {
-          // Keep it strictly within the parent bounds
-          const maxX = parentRect.width - rect.width;
-          const maxY = parentRect.height - rect.height;
-          newX = Math.max(0, Math.min(newX, maxX > 0 ? maxX : 0));
-          newY = Math.max(0, Math.min(newY, maxY > 0 ? maxY : 0));
-        }
-
-        setPosition({ x: newX, y: newY });
+        // Direct DOM Update: Optimization for zero React re-renders during drag
+        containerRef.current.style.transform = `translate3d(${newX}px, ${newY}px, 0)`;
       });
     };
 
     const handleMouseUp = () => {
       setIsDragging(false);
-      dragRef.current = null;
-      // Persist to local storage
-      try {
-        localStorage.setItem(`draggable_pos_${id}`, JSON.stringify(posRef.current));
-      } catch (e) {}
+      localStorage.setItem(storageKey, JSON.stringify(posRef.current));
     };
 
-    // The Cleanup Rule: explicitly binding and destroying native window listeners
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
     
     return () => {
       cancelAnimationFrame(rafId);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, id]);
+  }, [isDragging, storageKey]);
 
   return (
     <div
       ref={containerRef}
-      onMouseDown={handleMouseDown}
       style={{
-        position: 'absolute',
-        top: `${position.y}px`,
-        left: `${position.x}px`,
+        position: 'fixed',
+        top: 0,
+        left: 0,
         zIndex: zIndex,
-        cursor: isDragging ? 'grabbing' : 'grab',
-        touchAction: 'none'
+        willChange: 'transform', // GPU hint
       }}
-      className={`shadow-lg transition-shadow bg-white/90 backdrop-blur p-2 rounded-lg border text-xs text-gray-800 ${isDragging ? 'shadow-xl ring-2 ring-indigo-500/50 scale-[1.02]' : ''} ${className}`}
+      className={cn(
+        "flex flex-col min-w-[320px] max-w-[90vw] max-h-[85vh]",
+        "bg-slate-950/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden",
+        "transition-shadow duration-300",
+        isDragging ? "shadow-indigo-500/20 ring-1 ring-indigo-500/30 scale-[1.01]" : "shadow-black/50",
+        className
+      )}
     >
-      {/* Drag Handle explicitly styled implicitly by cursor, but let's add a subtle drag hint */}
-      <div className="absolute top-1 left-2 w-1 h-1 rounded-full bg-gray-300 opacity-50 shadow-[0_4px_0_0_#d1d5db,0_8px_0_0_#d1d5db]" />
-      <div className="absolute top-1 left-3 w-1 h-1 rounded-full bg-gray-300 opacity-50 shadow-[0_4px_0_0_#d1d5db,0_8px_0_0_#d1d5db]" />
-      <div className="pl-3">
+      {/* Header / Drag Handle */}
+      <div 
+        className={cn(
+            "flex items-center justify-between p-3 cursor-grab active:cursor-grabbing select-none",
+            "bg-gradient-to-r from-slate-900/50 to-indigo-950/30 border-b border-white/5",
+            isDragging && "to-indigo-500/10"
+        )}
+        onMouseDown={handleMouseDown}
+      >
+        <div className="flex items-center gap-2">
+            <GripVertical className="h-4 w-4 text-slate-500" />
+            {title && (
+                <span className="text-xs font-bold tracking-tight text-slate-300 uppercase">
+                    {title}
+                </span>
+            )}
+        </div>
+        
+        {onClose && (
+            <button 
+                onClick={onClose}
+                className="close-btn p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                title="Close"
+            >
+                <X className="h-4 w-4" />
+            </button>
+        )}
+      </div>
+
+      {/* Content Area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-4 text-sm text-slate-200">
         {children}
       </div>
+      
+      {/* Visual Accent */}
+      <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent" />
     </div>
   );
 }

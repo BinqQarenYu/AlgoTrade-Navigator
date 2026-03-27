@@ -287,7 +287,8 @@ export class ResilientWebSocket {
 
   private handleError(event: Event): void {
     const errorMsg = 'WebSocket error: ' + (event instanceof ErrorEvent ? event.message : event.type || 'Connection interrupted');
-    logger.error(errorMsg, { eventType: event.type }, this.botId, 'websocket');
+    // Log as warning instead of error to prevent Next.js dev overlay from popping up on transient disconnects.
+    logger.warn(errorMsg, { eventType: event.type }, this.botId, 'websocket');
     this.setState('ERROR');
     this.emit('error', event);
   }

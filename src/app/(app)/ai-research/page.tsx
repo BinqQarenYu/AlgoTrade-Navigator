@@ -1,3 +1,8 @@
+/**
+ * 🛰️ Sentinel Machine: AI Research (The Research Lab)
+ * Documentation: src/app/(app)/ai-research/README.md
+ * Mission: Deep learning, technical analysis, and sentiment extraction.
+ */
 "use client"
 
 import React, { useState, useEffect } from "react"

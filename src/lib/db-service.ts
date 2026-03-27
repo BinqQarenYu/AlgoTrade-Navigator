@@ -29,6 +29,7 @@ export interface TradeRecord {
   side: 'buy' | 'sell';
   timestamp: number; // Unix ms
   source: 'LIVE' | 'BACKFILL';
+  machine_id?: string; // Which machine generated this
   
   // Microstructure Metrics
   entropy_score?: number;
@@ -52,6 +53,7 @@ export interface SignalRecord {
   outcome?: 'WIN' | 'LOSS' | 'OPEN';
   profit_delta?: number;
   feature_vector: string; // JSON snapshot of MFV
+  machine_id?: string;
 }
 
 
@@ -75,6 +77,7 @@ export interface OHLCVRecord {
   close: number;
   volume: number;
   source: 'LIVE' | 'BACKFILL';
+  machine_id?: string;
 }
 
 export interface MicrostructureEventRecord {
@@ -87,6 +90,7 @@ export interface MicrostructureEventRecord {
   volume_usd: number;
   severity_score: number;
   metadata?: string;
+  machine_id?: string;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -107,11 +111,31 @@ if (!globalForDuckDB.dbPath) {
 }
 
 // In-memory write buffers — flushed every 10s
-const tradeBuffer: TradeRecord[] = [];
-const ohlcvBuffer: OHLCVRecord[] = [];
-const systemLogBuffer: SystemLogRecord[] = [];
-const signalBuffer: SignalRecord[] = [];
-const microstructureEventBuffer: MicrostructureEventRecord[] = [];
+const globalBuffers = globalThis as unknown as {
+  tradeBuffer: TradeRecord[];
+  ohlcvBuffer: OHLCVRecord[];
+  systemLogBuffer: SystemLogRecord[];
+  signalBuffer: SignalRecord[];
+  microstructureEventBuffer: MicrostructureEventRecord[];
+};
+
+if (!globalBuffers.tradeBuffer) {
+  globalBuffers.tradeBuffer = [];
+  globalBuffers.ohlcvBuffer = [];
+  globalBuffers.systemLogBuffer = [];
+  globalBuffers.signalBuffer = [];
+  globalBuffers.microstructureEventBuffer = [];
+}
+
+export function getBufferStatus() {
+  return {
+    trades: globalBuffers.tradeBuffer.length,
+    ohlcv: globalBuffers.ohlcvBuffer.length,
+    logs: globalBuffers.systemLogBuffer.length,
+    signals: globalBuffers.signalBuffer.length,
+    microstructure: globalBuffers.microstructureEventBuffer.length
+  };
+}
 
 const FLUSH_INTERVAL_MS = 10_000;
 let flushTimer: ReturnType<typeof setInterval> | null = null;
@@ -130,6 +154,7 @@ const SCHEMA_SQL = `
     side          VARCHAR NOT NULL,
     timestamp     BIGINT  NOT NULL,
     source        VARCHAR NOT NULL,
+    machine_id    VARCHAR,
     entropy_score DOUBLE,
     vpin          DOUBLE,
     is_synthetic  BOOLEAN,
@@ -142,15 +167,16 @@ const SCHEMA_SQL = `
 
   -- OHLCV candle data for charting and AI simulations
   CREATE TABLE IF NOT EXISTS ohlcv (
-    symbol   VARCHAR NOT NULL,
-    interval VARCHAR NOT NULL,
-    time     BIGINT  NOT NULL,
-    open     DOUBLE  NOT NULL,
-    high     DOUBLE  NOT NULL,
-    low      DOUBLE  NOT NULL,
-    close    DOUBLE  NOT NULL,
-    volume   DOUBLE  NOT NULL,
-    source   VARCHAR NOT NULL,
+    symbol     VARCHAR NOT NULL,
+    interval   VARCHAR NOT NULL,
+    time       BIGINT  NOT NULL,
+    open       DOUBLE  NOT NULL,
+    high       DOUBLE  NOT NULL,
+    low        DOUBLE  NOT NULL,
+    close      DOUBLE  NOT NULL,
+    volume     DOUBLE  NOT NULL,
+    source     VARCHAR NOT NULL,
+    machine_id VARCHAR,
     PRIMARY KEY (symbol, interval, time)
   );
 
@@ -183,7 +209,8 @@ const SCHEMA_SQL = `
     exit_price     DOUBLE,
     outcome        VARCHAR DEFAULT 'OPEN',
     profit_delta   DOUBLE,
-    feature_vector VARCHAR -- JSON snapshot of MFV
+    feature_vector VARCHAR, -- JSON snapshot of MFV
+    machine_id     VARCHAR
   );
 
   -- Deep Microscopy: Retained high-IQ anomalies
@@ -196,7 +223,8 @@ const SCHEMA_SQL = `
     volume_base DOUBLE NOT NULL,
     volume_usd DOUBLE NOT NULL,
     severity_score DOUBLE,
-    metadata VARCHAR
+    metadata   VARCHAR,
+    machine_id VARCHAR
   );
 `;
 
@@ -286,60 +314,60 @@ export async function closeDB(): Promise<void> {
 // Buffered Write System (10s flush for SSD longevity)
 // ──────────────────────────────────────────────────────────
 export function bufferTrade(record: TradeRecord): void {
-  tradeBuffer.push(record);
+  globalBuffers.tradeBuffer.push(record);
 }
 
 export function bufferOHLCV(record: OHLCVRecord): void {
-  ohlcvBuffer.push(record);
+  globalBuffers.ohlcvBuffer.push(record);
 }
 
 export function bufferTrades(records: TradeRecord[]): void {
-  tradeBuffer.push(...records);
+  globalBuffers.tradeBuffer.push(...records);
 }
 
 
 export function bufferSystemLog(record: SystemLogRecord): void {
-  systemLogBuffer.push(record);
+  globalBuffers.systemLogBuffer.push(record);
 }
 
 export function bufferSystemLogs(records: SystemLogRecord[]): void {
-  systemLogBuffer.push(...records);
+  globalBuffers.systemLogBuffer.push(...records);
 }
 
 export function bufferSignal(record: SignalRecord): void {
-  signalBuffer.push(record);
+  globalBuffers.signalBuffer.push(record);
 }
 
 export function bufferSignals(records: SignalRecord[]): void {
-  signalBuffer.push(...records);
+  globalBuffers.signalBuffer.push(...records);
 }
 
 export function bufferOHLCVBatch(records: OHLCVRecord[]): void {
-  ohlcvBuffer.push(...records);
+  globalBuffers.ohlcvBuffer.push(...records);
 }
 
 export function bufferMicrostructureEvent(record: MicrostructureEventRecord): void {
-  microstructureEventBuffer.push(record);
+  globalBuffers.microstructureEventBuffer.push(record);
 }
 
 export function bufferMicrostructureEvents(records: MicrostructureEventRecord[]): void {
-  microstructureEventBuffer.push(...records);
+  globalBuffers.microstructureEventBuffer.push(...records);
 }
 
 async function flushBuffers(): Promise<void> {
   if (!globalForDuckDB.conn) return;
 
   // --- Flush trades ---
-  if (tradeBuffer.length > 0) {
-    const batch = tradeBuffer.splice(0, tradeBuffer.length);
+  if (globalBuffers.tradeBuffer.length > 0) {
+    const batch = globalBuffers.tradeBuffer.splice(0, globalBuffers.tradeBuffer.length);
     try {
       await runQuery(`
         INSERT OR IGNORE INTO trades (
-          trade_id, symbol, price, quantity, side, timestamp, source,
+          trade_id, symbol, price, quantity, side, timestamp, source, machine_id,
           entropy_score, vpin, is_synthetic, is_organic, is_iceberg, is_spoofing, funding_rate
         )
         VALUES ${batch.map(t => `(
-          '${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}',
+          '${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}', '${t.machine_id || 'UNKNOWN'}',
           ${t.entropy_score ?? 'NULL'}, ${t.vpin ?? 'NULL'}, ${t.is_synthetic ?? 'NULL'}, 
           ${t.is_organic ?? 'NULL'}, ${t.is_iceberg ?? 'NULL'}, ${t.is_spoofing ?? 'NULL'}, ${t.funding_rate ?? 'NULL'}
         )`).join(',\n')};
@@ -347,18 +375,18 @@ async function flushBuffers(): Promise<void> {
     } catch (e) {
       console.error('[DuckDB Flush] Trade batch error:', e);
       // Return records to buffer so they can be retried
-      tradeBuffer.unshift(...batch);
+      globalBuffers.tradeBuffer.unshift(...batch);
     }
   }
 
   // --- Flush AI Signals (Bayesian Loop) ---
-  if (signalBuffer.length > 0) {
-    const batch = signalBuffer.splice(0, signalBuffer.length);
+  if (globalBuffers.signalBuffer.length > 0) {
+    const batch = globalBuffers.signalBuffer.splice(0, globalBuffers.signalBuffer.length);
     const values = batch
       .map(s => `(
         '${s.signal_id}', ${s.timestamp}, '${s.symbol}', '${s.strategy_id}', '${s.signal_type}', 
         ${s.entry_price}, ${s.exit_price ?? 'NULL'}, '${s.outcome || 'OPEN'}', 
-        ${s.profit_delta ?? 'NULL'}, '${s.feature_vector.replace(/'/g, "''")}'
+        ${s.profit_delta ?? 'NULL'}, '${s.feature_vector.replace(/'/g, "''")}', '${s.machine_id || 'UNKNOWN'}'
       )`)
       .join(',\n');
 
@@ -366,19 +394,19 @@ async function flushBuffers(): Promise<void> {
       await runQuery(`
         INSERT OR IGNORE INTO signals (
           signal_id, timestamp, symbol, strategy_id, signal_type, 
-          entry_price, exit_price, outcome, profit_delta, feature_vector
+          entry_price, exit_price, outcome, profit_delta, feature_vector, machine_id
         )
         VALUES ${values};
       `);
     } catch (e) {
       console.error('[DuckDB Flush] Signal batch error:', e);
-      signalBuffer.unshift(...batch);
+      globalBuffers.signalBuffer.unshift(...batch);
     }
   }
 
   // --- Flush System Logs ---
-  if (systemLogBuffer.length > 0) {
-    const batch = systemLogBuffer.splice(0, systemLogBuffer.length);
+  if (globalBuffers.systemLogBuffer.length > 0) {
+    const batch = globalBuffers.systemLogBuffer.splice(0, globalBuffers.systemLogBuffer.length);
     const values = batch
       .map(l => `('${l.id}', ${l.timestamp}, '${l.asset_pair}', '${l.alert_source}', '${l.interval}', '${l.numerical_data.replace(/'/g, "''")}', '${l.message.replace(/'/g, "''")}')`)
       .join(',\n');
@@ -390,43 +418,45 @@ async function flushBuffers(): Promise<void> {
       `);
     } catch (e) {
       console.error('[DuckDB Flush] SystemLog batch error:', e);
-      systemLogBuffer.unshift(...batch);
+      globalBuffers.systemLogBuffer.unshift(...batch);
     }
   }
 
   // --- Flush OHLCV ---
-  if (ohlcvBuffer.length > 0) {
-    const batch = ohlcvBuffer.splice(0, ohlcvBuffer.length);
+  if (globalBuffers.ohlcvBuffer.length > 0) {
+    const batch = globalBuffers.ohlcvBuffer.splice(0, globalBuffers.ohlcvBuffer.length);
     const values = batch
-      .map(k => `('${k.symbol}', '${k.interval}', ${k.time}, ${k.open}, ${k.high}, ${k.low}, ${k.close}, ${k.volume}, '${k.source}')`)
+      .map(k => `('${k.symbol}', '${k.interval}', ${k.time}, ${k.open}, ${k.high}, ${k.low}, ${k.close}, ${k.volume}, '${k.source}', '${k.machine_id || 'UNKNOWN'}')`)
       .join(',\n');
 
     try {
       await runQuery(`
-        INSERT OR IGNORE INTO ohlcv (symbol, interval, time, open, high, low, close, volume, source)
+        INSERT OR IGNORE INTO ohlcv (symbol, interval, time, open, high, low, close, volume, source, machine_id)
         VALUES ${values};
       `);
     } catch (e) {
       console.error('[DuckDB Flush] OHLCV batch error:', e);
-      ohlcvBuffer.unshift(...batch);
+      globalBuffers.ohlcvBuffer.unshift(...batch);
     }
   }
 
   // --- Flush Microstructure Events ---
-  if (microstructureEventBuffer.length > 0) {
-    const batch = microstructureEventBuffer.splice(0, microstructureEventBuffer.length);
+  if (globalBuffers.microstructureEventBuffer.length > 0) {
+    const batch = globalBuffers.microstructureEventBuffer.splice(0, globalBuffers.microstructureEventBuffer.length);
     const values = batch
-      .map(e => `('${e.event_id}', ${e.timestamp}, '${e.symbol}', '${e.event_type}', ${e.price}, ${e.volume_base}, ${e.volume_usd}, ${e.severity_score}, ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'})`)
+      .map(e => `('${e.event_id}', ${e.timestamp}, '${e.symbol}', '${e.event_type}', ${e.price}, ${e.volume_base}, ${e.volume_usd}, ${e.severity_score}, ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'}, '${e.machine_id || 'UNKNOWN'}')`)
       .join(',\n');
 
+    console.log(`[DuckDB Flush] Attempting to insert ${batch.length} microstructure events... \n VALUES: ${values}`);
     try {
       await runQuery(`
-        INSERT OR IGNORE INTO microstructure_events (event_id, timestamp, symbol, event_type, price, volume_base, volume_usd, severity_score, metadata)
+        INSERT OR IGNORE INTO microstructure_events (event_id, timestamp, symbol, event_type, price, volume_base, volume_usd, severity_score, metadata, machine_id)
         VALUES ${values};
       `);
+      console.log(`[DuckDB Flush] Inserted ${batch.length} microstructure events successfully.`);
     } catch (err) {
       console.error('[DuckDB Flush] Microstructure Event batch error:', err);
-      microstructureEventBuffer.unshift(...batch);
+      globalBuffers.microstructureEventBuffer.unshift(...batch);
     }
   }
 }
@@ -481,7 +511,7 @@ export async function getStorageConfig() {
     tradeCount,
     oldestTimestamp,
     newestTimestamp,
-    bufferPending: tradeBuffer.length + ohlcvBuffer.length,
+    bufferPending: globalBuffers.tradeBuffer.length + globalBuffers.ohlcvBuffer.length,
   };
 }
 

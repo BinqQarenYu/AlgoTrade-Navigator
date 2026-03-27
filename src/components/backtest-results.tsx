@@ -68,13 +68,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
       }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'ArrowUp') {
-        setLogHeight(prev => Math.max(150, prev - 10));
-      } else if (e.key === 'ArrowDown') {
-        setLogHeight(prev => Math.min(800, prev + 10));
-      }
-    };
+
 
     const onMouseUp = () => {
       document.body.style.cursor = 'default';
@@ -88,6 +82,14 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
   }, [logHeight, setLogHeight]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowUp') {
+      setLogHeight(prev => Math.max(150, prev - 10));
+    } else if (e.key === 'ArrowDown') {
+      setLogHeight(prev => Math.min(800, prev + 10));
+    }
+  }, [setLogHeight]);
 
   const isForwardTest = title.includes("Forward");
   const isContrarianTest = title.includes("Contrarian");

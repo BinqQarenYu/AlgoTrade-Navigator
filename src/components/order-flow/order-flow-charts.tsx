@@ -311,7 +311,11 @@ export function OrderFlowCharts({
                 
                 {/* Floating annotations */}
                 {chartData.length > 0 && (
-                  <DraggableOverlay id="current-trend-overlay" defaultPosition={{ x: 250, y: 16 }}>
+                  <DraggableOverlay 
+                    id={`${selectedSymbol}-current-trend`} 
+                    title="Current Trend"
+                    defaultPosition={{ x: 650, y: 150 }}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                       <span className="font-semibold">Current Trend ({selectedTimeInterval}):</span>
@@ -525,7 +529,11 @@ export function OrderFlowCharts({
                 
                 {/* Risk level indicator */}
                 {chartData.length > 0 && (
-                  <DraggableOverlay id="danger-level-overlay" defaultPosition={{ x: 250, y: 16 }}>
+                  <DraggableOverlay 
+                    id={`${selectedSymbol}-danger-level`} 
+                    title="Risk Core"
+                    defaultPosition={{ x: 650, y: 350 }}
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <div className={`w-2 h-2 rounded-full ${
                         chartData[chartData.length - 1]?.avgRisk <= 3 ? 'bg-green-500' :
@@ -673,7 +681,11 @@ export function OrderFlowCharts({
                   
                   {/* Order imbalance indicator */}
                   {chartData.length > 0 && (
-                    <DraggableOverlay id="imbalance-overlay" defaultPosition={{ x: 250, y: 16 }}>
+                    <DraggableOverlay 
+                      id={`${selectedSymbol}-imbalance-overlay`} 
+                      title="Volume Imbalance"
+                      defaultPosition={{ x: 650, y: 550 }}
+                    >
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`w-2 h-2 rounded-full ${
                           (chartData[chartData.length - 1]?.buyCount || 0) > (chartData[chartData.length - 1]?.sellCount || 0) ? 

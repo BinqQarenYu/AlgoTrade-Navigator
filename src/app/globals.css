@@ -109,4 +109,47 @@ body {
       box-shadow: 0 0 0.5rem 0.25rem hsl(var(--destructive) / 0);
     }
   }
+
+  .animate-glow-emerald {
+    animation: glow-emerald 3s ease-in-out infinite;
+  }
+
+  .animate-glow-amber {
+    animation: glow-amber 3s ease-in-out infinite;
+  }
+
+  .animate-data-relay {
+    animation: data-relay 1.5s linear infinite;
+  }
+
+  @keyframes glow-emerald {
+    0%, 100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.2); }
+    50% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+  }
+
+  @keyframes glow-amber {
+    0%, 100% { box-shadow: 0 0 5px rgba(245, 158, 11, 0.2); }
+    50% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+  }
+
+    @keyframes data-relay {
+    0% { transform: scaleX(0); transform-origin: left; opacity: 0; }
+    50% { transform: scaleX(1); transform-origin: left; opacity: 1; }
+    51% { transform: scaleX(1); transform-origin: right; opacity: 1; }
+    100% { transform: scaleX(0); transform-origin: right; opacity: 0; }
+  }
+
+  .animate-glow-rose {
+    animation: glow-rose 3s ease-in-out infinite;
+  }
+
+  @keyframes glow-rose {
+    0%, 100% { box-shadow: 0 0 5px rgba(244, 63, 94, 0.2); }
+    50% { box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+  }
+
+  .glass-card {
+    @apply bg-slate-950/40 backdrop-blur-xl border border-white/5;
+  }
 }
+

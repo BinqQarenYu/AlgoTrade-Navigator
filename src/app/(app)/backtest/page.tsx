@@ -1,3 +1,8 @@
+/**
+ * 🛰️ Sentinel Machine: Backtester (The Simulator)
+ * Documentation: src/app/(app)/backtest/README.md
+ * Mission: High-fidelity historical strategy simulations.
+ */
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
@@ -8,6 +13,7 @@ import { TradingChart } from "@/components/trading-chart"
 import { useDataManager } from "@/context/data-manager-context"
 import { useApi } from "@/context/api-context"
 import { useBot } from "@/context/bot-context"
+import { DraggableOverlay } from "@/components/order-flow/draggable-overlay"
 import {
   Card,
   CardContent,
@@ -36,6 +42,7 @@ import { predictMarket, PredictMarketOutput } from "@/ai/flows/predict-market-fl
 import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/assets"
 import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById as getStaticStrategyById, strategyIndicatorMap } from "@/lib/strategies"
+import { useNerve } from "@/hooks/use-nerve"
 
 import { optimizationConfigs, StrategyOptimizationConfig } from "@/lib/strategies/optimization"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -226,6 +233,46 @@ const BacktestPageContent = () => {
   const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
   const getStrategyById = getStaticStrategyById;
 
+  const { connected } = useNerve();
+  const MACHINE_ID = 'SENTINEL-NODE-2-BACKTEST';
+
+  const persistToMother = async (results: BacktestResult[], summary: BacktestSummary) => {
+    try {
+        await fetch('/api/ingest', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-machine-id': MACHINE_ID,
+                'x-priority': 'NORMAL'
+            },
+            body: JSON.stringify({
+                trades: results.map(t => ({
+                    trade_id: `${MACHINE_ID}-${t.id}-${Date.now()}`,
+                    symbol: symbol,
+                    price: t.entryPrice,
+                    quantity: 0,
+                    side: t.type === 'long' ? 'buy' : 'sell',
+                    timestamp: t.entryTime,
+                    source: 'BACKFILL',
+                    machine_id: MACHINE_ID
+                })),
+                system_log: {
+                  id: `BACKTEST-${Date.now()}`,
+                  timestamp: Date.now(),
+                  asset_pair: symbol,
+                  alert_source: MACHINE_ID,
+                  interval: 'SIM',
+                  numerical_data: JSON.stringify(summary),
+                  message: `Strategy: ${selectedStrategy} simulation finished. PNL: ${summary.totalPnl}`
+                }
+            })
+        });
+        console.log(`[${MACHINE_ID}] Simulation results pulsed to Mother.`);
+    } catch (e) {
+        console.error(`[${MACHINE_ID}] Perspective persistence failed:`, e);
+    }
+  };
+
   const [isClient, setIsClient] = useState(false)
   const [baseAsset, setBaseAsset] = usePersistentState<string>("backtest-base-asset", "BTC");
   const [quoteAsset, setQuoteAsset] = usePersistentState<string>("backtest-quote-asset", "USDT");
@@ -282,6 +329,7 @@ const BacktestPageContent = () => {
   const [activeTab, setActiveTab] = useState("chart");
   const [isConfigOpen, setIsConfigOpen] = usePersistentState<boolean>('backtest-config-open', true);
   const [isChartOpen, setIsChartOpen] = usePersistentState<boolean>('backtest-chart-open', true);
+  const [isSettingsFloating, setIsSettingsFloating] = usePersistentState<boolean>('backtest-settings-floating', false);
 
 
   const handleParamChange = (strategyId: string, paramName: string, value: any) => {
@@ -561,6 +609,9 @@ const BacktestPageContent = () => {
           setOverfittingResult(overfittingCheck);
           setOutlierTradeIds(overfittingCheck.outlierTradeIds);
         }
+
+        // Force persist the primary leg
+        persistToMother(standardResult.trades, standardResult.summary);
 
         toast({
           title: "Backtest Analysis Complete",
@@ -1223,6 +1274,28 @@ const BacktestPageContent = () => {
 
 
   return (
+    <div className="flex flex-col h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar pb-12 animate-in fade-in duration-500 px-6">
+        <div className="flex justify-between items-end mb-6 shrink-0 mt-4">
+            <div>
+                <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-emerald-500 flex items-center gap-3 uppercase">
+                        <History className="h-8 w-8 text-indigo-500" />
+                        SENTINEL-2: BACKTEST ENGINE
+                    </h1>
+                    <div className={cn(
+                        "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-500 border",
+                        connected ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                    )}>
+                        <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                        {connected ? "Nerve Active" : "Searching for Mother..."}
+                    </div>
+                </div>
+                <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold opacity-70">
+                    High-Fidelity Strategy Simulation & Parameter Optimization Lab
+                </p>
+            </div>
+        </div>
+
     <div className="space-y-6">
     {!isConnected && (
         <Alert variant="destructive" className="mb-4">
@@ -1259,7 +1332,7 @@ const BacktestPageContent = () => {
         </AlertDialogContent>
     </AlertDialog>
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-      <div className="xl:col-span-3 space-y-6">
+      <div className={cn("space-y-6", isSettingsFloating ? "xl:col-span-5" : "xl:col-span-3")}>
         <Collapsible open={isChartOpen} onOpenChange={setIsChartOpen}>
             <div className="flex items-center justify-between pb-2">
                 <div className="flex items-center gap-2">
@@ -1335,7 +1408,8 @@ const BacktestPageContent = () => {
              </TabsContent>
         </Tabs>
       </div>
-      <div className="xl:col-span-2 space-y-6">
+      {!isSettingsFloating && (
+        <div className="xl:col-span-2 space-y-6">
         <Collapsible open={isConfigOpen} onOpenChange={setIsConfigOpen}>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
@@ -1343,11 +1417,22 @@ const BacktestPageContent = () => {
                     <CardTitle>Configuration</CardTitle>
                     <CardDescription>Configure your backtesting parameters.</CardDescription>
                   </div>
-                   <CollapsibleTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConfigOpen ? "Collapse configuration" : "Expand configuration"}>
-                          <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
+                   <div className="flex items-center gap-1">
+                     <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-muted-foreground hover:text-primary" 
+                        onClick={() => setIsSettingsFloating(true)}
+                        title="Detach HUD"
+                      >
+                        <GripHorizontal className="h-4 w-4" />
                       </Button>
-                    </CollapsibleTrigger>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConfigOpen ? "Collapse configuration" : "Expand configuration"}>
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
+                        </Button>
+                      </CollapsibleTrigger>
+                   </div>
                 </CardHeader>
                 <CollapsibleContent>
                      <CardContent>
@@ -1489,6 +1574,109 @@ const BacktestPageContent = () => {
             </Card>
         </Collapsible>
       </div>
+      )}
+    </div>
+    
+    {isSettingsFloating && (
+      <DraggableOverlay 
+        id="backtest-settings-hud" 
+        title="Settings HUD" 
+        onClose={() => setIsSettingsFloating(false)}
+        defaultPosition={{ x: 1000, y: 100 }}
+      >
+        <div className="w-[400px] max-h-[80vh] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-6 py-2">
+            <Card className="bg-transparent border-none shadow-none text-slate-200">
+                <CardContent className="p-0 space-y-6">
+                    <div className="grid grid-cols-5 gap-2 items-end">
+                        <AssetSelector 
+                            baseAsset={baseAsset} 
+                            quoteAsset={quoteAsset} 
+                            onBaseChange={setBaseAsset} 
+                            onQuoteChange={setQuoteAsset}
+                            availableQuotes={availableQuotes}
+                        />
+                    </div>
+                   <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="interval">Interval</Label>
+                            <Select value={interval} onValueChange={setInterval}>
+                                <SelectTrigger>
+                                     <SelectValue placeholder="Interval" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="1m">1 minute</SelectItem>
+                                    <SelectItem value="5m">5 minutes</SelectItem>
+                                    <SelectItem value="15m">15 minutes</SelectItem>
+                                    <SelectItem value="1h">1 hour</SelectItem>
+                                    <SelectItem value="4h">4 hours</SelectItem>
+                                    <SelectItem value="1d">1 day</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                         <div className="space-y-2">
+                            <Label htmlFor="strategy">Strategy</Label>
+                             <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
+                                <SelectTrigger>
+                                     <SelectValue placeholder="Select strategy" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {strategyMetadatas.map(s => (
+                                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    
+                    <Separator className="bg-slate-800" />
+                    
+                    <div>
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-sm font-medium">Strategy Parameters</h4>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={handleResetParams}
+                                disabled={anyLoading || isReplaying}
+                                className="h-7 px-2 text-xs"
+                             >
+                                <RotateCcw className="h-3 w-3 mr-1" /> Reset
+                             </Button>
+                        </div>
+                        {renderParameterControls()}
+                    </div>
+                </CardContent>
+                <CardFooter className="px-0 pt-6">
+                    <Button 
+                        className="w-full" 
+                        size="lg"
+                        disabled={anyLoading || isReplaying} 
+                        onClick={() => {
+                            if (useAIValidation) {
+                                setIsConfirming(true);
+                            } else {
+                                runBacktest();
+                            }
+                        }}
+                    >
+                        {isBacktesting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Analyzing...
+                            </>
+                        ) : (
+                            <>
+                                <Play className="mr-2 h-4 w-4" /> Run Backtest
+                            </>
+                        )}
+                    </Button>
+                </CardFooter>
+            </Card>
+          </div>
+        </div>
+      </DraggableOverlay>
+    )}
     </div>
     </div>
   )

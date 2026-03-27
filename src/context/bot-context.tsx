@@ -180,6 +180,27 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
 
   const addLiveLog = useCallback((botId: string, message: string) => addLog(setLiveBotState, message, botId), [addLog]);
   
+  const persistTradeToMother = useCallback(async (data: any) => {
+    try {
+        await fetch('/api/ingest', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Machine-ID': 'SENTINEL-NODE-3-LIVE',
+                'X-Priority': 'HIGH'
+            },
+            body: JSON.stringify({
+                type: 'trade_event',
+                machine_id: 'SENTINEL-NODE-3-LIVE',
+                timestamp: Date.now(),
+                data: data
+            })
+        });
+    } catch (e) {
+        console.error("Failed to pulse trade to Mother:", e);
+    }
+  }, []);
+
   const botAiLastRunRef = useRef<Record<string, number>>({});
 
   const analyzeAsset = useCallback(async (
@@ -326,6 +347,16 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                         ? new Decimal(orderResult.price).minus(currentPosition.entryPrice).mul(orderResult.quantity).toNumber()
                         : new Decimal(currentPosition.entryPrice).minus(orderResult.price).mul(orderResult.quantity).toNumber();
                     riskGuardian?.registerTrade(pnl);
+                    
+                    persistTradeToMother({
+                        symbol: config.asset,
+                        side: side,
+                        quantity: orderResult.quantity,
+                        price: orderResult.price,
+                        pnl: pnl,
+                        reason: closeReason,
+                        bot_id: botId
+                    });
                 }
                 setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: null, status: 'running'}}}));
             }
@@ -363,6 +394,15 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                   const quantity = new Decimal(config.capital).mul(config.leverage).div(signal.entryPrice).toNumber();
                   await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
                   toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+                  
+                  persistTradeToMother({
+                      symbol: config.asset,
+                      side: side,
+                      quantity: quantity,
+                      price: signal.entryPrice,
+                      strategy: config.strategy,
+                      bot_id: botId
+                  });
               }
               setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: signal, status: 'position_open'}}}));
           } else {
@@ -458,6 +498,17 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     try {
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
         toast({ title: "Close Order Submitted", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${symbol} submitted. ID: ${orderResult.orderId}` });
+        
+        // --- MOTHER INGESTOR PULSE ---
+        persistTradeToMother({
+            symbol: symbol,
+            side: side,
+            quantity: orderResult.quantity,
+            price: orderResult.price,
+            pnl: position.pnl,
+            reason: 'manual_close',
+            type: 'manual_trade'
+        });
     } catch (e: any) {
         toast({ title: "Close Order Failed", description: e.message || "An unknown error.", variant: "destructive" });
     }
@@ -483,6 +534,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         const orderResult = await placeOrder(symbol, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
         toast({ title: "Test Order Placed", description: `${side} order for ${orderResult.quantity} ${symbol} submitted.` });
         addLiveLog(symbol, `Test order successful. ID: ${orderResult.orderId}`);
+        
+        persistTradeToMother({
+            symbol: symbol,
+            side: side,
+            quantity: orderResult.quantity,
+            price: orderResult.price,
+            type: 'manual_test_trade'
+        });
     } catch (e: any) {
         toast({ title: "Test Order Failed", description: e.message, variant: "destructive" });
         addLiveLog(symbol, `Test order failed: ${e.message}`);
@@ -508,14 +567,30 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const keys = { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey };
 
     try { 
-      await placeOrder(symbol, 'SELL', quantity, keys, true); 
+      const res = await placeOrder(symbol, 'SELL', quantity, keys, true); 
       toast({title: "Close Signal Sent", description: `Sent SELL order for ${symbol}.`}); 
+      persistTradeToMother({
+          symbol: symbol,
+          side: 'SELL',
+          quantity: res.quantity,
+          price: res.price,
+          reason: 'manual_test_close',
+          type: 'manual_test_trade'
+      });
     } catch (e: any) { 
       addLiveLog(symbol, `Could not close LONG (may not exist): ${e.message}`); 
     }
     try { 
-      await placeOrder(symbol, 'BUY', quantity, keys, true); 
+      const res = await placeOrder(symbol, 'BUY', quantity, keys, true); 
       toast({title: "Close Signal Sent", description: `Sent BUY order for ${symbol}.`}); 
+      persistTradeToMother({
+          symbol: symbol,
+          side: 'BUY',
+          quantity: res.quantity,
+          price: res.price,
+          reason: 'manual_test_close',
+          type: 'manual_test_trade'
+      });
     } catch (e: any) { 
       addLiveLog(symbol, `Could not close SHORT (may not exist): ${e.message}`); 
     }

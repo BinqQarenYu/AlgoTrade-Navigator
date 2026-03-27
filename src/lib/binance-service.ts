@@ -245,21 +245,41 @@ export const getHistoricalKlines = async (
     
     try {
         const binanceExchange = await getBinanceExchange();
-        // Use CCXT's unified method to fetch OHLCV data
-        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500);
+        let allKlines: HistoricalData[] = [];
+        let currentStart = startTime;
         
-        if (!Array.isArray(ohlcv)) {
-            throw new Error('Unexpected data format from CCXT fetchOHLCV.');
+        // Loop until we've covered the requested range or we stop getting new data
+        while (currentStart < endTime) {
+            // Fetch batch of up to 1000/1500 (standard Binance limit)
+            const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, currentStart, 1000);
+            
+            if (!Array.isArray(ohlcv) || ohlcv.length === 0) break;
+            
+            const batch = ohlcv.map((k: any): HistoricalData => ({
+                time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]),
+            }));
+            
+            allKlines = allKlines.concat(batch);
+            
+            // Set next start time to be 1ms after the last candle in this batch
+            const lastTime = batch[batch.length - 1].time;
+            if (lastTime <= currentStart) break; // Avoid infinite loop if same data returned
+            currentStart = lastTime + 1;
+            
+            // If the last candle we got is already past our requested endTime, stop
+            if (lastTime >= endTime) break;
+
+            // Optional: Small delay to ensure we don't overwhelm the CCXT rate limiter bucket
+            await sleep(200);
         }
         
-        return ohlcv.map((k: any): HistoricalData => ({
-            time: k[0], open: parseFloat(k[1]), high: parseFloat(k[2]), low: parseFloat(k[3]), close: parseFloat(k[4]), volume: parseFloat(k[5]),
-        }));
+        return allKlines.filter(k => k.time <= endTime);
     } catch (error) {
         console.error(`Error fetching klines via CCXT:`, error);
         throw error;
     }
 };
+
 
 export const getLatestKlinesByLimit = async (
     symbol: string,

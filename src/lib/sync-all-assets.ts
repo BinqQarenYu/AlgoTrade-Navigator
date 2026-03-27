@@ -7,7 +7,8 @@
  */
 
 import { fullAssetList } from './assets';
-import { getHistoricalKlines } from './binance-service';
+import { getHistoricalKlines, checkLocalVault } from './binance-service';
+
 
 export interface SyncStatus {
     currentSymbol: string;
@@ -55,7 +56,20 @@ class AssetSyncService {
             onUpdate({ ...status });
 
             try {
-                // 1. Fetch from Binance via Recursive CCXT
+                // 1. Optimized Check: Do we already have this range in DuckDB?
+                const localData = await checkLocalVault(symbol, interval, startTime, endTime);
+                
+                // If we have at least 80% of the expected candles, skip API fetch
+                const expectedCandles = (lookbackDays * 24 * 60) / (interval === '1h' ? 60 : 1); 
+                if (localData.length >= expectedCandles * 0.8) {
+                    console.log(`[SYNC] Skipping ${symbol}, vault already has ${localData.length} records.`);
+                    status.completedSymbols.push(symbol);
+                    status.progressPercent = Math.round((status.completedSymbols.length / total) * 100);
+                    onUpdate({ ...status });
+                    continue;
+                }
+
+                // 2. Fetch from Binance via Looping CCXT
                 const klines = await getHistoricalKlines(
                     symbol,
                     interval,
@@ -64,41 +78,52 @@ class AssetSyncService {
                 );
 
                 if (klines.length > 0) {
-                    // 2. Save to Vault (DuckDB) via API
-                    await fetch('/api/db/save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            source: 'BACKFILL',
-                            symbol,
-                            data: klines.map((k: any) => ({ ...k, interval }))
-                        })
-                    });
+                    // 3. Chunked Save to Vault (DuckDB) to avoid Large Payload Errors
+                    const CHUNK_SIZE = 1000;
+                    for (let j = 0; j < klines.length; j += CHUNK_SIZE) {
+                        if (this.abortSignal) break;
+                        
+                        const chunk = klines.slice(j, j + CHUNK_SIZE);
+                        const response = await fetch('/api/db/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                source: 'BACKFILL',
+                                symbol,
+                                data: chunk.map((k: any) => ({ ...k, interval }))
+                            })
+                        });
+                        
+                        if (!response.ok) {
+                            console.error(`[SYNC SAVE FAIL] Chunk ${j/CHUNK_SIZE} for ${symbol}`);
+                        }
+                    }
                 }
 
                 status.completedSymbols.push(symbol);
                 status.progressPercent = Math.round((status.completedSymbols.length / total) * 100);
                 onUpdate({ ...status });
 
-                // Jitter delay to prevent thundering herd on Binance
-                await new Promise(r => setTimeout(r, 500));
+                // Ethically spaced requests to avoid Binance/Proxy rate limit pressure
+                await new Promise(r => setTimeout(r, 300));
 
             } catch (error: any) {
                 console.error(`[SYNC FAILURE] ${symbol}:`, error);
                 status.error = `Error at ${symbol}: ${error.message}`;
                 onUpdate({ ...status });
-                // We continue to next asset unless it's a critical error
+                
+                // If it's a Rate Limit error, back off significantly
                 if (error.message.includes('429')) {
-                    status.isRunning = false;
-                    this.isRunning = false;
-                    return;
+                    console.warn('[SYNC] 429 Detected, sleeping for 60s...');
+                    await new Promise(r => setTimeout(r, 60000));
                 }
             }
         }
 
         this.isRunning = false;
-        onUpdate({ ...status, isRunning: false, currentSymbol: 'Completed' });
+        onUpdate({ ...status, isRunning: false, currentSymbol: this.abortSignal ? 'Stopped' : 'Completed' });
     }
+
 
     public stop() {
         this.abortSignal = true;

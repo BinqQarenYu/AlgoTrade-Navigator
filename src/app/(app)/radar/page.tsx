@@ -1,11 +1,17 @@
+/**
+ * 🛰️ Sentinel Machine: Anomaly Radar (The Sentry Display)
+ * Documentation: src/app/(app)/radar/README.md
+ * Mission: Real-time tracking of whale moves, liquidations, and bot toxicity.
+ */
 "use client"
 
 import React, { useState, useEffect } from "react"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ShieldAlert, Droplets, Anchor, Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity } from "lucide-react"
+import { ShieldAlert, Droplets, Anchor, Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity, Radio, Wifi, WifiOff } from "lucide-react"
 import { AssetSelector } from "@/components/ui/asset-selector"
 import { parseSymbolString, getAvailableQuotesForBase } from "@/lib/assets"
+import { useNerve } from "@/hooks/use-nerve"
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, 
   LineChart, Line, Legend, AreaChart, Area, PieChart, Pie, Cell
@@ -19,6 +25,17 @@ export default function AnomalyRadarPage() {
     const [timeWindow, setTimeWindow] = useState('24'); // hours
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [liveAnomalies, setLiveAnomalies] = useState<any[]>([]);
+
+    // Connect to Mother Nerve
+    const { connected } = useNerve((msg) => {
+        if (msg.type === 'MICROSTRUCTURE_EVENT') {
+            const event = msg.payload.latest;
+            if (event.asset_pair === symbol || symbol === 'ALL') {
+                setLiveAnomalies(prev => [event, ...prev].slice(0, 10));
+            }
+        }
+    });
 
     useEffect(() => {
         let isMounted = true;
@@ -53,7 +70,7 @@ export default function AnomalyRadarPage() {
         return `$${val}`;
     };
 
-    const formatTime = (ms: number) => format(new Date(ms), "HH:mm");
+    const formatTime = (ms: any) => format(new Date(Number(ms)), "HH:mm");
 
     // 1. Manipulation Breakdown (Pie)
     let pieData: any[] = [];
@@ -81,7 +98,7 @@ export default function AnomalyRadarPage() {
         const allBuckets = Array.from(new Set([...vpinMap.keys(), ...entMap.keys()])).sort((a: any, b: any) => a - b);
         allBuckets.forEach(b => {
             combinedSeries.push({
-                time: b,
+                time: Number(b),
                 VPIN: vpinMap.get(b) || 0,
                 Entropy: entMap.get(b) || 0
             });
@@ -95,16 +112,25 @@ export default function AnomalyRadarPage() {
     })) : [];
 
     return (
-        <div className="flex flex-col h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar pb-12">
+        <div className="flex flex-col h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar pb-12 animate-in fade-in duration-500">
             
             <div className="flex justify-between items-end mb-6 shrink-0 mt-4 px-2">
                 <div>
-                    <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center gap-3">
-                        <ShieldAlert className="h-8 w-8 text-rose-500" />
-                        Microstructure Intelligence Radar
-                    </h1>
-                    <p className="text-muted-foreground text-sm mt-1 uppercase tracking-widest font-bold opacity-70">
-                        Deep Market Manipulation & Smart Money Tracker
+                    <div className="flex items-center gap-3 mb-1">
+                        <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-rose-500 to-indigo-500 flex items-center gap-3">
+                            <ShieldAlert className="h-8 w-8 text-rose-500" />
+                            SENTINEL-6: ANOMALY RADAR
+                        </h1>
+                        <div className={cn(
+                            "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-500 border",
+                            connected ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                        )}>
+                            <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                            {connected ? "Nerve Pulse Active" : "Searching for Mother..."}
+                        </div>
+                    </div>
+                    <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold opacity-70">
+                        Sovereign Microstructure Analysis & Smart Money Hub
                     </p>
                 </div>
                 <div className="flex items-center gap-4 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
@@ -118,8 +144,13 @@ export default function AnomalyRadarPage() {
                         />
                     </div>
                     <Select value={timeWindow} onValueChange={setTimeWindow}>
-                        <SelectTrigger className="w-32 bg-slate-950 border-slate-800"><SelectValue/></SelectTrigger>
-                        <SelectContent><SelectItem value="1">Last 1 Hour</SelectItem><SelectItem value="4">Last 4 Hours</SelectItem><SelectItem value="24">Last 24 Hours</SelectItem><SelectItem value="168">Last 7 Days</SelectItem></SelectContent>
+                        <SelectTrigger className="w-32 bg-slate-950 border-slate-800 focus:ring-rose-500/50"><SelectValue/></SelectTrigger>
+                        <SelectContent className="bg-slate-950 border-slate-800 text-slate-200">
+                            <SelectItem value="1">Last 1 Hour</SelectItem>
+                            <SelectItem value="4">Last 4 Hours</SelectItem>
+                            <SelectItem value="24">Last 24 Hours</SelectItem>
+                            <SelectItem value="168">Last 7 Days</SelectItem>
+                        </SelectContent>
                     </Select>
                 </div>
             </div>
@@ -157,7 +188,10 @@ export default function AnomalyRadarPage() {
                                         <YAxis stroke="#475569" fontSize={10} tickFormatter={(val) => val.toFixed(1)} />
                                         <RechartsTooltip 
                                             contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '8px' }} 
-                                            labelFormatter={(l) => format(new Date(l), "MMM dd, HH:mm")}
+                                            labelFormatter={(l) => {
+                                                const d = new Date(Number(l));
+                                                return isNaN(d.getTime()) ? l : format(d, "MMM dd, HH:mm");
+                                            }}
                                         />
                                         <Legend verticalAlign="top" height={36} iconType="circle"/>
                                         <Area type="monotone" name="Toxicity (VPIN)" dataKey="VPIN" stroke="#ef4444" fillOpacity={1} fill="url(#vpinGradient)" strokeWidth={2} />
@@ -233,10 +267,38 @@ export default function AnomalyRadarPage() {
 
                     <Card className="bg-slate-950/40 border-slate-800 shadow-xl flex flex-col">
                         <CardHeader className="shrink-0">
-                            <CardTitle className="text-sm uppercase tracking-widest text-slate-300 flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-emerald-500"/> Chain-Reaction Liquidations</CardTitle>
+                            <CardTitle className="text-sm uppercase tracking-widest text-slate-300 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4 text-emerald-500"/> 
+                                    Chain-Reaction Liquidations
+                                </div>
+                                {liveAnomalies.length > 0 && <span className="text-[9px] bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded animate-pulse border border-indigo-500/30">LIVE</span>}
+                            </CardTitle>
                             <CardDescription>Major force-closures (Cascades).</CardDescription>
                         </CardHeader>
                         <CardContent className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-2">
+                            {/* Live Nerve Pulse Feed */}
+                            {liveAnomalies.length > 0 && (
+                                <div className="space-y-2 mb-4">
+                                    {liveAnomalies.map((ani, idx) => (
+                                        <div key={`live-${idx}`} className="p-2 border border-indigo-500/30 bg-indigo-500/5 rounded-lg text-xs flex justify-between items-center animate-in slide-in-from-right-4 duration-500">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold flex items-center gap-1 text-indigo-400">
+                                                    <Radio className="h-3 w-3 animate-pulse"/>
+                                                    {ani.event_type}
+                                                </span>
+                                                <span className="opacity-70 font-mono text-[9px] mt-0.5 text-slate-400">{formatTime(Number(ani.timestamp))}</span>
+                                            </div>
+                                            <div className="text-right flex flex-col">
+                                                <span className="font-black font-mono text-indigo-300">{formatVol(ani.magnitude || ani.price)}</span>
+                                                <span className="opacity-70 font-mono text-[9px] text-slate-500 capitalize">{ani.side || 'NEUTRAL'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    <div className="border-b border-dashed border-slate-800 my-4" />
+                                </div>
+                            )}
+
                             {data?.liquidations?.length > 0 ? (
                                 <div className="space-y-2">
                                     {data.liquidations.map((liq: any, i: number) => {
@@ -253,7 +315,7 @@ export default function AnomalyRadarPage() {
                                                         {isShortRekt ? <ArrowUpRight className="h-3 w-3"/> : <ArrowDownRight className="h-3 w-3"/>}
                                                         {isShortRekt ? "Short Squeeze" : "Long Cascade"}
                                                     </span>
-                                                    <span className="opacity-70 font-mono text-[9px] mt-0.5">{formatTime(liq.timestamp)}</span>
+                                                    <span className="opacity-70 font-mono text-[9px] mt-0.5">{formatTime(Number(liq.timestamp))}</span>
                                                 </div>
                                                 <div className="text-right flex flex-col">
                                                     <span className="font-black font-mono">{formatVol(liq.volume_usd)}</span>

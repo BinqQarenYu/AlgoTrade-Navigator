@@ -1,4 +1,8 @@
-
+/**
+ * 🛰️ Sentinel Machine: Dashboard (The Command Center)
+ * Documentation: src/app/(app)/dashboard/README.md
+ * Mission: Zero-latency global heartbeat and centralized visualization.
+ */
 "use client"
 
 import React, { useState, useEffect } from "react";
@@ -12,6 +16,8 @@ import type { Portfolio, Position } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal, Bot, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useNerve } from "@/hooks/use-nerve";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { isConnected, activeProfile, apiLimit, setApiLimit, rateLimitThreshold } = useApi();
@@ -71,7 +77,32 @@ export default function DashboardPage() {
     fetchData();
   }, [isConnected, activeProfile, toast, setApiLimit, rateLimitThreshold, isTradingActive]);
 
+  const { connected } = useNerve();
+  const MACHINE_ID = 'SENTINEL-NODE-1-DASHBOARD';
+
   return (
+    <div className="flex flex-col h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar pb-12 animate-in fade-in duration-500 px-6">
+        <div className="flex justify-between items-end mb-6 shrink-0 mt-4">
+            <div>
+                <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-emerald-500 flex items-center gap-3 uppercase">
+                        <Globe className="h-8 w-8 text-indigo-500" />
+                        SENTINEL-1: DASHBOARD
+                    </h1>
+                    <div className={cn(
+                        "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-500 border",
+                        connected ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                    )}>
+                        <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                        {connected ? "Nerve Active" : "Searching for Mother..."}
+                    </div>
+                </div>
+                <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold opacity-70">
+                    Sovereign Command Center & Centralized Heartbeat Monitor
+                </p>
+            </div>
+        </div>
+
     <div className="space-y-6">
       {isTradingActive && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
@@ -116,6 +147,7 @@ export default function DashboardPage() {
         onClosePosition={closePosition}
         permissions={activeProfile?.permissions}
       />
+      </div>
     </div>
   );
 }

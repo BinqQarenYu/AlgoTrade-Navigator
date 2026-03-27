@@ -1,3 +1,8 @@
+/**
+ * 🛰️ Sentinel Machine: Order Auditor (The Flow Scanner)
+ * Documentation: src/app/(app)/order-flow/README.md
+ * Mission: Granular order book analysis and pattern recognition.
+ */
 "use client";
 
 import { useState } from "react";

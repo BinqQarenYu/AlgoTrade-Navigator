@@ -1,3 +1,8 @@
+/**
+ * 🛡️ Sentinel Machine: Manual Pilot (The Pilot Interface)
+ * Documentation: src/app/(app)/manual/README.md
+ * Mission: High-precision manual trade entry and override controls.
+ */
 "use client"
 
 import React, { useState, useEffect, memo, useCallback, useRef } from "react"
@@ -23,46 +28,8 @@ import { cn, formatPrice } from "@/lib/utils"
 import { useApi } from "@/context/api-context"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
-const DraggableOverlay = ({ title, onClose, children }: { title: string, onClose: () => void, children: React.ReactNode }) => {
-    const [position, setPosition] = useState({ x: typeof window !== 'undefined' ? window.innerWidth - 450 : 800, y: 100 });
-    const [isDragging, setIsDragging] = useState(false);
-    const dragRef = useRef<HTMLDivElement>(null);
-    const offsetRef = useRef({ x: 0, y: 0 });
+import { DraggableOverlay } from "@/components/order-flow/draggable-overlay"
 
-    const handleMouseDown = useCallback((e: React.MouseEvent) => {
-        setIsDragging(true);
-        if (dragRef.current) {
-            const rect = dragRef.current.getBoundingClientRect();
-            offsetRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!isDragging) return;
-        const handleMouseMove = (e: MouseEvent) => {
-             e.preventDefault();
-             setPosition({ x: e.clientX - offsetRef.current.x, y: e.clientY - offsetRef.current.y });
-        };
-        const handleMouseUp = () => setIsDragging(false);
-
-        window.addEventListener('mousemove', handleMouseMove, { passive: false });
-        window.addEventListener('mouseup', handleMouseUp);
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging]);
-
-    return (
-        <div ref={dragRef} style={{ left: position.x, top: position.y, position: 'fixed' }} className="z-[100] shadow-2xl bg-slate-950/95 backdrop-blur-xl border border-indigo-500/50 rounded-xl w-[400px] flex flex-col overflow-hidden">
-            <div className="p-3 border-b border-white/10 bg-indigo-950/40 cursor-move flex justify-between items-center" onMouseDown={handleMouseDown}>
-                <div className="flex items-center gap-2 select-none"><GripHorizontal className="w-4 h-4 text-indigo-400 opacity-70" /><span className="text-sm font-bold tracking-wider text-slate-200 uppercase">{title}</span></div>
-                <button onClick={(e) => { e.stopPropagation(); onClose(); }} className="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white transition-colors"><X className="w-4 h-4"/></button>
-            </div>
-            <div className="p-4 max-h-[70vh] overflow-y-auto custom-scrollbar">{children}</div>
-        </div>
-    );
-};
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { LiquidityHeatmap } from "@/components/live/LiquidityHeatmap"
 import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/lib/types"
@@ -511,9 +478,20 @@ export default function ManualTradingPage() {
                 </div>
             </div>
             
-            {showAdvancedSettings && activeBot && (
-                <DraggableOverlay title={`${activeBot.asset} Strategy Control`} onClose={() => setShowAdvancedSettings(false)}>
-                    <StrategyParamsCard bot={activeBot} onParamChange={(p, v) => handleStrategyParamChange(activeBot.id, p, v)} onDisciplineChange={(p, v) => handleDisciplineParamChange(activeBot.id, p, v)} onReset={() => handleResetParams(activeBot.id)} isTradingActive={isTradingActive} />
+                    {showAdvancedSettings && activeBot && (
+                <DraggableOverlay 
+                    id={`manual-bot-settings-${activeBot.id}`} 
+                    title={`${activeBot.asset} Strategy Control`} 
+                    onClose={() => setShowAdvancedSettings(false)}
+                    defaultPosition={{ x: 800, y: 150 }}
+                >
+                    <StrategyParamsCard 
+                        bot={activeBot} 
+                        onParamChange={(p, v) => handleStrategyParamChange(activeBot.id, p, v)} 
+                        onDisciplineChange={(p, v) => handleDisciplineParamChange(activeBot.id, p, v)} 
+                        onReset={() => handleResetParams(activeBot.id)} 
+                        isTradingActive={isTradingActive} 
+                    />
                 </DraggableOverlay>
             )}
         </div>

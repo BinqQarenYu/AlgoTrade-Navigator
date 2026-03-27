@@ -1,3 +1,8 @@
+/**
+ * 🛰️ Sentinel Machine: Live Trader (The Executor)
+ * Documentation: src/app/(app)/live/README.md
+ * Mission: High-frequency trading execution and risk guardrails.
+ */
 "use client"
 
 import React, { useState, useCallback, useEffect, memo, useRef } from "react";
@@ -16,6 +21,7 @@ import { topAssets, getAvailableQuotesForBase, parseSymbolString } from "@/lib/a
 import { AssetSelector } from "@/components/ui/asset-selector"
 import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
 import { cn } from "@/lib/utils"
+import { useNerve } from "@/hooks/use-nerve"
 import { useApi } from "@/context/api-context"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import type { DisciplineParams, LiveBotConfig, LiveBotStateForAsset } from "@/lib/types"
@@ -285,9 +291,7 @@ const StatusBadge = memo(({ status }: { status?: 'idle' | 'running' | 'analyzing
 StatusBadge.displayName = 'StatusBadge';
 
 
-                                // <Button variant="outline" size="icon" onClick={() => onDebugLog && onDebugLog(bot)} title="Debug Log">
-                                //     <span role="img" aria-label="bug">🐞</span>
-                                // </Button>
+
 const SystemCheckItem = ({ label, passed }: { label: string; passed: boolean }) => (
     <div className="flex items-center justify-between text-sm">
         <p>{label}</p>
@@ -310,13 +314,15 @@ export default function LiveTradingPage() {
         botInstances,
         setBotInstances,
         addBotInstance: addBotContextInstance,
-        executeTestTrade,
     } = useBot();
-    const { bots: runningBots } = liveBotState;
-    const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
-    const [botPrices, setBotPrices] = useState<Record<string, number>>({});
-    const priceIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+    const runningBots = liveBotState.bots;
     const [logBot, setLogBot] = useState<(LiveBotConfig & { id: string; }) | null>(null);
+    const [botPrices, setBotPrices] = useState<Record<string, number>>({});
+    const [openParams, setOpenParams] = useState<Record<string, boolean>>({});
+    const { connected } = useNerve();
+    const priceIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+
+    const MACHINE_ID = 'SENTINEL-NODE-3-LIVE';
 
     const handleOpenLogDialog = (bot: LiveBotConfig & { id: string; }) => {
         setLogBot(bot);
@@ -332,45 +338,53 @@ export default function LiveTradingPage() {
         }
     }, [botInstances, addBotInstance]);
 
-
     const handleBotConfigChange = useCallback(<K extends keyof LiveBotConfig>(id: string, field: K, value: LiveBotConfig[K]) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === id) {
-                const updatedValue = value;
-                const updatedBot = { ...bot, [field]: updatedValue };
+                const updatedBot = { ...bot, [field]: value };
                 if (field === 'strategy') {
-                    updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || {};
+                    updatedBot.strategyParams = DEFAULT_PARAMS_MAP[value as string] || { discipline: defaultAwesomeOscillatorParams.discipline };
                 }
                 return updatedBot;
             }
             return bot;
         }));
     }, [setBotInstances]);
-    
+
     const handleStrategyParamChange = useCallback((botId: string, param: string, value: any) => {
         setBotInstances(prev => prev.map(bot => {
             if (bot.id === botId) {
                 const updatedParams = { ...bot.strategyParams };
-                 if (typeof value === 'object') {
-                   updatedParams[param] = value;
+                if (typeof value === 'object' && value !== null) {
+                    updatedParams[param] = value;
                 } else if (typeof value === 'boolean') {
-                   updatedParams[param] = value;
+                    updatedParams[param] = value;
                 } else {
-                   const parsedValue = (value === '' || isNaN(value as number)) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
-                   updatedParams[param] = isNaN(parsedValue as number) ? 0 : parsedValue;
+                    const parsedValue = (value === '' || isNaN(Number(value))) ? 0 : String(value).includes('.') ? parseFloat(value) : parseInt(value, 10);
+                    updatedParams[param] = isNaN(parsedValue) ? 0 : parsedValue;
                 }
-               return { ...bot, strategyParams: updatedParams };
-           }
+                return { ...bot, strategyParams: updatedParams };
+            }
             return bot;
         }));
     }, [setBotInstances]);
-    
+
     const handleDisciplineParamChange = useCallback((botId: string, paramName: keyof DisciplineParams, value: any) => {
-        handleStrategyParamChange(botId, 'discipline', {
-            ...(botInstances.find(b => b.id === botId)?.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline),
-            [paramName]: value
-        });
-    }, [botInstances, handleStrategyParamChange]);
+        setBotInstances(prev => prev.map(bot => {
+            if (bot.id === botId) {
+                const currentDiscipline = bot.strategyParams.discipline || defaultAwesomeOscillatorParams.discipline;
+                const updatedParams = {
+                    ...bot.strategyParams,
+                    discipline: {
+                        ...currentDiscipline,
+                        [paramName]: value
+                    }
+                };
+                return { ...bot, strategyParams: updatedParams };
+            }
+            return bot;
+        }));
+    }, [setBotInstances]);
 
     const handleResetParams = useCallback((botId: string) => {
         const bot = botInstances.find(b => b.id === botId);
@@ -407,7 +421,8 @@ export default function LiveTradingPage() {
             return;
         }
 
-        const isRunning = runningBots[botId]?.status === 'running' || runningBots[botId]?.status === 'analyzing' || runningBots[botId]?.status === 'position_open';
+        const botState = runningBots[botId];
+        const isRunning = botState?.status === 'running' || botState?.status === 'analyzing' || botState?.status === 'position_open';
         
         if (isRunning) {
             stopBotInstance(botId);
@@ -415,20 +430,6 @@ export default function LiveTradingPage() {
             startBotInstance(botConfig);
         }
     }, [botInstances, activeProfile, runningBots, startBotInstance, stopBotInstance, toast]);
-    
-    const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
-
-    function intervalToMs(interval: string): number {
-      switch (interval) {
-        case "1m": return 60_000;
-        case "5m": return 5 * 60_000;
-        case "15m": return 15 * 60_000;
-        case "1h": return 60 * 60_000;
-        case "4h": return 4 * 60 * 60_000;
-        case "1d": return 24 * 60 * 60_000;
-        default: return 60_000;
-      }
-    }
 
     useEffect(() => {
         Object.values(priceIntervals.current).forEach(clearInterval);
@@ -438,7 +439,6 @@ export default function LiveTradingPage() {
             if (!bot.asset) return;
             const fetchPrice = async () => {
                 try {
-                    // Always use 1m for the most recent price data
                     const klines = await getLatestKlinesByLimit(bot.asset, '1m', 1);
                     if (klines && klines.length > 0) {
                         setBotPrices(prices => ({ ...prices, [bot.id]: klines[0].close }));
@@ -449,8 +449,7 @@ export default function LiveTradingPage() {
                 }
             };
             
-            fetchPrice(); // Fetch immediately
-            // Then update every 5 seconds for a near real-time feel
+            fetchPrice();
             priceIntervals.current[bot.id] = setInterval(fetchPrice, 5000); 
         });
 
@@ -459,75 +458,95 @@ export default function LiveTradingPage() {
         };
     }, [botInstances]);
 
+    const isAnyBotMisconfigured = botInstances.some(b => !b.asset || !b.strategy);
+
     return (
-        <div className="space-y-6">
-            <div className="text-left">
-                <h1 className="text-3xl font-bold tracking-tight text-primary">Live Trading Matrix</h1>
-                <p className="text-muted-foreground mt-2">
-                    Configure and deploy a portfolio of unique trading bots from a single dashboard.
-                </p>
+        <div className="flex flex-col h-[calc(100vh-80px)] overflow-hidden animate-in fade-in duration-500">
+            {/* --- SENTINEL HEADER --- */}
+            <div className="flex justify-between items-end mb-6 shrink-0 px-6 pt-6 bg-background/50 backdrop-blur-sm border-b pb-6">
+                <div>
+                    <div className="flex items-center gap-3 mb-1">
+                        <h1 className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-orange-500 flex items-center gap-3 uppercase">
+                            <Bot className="h-8 w-8 text-red-500" />
+                            SENTINEL-3: LIVE TRADER
+                        </h1>
+                        <div className={cn(
+                            "flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-500 border",
+                            connected ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
+                        )}>
+                            <div className={cn("w-1.5 h-1.5 rounded-full", connected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                            {connected ? "Nerve Active" : "Searching for Mother..."}
+                        </div>
+                    </div>
+                    <p className="text-muted-foreground text-sm uppercase tracking-widest font-bold opacity-70">
+                        High-Frequency Execution & Distributed Risk Guardrails
+                    </p>
+                </div>
+                
+                <div className="flex items-center gap-4 text-xs font-mono">
+                    <div className="text-right">
+                        <div className="text-muted-foreground opacity-50 uppercase tracking-tighter">Machine ID</div>
+                        <div className="font-bold text-red-500/80">{MACHINE_ID}</div>
+                    </div>
+                </div>
             </div>
 
-            {isConnected ? (
-                <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertTitle>API Connected</AlertTitle>
-                    <AlertDescription>
-                        You are connected to the Binance API. Live trading features are enabled.
-                    </AlertDescription>
-                </Alert>
-            ) : (
-                <Alert variant="destructive">
-                    <AlertTitle>API Disconnected</AlertTitle>
-                    <AlertDescription>
-                        Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable live trading features.
-                    </AlertDescription>
-                </Alert>
-            )}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 space-y-8 pb-12">
+                <div className="space-y-6">
+                    {isConnected ? (
+                        <Alert variant="default" className="border-green-500/50 bg-green-500/10 text-green-500">
+                            <CheckCircle className="h-4 w-4" />
+                            <AlertTitle>API Connected</AlertTitle>
+                            <AlertDescription>
+                                You are connected to the Binance API. Live trading features are enabled.
+                            </AlertDescription>
+                        </Alert>
+                    ) : (
+                        <Alert variant="destructive">
+                            <AlertTitle>API Disconnected</AlertTitle>
+                            <AlertDescription>
+                                Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable live trading features.
+                            </AlertDescription>
+                        </Alert>
+                    )}
 
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Bot Configuration Matrix</CardTitle>
-                        <CardDescription>Add, remove, and configure your trading bots.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Dialog>
-                            <DialogTrigger asChild>
-                                <Button size="sm" variant="outline">
-                                    <ClipboardCheck className="mr-2 h-4 w-4"/> System Check
+                    <Card>
+                        <CardHeader className="flex flex-row items-center justify-between">
+                            <div>
+                                <CardTitle>Bot Configuration Matrix</CardTitle>
+                                <CardDescription>Add, remove, and configure your trading bots.</CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Dialog>
+                                    <DialogTrigger asChild>
+                                        <Button size="sm" variant="outline">
+                                            <ClipboardCheck className="mr-2 h-4 w-4"/> System Check
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>Live Trading Pre-Flight Checklist</DialogTitle>
+                                            <DialogDescription>
+                                                Verify these items before deploying your bots to ensure a smooth session.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="space-y-4 py-4">
+                                            <SystemCheckItem label="Binance API Connected" passed={isConnected} />
+                                            <Separator />
+                                            <SystemCheckItem label="Active Profile has Trading Permissions" passed={activeProfile?.permissions === 'FuturesTrading'} />
+                                            <Separator />
+                                            <SystemCheckItem label="Telegram Notifications Configured" passed={!!(telegramBotToken && telegramChatId)} />
+                                            <Separator />
+                                            <SystemCheckItem label="All Bot Rows Fully Configured" passed={!isAnyBotMisconfigured} />
+                                        </div>
+                                    </DialogContent>
+                                </Dialog>
+                                <Button onClick={addBotInstance} size="sm" variant="outline">
+                                    <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
                                 </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Live Trading Pre-Flight Checklist</DialogTitle>
-                                    <DialogDescription>
-                                        Verify these items before deploying your bots to ensure a smooth session.
-                                    </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                    <SystemCheckItem label="Binance API Connected" passed={isConnected} />
-                                    <Separator />
-                                    <SystemCheckItem label="Active Profile has Trading Permissions" passed={activeProfile?.permissions === 'FuturesTrading'} />
-                                    <Separator />
-                                    <SystemCheckItem label="Telegram Notifications Configured" passed={!!(telegramBotToken && telegramChatId)} />
-                                    <Separator />
-                                    <SystemCheckItem label="All Bot Rows Fully Configured" passed={!isAnyBotMisconfigured} />
-                                </div>
-                            </DialogContent>
-                        </Dialog>
-                         <Button onClick={addBotInstance} size="sm" variant="outline">
-                            <PlusCircle className="mr-2 h-4 w-4"/> Add Bot
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {/* Define the number of columns in one place to keep colSpan in sync */}
-                    {/** Update this if you add/remove columns in the table header/body */}
-                    {/** This ensures colSpan always matches the number of columns */}
-                    {(() => {
-                        const TABLE_COLUMN_COUNT = 11;
-                        return (
+                            </div>
+                        </CardHeader>
+                        <CardContent>
                             <div className="border rounded-md overflow-x-auto">
                                 <Table>
                                     <TableHeader>
@@ -569,16 +588,17 @@ export default function LiveTradingPage() {
                                                     isBotRunning={isRunning}
                                                     isConnected={isConnected}
                                                     canTrade={activeProfile?.permissions === 'FuturesTrading'}
-                                                    tableColumnCount={TABLE_COLUMN_COUNT}
+                                                    tableColumnCount={11}
                                                 />
                                             )})}
                                     </TableBody>
                                 </Table>
                             </div>
-                        );
-                    })()}
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+            
             <LogReportDialog 
                 bot={logBot}
                 state={logBot ? runningBots[logBot.id] : undefined}
@@ -633,7 +653,7 @@ const BotInstanceRow = ({
                 <TableCell><StatusBadge status={botState?.status}/></TableCell>
                 <TableCell>
                     {(() => {
-                        const parsed = parseSymbolString(bot.asset) || { base: bot.asset.replace('USDT', ''), quote: 'USDT' };
+                        const parsed = parseSymbolString(bot.asset) || { base: bot.asset?.replace('USDT', '') || 'BTC', quote: 'USDT' };
                         const availableQuotes = getAvailableQuotesForBase(parsed.base) || ['USDT'];
                         return (
                             <AssetSelector

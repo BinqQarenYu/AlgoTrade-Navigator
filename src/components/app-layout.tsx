@@ -19,6 +19,8 @@ import {
   SidebarInset,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { ChildNodeStatus } from "@/components/child-node-status"
+
 const menuItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
@@ -93,6 +95,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="hidden md:flex items-center gap-2 bg-slate-950 p-1.5 rounded-lg border border-slate-800">
+            <ChildNodeStatus />
             <Link href="/order-flow" className={cn("px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all", pathname.startsWith('/order-flow') ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "text-slate-500 hover:text-slate-300 hover:bg-slate-900")}>
                Order Flow
             </Link>
