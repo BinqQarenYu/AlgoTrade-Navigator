@@ -766,18 +766,30 @@ const BacktestPageContent = () => {
         toast({ title: "Warning", description: `Testing first 50 of ${combinations.length} possible combinations.` });
     }
 
-    for (const params of testCombinations) {
-        const { summary } = await runSilentBacktest(fullChartData, {
-            strategyId: selectedStrategy,
-            strategyParams: params,
-            initialCapital, leverage, takeProfit, stopLoss, fee,
-            symbol: symbol
-        });
+    const chunkSize = 10;
+    for (let i = 0; i < testCombinations.length; i += chunkSize) {
+        const chunk = testCombinations.slice(i, i + chunkSize);
 
-        if (summary && summary.profitFactor > bestProfitFactor) {
-            bestProfitFactor = summary.profitFactor;
-            bestParams = params;
+        const results = await Promise.all(
+            chunk.map(params =>
+                runSilentBacktest(fullChartData, {
+                    strategyId: selectedStrategy,
+                    strategyParams: params,
+                    initialCapital, leverage, takeProfit, stopLoss, fee,
+                    symbol: symbol
+                }).then(({ summary }) => ({ summary, params }))
+            )
+        );
+
+        for (const { summary, params } of results) {
+            if (summary && summary.profitFactor > bestProfitFactor) {
+                bestProfitFactor = summary.profitFactor;
+                bestParams = params;
+            }
         }
+
+        // Yield to main thread to prevent UI freeze during long optimizations
+        await new Promise(resolve => setTimeout(resolve, 0));
     }
 
     if (bestParams) {
