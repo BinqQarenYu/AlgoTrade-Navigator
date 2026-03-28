@@ -7,7 +7,8 @@ import type { Ticker } from 'ccxt';
 import { binance } from 'ccxt';
 
 // This function is now the single point of contact for all client-side requests to our proxy.
-async function callProxy<T>(
+export const proxyApi = {
+  async callProxy<T>(
     path: string, 
     method: 'GET' | 'POST' = 'GET', 
     body?: Record<string, any>,
@@ -41,7 +42,8 @@ async function callProxy<T>(
         // Re-throw the error so it can be caught by the calling function and displayed in the UI
         throw error;
     }
-}
+  }
+};
 
 
 // CCXT instance for public market data - this does not go through our proxy
@@ -51,7 +53,7 @@ const binanceExchange = new binance({
 });
 
 export const getAccountBalance = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Portfolio, usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
+  const { data, usedWeight } = await proxyApi.callProxy<any>('/fapi/v2/account', 'GET', undefined, keys);
   const portfolioData = {
     balance: parseFloat(data.totalWalletBalance),
     totalPnl: parseFloat(data.totalUnrealizedProfit),
@@ -61,7 +63,7 @@ export const getAccountBalance = async (keys: { apiKey: string, secretKey: strin
 };
 
 export const getOpenPositions = async (keys: { apiKey: string, secretKey: string }): Promise<{ data: Position[], usedWeight: number }> => {
-  const { data, usedWeight } = await callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys);
+  const { data, usedWeight } = await proxyApi.callProxy<any[]>('/fapi/v2/positionRisk', 'GET', undefined, keys);
   const positionsData = data
     .filter((pos: any) => parseFloat(pos.positionAmt) !== 0)
     .map((pos: any): Position => {
@@ -105,7 +107,7 @@ export const placeOrder = async (
       body.reduceOnly = 'true';
   }
 
-  const { data: responseData } = await callProxy<any>('/fapi/v1/order', 'POST', body, keys);
+  const { data: responseData } = await proxyApi.callProxy<any>('/fapi/v1/order', 'POST', body, keys);
 
   return {
     orderId: String(responseData.orderId),
