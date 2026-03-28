@@ -45,6 +45,7 @@ const SelectScrollUpButton = React.forwardRef<
     {...props}
   >
     <ChevronUp className="h-4 w-4" />
+    <span className="sr-only">Scroll up</span>
   </SelectPrimitive.ScrollUpButton>
 ))
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName
@@ -62,6 +63,7 @@ const SelectScrollDownButton = React.forwardRef<
     {...props}
   >
     <ChevronDown className="h-4 w-4" />
+    <span className="sr-only">Scroll down</span>
   </SelectPrimitive.ScrollDownButton>
 ))
 SelectScrollDownButton.displayName =
