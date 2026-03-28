@@ -5,6 +5,9 @@ import type { CoinSentimentData, CoinDetails } from './types';
 
 const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3';
 
+// In-memory cache for static coin properties like genesis_date
+const genesisDateCache = new Map<string, string | null>();
+
 // A simple map from our app's tickers to CoinGecko's coin IDs.
 const TICKER_TO_CG_ID: Record<string, string> = {
     'BTC': 'bitcoin',
@@ -76,35 +79,57 @@ export const getTopCoins = async (
         const data = await response.json();
 
         // Now, we need genesis_date for each coin, which is not in the /markets endpoint.
-        // We'll have to make individual calls for that. This is inefficient but necessary for the prototype.
-        const detailedDataPromises = data.map(async (coin: any) => {
-            try {
-                const detailUrl = new URL(`${COINGECKO_API_URL}/coins/${coin.id}`);
-                 if (apiKey) {
-                    detailUrl.searchParams.append('x_cg_demo_api_key', apiKey);
+        // We use an in-memory cache and chunked concurrency to avoid N+1 rate limiting.
+        const BATCH_SIZE = 5;
+        const detailedResults = [...data];
+
+        for (let i = 0; i < detailedResults.length; i += BATCH_SIZE) {
+            const batch = detailedResults.slice(i, i + BATCH_SIZE);
+            const batchPromises = batch.map(async (coin: any) => {
+                if (genesisDateCache.has(coin.id)) {
+                    coin.genesis_date = genesisDateCache.get(coin.id);
+                    return;
                 }
-                detailUrl.searchParams.append('localization', 'false');
-                detailUrl.searchParams.append('tickers', 'false');
-                detailUrl.searchParams.append('market_data', 'false');
-                detailUrl.searchParams.append('developer_data', 'false');
-                detailUrl.searchParams.append('sparkline', 'false');
 
-                const detailResponse = await fetch(detailUrl.toString(), { cache: 'no-store' });
-                if (!detailResponse.ok) return { ...coin, genesis_date: null }; // Return original data if detail fails
-                
-                const detailData = await detailResponse.json();
-                
-                return {
-                    ...coin,
-                    genesis_date: detailData.genesis_date || null,
-                };
-            } catch (e) {
-                console.warn(`Could not fetch details for ${coin.id}`, e);
-                return { ...coin, genesis_date: null }; // Return original data on error
+                try {
+                    const detailUrl = new URL(`${COINGECKO_API_URL}/coins/${coin.id}`);
+                    if (apiKey) {
+                        detailUrl.searchParams.append('x_cg_demo_api_key', apiKey);
+                    }
+                    detailUrl.searchParams.append('localization', 'false');
+                    detailUrl.searchParams.append('tickers', 'false');
+                    detailUrl.searchParams.append('market_data', 'false');
+                    detailUrl.searchParams.append('developer_data', 'false');
+                    detailUrl.searchParams.append('sparkline', 'false');
+
+                    const detailResponse = await fetch(detailUrl.toString(), { cache: 'no-store' });
+
+                    if (!detailResponse.ok) {
+                        coin.genesis_date = null;
+                        if (detailResponse.status !== 429) {
+                            genesisDateCache.set(coin.id, null); // Cache failures too to prevent retries
+                        }
+                        return;
+                    }
+
+                    const detailData = await detailResponse.json();
+                    const genesisDate = detailData.genesis_date || null;
+
+                    genesisDateCache.set(coin.id, genesisDate);
+                    coin.genesis_date = genesisDate;
+                } catch (e) {
+                    console.warn(`Could not fetch details for ${coin.id}`, e);
+                    coin.genesis_date = null;
+                }
+            });
+
+            await Promise.all(batchPromises);
+
+            // Add a small delay between batches to respect rate limits
+            if (i + BATCH_SIZE < detailedResults.length) {
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
-        });
-
-        const detailedResults = await Promise.all(detailedDataPromises);
+        }
 
         return detailedResults;
         
