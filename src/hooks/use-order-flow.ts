@@ -194,8 +194,19 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
         const ema12 = (kline.close * k) + (prevEma12 * (1 - k));
         prevEma12 = ema12;
         
-        const bVol = orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').reduce((a, b) => a + b.size, 0);
-        const sVol = orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').reduce((a, b) => a + b.size, 0);
+        let bVol = 0, sVol = 0, buyPressure = 0, sellPressure = 0;
+        for (let j = 0; j < orderFlowData.length; j++) {
+          const o = orderFlowData[j];
+          if (Math.abs(o.timestamp - timestamp) < intervalMs) {
+            if (o.orderType === 'buy') {
+              bVol += o.size;
+              buyPressure++;
+            } else if (o.orderType === 'sell') {
+              sVol += o.size;
+              sellPressure++;
+            }
+          }
+        }
         
         return {
           timestamp,
@@ -212,8 +223,8 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           bb_upper: bbValues.upper[i],
           bb_lower: bbValues.lower[i],
           bb_middle: bbValues.middle[i],
-          buyPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'buy').length,
-          sellPressure: orderFlowData.filter(o => Math.abs(o.timestamp - timestamp) < intervalMs && o.orderType === 'sell').length,
+          buyPressure: buyPressure,
+          sellPressure: sellPressure,
           manipulationRisk: bVol > 0 || sVol > 0 ? ((bVol > sVol * 3 || sVol > bVol * 3) ? 8 : 2) : 0,
           resistance: Number((kline.high * 1.005).toFixed(2)),
           support: Number((kline.low * 0.995).toFixed(2))
@@ -562,9 +573,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
   const helpers = useMemo(() => ({
     calculateMarketSentiment: () => {
       if (!stats || stats.totalOrders === 0) return 0.5;
-      const recentOrders = orderFlowData.slice(-20);
       let buy = 0, sell = 0;
-      recentOrders.forEach(o => { if (o.orderType === 'buy') buy++; else if (o.orderType === 'sell') sell++; });
+      const startIdx = Math.max(0, orderFlowData.length - 20);
+      for (let i = startIdx; i < orderFlowData.length; i++) {
+        const o = orderFlowData[i];
+        if (o.orderType === 'buy') buy++;
+        else if (o.orderType === 'sell') sell++;
+      }
       return (buy + sell === 0) ? 0.5 : buy / (buy + sell);
     },
     getMarketSentiment: () => {
@@ -575,20 +590,21 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
       if (!stats || orderFlowData.length === 0) return { signal: 'wait', confidence: 0, reason: 'No data available' };
       
       const riskScore = stats.averageRiskScore;
-      const recentOrders = orderFlowData.slice(-50);
       let buyVol = 0; let sellVol = 0;
       let totalVpin = 0; let vpinCount = 0;
       let totalEntropy = 0; let entropyCount = 0;
       
-      recentOrders.forEach(o => {
+      const startIdx = Math.max(0, orderFlowData.length - 50);
+      for (let i = startIdx; i < orderFlowData.length; i++) {
+        const o = orderFlowData[i];
         if (o.orderType === 'buy') buyVol += o.size;
-        if (o.orderType === 'sell') sellVol += o.size;
+        else if (o.orderType === 'sell') sellVol += o.size;
         
         if (o.microstructure) {
           if (o.microstructure.vpin !== undefined) { totalVpin += o.microstructure.vpin; vpinCount++; }
           if (o.microstructure.entropyScore !== undefined) { totalEntropy += o.microstructure.entropyScore; entropyCount++; }
         }
-      });
+      }
       
       const avgVpin = vpinCount > 0 ? totalVpin / vpinCount : 0;
       const avgEntropy = entropyCount > 0 ? totalEntropy / entropyCount : 0;
