@@ -45,7 +45,7 @@ export interface AssetPair {
 const KNOWN_QUOTES = ['USDT', 'USDC', 'FDUSD', 'TUSD', 'BUSD', 'BTC', 'ETH', 'BNB'];
 
 export function parseSymbolString(symbol: string): AssetPair | null {
-    const cleanSymbol = symbol.replace('/', '').replace(':', '');
+    const cleanSymbol = symbol.replace(/[/:]/g, '');
     for (const quote of KNOWN_QUOTES) {
         if (cleanSymbol.endsWith(quote) && cleanSymbol.length > quote.length) {
             const base = cleanSymbol.slice(0, -quote.length);
