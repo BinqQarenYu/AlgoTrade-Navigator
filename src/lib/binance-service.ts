@@ -4,7 +4,7 @@
 import type { Portfolio, Position, Trade, HistoricalData, OrderSide, OrderResult } from './types';
 import type { Ticker } from 'ccxt';
 // Import only the specific exchange class we need
-import { binance } from 'ccxt';
+import { binance, NetworkError, ExchangeError } from 'ccxt';
 
 // This function is now the single point of contact for all client-side requests to our proxy.
 async function callProxy<T>(
@@ -36,7 +36,7 @@ async function callProxy<T>(
             throw new Error(result.error || `Proxy Error: ${response.statusText}`);
         }
         return result;
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Error calling proxy for path ${path}:`, error);
         // Re-throw the error so it can be caught by the calling function and displayed in the UI
         throw error;
@@ -141,14 +141,14 @@ export const getHistoricalKlines = async (
         return ohlcv.map((k: number[]): HistoricalData => ({
             time: k[0], open: k[1], high: k[2], low: k[3], close: k[4], volume: k[5],
         }));
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Error fetching klines via CCXT:`, error);
-        if (error.message.includes('451') || error.message.includes('restricted location')) {
+        if (error instanceof Error && (error.message.includes('451') || error.message.includes('restricted location'))) {
              throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
         }
-        if (error instanceof binance.NetworkError) {
+        if (error instanceof NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof binance.ExchangeError) {
+        } else if (error instanceof ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
@@ -173,14 +173,14 @@ export const getLatestKlinesByLimit = async (
         return ohlcv.map((k: number[]): HistoricalData => ({
             time: k[0], open: k[1], high: k[2], low: k[3], close: k[4], volume: k[5],
         }));
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error(`Error fetching latest klines via CCXT:`, error);
-        if (error.message.includes('451') || error.message.includes('restricted location')) {
+        if (error instanceof Error && (error.message.includes('451') || error.message.includes('restricted location'))) {
              throw new Error("Service unavailable from your region. Binance has restricted access from the location of your app's server. (Code: 451/403)");
         }
-        if (error instanceof binance.NetworkError) {
+        if (error instanceof NetworkError) {
              throw new Error("Failed to connect to Binance. Please check your network connection.");
-        } else if (error instanceof binance.ExchangeError) {
+        } else if (error instanceof ExchangeError) {
             throw new Error(`Binance Exchange Error: ${error.message}`);
         } else {
             throw new Error("An unexpected error occurred while fetching historical data.");
