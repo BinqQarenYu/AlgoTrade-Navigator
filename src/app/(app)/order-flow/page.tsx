@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
 import { orderFlowAnalyzer, enhancedOrderFlowAnalyzer, type OrderData, type ManipulationFlags } from "@/lib/order-flow-analyzer";
+import type { DualCoinApiService } from '@/lib/dual-coin-api-service';
+
 
 // Mock implementations for missing services
 const getTicker = async (symbol: string) => ({ price: Math.random() * 50000 + 20000 });
@@ -87,7 +89,7 @@ const localEnhancedOrderFlowAnalyzer = {
     },
     orders: []
   }),
-  generateEnhancedOrders: (count: number, symbol?: string, service?: any) => Array.from({ length: count }, (_, i) => ({
+  generateEnhancedOrders: (count: number, symbol?: string, service?: DualCoinApiService) => Array.from({ length: count }, (_, i) => ({
     id: `enhanced-${i}`,
     timestamp: Date.now() + i * 1000,
     price: Math.random() * 50000 + 20000,

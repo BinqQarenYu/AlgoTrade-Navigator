@@ -1,5 +1,7 @@
 // Order Flow Analyzer - Restored Working Version
 // Analyzes order flow data for manipulation patterns and generates mock data
+import type { DualCoinApiService } from './dual-coin-api-service';
+
 
 export interface OrderData {
   id: string;
@@ -158,7 +160,7 @@ export const enhancedOrderFlowAnalyzer = {
     orders: []
   }),
 
-  generateEnhancedOrders: (count: number, symbol?: string, service?: any) => Array.from({ length: count }, (_, i) => ({
+  generateEnhancedOrders: (count: number, symbol?: string, service?: DualCoinApiService) => Array.from({ length: count }, (_, i) => ({
     id: `enhanced-${i}`,
     timestamp: Date.now() + i * 1000,
     price: Math.random() * 50000 + 20000,
