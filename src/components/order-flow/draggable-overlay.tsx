@@ -159,7 +159,7 @@ export function DraggableOverlay({
         {onClose && (
             <button 
                 onClick={onClose}
-                className="close-btn p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                className="close-btn p-1 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900" aria-label="Close overlay"
                 title="Close"
             >
                 <X className="h-4 w-4" />
