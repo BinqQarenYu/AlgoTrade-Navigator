@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { runQuery } from '@/lib/db-service';
+import { runQuery, connectToDB } from '@/lib/db-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
+        await connectToDB();
         let insertError = null;
         try {
             await runQuery(`

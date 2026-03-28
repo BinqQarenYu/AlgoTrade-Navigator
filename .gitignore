@@ -47,3 +47,8 @@ firestore-debug.logcore
 /data/
 .env
 
+# child node data
+child-node/*.db
+child-node/*.db-journal
+*.duckdb
+*.duckdb.wal

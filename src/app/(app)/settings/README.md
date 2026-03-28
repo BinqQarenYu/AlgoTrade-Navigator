@@ -1,24 +1,29 @@
-# 🛡️ Sentinel Machine: Settings Vault (The Config Vault)
+# 🛡️ Sentinel Machine: Settings Vault (The Command Center)
 `Location: src/app/(app)/settings/`
 
 ## 📋 Mission Statement
-> Centralize global configuration, API encryption, and Cluster environment variables.
+> Centralize global configuration, API encryption, and Distributed Cluster Health monitoring.
 
 ---
 
-## 🏗️ Cluster Role
-- **Type**: **MOTHER (Config Orchestrator)**
-- **Responsibility**: Global key-value pair management across all 8 machines.
-- **Sovereignty**: **YES** (Must serve local config even if cloud/mother is offline).
+## 🏗️ Distributed Architecture: "Child-is-King"
+The AlgoTrade-Navigator operates on a resilient Mother-Child model to ensure 24/7 data fidelity:
+
+- **CHILD NODE (Orange Pi / Edge Node)**:
+    - **Role**: **Primary 24/7 Data Gatherer**.
+    - **Sovereignty**: Operations are autonomous. Data is first vaulted to a local SQLite database (`sentry_vault.db`) to survive network partitions before syncing to the Mother.
+- **MOTHER NODE (This Node)**:
+    - **Role**: **Vault & Failover Sentinel**.
+    - **Failover Watcher**: Continuously monitors the Child Node's heartbeat. If the Child is silent for >30s, the Mother automatically activates its own `HeadlessSentry` to prevent data gaps.
+    - **UI Indication**: The Settings dashboard provides real-time "Pulse" monitoring of the distributed cluster.
 
 ---
 
 ## ⚡ Performance Profile (The Resource Tax)
 *Measured on Orange Pi 5 / Edge Node Targets:*
-- **CPU Target**: < 1% (Inactive until user config change).
+- **CPU Target**: < 1% (Inactive until failover/config change).
 - **RAM Ceiling**: 64MB.
-- **GPU Acceleration**: **None** (UI Form logic only).
-- **Network Load**: **Low** (Initial cluster config broadcast).
+- **Failover Latency**: High-fidelity detection within 15-30s.
 
 ---
 
@@ -29,27 +34,30 @@
 | :--- | :--- | :--- |
 | `strategy_config` | **READ/WRITE** | Managing global trade parameter shifts. |
 | `api_keys` | **READ/WRITE** | Persisting encoded trade keys. |
-| `user_profiles` | **READ/WRITE** | Storing cluster environment settings. |
+| `trades` | **MIGRATION** | Added `machine_id` for multi-node auditing. |
+| `microstructure_events` | **MIGRATION** | Added `machine_id` for anomaly source tracking. |
 
 ---
 
 ## 🧩 Event Nervous System
 *Key events this machine listens to or emits:*
-- **Emits**: `CONFIG_REFRESH_CMD`, `GLOBAL_KILL_SWITCH`, `THEME_CHANGE`
-- **Listens**: `API_LIMIT_REACHED` (to trigger throttled mode).
+- **Emits**: `CONFIG_REFRESH_CMD`, `GLOBAL_KILL_SWITCH`, `FAILOVER_ACTIVATED`
+- **Listens**: `CHILD_HEARTBEAT` (Periodic pulse from distributed nodes).
 
 ---
 
-## 🛰️ Sentinel Strategy (Offline Mode)
-*Behavior during Mother-Node Network Split:*
-1. **Detection**: Sync heartbeat for global config updates fails.
-2. **Persistence**: Writes local machine overrides to a `local_config.json`.
-3. **Recovery**: Performs a 2-way sync with the Mother Node when online.
+## 🛰️ Sentinel Strategy (3-Stage Failover)
+*Mother behavior during Child Node outage:*
+1. **Detection**: `startFailoverWatch()` monitors `lastChildHeartbeat` timestamp every 15s.
+2. **Auto-Respawn**: If `now() - pulse > 30s`, Mother automatically spawns `node child-node/index.js` to revive the Child. A **60s cooldown** prevents thrashing.
+3. **Verification**: On the next 15s cycle, checks if the Child has sent a heartbeat. If yes → back to dormant.
+4. **Failover**: If the Child is still silent after the respawn attempt, Mother activates its own `HeadlessSentry` scanners as a last resort.
 
 ---
 
 ## 🧪 Compliance Checklist
-✅ **Non-Blocking**: Config changes are pushed asynchronously to avoid UI lag.
-✅ **Isolation**: Encrypts all `WRITE` keys before persisting to DuckDB.
-✅ **Cleanup**: Form state is cleared on save to prevent memory leaks of sensitive data.
-✅ **Integrity**: Every config change includes a `user_id` and `timestamp`.
+✅ **Non-Blocking**: Heartbeat monitoring runs in a background interval (15s).
+✅ **Persistence**: All events are tagged with a `machine_id` for audit trails.
+✅ **Auto-Migration**: Database schema automatically upgrades to include `machine_id` on startup.
+✅ **Auto-Respawn**: Mother uses `child-spawner.ts` to restart the Child process with a 60s cooldown.
+✅ **Autonomous**: Manual "Start" buttons replaced by a 3-stage self-healing indicator (Dormant → Respawning → Failover).

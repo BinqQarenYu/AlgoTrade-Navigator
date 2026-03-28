@@ -120,18 +120,6 @@ export default function SettingsPage() {
   const [whaleThreshold, setWhaleThreshold] = useState(50000);
   const [isSentryLoading, setIsSentryLoading] = useState(false);
   const [childNodes, setChildNodes] = useState<any[]>([]);
-  const [isLocalChildRunning, setIsLocalChildRunning] = useState(false);
-  const [isLoadingChildToggle, setIsLoadingChildToggle] = useState(false);
-
-  const refreshLocalChildStatus = async () => {
-      try {
-          const res = await fetch('/api/child/control');
-          if (res.ok) {
-              const data = await res.json();
-              setIsLocalChildRunning(data.running);
-          }
-      } catch (e) {}
-  };
 
   const refreshChildNodes = async () => {
       try {
@@ -150,25 +138,6 @@ export default function SettingsPage() {
               setWhaleThreshold(data.config.whaleThresholdUsd);
           }
       } catch (e) { console.error("Sentry fetch error", e); }
-  };
-
-  const handleToggleSentry = async () => {
-      if (!sentryStatus) return;
-      setIsSentryLoading(true);
-      const action = sentryStatus.isRunning ? 'stop' : 'start';
-      try {
-         const res = await fetch('/api/sentry', {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ action })
-         });
-         const data = await res.json();
-         if (data.success) {
-            setSentryStatus(data.status);
-            toast({ title: `Sentry ${action === 'start' ? 'Started' : 'Stopped'}` });
-         }
-      } catch (e) { console.error(e) } 
-      finally { setIsSentryLoading(false); }
   };
 
   const handleUpdateSentryConfig = async () => {
@@ -227,12 +196,10 @@ export default function SettingsPage() {
     refreshDbConfig();
     refreshSentryStatus();
     refreshChildNodes();
-    refreshLocalChildStatus();
     const t = setInterval(() => {
         refreshDbConfig();
         refreshSentryStatus();
         refreshChildNodes();
-        refreshLocalChildStatus();
     }, 15_000);
     return () => clearInterval(t);
   }, []);
@@ -435,57 +402,82 @@ export default function SettingsPage() {
                   ))}
                 </div>
 
-                {/* ── Local Sentry Control ─────────────────────────── */}
-                <div className="flex flex-col sm:flex-row items-center justify-between border border-slate-800 rounded-lg p-3 bg-slate-900/50">
-                  <div>
-                      <Label className="text-sm font-bold flex items-center gap-1.5"><Server className="h-3.5 w-3.5 text-orange-500"/>Local Child Node Sentry</Label>
-                      <p className="text-xs text-slate-400 mt-0.5">Control the local failover Orange Pi replica running in the `child-node/` directory.</p>
+                {/* ── SENTINEL CLUSTER STATUS (Mother-Child Hierarchy) ── */}
+                <div className="space-y-3 pt-4 border-t border-slate-800">
+                  <div className="flex items-center justify-between">
+                      <div>
+                          <Label className="text-sm font-bold flex items-center gap-1.5">
+                              <Server className="h-4 w-4 text-orange-500"/> Distributed Sentinel Cluster
+                          </Label>
+                          <p className="text-[10px] text-muted-foreground italic mt-0.5">
+                              Automatic Mother-Child Hierarchy. Child (Orange Pi) is the Primary Gatherer. 
+                              Mother (This Node) activates only if Child is silent for 30s.
+                          </p>
+                      </div>
+                      <Badge className={sentryStatus?.childAlive 
+                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+                        : "bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px]"}>
+                          {sentryStatus?.childAlive ? "👑 Child is King (Live)" : "⚠️ Child Missing (Offline)"}
+                      </Badge>
                   </div>
-                  <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                      <Button 
-                          size="sm" 
-                          disabled={isLoadingChildToggle}
-                          onClick={async () => {
-                              try {
-                                 setIsLoadingChildToggle(true);
-                                 const action = isLocalChildRunning ? 'stop' : 'start';
-                                 toast({ title: isLocalChildRunning ? 'Stopping local Child Sentry...' : 'Starting local Child Sentry...' });
-                                 
-                                 await fetch('/api/child/control', { method: 'POST', body: JSON.stringify({action}) });
-                                 
-                                 if (action === 'start') {
-                                     toast({ title: '✅ Child Node started successfully. Awaiting heartbeat...' });
-                                 } else {
-                                     toast({ title: '🛑 Child Node stopped.' });
-                                 }
-                                 
-                                 // Instantly reflect state
-                                 setIsLocalChildRunning(action === 'start');
-                                 
-                                 // Background verify
-                                 setTimeout(refreshLocalChildStatus, 1500);
-                                 setTimeout(refreshChildNodes, 3000);
-                              } catch (e) {
-                                 toast({ title: 'Failed to toggle child node', variant: 'destructive' });
-                              } finally {
-                                 setIsLoadingChildToggle(false);
-                              }
-                          }}
-                          className={cn(
-                              "w-32 transition-all duration-300", 
-                              isLocalChildRunning 
-                                ? "bg-transparent border border-rose-500/50 hover:bg-rose-500/10 text-rose-400" 
-                                : "bg-transparent border border-emerald-500/50 hover:bg-emerald-500/10 text-emerald-400"
-                          )}
-                      >
-                          {isLoadingChildToggle ? (
-                              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {isLocalChildRunning ? 'Stopping...' : 'Starting...'}</>
-                          ) : isLocalChildRunning ? (
-                              <><StopCircle className="h-4 w-4 mr-1.5" /> Stop Sync</>
-                          ) : (
-                              <><PlayCircle className="h-4 w-4 mr-1.5" /> Start Node</>
-                          )}
-                      </Button>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                      {/* Cluster Role Indicator */}
+                      <div className="p-3 border rounded-xl bg-slate-900/50 flex flex-col gap-1.5 border-slate-800/80">
+                          <Label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Mother Role Status</Label>
+                          <div className="flex items-center gap-2 flex-wrap">
+                              {sentryStatus?.isFailoverMode ? (
+                                  <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 font-black animate-pulse">FAILOVER ACTIVE</Badge>
+                              ) : sentryStatus?.respawnAttempted && !sentryStatus?.childAlive ? (
+                                  <Badge className="bg-sky-500/20 text-sky-400 border-sky-500/30 font-black animate-pulse">RESPAWNING CHILD...</Badge>
+                              ) : (
+                                  <Badge variant="outline" className="text-slate-500 border-slate-700 opacity-60">DORMANT (WATCHING)</Badge>
+                              )}
+                              {sentryStatus?.childProcessAlive && (
+                                  <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px]">PROCESS TRACKED</Badge>
+                              )}
+                          </div>
+                          <p className="text-[10px] text-slate-400 leading-tight">
+                              {sentryStatus?.isFailoverMode 
+                                ? "Child could not be revived. Mother has taken over scanning to prevent data gaps."
+                                : sentryStatus?.respawnAttempted && !sentryStatus?.childAlive
+                                ? "Mother detected Child silence and sent a respawn command. Waiting for heartbeat..."
+                                : "Mother is idling. Child is handling all market connections autonomously."}
+                          </p>
+                      </div>
+
+                      {/* Heartbeat Monitor */}
+                      <div className="p-3 border rounded-xl bg-slate-900/50 flex flex-col gap-1.5 border-slate-800/80">
+                          <Label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Child Pulse Engine</Label>
+                          <div className="flex items-center justify-between">
+                              <span className={cn("text-lg font-black font-mono", sentryStatus?.childAlive ? "text-emerald-500" : "text-rose-500")}>
+                                  {sentryStatus?.childAlive ? "ONLINE" : "SILENT"}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                  {sentryStatus?.lastChildHeartbeat > 0 
+                                    ? `${Math.round((Date.now() - sentryStatus.lastChildHeartbeat) / 1000)}s ago`
+                                    : 'NEVER RECEIVED'}
+                              </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+                              <div 
+                                className={cn(
+                                    "h-full transition-all duration-500 rounded-full", 
+                                    sentryStatus?.childAlive ? "bg-emerald-500" 
+                                    : sentryStatus?.respawnAttempted ? "bg-sky-500 animate-pulse" 
+                                    : "bg-rose-500"
+                                )}
+                                style={{ width: sentryStatus?.childAlive ? '100%' : sentryStatus?.respawnAttempted ? '50%' : '0%' }}
+                              />
+                          </div>
+                          <p className="text-[9px] text-slate-500 mt-0.5">
+                              {sentryStatus?.childAlive 
+                                ? "✅ Child is actively sending data. Mother is dormant."
+                                : sentryStatus?.respawnAttempted 
+                                ? "🔄 Auto-respawn attempted. Waiting for heartbeat confirmation..."
+                                : "⚠️ No child heartbeat detected. Mother will attempt respawn on next cycle."}
+                          </p>
+                      </div>
                   </div>
                 </div>
 
@@ -641,8 +633,8 @@ export default function SettingsPage() {
                               Runs 24/7 in the background (Node.js). Detects and saves Whales, Icebergs, and VPIN spikes directly to DuckDB.
                           </p>
                       </div>
-                      <Badge className={sentryStatus?.isRunning ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" : "bg-slate-800/50 text-slate-400"} variant={sentryStatus?.isRunning ? "default" : "secondary"}>
-                          {sentryStatus?.isRunning ? "🟢 Online" : "⚪ Offline"}
+                      <Badge className={sentryStatus?.isRunning ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold" : "bg-slate-800/50 text-slate-400 font-bold"} variant={sentryStatus?.isRunning ? "default" : "secondary"}>
+                          {sentryStatus?.isRunning ? "🟢 Online" : "⚪ Dormant"}
                       </Badge>
                   </div>
                   
@@ -659,17 +651,19 @@ export default function SettingsPage() {
                               <Button size="sm" variant="secondary" className="h-8" onClick={handleUpdateSentryConfig}>Save</Button>
                           </div>
                       </div>
-                      <div className="flex-1 flex flex-col justify-end">
-                           <Button 
-                              variant={sentryStatus?.isRunning ? "destructive" : "default"} 
-                              size="sm" 
-                              onClick={handleToggleSentry}
-                              disabled={isSentryLoading}
-                              className="w-full h-8"
-                           >
-                              {isSentryLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2"/> : (sentryStatus?.isRunning ? <StopCircle className="h-4 w-4 mr-2"/> : <PlayCircle className="h-4 w-4 mr-2"/>)}
-                              {sentryStatus?.isRunning ? "Stop Sentry Worker" : "Start Sentry Worker"}
-                           </Button>
+                      <div className="flex-1 flex flex-col justify-end space-y-1.5">
+                           <Label className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Sentinel Guard (Mother Role)</Label>
+                           <div className="flex items-center gap-2 text-xs">
+                               {sentryStatus?.failoverWatchActive ? (
+                                   <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[10px]">WATCH ACTIVE</Badge>
+                               ) : (
+                                   <Badge className="bg-rose-500/10 text-rose-400 border-rose-500/30 text-[10px]">WATCH STOPPED</Badge>
+                               )}
+                               <span className="text-[10px] text-muted-foreground leading-none">Scanning Cluster Health...</span>
+                           </div>
+                           <p className="text-[10px] text-slate-500 leading-tight">
+                               Manual control disabled. Mother will take over scans ONLY if Child is silent for {'>'}30s.
+                           </p>
                       </div>
                   </div>
                 </div>

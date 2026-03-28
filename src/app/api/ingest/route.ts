@@ -4,10 +4,12 @@ import {
   bufferTrades, 
   bufferOHLCVBatch, 
   bufferMicrostructureEvents,
-  bufferSystemLog
+  bufferSystemLog,
+  connectToDB
 } from '@/lib/db-service';
 import type { TradeRecord, OHLCVRecord, MicrostructureEventRecord } from '@/lib/db-service';
 import { pulseNerve } from '@/lib/nerve-center';
+import { updateChildHeartbeat } from '@/lib/child-heartbeat';
 
 // Security token validator
 function isAuthenticated(request: Request) {
@@ -76,6 +78,9 @@ const payloadSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    // Ensure database is initialized so background flush occurs
+    await connectToDB();
+
     if (!isAuthenticated(request)) {
       return NextResponse.json({ error: 'Unauthorized. Invalid or missing Bearer token.' }, { status: 401 });
     }
@@ -140,6 +145,9 @@ export async function POST(request: Request) {
         }),
         message: `Heartbeat received from ${machineId}. Processed: ${processed}`
     });
+
+    // ── Update the Child heartbeat timestamp for failover logic ──
+    updateChildHeartbeat();
 
     return NextResponse.json({ 
       success: true, 

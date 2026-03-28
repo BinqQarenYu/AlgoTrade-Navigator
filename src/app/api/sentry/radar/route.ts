@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { runQuery } from '@/lib/db-service';
+import { runQuery, connectToDB } from '@/lib/db-service';
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
@@ -9,6 +9,7 @@ export async function GET(req: Request) {
     const cutoff = Date.now() - timeWindowMs;
 
     try {
+        await connectToDB();
         // 1. Event Counts (For Manipulation Index & General Stats)
         const eventCounts = await runQuery(`
             SELECT event_type, count(*) as count, sum(volume_usd) as total_volume

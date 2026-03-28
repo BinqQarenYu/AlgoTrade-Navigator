@@ -1,6 +1,8 @@
 import { bufferMicrostructureEvent, MicrostructureEventRecord } from './db-service';
 import { microstructureService } from './microstructure-service';
 import { PERFORMANCE_CONFIG } from './performance-config';
+import { isChildAlive, getLastChildHeartbeat } from './child-heartbeat';
+import { autoRespawnChild, isChildProcessAlive } from './child-spawner';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,6 +45,8 @@ export class HeadlessSentry {
     private priceCache: Map<string, number> = new Map();
     
     private isRunning = false;
+    private failoverWatchTimer: ReturnType<typeof setInterval> | null = null;
+    private isFailoverMode = false; // true = running as backup because child is dead
     
     constructor() {
         if (!isServer) return;
@@ -66,10 +70,79 @@ export class HeadlessSentry {
         } catch(e) { console.error('Failed to save sentry config', e); }
     }
 
+    /**
+     * Legacy autoBoot — now delegates to failover watch.
+     * Kept for backward compatibility with any direct callers.
+     */
     public autoBoot() {
         if (!isServer) return;
-        if (this.config.enabled && !this.isRunning) {
-            console.log('[HeadlessSentry] Auto-booting Sentry based on saved config...');
+        this.startFailoverWatch();
+    }
+
+    /**
+     * Start the failover watch loop.
+     * Every 15 seconds, checks if a Child node is alive.
+     * If Child is silent for 30s → activate own WebSocket scanning.
+     * If Child comes back → shut down own scanning.
+     */
+    public startFailoverWatch() {
+        if (!isServer) return;
+        if (this.failoverWatchTimer) return; // Already watching
+
+        console.log('[HeadlessSentry] Failover Watch started. Monitoring child heartbeat every 15s...');
+        
+        // Do an immediate check
+        this.checkFailover();
+
+        this.failoverWatchTimer = setInterval(() => {
+            this.checkFailover();
+        }, 15_000);
+    }
+
+    /**
+     * Core failover decision logic (3-stage):
+     * 1. Child alive?       → Stand down, let Child do its job.
+     * 2. Child silent?      → Try to respawn the Child process.
+     * 3. Still silent next cycle? → Activate Mother's own scanners as last resort.
+     */
+    private respawnAttempted = false;
+
+    private checkFailover() {
+        if (!isServer) return;
+
+        const childAlive = isChildAlive(30_000);
+        const lastHb = getLastChildHeartbeat();
+        const silentFor = lastHb === 0 ? 'never connected' : `${Math.round((Date.now() - lastHb) / 1000)}s ago`;
+
+        if (childAlive) {
+            // ── STAGE 1: Child is healthy ──
+            if (this.isRunning && this.isFailoverMode) {
+                console.log('[HeadlessSentry] ✅ Child node recovered! Shutting down failover scanning.');
+                this.stopScanning();
+            }
+            this.respawnAttempted = false; // Reset for next outage
+            return;
+        }
+
+        // ── Child is silent ──
+        if (!this.respawnAttempted) {
+            // ── STAGE 2: First response → Try to auto-respawn the Child ──
+            console.log(`[HeadlessSentry] 🔄 Child silent (last heartbeat: ${silentFor}). Attempting auto-respawn...`);
+            const spawned = autoRespawnChild();
+            this.respawnAttempted = true;
+
+            if (spawned) {
+                console.log('[HeadlessSentry] Child respawn command sent. Will verify on next check cycle (15s)...');
+                return; // Give the child time to boot and send a heartbeat
+            } else {
+                console.log('[HeadlessSentry] Auto-respawn skipped (cooldown or missing dir). Checking if failover needed...');
+            }
+        }
+
+        // ── STAGE 3: Child still dead after respawn attempt → Activate Mother scanners ──
+        if (!this.isRunning) {
+            console.log(`[HeadlessSentry] 🚨 Child still silent after respawn attempt (last: ${silentFor}). Activating FAILOVER scanning...`);
+            this.isFailoverMode = true;
             this.start();
         }
     }
@@ -81,21 +154,47 @@ export class HeadlessSentry {
         this.config.enabled = true;
         this.saveConfig();
         
-        console.log('[HeadlessSentry] Starting 24/7 Anomaly Sentry...');
+        const mode = this.isFailoverMode ? 'FAILOVER' : 'MANUAL';
+        console.log(`[HeadlessSentry] Starting Anomaly Sentry (mode: ${mode})...`);
         this.connectShards();
     }
 
+    /**
+     * Full stop — clears the failover watch AND shuts down scanning.
+     * Used by the manual UI toggle.
+     */
     public stop() {
         if (!isServer) return;
-        this.isRunning = false;
+        this.stopFailoverWatch();
+        this.stopScanning();
         this.config.enabled = false;
         this.saveConfig();
+    }
+
+    /**
+     * Stop only the WebSocket scanning (but keep the failover watch alive).
+     */
+    private stopScanning() {
+        if (!this.isRunning) return;
+        this.isRunning = false;
+        this.isFailoverMode = false;
         
-        console.log('[HeadlessSentry] Stopping Sentry...');
+        console.log('[HeadlessSentry] Shutting down WebSocket connections...');
         for (const ws of this.wsConnections) {
             ws.close();
         }
         this.wsConnections = [];
+    }
+
+    /**
+     * Stop the failover polling timer.
+     */
+    private stopFailoverWatch() {
+        if (this.failoverWatchTimer) {
+            clearInterval(this.failoverWatchTimer);
+            this.failoverWatchTimer = null;
+            console.log('[HeadlessSentry] Failover Watch stopped.');
+        }
     }
     
     public updateConfig(newConfig: Partial<SentryConfig>) {
@@ -283,6 +382,12 @@ export class HeadlessSentry {
     public getStatus() {
         return {
             isRunning: this.isRunning,
+            isFailoverMode: this.isFailoverMode,
+            failoverWatchActive: this.failoverWatchTimer !== null,
+            childAlive: isChildAlive(30_000),
+            childProcessAlive: isChildProcessAlive(),
+            lastChildHeartbeat: getLastChildHeartbeat(),
+            respawnAttempted: this.respawnAttempted,
             config: this.config,
             activeSockets: this.wsConnections.length,
             cachedPrices: this.priceCache.size

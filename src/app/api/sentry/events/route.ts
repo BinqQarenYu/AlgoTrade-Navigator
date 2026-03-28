@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { runQuery } from '@/lib/db-service';
+import { runQuery, connectToDB } from '@/lib/db-service';
 
 export async function GET() {
     try {
+        await connectToDB();
         const query = `
             SELECT event_id, timestamp, symbol, event_type, price, volume_usd, severity_score, metadata
             FROM microstructure_events

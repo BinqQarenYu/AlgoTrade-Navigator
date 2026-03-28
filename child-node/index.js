@@ -294,53 +294,79 @@ function handleDepth(symbol, upperSymbol, parsed) {
     }
 }
 
-function startSentryLoop() {
-    startSentry();
-}
 // Start!
-startSentryLoop();
+startSentry();
 /**
  * Saves a batch of trades and events to the local SSD vault.
+ * Returns a Promise that resolves with the inserted row ID.
  */
 function vaultBatch(trades, events) {
-    if (trades.length === 0 && events.length === 0) return;
-    
-    const payload = JSON.stringify({ trades, microstructure_events: events });
-    const stmt = db.prepare("INSERT INTO vault (payload) VALUES (?)");
-    stmt.run(payload, (err) => {
-        if (err) console.error('[Sentinel Cluster] Failed to vault data:', err.message);
-        else console.log(`[Sentinel Cluster] Persistent Vaulted: ${trades.length} trades, ${events.length} events.`);
+    return new Promise((resolve, reject) => {
+        if (trades.length === 0 && events.length === 0) return resolve(null);
+        
+        const payload = JSON.stringify({ trades, microstructure_events: events });
+        const stmt = db.prepare("INSERT INTO vault (payload) VALUES (?)");
+        stmt.run(payload, function(err) {
+            if (err) {
+                console.error('[Sentinel Cluster] Failed to vault data:', err.message);
+                reject(err);
+            } else {
+                console.log(`[Sentinel Cluster] Vaulted: ${trades.length} trades, ${events.length} events (row ${this.lastID}).`);
+                resolve(this.lastID);
+            }
+        });
+        stmt.finalize();
     });
-    stmt.finalize();
+}
+
+/**
+ * Deletes a successfully-synced row from the vault.
+ */
+function deleteVaultRow(rowId) {
+    return new Promise((resolve) => {
+        db.run("DELETE FROM vault WHERE id = ?", rowId, (err) => {
+            if (err) console.error(`[Sentinel Cluster] Failed to delete vault row ${rowId}:`, err.message);
+            resolve();
+        });
+    });
 }
 
 async function flushBuffer() {
     const trades = tradeBuffer.splice(0, BATCH_SIZE);
     const events = eventBuffer.splice(0, BATCH_SIZE);
-
     const vaultCount = await getVaultCount();
 
-    if (trades.length === 0 && events.length === 0) {
-        // Heartbeat pulse with vault status
+    // ── STEP 1: Always vault to local SSD first (insurance policy) ──
+    let vaultRowId = null;
+    if (trades.length > 0 || events.length > 0) {
         try {
-            await fetch(MOTHER_NODE_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SECRET_TOKEN}` },
-                body: JSON.stringify({ 
-                    sentry_id: SENTRY_ID, 
-                    pulse: true,
-                    backlog_count: vaultCount,
-                    status: vaultCount > 0 ? 'RECOVERING' : 'ACTIVE'
-                })
-            });
-            isMotherOnline = true;
-            if (vaultCount > 0) drainVault();
+            vaultRowId = await vaultBatch(trades, events);
         } catch (e) {
-            isMotherOnline = false;
+            console.error('[Sentinel Cluster] CRITICAL: Failed to vault data locally!', e.message);
+            // Data stays in RAM buffers (spliced out) — push back
+            tradeBuffer.unshift(...trades);
+            eventBuffer.unshift(...events);
+            return;
         }
-        return;
     }
-    
+
+    // ── STEP 2: Try to sync to Mother ──
+    const payload = (trades.length > 0 || events.length > 0)
+        ? {
+            trades,
+            microstructure_events: events,
+            buffer_remaining: tradeBuffer.length + eventBuffer.length,
+            sentry_id: SENTRY_ID,
+            asset_count: ALL_SYMBOLS.length,
+            backlog_count: vaultCount + (vaultRowId ? 1 : 0)
+        }
+        : {
+            sentry_id: SENTRY_ID,
+            pulse: true,
+            backlog_count: vaultCount,
+            status: vaultCount > 0 ? 'RECOVERING' : 'ACTIVE'
+        };
+
     try {
         const response = await fetch(MOTHER_NODE_URL, {
             method: 'POST',
@@ -348,32 +374,25 @@ async function flushBuffer() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${SECRET_TOKEN}`
             },
-            body: JSON.stringify({ 
-                trades, 
-                microstructure_events: events,
-                buffer_remaining: tradeBuffer.length + eventBuffer.length, 
-                sentry_id: SENTRY_ID,
-                asset_count: ALL_SYMBOLS.length,
-                backlog_count: vaultCount
-            })
+            body: JSON.stringify(payload)
         });
 
         if (response.ok) {
             isMotherOnline = true;
+
+            // ── STEP 3: Mother confirmed receipt → delete the vaulted row ──
+            if (vaultRowId) {
+                await deleteVaultRow(vaultRowId);
+            }
+
+            // ── STEP 4: Drain any remaining backlog from previous offline periods ──
             if (vaultCount > 0) drainVault();
         } else {
-            handleMotherOffline(trades, events);
+            isMotherOnline = false;
+            console.warn(`[Sentinel Cluster] Mother busy (${response.status}). Data safe in vault row ${vaultRowId}.`);
         }
     } catch (e) {
-        handleMotherOffline(trades, events);
+        isMotherOnline = false;
+        console.warn(`[Sentinel Cluster] Mother unreachable. Data safe in vault row ${vaultRowId}. RAM Buffer: ${tradeBuffer.length}`);
     }
 }
-
-function handleMotherOffline(t, e) {
-    isMotherOnline = false;
-    vaultBatch(t, e);
-    console.warn(`[Sentinel Cluster] Mother Node Offline. Items moved to SSD Vault. RAM Buffer: ${tradeBuffer.length}`);
-}
-
-
-startSentry();

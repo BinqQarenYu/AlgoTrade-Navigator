@@ -277,17 +277,35 @@ export async function connectToDB(customPath?: string): Promise<void> {
 
       globalForDuckDB.conn.exec(SCHEMA_SQL, (schemaErr) => {
         if (schemaErr) return reject(schemaErr);
-        // Optimise for AI concurrency
-        globalForDuckDB.conn!.exec(`
-          PRAGMA threads=4;
-          PRAGMA memory_limit='2GB';
-          PRAGMA default_compression='zstd';
-        `, (pragmaErr) => {
-          if (pragmaErr) console.warn('[DuckDB] Pragma warning:', pragmaErr);
-          globalForDuckDB.isInitialized = true;
-          startFlushTimer();
-          resolve();
-        });
+
+        // ── Schema Migration: ensure machine_id column exists ──
+        // Handles DBs created before machine_id was added to the schema.
+        const migrations = [
+          `ALTER TABLE microstructure_events ADD COLUMN IF NOT EXISTS machine_id VARCHAR;`,
+          `ALTER TABLE trades ADD COLUMN IF NOT EXISTS machine_id VARCHAR;`,
+          `ALTER TABLE signals ADD COLUMN IF NOT EXISTS machine_id VARCHAR;`,
+        ];
+        const runMigrations = (idx: number) => {
+          if (idx >= migrations.length) {
+            // All migrations done, continue to pragmas
+            globalForDuckDB.conn!.exec(`
+              PRAGMA threads=4;
+              PRAGMA memory_limit='2GB';
+              PRAGMA default_compression='zstd';
+            `, (pragmaErr) => {
+              if (pragmaErr) console.warn('[DuckDB] Pragma warning:', pragmaErr);
+              globalForDuckDB.isInitialized = true;
+              startFlushTimer();
+              resolve();
+            });
+            return;
+          }
+          globalForDuckDB.conn!.exec(migrations[idx], (migErr) => {
+            if (migErr) console.warn(`[DuckDB Migration] ${migrations[idx]} -> ${migErr.message}`);
+            runMigrations(idx + 1);
+          });
+        };
+        runMigrations(0);
       });
     });
   });
