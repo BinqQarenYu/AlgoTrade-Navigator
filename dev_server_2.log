@@ -1,0 +1,44 @@
+
+> nextn@0.1.0 dev /app
+> next dev
+
+ ⚠ Port 3000 is in use, using available port 3001 instead.
+   ▲ Next.js 15.3.8
+   - Local:        http://localhost:3001
+   - Network:      http://192.168.0.2:3001
+
+ ✓ Starting...
+ ⚠ Invalid next.config.mjs options detected:
+ ⚠     Unrecognized key(s) in object: 'instrumentationHook' at "experimental"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ⚠ `experimental.instrumentationHook` is no longer needed, because `instrumentation.js` is available by default. You can remove it from next.config.mjs.
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 812ms (58 modules)
+[Instrumentation] Failed to start failover watch Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/_instrument_src_lib_headless-sentry_ts.js
+- /app/.next/server/webpack-runtime.js
+- /app/.next/server/instrumentation.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/dev/next-dev-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/next.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at (instrument)/./src/lib/db-service.ts (.next/server/_instrument_src_lib_headless-sentry_ts.js:42:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:42)
+    at eval (webpack-internal:///(instrument)/./src/lib/headless-sentry.ts:6:69)
+    at (instrument)/./src/lib/headless-sentry.ts (.next/server/_instrument_src_lib_headless-sentry_ts.js:53:1)
+    at Function.__webpack_require__ (.next/server/webpack-runtime.js:33:42)
+    at async Module.register (src/instrumentation.ts:4:39)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+ ✓ Ready in 5.2s

@@ -6,6 +6,7 @@ import { BotProvider, useBot } from "@/context/bot-context";
 import { DataManagerProvider } from "@/context/data-manager-context";
 import { StrategyRecommendation } from "@/components/trading-discipline/StrategyRecommendation";
 import { AuthProvider } from "@/context/auth-context";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 function AppStatefulWrapper({ children }: { children: React.ReactNode }) {
   const {
@@ -35,7 +36,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ApiProvider>
         <BotProvider>
             <DataManagerProvider>
-            <AppStatefulWrapper>{children}</AppStatefulWrapper>
+                <TooltipProvider>
+                    <AppStatefulWrapper>{children}</AppStatefulWrapper>
+                </TooltipProvider>
             </DataManagerProvider>
         </BotProvider>
         </ApiProvider>

@@ -18,6 +18,12 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { KeyRound, PlusCircle, Trash2, Edit, CheckCircle, Send, BookOpen, ChevronDown } from "lucide-react"
 import { ApiProfileForm, profileSchema } from "@/components/api-profile-form"
 import type { ApiProfile } from "@/lib/types"
@@ -82,9 +88,19 @@ export function ApiProfilesCard() {
                                   <TableCell className="text-right">
                                       <div className="flex items-center justify-end gap-2">
                                           <Button variant="outline" size="sm" onClick={() => setActiveProfile(profile.id)} disabled={activeProfile?.id === profile.id || isConnected}>Activate</Button>
-                                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(profile)} disabled={isConnected}><Edit className="h-4 w-4"/></Button>
+                                          <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditForm(profile)} disabled={isConnected} aria-label="Edit profile"><Edit className="h-4 w-4"/></Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>Edit Profile</TooltipContent>
+                                          </Tooltip>
                                           <AlertDialog>
-                                              <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isConnected}><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
+                                              <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                      <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" disabled={isConnected} aria-label="Delete profile"><Trash2 className="h-4 w-4"/></Button></AlertDialogTrigger>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent>Delete Profile</TooltipContent>
+                                              </Tooltip>
                                               <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the profile '{profile.name}'. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => deleteProfile(profile.id)} className={cn(buttonVariants({ variant: "destructive" }))}>Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
                                           </AlertDialog>
                                       </div>
