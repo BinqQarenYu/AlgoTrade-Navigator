@@ -76,7 +76,7 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
           <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                  <span className="sr-only">Toggle</span>
+                  <span className="sr-only">Toggle Market Sentiment</span>
               </Button>
           </CollapsibleTrigger>
         </CardHeader>
@@ -96,12 +96,12 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
                       <div className="flex-1">
                         <div className="flex justify-between items-center mb-1">
                             <span className="font-medium text-sm">{coin.name}</span>
-                            <span className="font-mono text-sm">{coin.sentimentUp.toFixed(1)}% Up</span>
+                            <span className="font-mono text-sm">{(coin.sentimentUp ?? 0).toFixed(1)}% Up</span>
                         </div>
                         <div className="w-full bg-destructive/20 rounded-full h-2.5">
                           <div 
                             className="bg-green-500 h-2.5 rounded-full" 
-                            style={{ width: `${coin.sentimentUp}%` }}
+                            style={{ width: `${coin.sentimentUp ?? 0}%` }}
                           ></div>
                         </div>
                       </div>
