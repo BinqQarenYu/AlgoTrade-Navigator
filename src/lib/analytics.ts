@@ -290,47 +290,74 @@ export class TradingAnalytics {
       return this.getEmptyMetrics();
     }
 
-    const winningTrades = closedTrades.filter(trade => trade.pnl! > 0);
-    const losingTrades = closedTrades.filter(trade => trade.pnl! < 0);
-    
-    const totalPnl = closedTrades.reduce((sum, trade) => sum + (trade.pnl || 0), 0);
-    const totalFees = closedTrades.reduce((sum, trade) => sum + trade.fees, 0);
-    
-    const averageWin = winningTrades.length > 0 
-      ? winningTrades.reduce((sum, trade) => sum + trade.pnl!, 0) / winningTrades.length 
-      : 0;
-    
-    const averageLoss = losingTrades.length > 0 
-      ? Math.abs(losingTrades.reduce((sum, trade) => sum + trade.pnl!, 0) / losingTrades.length)
-      : 0;
+    // ⚡ Bolt Optimization: Replace multiple O(N) filters and reduces with a single O(N) loop
+    // This significantly reduces array allocation and garbage collection overhead.
+    let totalPnl = 0;
+    let totalFees = 0;
+    let totalPnlPercent = 0;
+    let winningCount = 0;
+    let losingCount = 0;
+    let winSum = 0;
+    let lossSum = 0;
+    let totalTradeLength = 0;
+    let tradesWithExitTime = 0;
+    let largestWin = 0;
+    let largestLoss = 0;
 
+    for (let i = 0; i < closedTrades.length; i++) {
+      const trade = closedTrades[i];
+      const pnl = trade.pnl || 0;
+
+      totalPnl += pnl;
+      totalFees += trade.fees;
+      totalPnlPercent += (trade.pnlPercent || 0);
+
+      if (pnl > 0) {
+        winningCount++;
+        winSum += pnl;
+        if (pnl > largestWin) largestWin = pnl;
+      } else if (pnl < 0) {
+        losingCount++;
+        lossSum += pnl;
+        if (pnl < largestLoss) largestLoss = pnl;
+      }
+
+      if (trade.exitTime) {
+        totalTradeLength += (trade.exitTime - trade.entryTime);
+        tradesWithExitTime++;
+      }
+    }
+
+    const averageWin = winningCount > 0 ? winSum / winningCount : 0;
+    const averageLoss = losingCount > 0 ? Math.abs(lossSum / losingCount) : 0;
     const profitFactor = averageLoss > 0 ? Math.abs(averageWin / averageLoss) : 0;
-    
+    const averageTradeLength = tradesWithExitTime > 0 ? totalTradeLength / closedTrades.length : 0;
+
     // Calculate drawdown
     const { maxDrawdown, maxDrawdownPercent } = this.calculateDrawdown(closedTrades);
-    
-    // Calculate average trade length
-    const averageTradeLength = closedTrades
-      .filter(trade => trade.exitTime)
-      .reduce((sum, trade) => sum + (trade.exitTime! - trade.entryTime), 0) / closedTrades.length;
 
-    // Calculate Sharpe ratio (simplified)
-    const returns = closedTrades.map(trade => trade.pnlPercent || 0);
-    const avgReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
-    const stdDev = Math.sqrt(returns.reduce((sum, ret) => sum + Math.pow(ret - avgReturn, 2), 0) / returns.length);
+    // Calculate Sharpe ratio (simplified) using single pass loop
+    const avgReturn = totalPnlPercent / closedTrades.length;
+    let sumSqDiff = 0;
+    for (let i = 0; i < closedTrades.length; i++) {
+      const ret = closedTrades[i].pnlPercent || 0;
+      const diff = ret - avgReturn;
+      sumSqDiff += diff * diff;
+    }
+    const stdDev = Math.sqrt(sumSqDiff / closedTrades.length);
     const sharpeRatio = stdDev > 0 ? avgReturn / stdDev : 0;
 
     // Calculate expectancy
-    const winRate = winningTrades.length / closedTrades.length;
+    const winRate = winningCount / closedTrades.length;
     const expectancy = (winRate * averageWin) - ((1 - winRate) * averageLoss);
 
     return {
       totalTrades: closedTrades.length,
-      winningTrades: winningTrades.length,
-      losingTrades: losingTrades.length,
+      winningTrades: winningCount,
+      losingTrades: losingCount,
       winRate,
       totalPnl,
-      totalPnlPercent: closedTrades.reduce((sum, trade) => sum + (trade.pnlPercent || 0), 0),
+      totalPnlPercent,
       averageWin,
       averageLoss,
       profitFactor,
@@ -343,8 +370,8 @@ export class TradingAnalytics {
       expectancy,
       consecutiveWins: this.getMaxConsecutive(closedTrades, true),
       consecutiveLosses: this.getMaxConsecutive(closedTrades, false),
-      largestWin: winningTrades.length > 0 ? Math.max(...winningTrades.map(t => t.pnl!)) : 0,
-      largestLoss: losingTrades.length > 0 ? Math.min(...losingTrades.map(t => t.pnl!)) : 0,
+      largestWin,
+      largestLoss,
     };
   }
 
