@@ -72,6 +72,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isBalanceOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle Account Balance</span>
                 </Button>
               </CollapsibleTrigger>
             </div>
@@ -102,6 +103,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isPnlOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle Total PNL</span>
                 </Button>
               </CollapsibleTrigger>
             </div>
@@ -132,6 +134,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
                <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isVolumeOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle 24h Volume</span>
                 </Button>
               </CollapsibleTrigger>
             </div>

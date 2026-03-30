@@ -166,6 +166,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
           <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8">
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle Backtest Results</span>
               </Button>
           </CollapsibleTrigger>
         </CardHeader>
