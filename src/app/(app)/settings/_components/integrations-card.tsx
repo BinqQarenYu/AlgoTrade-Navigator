@@ -57,7 +57,7 @@ export function IntegrationsCard() {
       <Collapsible open={isIntegrationsOpen} onOpenChange={setIntegrationsOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div><CardTitle>Third-Party Integrations</CardTitle><CardDescription>Manage API keys for external data services and notifications. Add more providers as needed.</CardDescription></div>
-          <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isIntegrationsOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+          <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isIntegrationsOpen ? "Collapse integrations" : "Expand integrations"}><ChevronDown className={cn("h-4 w-4 transition-transform", isIntegrationsOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">

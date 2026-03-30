@@ -30,7 +30,7 @@ export function TestControlsCard() {
         <Collapsible open={isTestCardOpen} onOpenChange={setTestCardOpen}>
             <CardHeader className="flex flex-row items-center justify-between">
                 <div><CardTitle className="flex items-center gap-2"><TestTube/> API Test Controls</CardTitle><CardDescription>Manually execute trades to test your API connection and settings.</CardDescription></div>
-                <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isTestCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
+                <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isTestCardOpen ? "Collapse test controls" : "Expand test controls"}><ChevronDown className={cn("h-4 w-4 transition-transform", isTestCardOpen && "rotate-180")} /></Button></CollapsibleTrigger>
             </CardHeader>
             <CollapsibleContent>
                 <CardContent className="flex flex-col gap-4">

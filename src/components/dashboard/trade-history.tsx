@@ -61,7 +61,7 @@ export function TradeHistory({ trades, onClear }: TradeHistoryProps) {
               </AlertDialogContent>
             </AlertDialog>
             <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isOpen ? "Collapse trade history" : "Expand trade history"}>
                     <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
                     <span className="sr-only">Toggle</span>
                 </Button>

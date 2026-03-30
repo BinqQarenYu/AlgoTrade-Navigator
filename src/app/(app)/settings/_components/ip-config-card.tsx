@@ -45,7 +45,7 @@ export function IpConfigCard() {
               <CardTitle className="flex items-center gap-2"><Globe className="text-primary"/> IP Address Configuration</CardTitle>
               <CardDescription>For API keys with IP restrictions, you must whitelist the server's outbound IP address.</CardDescription>
             </div>
-            <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isIpOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+            <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isIpOpen ? "Collapse IP configuration" : "Expand IP configuration"}><ChevronDown className={cn("h-4 w-4 transition-transform", isIpOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-4">

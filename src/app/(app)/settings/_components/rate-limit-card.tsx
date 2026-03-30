@@ -21,7 +21,7 @@ export function RateLimitCard() {
       <Collapsible open={isRateLimitOpen} onOpenChange={setRateLimitOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div><CardTitle className="flex items-center gap-2"><ShieldAlert/> Rate Limit Settings</CardTitle><CardDescription>Set a threshold to prevent hitting Binance API rate limits. The official limit is 1200 requests per minute.</CardDescription></div>
-           <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isRateLimitOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+           <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isRateLimitOpen ? "Collapse rate limit settings" : "Expand rate limit settings"}><ChevronDown className={cn("h-4 w-4 transition-transform", isRateLimitOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
           <CardContent>

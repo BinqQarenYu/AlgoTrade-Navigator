@@ -168,7 +168,7 @@ export function DataVaultCard({ isConnected }: { isConnected: boolean }) {
                     DuckDB persistence engine status, backfill progress, and repository management.
                 </CardDescription>
               </div>
-              <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isStorageOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+              <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isStorageOpen ? "Collapse Data Vault" : "Expand Data Vault"}><ChevronDown className={cn("h-4 w-4 transition-transform", isStorageOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
           </CardHeader>
           <CollapsibleContent>
           <CardContent className="space-y-5">
