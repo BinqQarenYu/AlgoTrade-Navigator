@@ -364,7 +364,7 @@ export default function ManualTradingPage() {
                     <Card className="flex flex-col shrink-0 border border-slate-800 bg-slate-950/40 max-h-[50%] overflow-hidden shadow-lg shadow-black/20">
                         <CardHeader className="py-4 border-b border-white/5 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-bold tracking-wider uppercase text-slate-300">Watchlist monitors</CardTitle>
-                            <Button onClick={addBotInstance} size="icon" variant="ghost" className="h-6 w-6"><PlusCircle className="h-4 w-4 text-indigo-400"/></Button>
+                            <Button onClick={addBotInstance} size="icon" variant="ghost" className="h-6 w-6" aria-label="Add bot instance"><PlusCircle className="h-4 w-4 text-indigo-400"/></Button>
                         </CardHeader>
                         <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
                             {botInstances.map(bot => {

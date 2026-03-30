@@ -79,7 +79,7 @@ export function ApiConnectionCard() {
               </CardDescription>
             </div>
             <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isConnectionOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConnectionOpen ? "Collapse connection status" : "Expand connection status"}><ChevronDown className={cn("h-4 w-4 transition-transform", isConnectionOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button>
             </CollapsibleTrigger>
           </CardHeader>
           <CollapsibleContent>

@@ -258,7 +258,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
-                                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-60 hover:opacity-100">
+                                              <Button variant="ghost" size="icon" className="h-7 w-7 opacity-60 hover:opacity-100" aria-label="Show rationale">
                                                 <Info className="h-4 w-4" />
                                                 <span className="sr-only">Show rationale</span>
                                               </Button>

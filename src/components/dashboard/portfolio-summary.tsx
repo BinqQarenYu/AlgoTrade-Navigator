@@ -40,7 +40,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
             <div className="flex items-center">
               <DollarSign className="h-4 w-4 text-emerald-400" />
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-emerald-300">
+                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-emerald-300" aria-label={isBalanceOpen ? "Collapse balance details" : "Expand balance details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isBalanceOpen && "rotate-180")} />
                 </Button>
               </CollapsibleTrigger>
@@ -71,7 +71,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
             <div className="flex items-center">
               <TrendingUp className="h-4 w-4 text-indigo-400" />
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-indigo-300">
+                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-indigo-300" aria-label={isPnlOpen ? "Collapse PNL details" : "Expand PNL details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isPnlOpen && "rotate-180")} />
                 </Button>
               </CollapsibleTrigger>
@@ -102,7 +102,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
             <div className="flex items-center">
               <BarChart className="h-4 w-4 text-cyan-400" />
                <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-cyan-300">
+                <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-cyan-300" aria-label={isVolumeOpen ? "Collapse volume details" : "Expand volume details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isVolumeOpen && "rotate-180")} />
                 </Button>
               </CollapsibleTrigger>

@@ -43,7 +43,7 @@ export function MarketSentiment({ sentiments, isLoading }: MarketSentimentProps)
             <CardDescription>Community sentiment from CoinGecko.</CardDescription>
           </div>
           <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isOpen ? "Collapse market sentiment" : "Expand market sentiment"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
                   <span className="sr-only">Toggle</span>
               </Button>

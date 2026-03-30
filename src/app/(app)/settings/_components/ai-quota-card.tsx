@@ -35,7 +35,7 @@ export function AiQuotaCard() {
       <Collapsible open={isAiQuotaOpen} onOpenChange={setAiQuotaOpen}>
         <CardHeader className="flex flex-row items-center justify-between">
           <div><CardTitle className="flex items-center gap-2"><BrainCircuit/> AI Quota Management</CardTitle><CardDescription>Set a custom daily limit for AI requests to manage your free tier quota.</CardDescription></div>
-          <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><ChevronDown className={cn("h-4 w-4 transition-transform", isAiQuotaOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
+          <CollapsibleTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isAiQuotaOpen ? "Collapse AI quota" : "Expand AI quota"}><ChevronDown className={cn("h-4 w-4 transition-transform", isAiQuotaOpen && "rotate-180")} /><span className="sr-only">Toggle</span></Button></CollapsibleTrigger>
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-6">

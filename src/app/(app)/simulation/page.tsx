@@ -65,7 +65,7 @@ const OpenPositionsCard = ({
                         <CardDescription>Positions currently active in the simulation. Click to view on chart.</CardDescription>
                     </div>
                     <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isOpen ? "Collapse open positions" : "Expand open positions"}>
                             <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
                             <span className="sr-only">Toggle</span>
                         </Button>
@@ -428,7 +428,7 @@ function SimulationPageContent() {
                   <CardDescription>Configure and manage your simulation.</CardDescription>
                 </div>
                 <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isControlsOpen ? "Collapse simulation controls" : "Expand simulation controls"}>
                         <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
                     </Button>
                 </CollapsibleTrigger>
