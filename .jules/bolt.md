@@ -58,3 +58,7 @@
 ## 2025-02-14 - Optimize Multiple Reduce Calls in React Render
 **Learning:** Repeating identical or similar array aggregations (e.g. four separate `.reduce()` calls) directly within a React component's return block forces multiple full O(N) traversals on every render. For high-frequency charting components (like `order-flow-charts.tsx`), this causes significant main thread lag and CPU thrashing.
 **Action:** Extract repeated `.reduce()` operations into a single-pass `for` loop inside a `useMemo` hook. Calculate all aggregates (`buyVol`, `sellVol`, `netFlow`, `avgRisk`) simultaneously to reduce the render complexity to strict O(N) and minimize array overhead.
+
+## 2025-02-14 - Replace chained filters and reduces in Analytics Calculation
+**Learning:** Using multiple `.filter()` and `.reduce()` operations over the same array for aggregate data computations forces full O(N) traversals on each call, producing high CPU lag and memory overhead, especially when iterating over a large dataset (e.g., historical trades).
+**Action:** Consolidate multiple O(N) functional loops traversing the same array into a single explicit `for` loop that performs all necessary metric calculations simultaneously.
