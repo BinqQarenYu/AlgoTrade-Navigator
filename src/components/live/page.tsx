@@ -609,9 +609,11 @@ const BotInstanceRow = memo(({
                         </TooltipProvider>
                         <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
                             <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
+                            <span className="sr-only">Configure Strategy Parameters</span>
                         </Button>
                         <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
                             <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Remove Bot Instance</span>
                         </Button>
                     </div>
                 </TableCell>
