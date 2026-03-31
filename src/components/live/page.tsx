@@ -612,12 +612,34 @@ const BotInstanceRow = memo(({
                                 )}
                             </Tooltip>
                         </TooltipProvider>
-                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
-                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={!bot.strategy ? 0 : -1}>
+                                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy} aria-label="Edit bot parameters">
+                                            <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{!bot.strategy ? "Select a strategy to edit parameters." : "Edit bot parameters"}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={isBotRunning ? 0 : -1}>
+                                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning} aria-label="Remove bot">
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{isBotRunning ? "Stop bot to remove." : "Remove bot"}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
                     </div>
                 </TableCell>
             </TableRow>
