@@ -1,5 +1,5 @@
 
-> nextn@0.1.0 dev
+> nextn@0.1.0 dev /app
 > next dev
 
    ▲ Next.js 15.3.8
@@ -7,312 +7,624 @@
    - Network:      http://192.168.0.2:3000
 
  ✓ Starting...
-Attention: Next.js now collects completely anonymous telemetry regarding usage.
-This information is used to shape Next.js' roadmap and prioritize features.
-You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
-https://nextjs.org/telemetry
-
- ✓ Ready in 1976ms
- ○ Compiling /settings ...
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
-
-Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
- GET /settings 200 in 51484ms
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
-
-Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
- GET /settings 200 in 373ms
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
-
-Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
-
-Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
- GET /api/app-persistence 200 in 4976ms
- GET /api/ip 200 in 4994ms
- GET /api/db/config?symbol=BTCUSDT 200 in 5673ms
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
-
-Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
-
-Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-[DuckDB] Pragma warning: [Error: Catalog Error: unrecognized configuration parameter "default_compression"
-
-Did you mean: "default_order"] {
-  errno: -1,
-  code: 'DUCKDB_NODEJS_ERROR',
-  errorType: 'Catalog'
+ ⚠ Invalid next.config.mjs options detected:
+ ⚠     Unrecognized key(s) in object: 'instrumentationHook' at "experimental"
+ ⚠ See more info here: https://nextjs.org/docs/messages/invalid-next-config
+ ⚠ `experimental.instrumentationHook` is no longer needed, because `instrumentation.js` is available by default. You can remove it from next.config.mjs.
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 753ms (58 modules)
+[Instrumentation] Failed to start failover watch Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/_instrument_src_lib_headless-sentry_ts.js
+- /app/.next/server/webpack-runtime.js
+- /app/.next/server/instrumentation.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/dev/next-dev-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/next.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at (instrument)/./src/lib/db-service.ts (.next/server/_instrument_src_lib_headless-sentry_ts.js:42:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:42)
+    at eval (webpack-internal:///(instrument)/./src/lib/headless-sentry.ts:6:69)
+    at (instrument)/./src/lib/headless-sentry.ts (.next/server/_instrument_src_lib_headless-sentry_ts.js:53:1)
+    at Function.__webpack_require__ (.next/server/webpack-runtime.js:33:42)
+    at async Module.register (src/instrumentation.ts:4:39)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
 }
- GET /ai-research 200 in 3632ms
- ⚠ ./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/@opentelemetry/sdk-node/build/src'
+ ✓ Ready in 2.6s
+ ○ Compiling /live ...
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
 
 Import trace for requested module:
-./node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
-./node_modules/@opentelemetry/sdk-node/build/src/sdk.js
-./node_modules/@opentelemetry/sdk-node/build/src/index.js
-./node_modules/@genkit-ai/core/lib/tracing.js
-./node_modules/genkit/lib/tracing.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
 ./src/ai/flows/predict-market-flow.ts
 
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
 
 Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
 ./src/ai/flows/predict-market-flow.ts
 
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
 
 Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
-./src/ai/flows/predict-market-flow.ts
-
-./node_modules/handlebars/lib/index.js
-require.extensions is not supported by webpack. Use a loader instead.
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ GET /live 200 in 42570ms
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
 
 Import trace for requested module:
-./node_modules/handlebars/lib/index.js
-./node_modules/dotprompt/dist/index.js
-./node_modules/@genkit-ai/core/lib/registry.js
-./node_modules/genkit/lib/registry.js
-./node_modules/genkit/lib/genkit.js
-./node_modules/genkit/lib/index.mjs
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
 ./src/ai/flows/predict-market-flow.ts
- GET /api/app-persistence 200 in 17ms
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ GET /live 200 in 247ms
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/app-persistence 200 in 4008ms
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/sentry/status?t=1775007956725 500 in 9086ms
+ GET /api/sentry/status?t=1775007959729 500 in 6050ms
+ GET /api/nerve 200 in 8150ms
+[NerveAPI] Client disconnected from Nerve Stream.
+ GET /api/sentry/status?t=1775007962730 500 in 3039ms
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ ⚠ ./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+Module not found: Can't resolve '@opentelemetry/exporter-jaeger' in '/app/node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src'
+
+Import trace for requested module:
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/TracerProviderWithEnvExporter.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+Critical dependency: require function is used in a way in which dependencies cannot be statically extracted
+
+Import trace for requested module:
+./node_modules/.pnpm/require-in-the-middle@7.5.2/node_modules/require-in-the-middle/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/.pnpm/@opentelemetry+instrumentation@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/sdk.js
+./node_modules/.pnpm/@opentelemetry+sdk-node@0.52.1_@opentelemetry+api@1.9.1/node_modules/@opentelemetry/sdk-node/build/src/index.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/tracing/node-telemetry-provider.js
+./node_modules/.pnpm/@genkit-ai+core@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13__a88d898d1ccd7eb42d48021f1cfaaa97/node_modules/@genkit-ai/core/lib/node.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/common.js
+./node_modules/.pnpm/genkit@1.31.0_@google-cloud+firestore@7.11.6_encoding@0.1.13__encoding@0.1.13_firebase-_b48a398e2192cbd08f7c91dcef166b97/node_modules/genkit/lib/index.mjs
+./src/ai/flows/predict-market-flow.ts
+
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/src/base/Exchange.js
+./node_modules/.pnpm/ccxt@4.5.45/node_modules/ccxt/js/ccxt.js
+./src/lib/binance-service.ts
+./src/app/(app)/live/page.tsx
+ GET /live 200 in 514ms
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/app-persistence 200 in 74ms
+ GET /api/sentry/status?t=1775007984182 500 in 270ms
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/sentry/status?t=1775007987185 500 in 237ms
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/sentry/status?t=1775007990185 500 in 234ms
+ ⨯ Error: Cannot find module '/app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/binding/duckdb.node'
+Require stack:
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb-binding.js
+- /app/node_modules/.pnpm/duckdb@1.4.4_encoding@0.1.13/node_modules/duckdb/lib/duckdb.js
+- /app/.next/server/app/api/sentry/status/route.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/load-components.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/options.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/swc/index.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/parse-module.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/analysis/get-page-static-info.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-utils/setup-dev-bundler.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/router-server.js
+- /app/node_modules/.pnpm/next@15.3.8_@babel+core@7.29.0_@opentelemetry+api@1.9.1_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/lib/start-server.js
+    at eval (src/lib/db-service.ts:16:82)
+    at <unknown> (rsc)/./src/lib/db-service.ts (/app/.next/server/app/api/sentry/status/route.js:54:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at eval (webpack-internal:///(rsc)/./src/app/api/sentry/status/route.ts:7:73)
+    at <unknown> (rsc)/./src/app/api/sentry/status/route.ts (/app/.next/server/app/api/sentry/status/route.js:43:1)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_require__ (.next/server/webpack-runtime.js:33:43)
+    at __webpack_exec__ (.next/server/app/api/sentry/status/route.js:162:39)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:219)
+    at __webpack_require__.X (.next/server/webpack-runtime.js:171:21)
+    at <unknown> (.next/server/app/api/sentry/status/route.js:163:47)
+    at Object.<anonymous> (.next/server/app/api/sentry/status/route.js:166:3)
+  14 | import type * as DuckDBType from 'duckdb';
+  15 | // Use eval('require') to bypass Webpack's build-time analysis for native modules.
+> 16 | const duckdb: typeof DuckDBType = typeof window === 'undefined' ? eval('require')('duckdb') : null;
+     |                                                                                  ^
+  17 | import path from 'path';
+  18 | import fs from 'fs';
+  19 | import { readManifest, updateConfigPath } from './sync-state-manager'; {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/api/sentry/status'
+}
+ GET /api/sentry/status?t=1775007993185 500 in 260ms
+ GET /api/nerve 200 in 10109ms
+[NerveAPI] Client disconnected from Nerve Stream.
