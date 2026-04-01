@@ -304,20 +304,20 @@ ${pools.map(pool =>
     };
   }
 
-  private validateRecommendation(rec: any): 'BUY' | 'SELL' | 'NEUTRAL' {
-    return ['BUY', 'SELL', 'NEUTRAL'].includes(rec) ? rec : 'NEUTRAL';
+  private validateRecommendation(rec: unknown): 'BUY' | 'SELL' | 'NEUTRAL' {
+    return typeof rec === 'string' && ['BUY', 'SELL', 'NEUTRAL'].includes(rec) ? rec as 'BUY' | 'SELL' | 'NEUTRAL' : 'NEUTRAL';
   }
 
-  private validateDirection(dir: any): 'Bullish' | 'Bearish' | 'Sideways' {
-    return ['Bullish', 'Bearish', 'Sideways'].includes(dir) ? dir : 'Sideways';
+  private validateDirection(dir: unknown): 'Bullish' | 'Bearish' | 'Sideways' {
+    return typeof dir === 'string' && ['Bullish', 'Bearish', 'Sideways'].includes(dir) ? dir as 'Bullish' | 'Bearish' | 'Sideways' : 'Sideways';
   }
 
-  private validateStrength(str: any): 'Low' | 'Medium' | 'High' {
-    return ['Low', 'Medium', 'High'].includes(str) ? str : 'Medium';
+  private validateStrength(str: unknown): 'Low' | 'Medium' | 'High' {
+    return typeof str === 'string' && ['Low', 'Medium', 'High'].includes(str) ? str as 'Low' | 'Medium' | 'High' : 'Medium';
   }
 
-  private validateRiskLevel(level: any): 'Low' | 'Medium' | 'High' {
-    return ['Low', 'Medium', 'High'].includes(level) ? level : 'Medium';
+  private validateRiskLevel(level: unknown): 'Low' | 'Medium' | 'High' {
+    return typeof level === 'string' && ['Low', 'Medium', 'High'].includes(level) ? level as 'Low' | 'Medium' | 'High' : 'Medium';
   }
 }
 
