@@ -32,6 +32,7 @@ interface DbConfig {
     coveredPercent: number;
     gapPercent: number;
   };
+  isFlushing?: boolean;
 }
 
 export function DataVaultCard({ isConnected }: { isConnected: boolean }) {
@@ -192,9 +193,9 @@ export function DataVaultCard({ isConnected }: { isConnected: boolean }) {
                     value: dbConfig ? `${dbConfig.bufferPending} rows` : '—',
                   },
                   {
-                    icon: <Zap className="h-4 w-4 text-blue-500"/>,
+                    icon: dbConfig?.isFlushing ? <Loader2 className="h-4 w-4 text-blue-500 animate-spin"/> : <Zap className="h-4 w-4 text-blue-500"/>,
                     label: 'DB Status',
-                    value: dbConfig?.isActive ? 'Connected' : 'Offline',
+                    value: dbConfig?.isActive ? (dbConfig.isFlushing ? 'Ingesting...' : 'Connected') : 'Offline',
                   },
                 ].map((stat) => (
                   <div key={stat.label} className="flex flex-col gap-1 p-3 rounded-xl border border-slate-700/50 bg-slate-900/50">

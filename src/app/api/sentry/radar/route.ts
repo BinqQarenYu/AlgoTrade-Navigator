@@ -59,6 +59,14 @@ export async function GET(req: Request) {
             ORDER BY timestamp DESC
         `);
 
+        // 6. Contextual Intelligence (Event Sentiment Hub)
+        const externalEvents = await runQuery(`
+            SELECT event_id, timestamp, source, level, relevance_score, headline, asset_scope, metadata
+            FROM external_events
+            WHERE timestamp > ${cutoff} AND (asset_scope = 'GLOBAL' OR asset_scope = '${symbol}')
+            ORDER BY timestamp DESC
+        `);
+
         const safeData = JSON.parse(JSON.stringify({
             symbol,
             cutoff,
@@ -66,7 +74,8 @@ export async function GET(req: Request) {
             icebergs,
             entropySeries,
             vpinSeries,
-            liquidations
+            liquidations,
+            externalEvents
         }, (key, value) => typeof value === 'bigint' ? value.toString() : value));
 
         return NextResponse.json({
@@ -74,8 +83,8 @@ export async function GET(req: Request) {
             data: safeData
         });
     } catch (e: any) {
-        if (e.message?.includes("Table with name microstructure_events does not exist")) {
-             return NextResponse.json({ success: true, data: { eventCounts: [], icebergs: [], entropySeries: [], vpinSeries: [], liquidations: [] } });
+        if (e.message?.includes("Table with name microstructure_events does not exist") || e.message?.includes("external_events does not exist")) {
+             return NextResponse.json({ success: true, data: { eventCounts: [], icebergs: [], entropySeries: [], vpinSeries: [], liquidations: [], externalEvents: [] } });
         }
         return NextResponse.json({ error: e.message }, { status: 500 });
     }

@@ -4,7 +4,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { BarChart2, BrainCircuit, LayoutDashboard, Settings, Bot, UserCheck, Activity, ShieldAlert } from "lucide-react"
+import { BarChart2, BrainCircuit, LayoutDashboard, Settings, Bot, UserCheck, Activity, ShieldAlert, Newspaper } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
@@ -26,8 +26,9 @@ const menuItems = [
   { href: "/backtest", label: "Backtest", icon: BarChart2 },
   { href: "/live", label: "Live Trading", icon: Bot },
   { href: "/manual", label: "Manual Trading", icon: UserCheck },
-  { href: "/ai-research", label: "AI Research", icon: BrainCircuit },
   { href: "/radar", label: "Anomaly Radar", icon: ShieldAlert },
+  { href: "/news", label: "Global Events", icon: Newspaper },
+  { href: "/research", label: "AI Research Lab", icon: BrainCircuit },
   { href: "/order-flow", label: "Order Flow", icon: Activity },
   { href: "/settings", label: "Settings", icon: Settings },
 ]

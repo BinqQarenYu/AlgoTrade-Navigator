@@ -6,5 +6,10 @@
     "github.copilot.chat.notebook.followCellExecution.enabled": true,
     "github.copilot.chat.scopeSelection": true,
     "github.copilot.nextEditSuggestions.enabled": true,
-    "githubPullRequests.experimental.useQuickChat": true
+    "githubPullRequests.experimental.useQuickChat": true,
+    "css.lint.unknownAtRules": "ignore",
+    "scss.lint.unknownAtRules": "ignore",
+    "files.associations": {
+        "*.css": "tailwindcss"
+    }
 }

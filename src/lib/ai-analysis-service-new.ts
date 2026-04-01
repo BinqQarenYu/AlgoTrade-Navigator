@@ -217,10 +217,15 @@ Format your response as valid JSON matching this structure:
   }
 
   private formatLiquidityData(pools: LiquidityPoolInfo[]): string {
-    if (!pools || pools.length === 0) return 'No liquidity pools found';
+    if (!pools?.length) return 'No liquidity pools found';
     
-    const totalLiquidity = pools.reduce((sum, pool) => sum + pool.reserveInUsd, 0);
-    const totalVolume = pools.reduce((sum, pool) => sum + pool.volume24h, 0);
+    let totalLiquidity = 0;
+    let totalVolume = 0;
+    
+    pools.forEach(pool => {
+      totalLiquidity += pool.reserveInUsd;
+      totalVolume += pool.volume24h;
+    });
     
     return `
 Total Pools: ${pools.length}
@@ -229,35 +234,25 @@ Total 24h Volume: $${totalVolume.toLocaleString()}
 Average Pool Size: $${(totalLiquidity / pools.length).toLocaleString()}
 
 Pool Details:
-${pools.map(pool => 
-  `- ${pool.dex}: $${pool.reserveInUsd.toLocaleString()} liquidity, $${pool.volume24h.toLocaleString()} volume`
-).join('\n')}`;
+${pools.map(pool => `- ${pool.dex}: $${pool.reserveInUsd.toLocaleString()} liquidity, $${pool.volume24h.toLocaleString()} volume`).join('\n')}`;
   }
 
   private generateMockAnalysis(request: MarketAnalysisRequest): AIAnalysisResult {
-    const symbol = request.symbol;
-    const lastPrice = request.ohlcData[request.ohlcData.length - 1]?.close || 0;
-    const priceChange = request.priceChange24h || 0;
+    const { symbol, ohlcData, priceChange24h = 0, liquidityPools } = request;
+    const lastPrice = ohlcData[ohlcData.length - 1]?.close || 0;
+    const volatility = Math.abs(priceChange24h);
+    const isPositive = priceChange24h > 0;
     
-    const isPositive = priceChange > 0;
-    const volatility = Math.abs(priceChange);
-    
-    let recommendation: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
-    let direction: 'Bullish' | 'Bearish' | 'Sideways' = 'Sideways';
-    let strength: 'Low' | 'Medium' | 'High' = 'Medium';
-    
-    if (volatility > 5) {
-      recommendation = isPositive ? 'BUY' : 'SELL';
-      direction = isPositive ? 'Bullish' : 'Bearish';
-      strength = volatility > 10 ? 'High' : 'Medium';
-    }
+    const direction = volatility > 5 ? (isPositive ? 'Bullish' : 'Bearish') : 'Sideways';
+    const recommendation = volatility > 5 ? (isPositive ? 'BUY' : 'SELL') : 'NEUTRAL';
+    const strength = volatility > 10 ? 'High' : (volatility > 5 ? 'Medium' : 'Low');
     
     return {
       recommendation,
       direction,
       strength,
-      confidence: Math.max(20, Math.min(80, 50 + Math.abs(priceChange) * 2)),
-      summary: `Mock analysis for ${symbol}: Price is ${lastPrice}, showing ${priceChange > 0 ? 'gains' : 'losses'} of ${Math.abs(priceChange).toFixed(2)}% in 24h.`,
+      confidence: Math.max(20, Math.min(80, 50 + volatility * 2)),
+      summary: `Mock analysis for ${symbol}: Price is ${lastPrice}, showing ${isPositive ? 'gains' : 'losses'} of ${volatility.toFixed(2)}% in 24h.`,
       technicalAnalysis: {
         trend: direction,
         support: lastPrice * 0.95,
@@ -269,17 +264,17 @@ ${pools.map(pool =>
         },
       },
       riskAssessment: {
-        level: volatility > 10 ? 'High' : volatility > 5 ? 'Medium' : 'Low',
+        level: strength,
         factors: [
           volatility > 10 ? 'High volatility detected' : 'Normal market conditions',
           'Standard market risks apply'
         ],
       },
-      liquidityAnalysis: request.liquidityPools ? {
-        safe: request.liquidityPools.length > 0,
-        poolCount: request.liquidityPools.length,
-        totalLiquidity: request.liquidityPools.reduce((sum, pool) => sum + pool.reserveInUsd, 0),
-        warnings: request.liquidityPools.length < 3 ? ['Limited liquidity pools available'] : [],
+      liquidityAnalysis: liquidityPools ? {
+        safe: liquidityPools.length > 0,
+        poolCount: liquidityPools.length,
+        totalLiquidity: liquidityPools.reduce((sum, p) => sum + p.reserveInUsd, 0),
+        warnings: liquidityPools.length < 3 ? ['Limited liquidity pools available'] : [],
       } : undefined,
     };
   }
@@ -293,8 +288,6 @@ ${pools.map(pool =>
       summary: `Fallback analysis for ${request.symbol}. Unable to perform detailed AI analysis at this time.`,
       technicalAnalysis: {
         trend: 'Inconclusive',
-        support: undefined,
-        resistance: undefined,
         indicators: {},
       },
       riskAssessment: {
@@ -304,22 +297,14 @@ ${pools.map(pool =>
     };
   }
 
-  private validateRecommendation(rec: unknown): 'BUY' | 'SELL' | 'NEUTRAL' {
-    return typeof rec === 'string' && ['BUY', 'SELL', 'NEUTRAL'].includes(rec) ? rec as 'BUY' | 'SELL' | 'NEUTRAL' : 'NEUTRAL';
+  private validateValue<T extends string>(value: any, allowed: readonly T[], defaultValue: T): T {
+    return allowed.includes(value) ? value : defaultValue;
   }
 
-  private validateDirection(dir: unknown): 'Bullish' | 'Bearish' | 'Sideways' {
-    return typeof dir === 'string' && ['Bullish', 'Bearish', 'Sideways'].includes(dir) ? dir as 'Bullish' | 'Bearish' | 'Sideways' : 'Sideways';
-  }
-
-  private validateStrength(str: unknown): 'Low' | 'Medium' | 'High' {
-    return typeof str === 'string' && ['Low', 'Medium', 'High'].includes(str) ? str as 'Low' | 'Medium' | 'High' : 'Medium';
-  }
-
-  private validateRiskLevel(level: unknown): 'Low' | 'Medium' | 'High' {
-    return typeof level === 'string' && ['Low', 'Medium', 'High'].includes(level) ? level as 'Low' | 'Medium' | 'High' : 'Medium';
-  }
+  private validateRecommendation(val: any) { return this.validateValue(val, ['BUY', 'SELL', 'NEUTRAL'] as const, 'NEUTRAL'); }
+  private validateDirection(val: any) { return this.validateValue(val, ['Bullish', 'Bearish', 'Sideways'] as const, 'Sideways'); }
+  private validateStrength(val: any) { return this.validateValue(val, ['Low', 'Medium', 'High'] as const, 'Medium'); }
+  private validateRiskLevel(val: any) { return this.validateValue(val, ['Low', 'Medium', 'High'] as const, 'Medium'); }
 }
 
-// Export singleton instance
 export const aiAnalysisService = new AIAnalysisService();

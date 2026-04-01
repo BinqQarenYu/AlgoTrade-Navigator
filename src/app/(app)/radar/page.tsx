@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from "react"
 import { usePersistentState } from "@/hooks/use-persistent-state"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { ShieldAlert, Droplets, Anchor, Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity, Radio, Wifi, WifiOff } from "lucide-react"
+import { ShieldAlert, Droplets, Anchor, Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Activity, Radio, Wifi, WifiOff, Globe, Newspaper } from "lucide-react"
 import { AssetSelector } from "@/components/ui/asset-selector"
 import { parseSymbolString, getAvailableQuotesForBase } from "@/lib/assets"
 import { useNerve } from "@/hooks/use-nerve"
@@ -26,13 +26,19 @@ export default function AnomalyRadarPage() {
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [liveAnomalies, setLiveAnomalies] = useState<any[]>([]);
+    const [aiSignals, setAiSignals] = useState<any[]>([]);
 
     // Connect to Mother Nerve
     const { connected } = useNerve((msg) => {
         if (msg.type === 'MICROSTRUCTURE_EVENT') {
             const event = msg.payload.latest;
             if (event.asset_pair === symbol || symbol === 'ALL') {
-                setLiveAnomalies(prev => [event, ...prev].slice(0, 10));
+                setLiveAnomalies(prev => [event, ...prev].slice(0, 5));
+            }
+        } else if (msg.type === 'AI_SIGNAL') {
+            const signal = msg.payload;
+            if (signal.symbol === symbol || symbol === 'ALL') {
+                setAiSignals(prev => [signal, ...prev].slice(0, 3));
             }
         }
     });
@@ -328,6 +334,80 @@ export default function AnomalyRadarPage() {
                             ) : (
                                 <div className="h-full flex items-center justify-center text-slate-500 italic">No major liquidations in this window.</div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* AI ANALYST SIGNAL FEED */}
+                    {aiSignals.length > 0 && (
+                        <Card className="bg-rose-500/10 border-rose-500/30 shadow-2xl lg:col-span-3 border-dashed animate-in slide-in-from-top-4 duration-700">
+                             <CardHeader className="py-3">
+                                <CardTitle className="text-xs uppercase tracking-widest text-rose-400 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Zap className="h-4 w-4 fill-rose-500 animate-pulse"/>
+                                        AI BRAIN: REAL-TIME ANALYST ALERT
+                                    </div>
+                                    <span className="text-[10px] bg-rose-500 text-white px-2 py-0.5 rounded-full font-black animate-pulse">CRITICAL</span>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="py-2">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {aiSignals.map((sig, i) => (
+                                        <div key={i} className="bg-slate-950/80 p-3 rounded-lg border border-rose-500/20 shadow-inner">
+                                            <div className="text-xs font-bold text-white mb-1">{sig.headline}</div>
+                                            <div className="flex justify-between items-center mt-3">
+                                                <div className="text-[10px] text-rose-400 uppercase font-bold">{sig.symbol} Collision Prob:</div>
+                                                <div className="text-xl font-black text-rose-500 font-mono italic">{sig.probability}%</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {/* MACRO CONTEXT ROW */}
+                    <Card className="bg-slate-950/40 border-slate-800 shadow-xl lg:col-span-3">
+                        <CardHeader>
+                            <CardTitle className="text-sm uppercase tracking-widest text-slate-300 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Globe className="h-4 w-4 text-blue-500"/>
+                                    Contextual Intelligence (ESH)
+                                </div>
+                                <span className="text-[10px] text-slate-500 font-mono">RS-SCORE MODEL ACTIVE</span>
+                            </CardTitle>
+                            <CardDescription>Global macro and breaking news correlated in real-time.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {data?.externalEvents?.length > 0 ? (
+                                    data.externalEvents.slice(0, 8).map((ev: any, i: number) => (
+                                        <div key={i} className="p-3 border border-slate-800 rounded-lg bg-slate-900/50 flex flex-col justify-between">
+                                            <div className="text-xs font-bold text-slate-200 mb-2 line-clamp-3 leading-relaxed">
+                                                {ev.headline}
+                                            </div>
+                                            <div className="flex justify-between items-end mt-2 pt-2 border-t border-slate-800/50">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-slate-500">{formatTime(Number(ev.timestamp))}</span>
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <Newspaper className="h-3 w-3 text-slate-400"/>
+                                                        <span className="text-[9px] uppercase tracking-wider text-slate-400">{ev.source}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <span className="text-[10px] text-slate-500 uppercase tracking-widest">RS-SCORE</span>
+                                                    <span className={cn("font-mono font-bold text-sm", ev.relevance_score >= 8 ? "text-rose-500 drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]" : ev.relevance_score >= 5 ? "text-amber-500" : "text-blue-500")}>
+                                                        {ev.relevance_score.toFixed(1)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="col-span-full h-24 flex items-center justify-center text-slate-500 italic">
+                                        No high-impact macro events recorded in this window.
+                                    </div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>

@@ -93,6 +93,18 @@ export interface MicrostructureEventRecord {
   machine_id?: string;
 }
 
+export interface ExternalEventRecord {
+  event_id: string;
+  timestamp: number;
+  source: string; // 'CMC', 'GECKO', 'CRYPTO_PANIC', 'FED', 'ELON'
+  level: 1 | 2 | 3; // 1: Macro/Systemic, 2: High/News, 3: Info/Trends
+  relevance_score: number; // The RS-Score (0-10)
+  headline: string;
+  asset_scope?: string; // 'GLOBAL' or 'BTC,ETH'
+  metadata?: string; // Elastic JSON for future extensions
+  machine_id?: string;
+}
+
 // ──────────────────────────────────────────────────────────
 // State
 // ──────────────────────────────────────────────────────────
@@ -104,10 +116,20 @@ const globalForDuckDB = globalThis as unknown as {
   conn: DuckDBType.Connection | null;
   isInitialized: boolean;
   dbPath: string;
+  isFlushing: boolean;
+  lastStatsUpdate: number;
+  cachedStats: {
+    tradeCount: number;
+    oldestTimestamp: number | null;
+    newestTimestamp: number | null;
+  } | null;
 };
 
 if (!globalForDuckDB.dbPath) {
   globalForDuckDB.dbPath = process.env.DUCKDB_PATH || readManifest().config.storage_path || DEFAULT_PATH;
+  globalForDuckDB.isFlushing = false;
+  globalForDuckDB.lastStatsUpdate = 0;
+  globalForDuckDB.cachedStats = null;
 }
 
 // In-memory write buffers — flushed every 10s
@@ -117,6 +139,7 @@ const globalBuffers = globalThis as unknown as {
   systemLogBuffer: SystemLogRecord[];
   signalBuffer: SignalRecord[];
   microstructureEventBuffer: MicrostructureEventRecord[];
+  externalEventBuffer: ExternalEventRecord[];
 };
 
 if (!globalBuffers.tradeBuffer) {
@@ -125,6 +148,7 @@ if (!globalBuffers.tradeBuffer) {
   globalBuffers.systemLogBuffer = [];
   globalBuffers.signalBuffer = [];
   globalBuffers.microstructureEventBuffer = [];
+  globalBuffers.externalEventBuffer = [];
 }
 
 export function getBufferStatus() {
@@ -133,7 +157,8 @@ export function getBufferStatus() {
     ohlcv: globalBuffers.ohlcvBuffer.length,
     logs: globalBuffers.systemLogBuffer.length,
     signals: globalBuffers.signalBuffer.length,
-    microstructure: globalBuffers.microstructureEventBuffer.length
+    microstructure: globalBuffers.microstructureEventBuffer.length,
+    external: globalBuffers.externalEventBuffer.length
   };
 }
 
@@ -225,6 +250,19 @@ const SCHEMA_SQL = `
     severity_score DOUBLE,
     metadata   VARCHAR,
     machine_id VARCHAR
+  );
+
+  -- Contextual Intelligence: News, Macro, and Gossip
+  CREATE TABLE IF NOT EXISTS external_events (
+    event_id        VARCHAR PRIMARY KEY,
+    timestamp       BIGINT  NOT NULL,
+    source          VARCHAR NOT NULL,
+    level           INTEGER DEFAULT 3,
+    relevance_score DOUBLE  DEFAULT 0,
+    headline        TEXT    NOT NULL,
+    asset_scope     VARCHAR DEFAULT 'GLOBAL',
+    metadata        VARCHAR, -- Elastic JSON blob
+    machine_id      VARCHAR
   );
 `;
 
@@ -372,110 +410,142 @@ export function bufferMicrostructureEvents(records: MicrostructureEventRecord[])
   globalBuffers.microstructureEventBuffer.push(...records);
 }
 
+export function bufferExternalEvent(record: ExternalEventRecord): void {
+  globalBuffers.externalEventBuffer.push(record);
+}
+
 async function flushBuffers(): Promise<void> {
-  if (!globalForDuckDB.conn) return;
+  if (!globalForDuckDB.conn || globalForDuckDB.isFlushing) return;
 
-  // --- Flush trades ---
-  if (globalBuffers.tradeBuffer.length > 0) {
-    const batch = globalBuffers.tradeBuffer.splice(0, globalBuffers.tradeBuffer.length);
-    try {
-      await runQuery(`
-        INSERT OR IGNORE INTO trades (
-          trade_id, symbol, price, quantity, side, timestamp, source, machine_id,
-          entropy_score, vpin, is_synthetic, is_organic, is_iceberg, is_spoofing, funding_rate
-        )
-        VALUES ${batch.map(t => `(
-          '${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}', '${t.machine_id || 'UNKNOWN'}',
-          ${t.entropy_score ?? 'NULL'}, ${t.vpin ?? 'NULL'}, ${t.is_synthetic ?? 'NULL'}, 
-          ${t.is_organic ?? 'NULL'}, ${t.is_iceberg ?? 'NULL'}, ${t.is_spoofing ?? 'NULL'}, ${t.funding_rate ?? 'NULL'}
-        )`).join(',\n')};
-      `);
-    } catch (e) {
-      console.error('[DuckDB Flush] Trade batch error:', e);
-      // Return records to buffer so they can be retried
-      globalBuffers.tradeBuffer.unshift(...batch);
+  globalForDuckDB.isFlushing = true;
+  const CHUNK_SIZE = 2000; // Small chunks to prevent blocking/locking
+
+  try {
+    // --- Flush trades ---
+    while (globalBuffers.tradeBuffer.length > 0) {
+      const batch = globalBuffers.tradeBuffer.splice(0, CHUNK_SIZE);
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO trades (
+            trade_id, symbol, price, quantity, side, timestamp, source, machine_id,
+            entropy_score, vpin, is_synthetic, is_organic, is_iceberg, is_spoofing, funding_rate
+          )
+          VALUES ${batch.map(t => `(
+            '${t.trade_id}', '${t.symbol}', ${t.price}, ${t.quantity}, '${t.side}', ${t.timestamp}, '${t.source}', '${t.machine_id || 'UNKNOWN'}',
+            ${t.entropy_score ?? 'NULL'}, ${t.vpin ?? 'NULL'}, ${t.is_synthetic ?? 'NULL'}, 
+            ${t.is_organic ?? 'NULL'}, ${t.is_iceberg ?? 'NULL'}, ${t.is_spoofing ?? 'NULL'}, ${t.funding_rate ?? 'NULL'}
+          )`).join(',\n')};
+        `);
+      } catch (e) {
+        console.error('[DuckDB Flush] Trade chunk error (retrying later):', e);
+        globalBuffers.tradeBuffer.unshift(...batch);
+        break; // Stop processing this buffer for this flush cycle
+      }
     }
-  }
 
-  // --- Flush AI Signals (Bayesian Loop) ---
-  if (globalBuffers.signalBuffer.length > 0) {
-    const batch = globalBuffers.signalBuffer.splice(0, globalBuffers.signalBuffer.length);
-    const values = batch
-      .map(s => `(
-        '${s.signal_id}', ${s.timestamp}, '${s.symbol}', '${s.strategy_id}', '${s.signal_type}', 
-        ${s.entry_price}, ${s.exit_price ?? 'NULL'}, '${s.outcome || 'OPEN'}', 
-        ${s.profit_delta ?? 'NULL'}, '${s.feature_vector.replace(/'/g, "''")}', '${s.machine_id || 'UNKNOWN'}'
-      )`)
-      .join(',\n');
+    // --- Flush AI Signals ---
+    while (globalBuffers.signalBuffer.length > 0) {
+      const batch = globalBuffers.signalBuffer.splice(0, CHUNK_SIZE);
+      const values = batch
+        .map(s => `(
+          '${s.signal_id}', ${s.timestamp}, '${s.symbol}', '${s.strategy_id}', '${s.signal_type}', 
+          ${s.entry_price}, ${s.exit_price ?? 'NULL'}, '${s.outcome || 'OPEN'}', 
+          ${s.profit_delta ?? 'NULL'}, '${s.feature_vector.replace(/'/g, "''")}', '${s.machine_id || 'UNKNOWN'}'
+        )`)
+        .join(',\n');
 
-    try {
-      await runQuery(`
-        INSERT OR IGNORE INTO signals (
-          signal_id, timestamp, symbol, strategy_id, signal_type, 
-          entry_price, exit_price, outcome, profit_delta, feature_vector, machine_id
-        )
-        VALUES ${values};
-      `);
-    } catch (e) {
-      console.error('[DuckDB Flush] Signal batch error:', e);
-      globalBuffers.signalBuffer.unshift(...batch);
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO signals (
+            signal_id, timestamp, symbol, strategy_id, signal_type, 
+            entry_price, exit_price, outcome, profit_delta, feature_vector, machine_id
+          )
+          VALUES ${values};
+        `);
+      } catch (e) {
+        console.error('[DuckDB Flush] Signal chunk error:', e);
+        globalBuffers.signalBuffer.unshift(...batch);
+        break;
+      }
     }
-  }
 
-  // --- Flush System Logs ---
-  if (globalBuffers.systemLogBuffer.length > 0) {
-    const batch = globalBuffers.systemLogBuffer.splice(0, globalBuffers.systemLogBuffer.length);
-    const values = batch
-      .map(l => `('${l.id}', ${l.timestamp}, '${l.asset_pair}', '${l.alert_source}', '${l.interval}', '${l.numerical_data.replace(/'/g, "''")}', '${l.message.replace(/'/g, "''")}')`)
-      .join(',\n');
+    // --- Flush System Logs ---
+    while (globalBuffers.systemLogBuffer.length > 0) {
+      const batch = globalBuffers.systemLogBuffer.splice(0, CHUNK_SIZE);
+      const values = batch
+        .map(l => `('${l.id}', ${l.timestamp}, '${l.asset_pair}', '${l.alert_source}', '${l.interval}', '${l.numerical_data.replace(/'/g, "''")}', '${l.message.replace(/'/g, "''")}')`)
+        .join(',\n');
 
-    try {
-      await runQuery(`
-        INSERT OR IGNORE INTO system_logs (id, timestamp, asset_pair, alert_source, interval, numerical_data, message)
-        VALUES ${values};
-      `);
-    } catch (e) {
-      console.error('[DuckDB Flush] SystemLog batch error:', e);
-      globalBuffers.systemLogBuffer.unshift(...batch);
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO system_logs (id, timestamp, asset_pair, alert_source, interval, numerical_data, message)
+          VALUES ${values};
+        `);
+      } catch (e) {
+        console.error('[DuckDB Flush] SystemLog chunk error:', e);
+        globalBuffers.systemLogBuffer.unshift(...batch);
+        break;
+      }
     }
-  }
 
-  // --- Flush OHLCV ---
-  if (globalBuffers.ohlcvBuffer.length > 0) {
-    const batch = globalBuffers.ohlcvBuffer.splice(0, globalBuffers.ohlcvBuffer.length);
-    const values = batch
-      .map(k => `('${k.symbol}', '${k.interval}', ${k.time}, ${k.open}, ${k.high}, ${k.low}, ${k.close}, ${k.volume}, '${k.source}', '${k.machine_id || 'UNKNOWN'}')`)
-      .join(',\n');
+    // --- Flush OHLCV ---
+    while (globalBuffers.ohlcvBuffer.length > 0) {
+      const batch = globalBuffers.ohlcvBuffer.splice(0, CHUNK_SIZE);
+      const values = batch
+        .map(k => `('${k.symbol}', '${k.interval}', ${k.time}, ${k.open}, ${k.high}, ${k.low}, ${k.close}, ${k.volume}, '${k.source}', '${k.machine_id || 'UNKNOWN'}')`)
+        .join(',\n');
 
-    try {
-      await runQuery(`
-        INSERT OR IGNORE INTO ohlcv (symbol, interval, time, open, high, low, close, volume, source, machine_id)
-        VALUES ${values};
-      `);
-    } catch (e) {
-      console.error('[DuckDB Flush] OHLCV batch error:', e);
-      globalBuffers.ohlcvBuffer.unshift(...batch);
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO ohlcv (symbol, interval, time, open, high, low, close, volume, source, machine_id)
+          VALUES ${values};
+        `);
+      } catch (e) {
+        console.error('[DuckDB Flush] OHLCV chunk error:', e);
+        globalBuffers.ohlcvBuffer.unshift(...batch);
+        break;
+      }
     }
-  }
 
-  // --- Flush Microstructure Events ---
-  if (globalBuffers.microstructureEventBuffer.length > 0) {
-    const batch = globalBuffers.microstructureEventBuffer.splice(0, globalBuffers.microstructureEventBuffer.length);
-    const values = batch
-      .map(e => `('${e.event_id}', ${e.timestamp}, '${e.symbol}', '${e.event_type}', ${e.price}, ${e.volume_base}, ${e.volume_usd}, ${e.severity_score}, ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'}, '${e.machine_id || 'UNKNOWN'}')`)
-      .join(',\n');
+    // --- Flush Microstructure Events ---
+    while (globalBuffers.microstructureEventBuffer.length > 0) {
+      const batch = globalBuffers.microstructureEventBuffer.splice(0, CHUNK_SIZE);
+      const values = batch
+        .map(e => `('${e.event_id}', ${e.timestamp}, '${e.symbol}', '${e.event_type}', ${e.price}, ${e.volume_base}, ${e.volume_usd}, ${e.severity_score}, ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'}, '${e.machine_id || 'UNKNOWN'}')`)
+        .join(',\n');
 
-    console.log(`[DuckDB Flush] Attempting to insert ${batch.length} microstructure events... \n VALUES: ${values}`);
-    try {
-      await runQuery(`
-        INSERT OR IGNORE INTO microstructure_events (event_id, timestamp, symbol, event_type, price, volume_base, volume_usd, severity_score, metadata, machine_id)
-        VALUES ${values};
-      `);
-      console.log(`[DuckDB Flush] Inserted ${batch.length} microstructure events successfully.`);
-    } catch (err) {
-      console.error('[DuckDB Flush] Microstructure Event batch error:', err);
-      globalBuffers.microstructureEventBuffer.unshift(...batch);
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO microstructure_events (event_id, timestamp, symbol, event_type, price, volume_base, volume_usd, severity_score, metadata, machine_id)
+          VALUES ${values};
+        `);
+      } catch (err) {
+        console.error('[DuckDB Flush] Microstructure Event chunk error:', err);
+        globalBuffers.microstructureEventBuffer.unshift(...batch);
+        break;
+      }
     }
+
+    // --- Flush External Events ---
+    while (globalBuffers.externalEventBuffer.length > 0) {
+      const batch = globalBuffers.externalEventBuffer.splice(0, CHUNK_SIZE);
+      const values = batch
+        .map(e => `('${e.event_id}', ${e.timestamp}, '${e.source}', ${e.level}, ${e.relevance_score}, '${e.headline.replace(/'/g, "''")}', '${e.asset_scope || 'GLOBAL'}', ${e.metadata ? `'${e.metadata.replace(/'/g, "''")}'` : 'NULL'}, '${e.machine_id || 'UNKNOWN'}')`)
+        .join(',\n');
+
+      try {
+        await runQuery(`
+          INSERT OR IGNORE INTO external_events (event_id, timestamp, source, level, relevance_score, headline, asset_scope, metadata, machine_id)
+          VALUES ${values};
+        `);
+      } catch (err) {
+        console.error('[DuckDB Flush] External Event chunk error:', err);
+        globalBuffers.externalEventBuffer.unshift(...batch);
+        break;
+      }
+    }
+  } finally {
+    globalForDuckDB.isFlushing = false;
   }
 }
 
@@ -496,18 +566,19 @@ function stopFlushTimer(): void {
 // ──────────────────────────────────────────────────────────
 // Public Queries
 // ──────────────────────────────────────────────────────────
-export async function getStorageConfig() {
-  let sizeMb = 0;
-  try {
-    if (fs.existsSync(globalForDuckDB.dbPath)) {
-      const stats = fs.statSync(globalForDuckDB.dbPath);
-      sizeMb = parseFloat((stats.size / (1024 * 1024)).toFixed(2));
-    }
-  } catch {}
+
+async function fetchStats() {
+  const STATS_CACHE_MS = 60_000;
+  const now = Date.now();
+  
+  if (globalForDuckDB.cachedStats && (now - globalForDuckDB.lastStatsUpdate < STATS_CACHE_MS)) {
+    return globalForDuckDB.cachedStats;
+  }
 
   let tradeCount = 0;
   let oldestTimestamp: number | null = null;
   let newestTimestamp: number | null = null;
+
   try {
     if (globalForDuckDB.isInitialized) {
       const result = await runQuery(`
@@ -519,17 +590,35 @@ export async function getStorageConfig() {
         oldestTimestamp = result[0].oldest ? Number(result[0].oldest) : null;
         newestTimestamp = result[0].newest ? Number(result[0].newest) : null;
       }
+      
+      globalForDuckDB.cachedStats = { tradeCount, oldestTimestamp, newestTimestamp };
+      globalForDuckDB.lastStatsUpdate = now;
+    }
+  } catch (e) {
+    console.error('[DuckDB Stats] Fetch Error:', e);
+  }
+  
+  return globalForDuckDB.cachedStats || { tradeCount: 0, oldestTimestamp: null, newestTimestamp: null };
+}
+
+export async function getStorageConfig() {
+  let sizeMb = 0;
+  try {
+    if (fs.existsSync(globalForDuckDB.dbPath)) {
+      const stats = fs.statSync(globalForDuckDB.dbPath);
+      sizeMb = parseFloat((stats.size / (1024 * 1024)).toFixed(2));
     }
   } catch {}
+
+  const stats = await fetchStats();
 
   return {
     path: globalForDuckDB.dbPath,
     sizeMb,
     isActive: globalForDuckDB.isInitialized,
-    tradeCount,
-    oldestTimestamp,
-    newestTimestamp,
+    ...stats,
     bufferPending: globalBuffers.tradeBuffer.length + globalBuffers.ohlcvBuffer.length,
+    isFlushing: globalForDuckDB.isFlushing,
   };
 }
 

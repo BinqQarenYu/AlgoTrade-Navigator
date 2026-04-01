@@ -102,12 +102,14 @@ async function drainVault() {
             if (response.ok) {
                 db.run("DELETE FROM vault WHERE id = ?", row.id, () => {
                     isDraining = false;
-                    // Immediately try next row to clear backlog fast
-                    setImmediate(drainVault);
+                    // --- GOLD STANDARD: Added 250ms throttle to prevent saturating Mother Node ---
+                    setTimeout(drainVault, 250);
                 });
             } else {
                 console.warn(`[Sentinel Cluster] Recovery paused (Mother busy: ${response.status})`);
                 isDraining = false;
+                // Retry after 5s if Mother is busy
+                setTimeout(drainVault, 5000);
                 isMotherOnline = false;
             }
         } catch (e) {
