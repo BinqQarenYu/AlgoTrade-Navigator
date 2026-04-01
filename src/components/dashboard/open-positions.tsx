@@ -59,7 +59,7 @@ export function OpenPositions({ positions, isLoading, onClosePosition, permissio
            <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-emerald-400" aria-label={isOpen ? "Collapse open positions" : "Expand open positions"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                  <span className="sr-only">Toggle</span>
+                  <span className="sr-only">Toggle Open Positions</span>
               </Button>
           </CollapsibleTrigger>
         </CardHeader>

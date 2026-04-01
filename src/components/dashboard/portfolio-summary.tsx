@@ -42,6 +42,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-emerald-300" aria-label={isBalanceOpen ? "Collapse balance details" : "Expand balance details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isBalanceOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle Account Balance</span>
                 </Button>
               </CollapsibleTrigger>
             </div>
@@ -73,6 +74,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-indigo-300" aria-label={isPnlOpen ? "Collapse PNL details" : "Expand PNL details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isPnlOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle Total PNL</span>
                 </Button>
               </CollapsibleTrigger>
             </div>
@@ -104,6 +106,7 @@ export function PortfolioSummary({ balance = 0, totalPnl = 0, dailyVolume = 0, i
                <CollapsibleTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-6 w-6 ml-1 text-slate-400 hover:text-cyan-300" aria-label={isVolumeOpen ? "Collapse volume details" : "Expand volume details"}>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isVolumeOpen && "rotate-180")} />
+                  <span className="sr-only">Toggle 24h Volume</span>
                 </Button>
               </CollapsibleTrigger>
             </div>
