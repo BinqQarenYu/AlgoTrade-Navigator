@@ -612,10 +612,10 @@ const BotInstanceRow = memo(({
                                 )}
                             </Tooltip>
                         </TooltipProvider>
-                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy}>
+                        <Button variant="ghost" size="icon" onClick={() => onToggleParams(bot.id)} disabled={!bot.strategy} aria-label={openParams[bot.id] ? "Close parameters" : "Open parameters"}>
                             <Settings className={cn("h-4 w-4", openParams[bot.id] && "text-primary")} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning}>
+                        <Button variant="ghost" size="icon" onClick={() => onRemoveBot(bot.id)} disabled={isBotRunning} aria-label="Remove bot">
                             <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                     </div>
