@@ -25,17 +25,39 @@ export function EntropyHUD({ orderFlowData }: EntropyHUDProps) {
     
     // Average metrics over the last 10 trades for stability
     const window = orderFlowData.slice(0, 10);
-    const avgEntropy = window.reduce((acc, o) => acc + (o.microstructure?.entropyScore || 0), 0) / window.length;
-    const avgToxicity = window.reduce((acc, o) => acc + (o.microstructure?.vpin || 0), 0) / window.length;
+
+    // ⚡ Bolt Optimization: Replace 5 chained O(N) mutations (.reduce, .filter().reduce())
+    // with a single O(N) iterative loop to drastically reduce GC overhead during frequent React renders.
+    let totalEntropy = 0;
+    let totalToxicity = 0;
+    let toxicTraps = 0;
+    let buys = 0;
+    let sells = 0;
+    let latest = null;
+
+    for (let i = 0; i < window.length; i++) {
+        const o = window[i];
+
+        if (o.microstructure) {
+            totalEntropy += o.microstructure.entropyScore || 0;
+            totalToxicity += o.microstructure.vpin || 0;
+            if (o.microstructure.isToxicTrap) toxicTraps++;
+            if (!latest) latest = o.microstructure;
+        }
+
+        if (o.orderType === 'buy') {
+            buys += o.size;
+        } else if (o.orderType === 'sell') {
+            sells += o.size;
+        }
+    }
+
+    const avgEntropy = totalEntropy / window.length;
+    const avgToxicity = totalToxicity / window.length;
     
     // Safety check for first non-null microstructure
-    const latest = window.find(o => o.microstructure)?.microstructure;
     if (!latest && avgEntropy === 0) return null;
 
-    const toxicTraps = window.filter(o => o.microstructure?.isToxicTrap).length;
-
-    const buys = window.filter(o => o.orderType === 'buy').reduce((acc, o) => acc + o.size, 0);
-    const sells = window.filter(o => o.orderType === 'sell').reduce((acc, o) => acc + o.size, 0);
     const imbalanceRatio = Math.max(buys, sells) / (Math.min(buys, sells) || 1);
     const dominantSide = buys > sells ? 'buy' : 'sell';
 
