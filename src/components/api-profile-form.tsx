@@ -200,6 +200,15 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
             <div
                 className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:border-primary/80 hover:bg-muted/50"
                 onClick={() => fileInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload QR code image"
             >
                 <QrCode className="w-8 h-8 text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">Click to upload a QR code image</p>
