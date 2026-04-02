@@ -1418,15 +1418,20 @@ const BacktestPageContent = () => {
                     <CardDescription>Configure your backtesting parameters.</CardDescription>
                   </div>
                    <div className="flex items-center gap-1">
-                     <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-primary" 
-                        onClick={() => setIsSettingsFloating(true)}
-                        title="Detach HUD"
-                      >
-                        <GripHorizontal className="h-4 w-4" />
-                      </Button>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                onClick={() => setIsSettingsFloating(true)}
+                                aria-label="Detach HUD"
+                            >
+                                <GripHorizontal className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Detach HUD</TooltipContent>
+                     </Tooltip>
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConfigOpen ? "Collapse configuration" : "Expand configuration"}>
                             <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
@@ -1539,9 +1544,24 @@ const BacktestPageContent = () => {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                     <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50} aria-label="Step backward"><StepBack/></Button>
-                        <Button variant="outline" size="icon" onClick={togglePlayPause} aria-label={isPlaying ? "Pause replay" : "Start replay"}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying} aria-label="Step forward"><StepForward/></Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50} aria-label="Step backward"><StepBack/></Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Step Backward</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon" onClick={togglePlayPause} aria-label={isPlaying ? "Pause replay" : "Start replay"}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{isPlaying ? "Pause" : "Play"}</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying} aria-label="Step forward"><StepForward/></Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Step Forward</TooltipContent>
+                        </Tooltip>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
