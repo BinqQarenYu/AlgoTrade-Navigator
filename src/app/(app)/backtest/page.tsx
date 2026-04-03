@@ -54,7 +54,7 @@ import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSe
 import { RiskGuardian } from "@/lib/risk-guardian"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"
 import { format, addDays } from "date-fns"
 import {
   DropdownMenu,
@@ -923,7 +923,7 @@ const BacktestPageContent = () => {
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
                 <Label htmlFor="adv-contrarian-hpf" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
             </div>
@@ -938,7 +938,7 @@ const BacktestPageContent = () => {
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
                 <Label htmlFor="reverse-logic-hpf">Standard Contrarian (Reverse Logic)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
@@ -1001,7 +1001,7 @@ const BacktestPageContent = () => {
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 cursor-pointer">
                     <Label htmlFor="advanced-contrarian-consensus" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
-                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: When Consensus &gt;80%, volume shows exhaustion, and price is over-extended, it trades the reversal. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                    <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: When Consensus &gt;80%, volume shows exhaustion, and price is over-extended, it trades the reversal. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip>
                   </div>
                   <p className="text-xs text-muted-foreground">Apply smart exhaustion and over-extension filters.</p>
                 </div>
@@ -1016,7 +1016,7 @@ const BacktestPageContent = () => {
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1 cursor-pointer">
                     <Label htmlFor="reverse-logic-consensus">Standard Contrarian (Reverse Logic)</Label>
-                    <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Always trades the opposite of the majority consensus. If Advanced Contrarian is OFF, this is a pure signal flip.</p></TooltipContent></Tooltip></TooltipProvider>
+                    <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Always trades the opposite of the majority consensus. If Advanced Contrarian is OFF, this is a pure signal flip.</p></TooltipContent></Tooltip>
                   </div>
                   <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                 </div>
@@ -1072,7 +1072,7 @@ const BacktestPageContent = () => {
                     <div className="flex flex-col">
                         <div className="flex items-center gap-1 cursor-pointer">
                             <Label htmlFor="adv-contrarian-mtf" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
-                            <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                            <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip>
                         </div>
                         <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
                     </div>
@@ -1174,7 +1174,7 @@ const BacktestPageContent = () => {
                     <div className="flex flex-col">
                         <div className="flex items-center gap-1 cursor-pointer">
                             <Label htmlFor="adv-contrarian-generic-none" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
-                            <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                            <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip>
                         </div>
                         <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
                     </div>
@@ -1189,7 +1189,7 @@ const BacktestPageContent = () => {
                     <div className="flex flex-col">
                       <div className="flex items-center gap-1 cursor-pointer">
                         <Label htmlFor="reverse-logic-generic-none">Standard Contrarian (Reverse Logic)</Label>
-                        <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
+                        <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Simple Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip>
                       </div>
                       <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
                     </div>
@@ -1234,7 +1234,7 @@ const BacktestPageContent = () => {
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
                 <Label htmlFor="adv-contrarian-generic" className={cn(!params.reverse && "text-muted-foreground")}>Advanced Contrarian (Fade Engine)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs block">Smart Fade: Adds volume exhaustion and EMA over-extension filters. Requires "Reverse Logic" to be active.</p></TooltipContent></Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">Apply smart filters to contrarian signals.</p>
             </div>
@@ -1249,7 +1249,7 @@ const BacktestPageContent = () => {
             <div className="flex flex-col">
               <div className="flex items-center gap-1 cursor-pointer">
                 <Label htmlFor="reverse-logic-generic">Standard Contrarian (Reverse Logic)</Label>
-                <TooltipProvider><Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip></TooltipProvider>
+                <Tooltip><TooltipTrigger><Info className="h-3 w-3 text-muted-foreground mr-1" /></TooltipTrigger><TooltipContent><p className="max-w-xs">Absolute Inversion: Trades the exact opposite of the original strategy's signal.</p></TooltipContent></Tooltip>
               </div>
               <p className="text-xs text-muted-foreground">Trade against the strategy's signals.</p>
             </div>
@@ -1418,15 +1418,20 @@ const BacktestPageContent = () => {
                     <CardDescription>Configure your backtesting parameters.</CardDescription>
                   </div>
                    <div className="flex items-center gap-1">
-                     <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-8 w-8 text-muted-foreground hover:text-primary" 
-                        onClick={() => setIsSettingsFloating(true)}
-                        title="Detach HUD"
-                      >
-                        <GripHorizontal className="h-4 w-4" />
-                      </Button>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-primary"
+                            onClick={() => setIsSettingsFloating(true)}
+                            aria-label="Detach HUD"
+                          >
+                            <GripHorizontal className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Detach HUD</TooltipContent>
+                      </Tooltip>
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={isConfigOpen ? "Collapse configuration" : "Expand configuration"}>
                             <ChevronDown className={cn("h-4 w-4 transition-transform", isConfigOpen && "rotate-180")} />
@@ -1539,9 +1544,30 @@ const BacktestPageContent = () => {
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
                     <div className="flex items-center justify-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50} aria-label="Step backward"><StepBack/></Button>
-                        <Button variant="outline" size="icon" onClick={togglePlayPause} aria-label={isPlaying ? "Pause replay" : "Start replay"}>{isPlaying ? <Pause/> : <Play/>}</Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying} aria-label="Step forward"><StepForward/></Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span>
+                                    <Button variant="ghost" size="icon" onClick={() => handleReplayStep('backward')} disabled={isPlaying || replayIndex <= 50} aria-label="Step backward"><StepBack/></Button>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Step Backward</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="outline" size="icon" onClick={togglePlayPause} aria-label={isPlaying ? "Pause replay" : "Start replay"}>{isPlaying ? <Pause/> : <Play/>}</Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{isPlaying ? "Pause Replay" : "Start Replay"}</TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <span>
+                                    <Button variant="ghost" size="icon" onClick={() => handleReplayStep('forward')} disabled={isPlaying} aria-label="Step forward"><StepForward/></Button>
+                                </span>
+                            </TooltipTrigger>
+                            <TooltipContent>Step Forward</TooltipContent>
+                        </Tooltip>
                     </div>
                     <div className="flex items-center justify-center gap-2">
                       <Button size="sm" variant={replaySpeed === 1000 ? 'default' : 'outline'} onClick={() => setReplaySpeed(1000)}>Slow</Button>
