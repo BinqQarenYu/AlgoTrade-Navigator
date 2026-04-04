@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useRef } from "react"
+import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -13,9 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Save, QrCode, Globe } from "lucide-react"
+import { Save, QrCode, Globe, Eye, EyeOff } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { ApiProfile } from "@/lib/types"
 
 export const profileSchema = z.object({
@@ -37,6 +38,7 @@ interface ApiProfileFormProps {
 export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfileFormProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showSecretKey, setShowSecretKey] = useState(false)
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -128,7 +130,28 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
             <FormItem>
               <FormLabel>Binance Secret Key</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="Enter your Secret Key" {...field} />
+                <div className="relative">
+                  <Input
+                    type={showSecretKey ? "text" : "password"}
+                    placeholder="Enter your Secret Key"
+                    className="pr-10"
+                    {...field}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowSecretKey(!showSecretKey)}
+                    aria-label={showSecretKey ? "Hide secret key" : "Show secret key"}
+                  >
+                    {showSecretKey ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -197,23 +220,30 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
         </div>
          <div className="space-y-2">
             <FormLabel>Load from QR Code</FormLabel>
-            <div
-                className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:border-primary/80 hover:bg-muted/50"
-                onClick={() => fileInputRef.current?.click()}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    fileInputRef.current?.click();
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                aria-label="Upload QR code image"
-            >
-                <QrCode className="w-8 h-8 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground">Click to upload a QR code image</p>
-                <Input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                    className="flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-lg text-center cursor-pointer hover:border-primary/80 hover:bg-muted/50"
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Upload QR code image"
+                >
+                    <QrCode className="w-8 h-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground">Click to upload a QR code image</p>
+                    <Input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Upload a Binance API QR code image</p>
+              </TooltipContent>
+            </Tooltip>
         </div>
         <div className="flex justify-end gap-2 pt-4">
             <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
