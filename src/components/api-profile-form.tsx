@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useRef } from "react"
+import React, { useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Save, QrCode, Globe } from "lucide-react"
+import { Save, QrCode, Globe, Eye, EyeOff } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import type { ApiProfile } from "@/lib/types"
@@ -37,6 +37,8 @@ interface ApiProfileFormProps {
 export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfileFormProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [showSecretKey, setShowSecretKey] = useState(false)
 
   const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
@@ -114,9 +116,32 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
           render={({ field }) => (
             <FormItem>
               <FormLabel>Binance API Key</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter your API Key" {...field} />
-              </FormControl>
+              <div className="relative">
+                <FormControl>
+                  <Input
+                    type={showApiKey ? "text" : "password"}
+                    placeholder="Enter your API Key"
+                    className="pr-10"
+                    {...field}
+                  />
+                </FormControl>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="sr-only">
+                    {showApiKey ? "Hide API Key" : "Show API Key"}
+                  </span>
+                </Button>
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -127,9 +152,32 @@ export function ApiProfileForm({ onSubmit, onCancel, defaultValues }: ApiProfile
           render={({ field }) => (
             <FormItem>
               <FormLabel>Binance Secret Key</FormLabel>
-              <FormControl>
-                <Input type="password" placeholder="Enter your Secret Key" {...field} />
-              </FormControl>
+              <div className="relative">
+                <FormControl>
+                  <Input
+                    type={showSecretKey ? "text" : "password"}
+                    placeholder="Enter your Secret Key"
+                    className="pr-10"
+                    {...field}
+                  />
+                </FormControl>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowSecretKey(!showSecretKey)}
+                >
+                  {showSecretKey ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  <span className="sr-only">
+                    {showSecretKey ? "Hide Secret Key" : "Show Secret Key"}
+                  </span>
+                </Button>
+              </div>
               <FormMessage />
             </FormItem>
           )}
