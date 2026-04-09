@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Anchor, XCircle, Droplets, ShieldAlert, ChevronDown, ChevronRight, Layers, Search, Filter, HardDrive } from "lucide-react";
+import { Zap, AlertTriangle, ArrowUpRight, ArrowDownRight, Anchor, XCircle, Droplets, ShieldAlert, ChevronDown, ChevronRight, Layers, Search, Filter, HardDrive, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "./ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 
 export interface MicroEvent {
@@ -188,31 +189,63 @@ export function AnomalyTicker({ className }: { className?: string }) {
                                     placeholder="SEARCH SYM..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value.toUpperCase())}
-                                    className="bg-slate-950/80 border border-slate-800 rounded-md pl-6 pr-2 py-1 text-[8px] w-24 focus:w-32 transition-all outline-none focus:border-primary/50 font-mono text-slate-300 placeholder:text-slate-600"
+                                    className="bg-slate-950/80 border border-slate-800 rounded-md pl-6 pr-7 py-1 text-[8px] w-24 focus:w-32 transition-all outline-none focus:border-primary/50 font-mono text-slate-300 placeholder:text-slate-600"
                                 />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm("")}
+                                        className="absolute right-1.5 p-0.5 hover:bg-slate-800 rounded-sm text-slate-500 hover:text-slate-300 transition-colors"
+                                        aria-label="Clear search"
+                                    >
+                                        <X className="h-2 w-2" />
+                                    </button>
+                                )}
                             </div>
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setShowOnlyTier1(!showOnlyTier1); }}
-                                title="Show Tier 1 Assets"
-                                className={cn("p-1 rounded border transition-all", showOnlyTier1 ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-400")}
-                            >
-                                <Zap className="h-3 w-3" />
-                            </button>
-                             <button 
-                                onClick={(e) => { e.stopPropagation(); setFilterLiquidation(!filterLiquidation); }}
-                                className={cn("text-[8px] px-2 py-1 rounded border transition-all font-bold uppercase tracking-tighter h-6", 
-                                    filterLiquidation ? "bg-rose-500 border-rose-400 text-white shadow-lg shadow-rose-500/40" : "bg-slate-800 border-slate-700 text-slate-400")}
-                            >
-                                Liq only
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setShowOnlyTier1(!showOnlyTier1); }}
+                                        aria-label="Show Tier 1 Assets"
+                                        className={cn("p-1 rounded border transition-all", showOnlyTier1 ? "bg-primary border-primary text-white" : "bg-slate-800 border-slate-700 text-slate-400")}
+                                    >
+                                        <Zap className="h-3 w-3" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Show Tier 1 Assets</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setFilterLiquidation(!filterLiquidation); }}
+                                        aria-label="Filter Liquidations Only"
+                                        className={cn("text-[8px] px-2 py-1 rounded border transition-all font-bold uppercase tracking-tighter h-6",
+                                            filterLiquidation ? "bg-rose-500 border-rose-400 text-white shadow-lg shadow-rose-500/40" : "bg-slate-800 border-slate-700 text-slate-400")}
+                                    >
+                                        Liq only
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Liquidations Only</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     )}
-                    <button 
-                        onClick={() => setIsMinimized(!isMinimized)}
-                        className="p-1 rounded-md hover:bg-slate-800 transition-colors text-slate-400"
-                    >
-                        {isMinimized ? <ChevronDown className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-50 hover:opacity-100" />}
-                    </button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button 
+                                onClick={() => setIsMinimized(!isMinimized)}
+                                aria-label={isMinimized ? "Expand Radar" : "Minimize Radar"}
+                                className="p-1 rounded-md hover:bg-slate-800 transition-colors text-slate-400"
+                            >
+                                {isMinimized ? <ChevronDown className="h-4 w-4" /> : <XCircle className="h-4 w-4 opacity-50 hover:opacity-100" />}
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>{isMinimized ? "Expand Radar" : "Minimize Radar"}</p>
+                        </TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
 
