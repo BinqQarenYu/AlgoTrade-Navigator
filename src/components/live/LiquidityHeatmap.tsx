@@ -198,20 +198,20 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                                 <div key={`ask-${i}`} className="grid grid-cols-[1fr_1fr_1fr] relative group h-[18px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair">
                                     {/* Heatmap Volume Bar */}
                                     <div 
-                                        className={cn("absolute right-0 top-0 bottom-0 bg-red-500/10 transition-all duration-300 z-0", isWall && "bg-red-500/20 shadow-[0_0_10px_rgba(239,68,68,0.3)] border-r-2 border-red-500")}
-                                        style={{ width: `${intensity}%` }} 
+                                        className={cn("absolute right-0 top-0 bottom-0 transition-all duration-300 z-0", isWall ? "bg-red-500/60 shadow-[0_0_15px_rgba(239,68,68,0.8)] border-r-4 border-red-400" : "bg-red-500/20")}
+                                        style={{ width: `${intensity}%`, opacity: Math.max(0.2, intensity / 100) }} 
                                     />
                                     {/* Depth curve visualizer (subtle) */}
                                     <div 
-                                        className="absolute right-0 top-0 bottom-0 bg-red-900/10 z-0"
+                                        className="absolute right-0 top-0 bottom-0 bg-red-900/30 z-0"
                                         style={{ width: `${ask.depthPercentage}%` }} 
                                     />
-                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-red-400" : "text-red-500/80")}>
+                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-white drop-shadow-[0_0_8px_rgba(239,68,68,1)]" : "text-red-400")}>
                                         {formatPrice(ask.price)}
-                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-red-500 animate-pulse" />}
+                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-red-400 animate-pulse drop-shadow-[0_0_8px_rgba(239,68,68,1)]" />}
                                     </div>
-                                    <div className="text-right relative z-10 text-slate-300">{ask.volume.toFixed(3)}</div>
-                                    <div className="text-right relative z-10 text-slate-500">{ask.total.toFixed(3)}</div>
+                                    <div className={cn("text-right relative z-10", isWall ? "text-white font-bold" : "text-slate-300")}>{ask.volume.toFixed(3)}</div>
+                                    <div className={cn("text-right relative z-10", isWall ? "text-slate-200 font-medium" : "text-slate-500")}>{ask.total.toFixed(3)}</div>
                                 </div>
                             );
                         })}
@@ -241,20 +241,20 @@ export const LiquidityHeatmap: React.FC<LiquidityHeatmapProps> = ({ symbol: init
                                  <div key={`bid-${i}`} className="grid grid-cols-[1fr_1fr_1fr] relative group h-[18px] items-center px-1 rounded-sm hover:bg-white/5 transition-colors cursor-crosshair">
                                     {/* Heatmap Volume Bar */}
                                     <div 
-                                        className={cn("absolute right-0 top-0 bottom-0 bg-green-500/10 transition-all duration-300 z-0", isWall && "bg-green-500/20 shadow-[0_0_10px_rgba(34,197,94,0.3)] border-r-2 border-green-500")}
-                                        style={{ width: `${intensity}%` }} 
+                                        className={cn("absolute right-0 top-0 bottom-0 transition-all duration-300 z-0", isWall ? "bg-green-500/60 shadow-[0_0_15px_rgba(34,197,94,0.8)] border-r-4 border-green-400" : "bg-green-500/20")}
+                                        style={{ width: `${intensity}%`, opacity: Math.max(0.2, intensity / 100) }} 
                                     />
                                      {/* Depth curve visualizer (subtle) */}
                                      <div 
-                                        className="absolute right-0 top-0 bottom-0 bg-green-900/10 z-0"
+                                        className="absolute right-0 top-0 bottom-0 bg-green-900/30 z-0"
                                         style={{ width: `${bid.depthPercentage}%` }} 
                                     />
-                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-green-400" : "text-green-500/80")}>
+                                    <div className={cn("text-left relative z-10 font-bold", isWall ? "text-white drop-shadow-[0_0_8px_rgba(34,197,94,1)]" : "text-green-400")}>
                                         {formatPrice(bid.price)}
-                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-green-500 animate-pulse" />}
+                                        {isWall && <Zap className="inline-block w-3 h-3 ml-1 text-green-400 animate-pulse drop-shadow-[0_0_8px_rgba(34,197,94,1)]" />}
                                     </div>
-                                    <div className="text-right relative z-10 text-slate-300">{bid.volume.toFixed(3)}</div>
-                                    <div className="text-right relative z-10 text-slate-500">{bid.total.toFixed(3)}</div>
+                                    <div className={cn("text-right relative z-10", isWall ? "text-white font-bold" : "text-slate-300")}>{bid.volume.toFixed(3)}</div>
+                                    <div className={cn("text-right relative z-10", isWall ? "text-slate-200 font-medium" : "text-slate-500")}>{bid.total.toFixed(3)}</div>
                                 </div>
                              )
                         })}

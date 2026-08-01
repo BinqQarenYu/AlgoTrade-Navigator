@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { formatLargeNumber } from '../utils.ts';
+import { formatLargeNumber } from '../utils';
 
 describe('formatLargeNumber', () => {
   test('returns "0" for 0, null, or undefined', () => {

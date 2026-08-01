@@ -14,7 +14,6 @@ interface ResearchHeaderProps {
   setSelectedInterval: (interval: string) => void;
   isAnalyzing: boolean;
   onAnalyze: () => void;
-  isConnected: boolean;
 }
 
 export function ResearchHeader({
@@ -23,8 +22,7 @@ export function ResearchHeader({
   selectedInterval,
   setSelectedInterval,
   isAnalyzing,
-  onAnalyze,
-  isConnected
+  onAnalyze
 }: ResearchHeaderProps) {
   const intervals = [
     { value: '5m', label: '5 Minutes' },
@@ -74,7 +72,7 @@ export function ResearchHeader({
         
         <Button 
           onClick={onAnalyze}
-          disabled={!isConnected || isAnalyzing}
+          disabled={isAnalyzing}
           className="w-full md:w-auto shadow-lg shadow-primary/20"
         >
           {isAnalyzing ? <Activity className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}

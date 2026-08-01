@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import * as assert from 'node:assert';
-import { calculateRSI } from './indicators.ts';
+import { calculateRSI } from './indicators';
 
 describe('calculateRSI', () => {
   it('should calculate RSI correctly for a known dataset', () => {

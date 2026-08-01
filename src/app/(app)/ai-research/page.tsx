@@ -9,6 +9,7 @@ import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { createDualApiService } from "@/lib/dual-coin-api-service"
 import { getFearAndGreedIndex } from "@/lib/fear-greed-service"
 import type { HistoricalData, CoinDetails, FearAndGreedIndex } from "@/lib/types"
+import { calculateRSI, calculateMACD, calculateBollingerBands } from "@/lib/indicators"
 
 // Modular Components
 import { ResearchHeader } from "@/components/research/ResearchHeader"
@@ -59,20 +60,26 @@ export default function AIResearchPage() {
   const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(null)
 
   const analyzeMarket = async () => {
-    if (!isConnected || !activeProfile) {
-      toast({
-        title: "Not Connected",
-        description: "Please connect to Binance API in Settings",
-        variant: "destructive"
-      })
-      return
-    }
 
     setIsAnalyzing(true)
     
     try {
       // 1. Fetch Latest K-line Data
-      const data = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
+      const rawData = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
+
+      // Augment raw data with indicators
+      const closes = rawData.map(d => d.close)
+      const rsi = calculateRSI(closes, 14)
+      const macd = calculateMACD(closes, 12, 26, 9)
+      const bb = calculateBollingerBands(closes, 20, 2)
+
+      const data = rawData.map((d, i) => ({
+        ...d,
+        rsi: rsi[i] !== null ? rsi[i] : undefined,
+        macd: macd.macd[i] !== null ? macd.macd[i] : undefined,
+        bb_upper: bb.upper[i] !== null ? bb.upper[i] : undefined,
+        bb_lower: bb.lower[i] !== null ? bb.lower[i] : undefined
+      }))
       setChartData(data)
       
       // 2. Calculate Local Technical Metrics (Immediate Feedback)
@@ -175,16 +182,18 @@ export default function AIResearchPage() {
       const current = data[i]
       const isSwingHigh = data.slice(i - 5, i).every(d => d.high < current.high) && data.slice(i + 1, i + 6).every(d => d.high < current.high)
       const isSwingLow = data.slice(i - 5, i).every(d => d.low > current.low) && data.slice(i + 1, i + 6).every(d => d.low > current.low)
-      if (isSwingHigh) levels.push({ price: current.high, type: 'resistance', strength: 70 + Math.random() * 30 })
-      if (isSwingLow) levels.push({ price: current.low, type: 'support', strength: 70 + Math.random() * 30 })
+      // Calculate strength deterministically based on volume relative to average
+      const avgVol = data.reduce((sum, d) => sum + d.volume, 0) / data.length;
+      const volStrength = Math.min(100, 70 + (current.volume / avgVol) * 10);
+
+      if (isSwingHigh) levels.push({ price: current.high, type: 'resistance', strength: Math.round(volStrength) })
+      if (isSwingLow) levels.push({ price: current.low, type: 'support', strength: Math.round(volStrength) })
     }
     return levels.sort((a, b) => b.strength - a.strength).slice(0, 6).sort((a, b) => b.price - a.price)
   }
 
   useEffect(() => {
-    if (isConnected && activeProfile) {
-      analyzeMarket()
-    }
+    analyzeMarket()
   }, [])
 
   return (
@@ -196,7 +205,6 @@ export default function AIResearchPage() {
         setSelectedInterval={setSelectedInterval}
         isAnalyzing={isAnalyzing}
         onAnalyze={analyzeMarket}
-        isConnected={isConnected}
       />
 
       {(marketDetails || globalContext) && (
@@ -206,15 +214,7 @@ export default function AIResearchPage() {
         />
       )}
 
-      {!isConnected && (
-        <Alert className="bg-destructive/10 border-destructive/20">
-          <Terminal className="h-4 w-4" />
-          <AlertTitle>API Integration Required</AlertTitle>
-          <AlertDescription>
-            AI Research requires an active Binance API connection. Please configure your profile in Settings.
-          </AlertDescription>
-        </Alert>
-      )}
+
 
       {(metrics || isAnalyzing) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

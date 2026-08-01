@@ -9,7 +9,7 @@ describe('Chaikin Money Flow Strategy', () => {
 
     it('attaches CMF appropriately', async () => {
         const mockData: HistoricalData[] = Array.from({ length: 40 }, (_, i) => ({
-            time: `2024-01-01T${i % 24}:00:00Z`,
+            time: 1704067200000 + i * 3600000,
             open: 100,
             high: 110,
             low: 90,

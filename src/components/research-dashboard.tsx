@@ -24,36 +24,7 @@ import {
 import { Skeleton } from "./ui/skeleton";
 import type { AIAnalysisResult, MarketAnalysisRequest } from '@/lib/ai-analysis-service';
 import type { PoolAnalysisResult } from '@/lib/liquidity-analysis-service';
-
-// Mock functions since the service files are corrupted
-const analyzeMarket = async (request: MarketAnalysisRequest): Promise<AIAnalysisResult> => {
-  return {
-    recommendation: 'BUY',
-    direction: 'Bullish',
-    strength: 'High',
-    confidence: 85,
-  } as any; // Type assertion to bypass interface corruption issues
-};
-
-const analyzePools = async (symbol: string): Promise<PoolAnalysisResult> => {
-  return {
-    pools: [
-      {
-        dex: 'Uniswap V3',
-        isRecommended: true,
-        safetyScore: 95,
-        volume24h: 1000000,
-        reserveInUsd: 5000000,
-        buys24h: 150,
-        riskFactors: []
-      }
-    ],
-    recommendations: ['Use major exchanges', 'Monitor liquidity depth'],
-    warnings: ['High volatility expected'],
-    metrics: {},
-    topPools: []
-  } as any; // Type assertion to bypass interface issues
-};
+import { fetchMarketData, analyzeLiquidityPools } from '@/lib/server-actions';
 
 interface ResearchDashboardProps {
   selectedSymbol?: string;
@@ -85,16 +56,7 @@ interface ResearchData {
   lastUpdated: Date | null;
 }
 
-// Mock function to fetch market data
-const fetchMarketData = async (symbol: string) => {
-  // Mock implementation - in real app this would call external APIs
-  return {
-    price: Math.random() * 50000 + 20000,
-    priceChange24h: (Math.random() - 0.5) * 10,
-    volume24h: Math.random() * 1000000000,
-    marketCap: Math.random() * 500000000000,
-  };
-};
+
 
 const ResearchLoadingSkeleton = () => (
   <div className="space-y-6">
@@ -158,20 +120,32 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
       // Fetch market data using server action
       const marketData = await fetchMarketData(baseSymbol);
 
-      // Perform AI analysis
-      const analysisRequest: MarketAnalysisRequest = {
-        symbol: baseSymbol,
-        timeframe: "1d",
-        ohlcData: [], // Would need to fetch OHLC data
-        priceChange24h: marketData.priceChange24h,
-        volume: marketData.volume24h,
-        marketCap: marketData.marketCap,
+      // Perform AI analysis via Genkit API Route
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: baseSymbol })
+      });
+      if (!res.ok) throw new Error('Failed to fetch research from AI API');
+      const genkitData = await res.json();
+
+      // Map Genkit output to AIAnalysisResult
+      const aiAnalysis: AIAnalysisResult = {
+        recommendation: genkitData.aggressive?.recommendation?.toUpperCase()?.includes('BUY') ? 'BUY' 
+                        : genkitData.aggressive?.recommendation?.toUpperCase()?.includes('SELL') ? 'SELL' 
+                        : 'NEUTRAL',
+        direction: genkitData.aggressive?.prediction === 'UP' ? 'Bullish' : genkitData.aggressive?.prediction === 'DOWN' ? 'Bearish' : 'Sideways',
+        strength: (genkitData.aggressive?.confidence || 0) > 0.7 ? 'High' : (genkitData.aggressive?.confidence || 0) > 0.4 ? 'Medium' : 'Low',
+        confidence: Math.round((genkitData.aggressive?.confidence || 0) * 100),
+        reasoning: genkitData.aggressive?.reasoning || 'No reasoning provided',
+        summary: genkitData.institutionalBias || 'No summary',
+        keyLevels: { indicators: {} },
+        riskAssessment: { factors: [], score: 50, level: 'Medium' },
+        timeHorizon: 'Short Term',
+        lastUpdated: new Date()
       };
 
-      const [aiAnalysis, liquidityAnalysis] = await Promise.all([
-        analyzeMarket(analysisRequest),
-        analyzePools(baseSymbol),
-      ]);
+      const liquidityAnalysis = await analyzeLiquidityPools(baseSymbol);
 
       setResearchData({
         aiAnalysis,

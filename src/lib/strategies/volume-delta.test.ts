@@ -5,7 +5,7 @@ import type { HistoricalData } from '../types';
 describe('Volume Delta Strategy', () => {
     it('calculates correct volume delta arrays and returns data without signals if short', async () => {
         const mockData: HistoricalData[] = Array.from({ length: 10 }, (_, i) => ({
-            time: `2024-01-01T${10 + i}:00:00Z`,
+            time: 1704067200000 + (10 + i) * 3600000,
             open: 100 + i,
             high: 105 + i,
             low: 95 + i,
@@ -20,7 +20,7 @@ describe('Volume Delta Strategy', () => {
 
     it('identifies valid POCs and handles null delta values seamlessly', async () => {
         const mockData: HistoricalData[] = Array.from({ length: 250 }, (_, i) => ({
-            time: `2024-01-01T${i % 24}:00:00Z`,
+            time: 1704067200000 + i * 3600000,
             open: 100,
             high: 110,
             low: 90,

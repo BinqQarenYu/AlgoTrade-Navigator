@@ -423,7 +423,7 @@ export const EnhancedBotProvider = ({ children }: { children: ReactNode }) => {
     let currentPosition = botState.activePosition;
     
     const riskGuardian = riskGuardianRefs.current[botId];
-    const { allowed, reason } = riskGuardian?.canTrade() ?? { allowed: true, reason: '' };
+    const { allowed, reason } = riskGuardian?.canTrade(Date.now()) ?? { allowed: true, reason: '', mode: 'none' as const };
     
     if (!allowed) {
       addLiveLog(botId, `Risk management action: ${reason}`);

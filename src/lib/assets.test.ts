@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseSymbolString } from './assets.ts';
+import { parseSymbolString } from './assets';
 
 test('parseSymbolString', async (t) => {
     await t.test('should correctly parse valid pairs with supported quotes', () => {

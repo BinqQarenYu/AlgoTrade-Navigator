@@ -10,7 +10,7 @@ describe('Peak Formation Fib Strategy', () => {
 
     it('attaches EMAs correctly and parses valid data structure', async () => {
         const mockData: HistoricalData[] = Array.from({ length: 60 }, (_, i) => ({
-            time: `2024-01-01T${i % 24}:00:00Z`,
+            time: 1704067200000 + i * 3600000,
             open: 100,
             high: 110,
             low: 90,

@@ -629,7 +629,7 @@ const BotInstanceRow = memo(({
                                             variant={isBotRunning ? "destructive" : "default"}
                                             size="sm"
                                             onClick={() => onToggleBot(bot.id)}
-                                            disabled={!isConnected}
+                                            disabled={!bot.strategy}
                                         >
                                             {isBotRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
                                             {isBotRunning ? 'Stop Monitor' : 'Start Monitor'}
