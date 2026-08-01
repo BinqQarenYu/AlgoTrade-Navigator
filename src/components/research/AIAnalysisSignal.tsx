@@ -72,12 +72,12 @@ export function AIAnalysisSignal({
 
             <div className="space-y-2">
                 <p className="text-xs text-muted-foreground leading-relaxed italic line-clamp-3">
-                    "{data?.reasoning || "Analyzing short-term volatility patterns..."}"
+                    "{data?.reasoning || "Ingesting raw market order flow and aligning quantitative models..."}"
                 </p>
                 <div className="pt-2 border-t border-border/50">
                     <p className="text-[10px] font-bold text-primary uppercase mb-1">Instruction:</p>
                     <p className="text-xs font-semibold text-foreground">
-                        {data?.recommendation || "Wait for data sync..."}
+                        {data?.recommendation || "Click 'Run Research' above to generate real-time predictive insights."}
                     </p>
                 </div>
             </div>

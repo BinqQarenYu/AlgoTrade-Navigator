@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 import { useApi } from "@/context/api-context"
+import { useWorkspace } from "@/context/workspace-context"
 import { useToast } from "@/hooks/use-toast"
 import { getLatestKlinesByLimit } from "@/lib/binance-service"
 import { createDualApiService } from "@/lib/dual-coin-api-service"
@@ -40,24 +41,36 @@ type PriceLevel = {
 
 export default function AIResearchPage() {
   const { isConnected, activeProfile, geminiApiKey, geminiModel, coingeckoApiKey, coinmarketcapApiKey } = useApi()
+  const { aiResearchState, updateAiResearch, setLastSelectedSymbol } = useWorkspace()
   const { toast } = useToast()
   
-  const [selectedAsset, setSelectedAsset] = useState('BTCUSDT')
-  const [selectedInterval, setSelectedInterval] = useState('1h')
+  const [selectedAsset, setSelectedAssetState] = useState(aiResearchState.selectedAsset || 'BTCUSDT')
+  const [selectedInterval, setSelectedIntervalState] = useState(aiResearchState.selectedInterval || '1h')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   
-  // Data State
-  const [chartData, setChartData] = useState<HistoricalData[]>([])
-  const [metrics, setMetrics] = useState<MarketMetrics | null>(null)
-  const [keyLevels, setKeyLevels] = useState<PriceLevel[]>([])
+  // Data State restored from workspace
+  const [chartData, setChartData] = useState<HistoricalData[]>(aiResearchState.chartData || [])
+  const [metrics, setMetrics] = useState<MarketMetrics | null>(aiResearchState.metrics || null)
+  const [keyLevels, setKeyLevels] = useState<PriceLevel[]>(aiResearchState.keyLevels || [])
   
-  // AI Flow Results
-  const [aiPrediction, setAiPrediction] = useState<PredictMarketOutput | null>(null)
-  const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(null)
+  // AI Flow Results restored from workspace
+  const [aiPrediction, setAiPrediction] = useState<PredictMarketOutput | null>(aiResearchState.aiPrediction || null)
+  const [manipulationResult, setManipulationResult] = useState<DetectManipulationOutput | null>(aiResearchState.manipulationResult || null)
   
-  // Consolidated Data
-  const [marketDetails, setMarketDetails] = useState<CoinDetails | null>(null)
-  const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(null)
+  // Consolidated Data restored from workspace
+  const [marketDetails, setMarketDetails] = useState<CoinDetails | null>(aiResearchState.marketDetails || null)
+  const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(aiResearchState.globalContext || null)
+
+  const setSelectedAsset = (asset: string) => {
+    setSelectedAssetState(asset)
+    setLastSelectedSymbol(asset)
+    updateAiResearch({ selectedAsset: asset })
+  }
+
+  const setSelectedInterval = (interval: string) => {
+    setSelectedIntervalState(interval)
+    updateAiResearch({ selectedInterval: interval })
+  }
 
   const analyzeMarket = async () => {
 
@@ -129,7 +142,20 @@ export default function AIResearchPage() {
       
       if (prediction) setAiPrediction(prediction);
       if (manipulation) setManipulationResult(manipulation);
-      
+
+      const calculatedKeyLevels = identifyKeyLevels(data);
+      updateAiResearch({
+        selectedAsset,
+        selectedInterval,
+        chartData: data,
+        metrics: calculatedMetrics,
+        keyLevels: calculatedKeyLevels,
+        aiPrediction: prediction,
+        manipulationResult: manipulation,
+        marketDetails: fetchedMarketDetails,
+        globalContext: fetchedGlobalContext,
+      });
+
       toast({
         title: "AI Analysis Complete",
         description: `Successfully researched ${selectedAsset} using advanced models.`,
@@ -193,7 +219,10 @@ export default function AIResearchPage() {
   }
 
   useEffect(() => {
-    analyzeMarket()
+    // If no chart data was restored, trigger initial analysis
+    if (!aiResearchState.chartData || aiResearchState.chartData.length === 0) {
+      analyzeMarket()
+    }
   }, [])
 
   return (

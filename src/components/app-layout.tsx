@@ -55,7 +55,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     children: item.label,
                   }}
                 >
-                  <Link href={item.href}>
+                  <Link href={item.href} prefetch={true}>
                     <item.icon />
                     <span>{item.label}</span>
                   </Link>

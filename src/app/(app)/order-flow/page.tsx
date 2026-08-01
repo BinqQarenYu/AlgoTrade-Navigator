@@ -15,6 +15,7 @@ import {
   TrendingUp as ChartIcon
 } from "lucide-react";
 import { useApi } from "@/context/api-context";
+import { useWorkspace } from "@/context/workspace-context";
 
 // Custom Hook
 import { useOrderFlow } from "@/hooks/use-order-flow";
@@ -39,8 +40,21 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export default function OrderFlowPage() {
   const { coingeckoApiKey, coinmarketcapApiKey } = useApi();
-  const [selectedSymbol, setSelectedSymbol] = useState<string>("BTCUSDT");
-  const [selectedTimeInterval, setSelectedTimeInterval] = useState<string>("30s");
+  const { orderFlowState, updateOrderFlow, setLastSelectedSymbol } = useWorkspace();
+  
+  const [selectedSymbol, setSelectedSymbolState] = useState<string>(orderFlowState.selectedSymbol || "BTCUSDT");
+  const [selectedTimeInterval, setSelectedTimeIntervalState] = useState<string>(orderFlowState.selectedTimeInterval || "30s");
+
+  const setSelectedSymbol = (symbol: string) => {
+    setSelectedSymbolState(symbol);
+    setLastSelectedSymbol(symbol);
+    updateOrderFlow({ selectedSymbol: symbol });
+  };
+
+  const setSelectedTimeInterval = (interval: string) => {
+    setSelectedTimeIntervalState(interval);
+    updateOrderFlow({ selectedTimeInterval: interval });
+  };
 
   const orderFlow = useOrderFlow(
     selectedSymbol, 

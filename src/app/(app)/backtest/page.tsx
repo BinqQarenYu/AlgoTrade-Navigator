@@ -218,7 +218,7 @@ const BacktestPageContent = () => {
   const searchParams = useSearchParams();
   const { isConnected, canUseAi, consumeAiCredit, apiKey, secretKey, geminiModel } = useApi();
   const { isTradingActive, strategyParams, setStrategyParams, addBotInstance } = useBot();
-  const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
+  const { getChartData, isLoading: isFetchingData, isLastFetchCached, error: dataError, clearPersistentCache } = useDataManager();
 
   const [activeStrategies, setActiveStrategies] = useState<{ id: string; name: string }[]>(strategyMetadatas);
   const getStrategyById = getStaticStrategyById;
@@ -363,7 +363,7 @@ const BacktestPageContent = () => {
   
   // Effect to fetch raw data using the DataManager context
   useEffect(() => {
-    if (!isClient || !symbol || !quoteAsset || !isConnected) {
+    if (!isClient || !symbol || !quoteAsset) {
         setFullChartData([]);
         return;
     };
@@ -377,7 +377,7 @@ const BacktestPageContent = () => {
 
     fetchData();
 
-  }, [symbol, quoteAsset, interval, isConnected, isClient, date, getChartData]);
+  }, [symbol, quoteAsset, interval, isClient, date, getChartData]);
 
   // Effect to handle data errors from the context
   useEffect(() => {
@@ -1217,11 +1217,11 @@ const BacktestPageContent = () => {
   return (
     <div className="space-y-6">
     {!isConnected && (
-        <Alert variant="destructive" className="mb-4">
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>API Disconnected</AlertTitle>
-            <AlertDescription>
-                Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> in the Settings page to load historical market data for backtesting.
+        <Alert variant="default" className="mb-4 border-primary/20 bg-primary/5">
+            <Terminal className="h-4 w-4 text-primary" />
+            <AlertTitle className="text-xs font-bold uppercase tracking-wider text-primary">Public Market Data Mode</AlertTitle>
+            <AlertDescription className="text-xs text-muted-foreground">
+                Backtesting is using public Binance candlestick feeds. Connect private keys in <Link href="/settings" className="font-bold underline text-primary">Settings</Link> for live trading execution.
             </AlertDescription>
         </Alert>
     )}
@@ -1409,13 +1409,13 @@ const BacktestPageContent = () => {
                      </CardContent>
                      <CardFooter className="flex-col gap-2">
                         <div className="flex w-full gap-2">
-                          <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || !isConnected || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
+                          <Button className="w-full bg-primary hover:bg-primary/90" onClick={handleRunBacktestClick} disabled={anyLoading || fullChartData.length === 0 || isTradingActive || selectedStrategy === 'none'}>
                             {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {isTradingActive ? "Trading Active..." : isFetchingData ? "Fetching Data..." : isOptimizing ? "Optimizing..." : isBacktesting ? "Running..." : "Run Full Backtest"}
                           </Button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button className="w-full" variant="secondary" disabled={anyLoading || !isConnected || isTradingActive || selectedStrategy === 'none'}>
+                              <Button className="w-full" variant="secondary" disabled={anyLoading || isTradingActive || selectedStrategy === 'none'}>
                                   <Send className="mr-2 h-4 w-4"/>Export
                               </Button>
                             </DropdownMenuTrigger>
