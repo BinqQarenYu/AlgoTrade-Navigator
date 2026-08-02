@@ -24,7 +24,6 @@ import stochasticCrossoverStrategy from './stochastic-crossover';
 import vwapCrossStrategy from './vwap-cross';
 import williamsRStrategy from './williams-percent-r';
 import hyperPeakFormationStrategy from './hyper-peak-formation';
-import hyperPeakFormationOldStrategy from './hyper-peak-formation-old';
 import liquidityOrderFlowStrategy from './liquidity-order-flow';
 import liquidityGrabStrategy from './liquidity-grab';
 import emaCciMacdStrategy from './ema-cci-macd';
@@ -37,7 +36,6 @@ export const strategies: Strategy[] = [
   codeBasedConsensusStrategy,
   peakFormationFibStrategy,
   hyperPeakFormationStrategy,
-  hyperPeakFormationOldStrategy,
   liquidityOrderFlowStrategy,
   liquidityGrabStrategy,
   volumeDeltaStrategy,

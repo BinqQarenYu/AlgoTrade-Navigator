@@ -73,7 +73,6 @@ import { defaultDonchianChannelsParams } from "@/lib/strategies/donchian-channel
 import { defaultElderRayIndexParams } from "@/lib/strategies/elder-ray-index"
 import { defaultEmaCrossoverParams } from "@/lib/strategies/ema-crossover"
 import { defaultHyperPFFParams } from "@/lib/strategies/hyper-peak-formation"
-import { defaultOldHyperPFFParams } from "@/lib/strategies/hyper-peak-formation-old"
 import { defaultIchimokuCloudParams } from "@/lib/strategies/ichimoku-cloud"
 import { defaultKeltnerChannelsParams } from "@/lib/strategies/keltner-channels"
 import { defaultMacdCrossoverParams } from "@/lib/strategies/macd-crossover"
@@ -112,7 +111,6 @@ const DEFAULT_PARAMS_MAP: Record<string, any> = {
     'elder-ray-index': { ...defaultElderRayIndexParams, advancedContrarian: true },
     'ema-crossover': { ...defaultEmaCrossoverParams, advancedContrarian: true },
     'hyper-peak-formation': { ...defaultHyperPFFParams, advancedContrarian: true },
-    'hyper-peak-formation-old': { ...defaultOldHyperPFFParams, advancedContrarian: true },
     'ichimoku-cloud': { ...defaultIchimokuCloudParams, advancedContrarian: true },
     'keltner-channels': { ...defaultKeltnerChannelsParams, advancedContrarian: true },
     'macd-crossover': { ...defaultMacdCrossoverParams, advancedContrarian: true },

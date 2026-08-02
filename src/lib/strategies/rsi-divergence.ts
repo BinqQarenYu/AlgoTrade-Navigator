@@ -33,9 +33,12 @@ const rsiDivergenceStrategy: Strategy = {
     const closePrices = data.map(d => d.close);
     const rsi = calculateRSI(closePrices, params.period);
 
+    dataWithIndicators.forEach((d, i) => {
+      d.rsi = rsi[i];
+    });
+
     for (let i = params.lookback; i < data.length; i++) {
         const d = dataWithIndicators[i];
-        d.rsi = rsi[i];
         if (rsi[i] === null) continue;
 
         const currentPrice = data[i].low;

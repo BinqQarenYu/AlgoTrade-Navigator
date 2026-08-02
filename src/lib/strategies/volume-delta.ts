@@ -105,10 +105,12 @@ const volumeDeltaStrategy: Strategy = {
 
         const { volumeDelta, cumulativeVolumeDelta } = calculateVolumeDelta(data, params.deltaLookback);
 
-        for (let i = params.pocLookback; i < data.length; i++) {
-            dataWithIndicators[i].volumeDelta = volumeDelta[i];
-            dataWithIndicators[i].cumulativeVolumeDelta = cumulativeVolumeDelta[i];
+        dataWithIndicators.forEach((d, i) => {
+          d.volumeDelta = volumeDelta[i];
+          d.cumulativeVolumeDelta = cumulativeVolumeDelta[i];
+        });
 
+        for (let i = params.pocLookback; i < data.length; i++) {
             const poc = findPOC(data, i, params.pocLookback);
             dataWithIndicators[i].poc = poc;
             

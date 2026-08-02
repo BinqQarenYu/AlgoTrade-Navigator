@@ -62,7 +62,14 @@ const smiMfiSupertrendStrategy: Strategy = {
       if (i < 1) return;
 
       const prev = dataWithIndicators[i - 1];
-      if (!prev.supertrend_direction || !supertrendDirection[i] || !prev.smi || !prev.smi_signal || !smi[i] || !smiSignal[i]) {
+      if (
+        prev.supertrend_direction === null || prev.supertrend_direction === undefined ||
+        supertrendDirection[i] === null || supertrendDirection[i] === undefined ||
+        prev.smi === null || prev.smi === undefined ||
+        prev.smi_signal === null || prev.smi_signal === undefined ||
+        smi[i] === null || smi[i] === undefined ||
+        smiSignal[i] === null || smiSignal[i] === undefined
+      ) {
         return;
       }
 

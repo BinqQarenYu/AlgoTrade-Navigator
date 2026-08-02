@@ -695,34 +695,37 @@ export const calculateCMF = (data: HistoricalData[], period: number): (number | 
 };
 
 export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC: number, wmaPeriod: number): (number | null)[] => {
-    const roc1 = calculateMomentum(data.map(p => (p / data[0] - 1) * 100), longRoC);
-    const roc2 = calculateMomentum(data.map(p => (p / data[0] - 1) * 100), shortRoC);
+    const base = (data.length > 0 && data[0] > 0) ? data[0] : 1;
+    const roc1 = calculateMomentum(data.map(p => (p / base - 1) * 100), longRoC);
+    const roc2 = calculateMomentum(data.map(p => (p / base - 1) * 100), shortRoC);
     
     const sumRoc = roc1.map((val, i) => val !== null && roc2[i] !== null ? val + roc2[i]! : null);
     
     const validSumRoc = sumRoc.filter((v): v is number => v !== null);
     const padding = sumRoc.length - validSumRoc.length;
 
+    if (validSumRoc.length < wmaPeriod) {
+        return Array(data.length).fill(null);
+    }
+
     const wma: (number | null)[] = [];
-    if (validSumRoc.length >= wmaPeriod) {
-        let num = 0;
-        let den = 0;
+    let num = 0;
+    let den = 0;
+    for (let j = 0; j < wmaPeriod; j++) {
+        num += validSumRoc[j] * (j + 1);
+        den += (j + 1);
+    }
+    wma.push(den > 0 ? num / den : null);
+
+    for (let i = wmaPeriod; i < validSumRoc.length; i++) {
+        num = 0;
         for (let j = 0; j < wmaPeriod; j++) {
-            num += validSumRoc[j] * (j + 1);
-            den += (j + 1);
+            num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
         }
         wma.push(den > 0 ? num / den : null);
-
-        for (let i = wmaPeriod; i < validSumRoc.length; i++) {
-            num = 0;
-            for (let j = 0; j < wmaPeriod; j++) {
-                num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
-            }
-            wma.push(den > 0 ? num / den : null);
-        }
     }
     
-    return [...Array(padding + wmaPeriod - 1).fill(null), ...wma];
+    return [...Array(data.length - wma.length).fill(null), ...wma];
 };
 
 export const calculateElderRay = (data: HistoricalData[], period: number): { bullPower: (number | null)[], bearPower: (number | null)[] } => {
@@ -766,7 +769,9 @@ export const calculateMFI = (data: HistoricalData[], period: number): (number | 
     }
 
     const calcMfiValue = (pos: number, neg: number) => {
-        const ratio = neg === 0 ? (pos === 0 ? 50 : Infinity) : pos / neg;
+        if (neg === 0 && pos === 0) return 50;
+        if (neg === 0) return 100;
+        const ratio = pos / neg;
         return 100 - (100 / (1 + ratio));
     };
 
