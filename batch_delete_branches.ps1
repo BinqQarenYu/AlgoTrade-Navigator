@@ -4,12 +4,12 @@ Write-Host "Fetching latest branches..."
 git fetch --all
 
 Write-Host "Getting list of merged remote branches..."
-$mergedBranches = git branch -r --merged Beginners_Branch | ForEach-Object { $_.Trim() } | Where-Object { 
+$mergedBranches = git branch -r | ForEach-Object { $_.Trim() } | Where-Object { 
     $_ -ne "" -and 
     $_ -notmatch "HEAD" -and 
     $_ -notmatch "main$" -and 
     $_ -notmatch "master$" -and 
-    $_ -notmatch "Beginners_Branch$"
+    $_ -notmatch "latest_aug_version$"
 }
 
 if ($mergedBranches.Count -eq 0) {
