@@ -74,13 +74,30 @@ export async function fetchMarketData(symbol: string): Promise<MarketData> {
       sentiment: (coinDetails.sentimentUp && coinDetails.sentimentUp > 50) ? 'Bullish' : 'Bearish',
     };
   } catch (error) {
-    console.error('Error fetching market data:', error);
-    // Fallback mock data
+    console.warn(`Primary CoinGecko data failed for ${symbol}, fetching live Binance REST ticker:`, error);
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol.toUpperCase()}USDT`);
+      if (res.ok) {
+        const ticker = await res.json();
+        const price = parseFloat(ticker.lastPrice) || 0;
+        const priceChange24h = parseFloat(ticker.priceChangePercent) || 0;
+        const volume24h = parseFloat(ticker.quoteVolume) || 0;
+        return {
+          price,
+          priceChange24h,
+          volume24h,
+          marketCap: price * 19000000,
+          sentiment: priceChange24h >= 0 ? 'Bullish' : 'Bearish',
+        };
+      }
+    } catch (binanceErr) {
+      console.error('Binance fallback ticker error:', binanceErr);
+    }
     return {
-      price: 50000,
-      priceChange24h: -0.5,
-      volume24h: 1_000_000_000,
-      marketCap: 1_000_000_000_000,
+      price: 0,
+      priceChange24h: 0,
+      volume24h: 0,
+      marketCap: 0,
       sentiment: 'Neutral',
     };
   }

@@ -352,24 +352,24 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
           )}
 
           {/* Data Sources */}
-          <Card className="bg-gray-50">
+          <Card className="bg-secondary/40 border border-white/10 backdrop-blur-xl">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
-                <BarChart3 className="h-4 w-4 text-black" />
-                <span className="text-sm font-medium text-black">Data Sources</span>
+                <BarChart3 className="h-4 w-4 text-emerald-400" />
+                <span className="text-sm font-bold text-foreground">Data Sources</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-black">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono text-foreground">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  <span><strong>Market Data:</strong> CoinGecko API</span>
+                  <div className="w-2 h-2 bg-sky-400 rounded-full"></div>
+                  <span><strong className="text-sky-300">Market Data:</strong> CoinGecko API</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span><strong>AI Analysis:</strong> OpenAI GPT-4</span>
+                  <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                  <span><strong className="text-emerald-300">AI Analysis:</strong> OpenAI GPT-4</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                  <span><strong>Liquidity Data:</strong> CoinGecko Pools</span>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                  <span><strong className="text-purple-300">Technical Analysis:</strong> AlgoTrade Engine</span>
                 </div>
               </div>
             </CardContent>
@@ -453,11 +453,11 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                       </div>
                       {researchData.aiAnalysis.riskAssessment.factors.length > 0 && (
                         <div>
-                          <p className="text-sm font-medium text-black mb-2">Risk Factors:</p>
+                          <p className="text-sm font-bold text-foreground mb-2">Risk Factors:</p>
                           <ul className="space-y-1">
                             {researchData.aiAnalysis.riskAssessment.factors.map((factor: string, index: number) => (
                               <li key={index} className="text-sm text-muted-foreground flex items-center gap-2">
-                                <AlertTriangle className="w-3 h-3" />
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
                                 {factor}
                               </li>
                             ))}
@@ -468,8 +468,8 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                   </Card>
                   
                   {/* AI Analysis Source Attribution */}
-                  <div className="text-xs text-white text-center p-2 bg-gray-50 rounded">
-                    <Brain className="w-3 h-3 inline mr-1" />
+                  <div className="text-xs text-muted-foreground text-center p-2.5 bg-secondary/40 border border-white/10 rounded-xl">
+                    <Brain className="w-3.5 h-3.5 inline mr-1.5 text-purple-400" />
                     AI Analysis powered by OpenAI GPT-4 • Market data from CoinGecko API
                   </div>
                 </div>
@@ -498,12 +498,12 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                         <div className="text-center">
                           <div className="flex items-center justify-center gap-2">
                             {researchData.liquidityAnalysis.isSafe ? (
-                              <CheckCircle className="w-5 h-5 text-green-600" />
+                              <CheckCircle className="w-5 h-5 text-emerald-400" />
                             ) : (
-                              <XCircle className="w-5 h-5 text-red-600" />
+                              <XCircle className="w-5 h-5 text-rose-400" />
                             )}
-                            <span className={`font-semibold ${
-                              researchData.liquidityAnalysis.isSafe ? 'text-green-600' : 'text-red-600'
+                            <span className={`font-bold ${
+                              researchData.liquidityAnalysis.isSafe ? 'text-emerald-400' : 'text-rose-400'
                             }`}>
                               {researchData.liquidityAnalysis.isSafe ? 'Safe' : 'Unsafe'}
                             </span>
@@ -517,7 +517,7 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                           <p className="text-sm text-muted-foreground mt-1">Risk Level</p>
                         </div>
                         <div className="text-center">
-                          <div className="font-semibold text-black">{researchData.liquidityAnalysis.score}/100</div>
+                          <div className="font-bold text-foreground">{researchData.liquidityAnalysis.score}/100</div>
                           <p className="text-sm text-muted-foreground">Safety Score</p>
                         </div>
                       </div>
@@ -532,13 +532,13 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                       {researchData.liquidityAnalysis.warnings.length > 0 && (
                         <Card>
                           <CardHeader>
-                            <CardTitle className="text-sm text-red-600">Warnings</CardTitle>
+                            <CardTitle className="text-sm text-rose-400 font-bold">Warnings</CardTitle>
                           </CardHeader>
                           <CardContent>
                             <ul className="space-y-2">
                               {researchData.liquidityAnalysis.warnings.map((warning: string, index: number) => (
-                                <li key={index} className="text-sm text-black flex items-start gap-2">
-                                  <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                                <li key={index} className="text-sm text-foreground flex items-start gap-2">
+                                  <AlertTriangle className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
                                   {warning}
                                 </li>
                               ))}
@@ -550,13 +550,13 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                       {researchData.liquidityAnalysis.recommendations.length > 0 && (
                         <Card>
                           <CardHeader>
-                            <CardTitle className="text-sm text-blue-600">Recommendations</CardTitle>
+                            <CardTitle className="text-sm text-sky-400 font-bold">Recommendations</CardTitle>
                           </CardHeader>
                           <CardContent>
                             <ul className="space-y-2">
                               {researchData.liquidityAnalysis.recommendations.map((rec: string, index: number) => (
-                                <li key={index} className="text-sm text-black flex items-start gap-2">
-                                  <CheckCircle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                                <li key={index} className="text-sm text-foreground flex items-start gap-2">
+                                  <CheckCircle className="w-4 h-4 text-sky-400 mt-0.5 flex-shrink-0" />
                                   {rec}
                                 </li>
                               ))}
@@ -571,45 +571,45 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
                   {researchData.liquidityAnalysis.pools.length > 0 && (
                     <Card>
                       <CardHeader>
-                        <CardTitle className="text-sm">Liquidity Pools ({researchData.liquidityAnalysis.pools.length})</CardTitle>
+                        <CardTitle className="text-sm font-bold">Liquidity Pools ({researchData.liquidityAnalysis.pools.length})</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <div className="space-y-3">
                           {researchData.liquidityAnalysis.pools.slice(0, 5).map((pool: any, index: number) => (
-                            <div key={index} className="border rounded-lg p-3">
+                            <div key={index} className="border border-white/10 rounded-xl p-3 bg-secondary/30">
                               <div className="flex justify-between items-start mb-2">
                                 <div>
                                   <Badge variant="outline" className="text-xs">
                                     {pool.dex}
                                   </Badge>
                                   {pool.isRecommended && (
-                                    <Badge className="ml-2 text-xs bg-green-100 text-green-800">
+                                    <Badge className="ml-2 text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                                       Recommended
                                     </Badge>
                                   )}
                                 </div>
                                 <div className="text-right">
-                                  <div className="text-sm font-medium text-black">{pool.safetyScore}/100</div>
+                                  <div className="text-sm font-bold text-foreground">{pool.safetyScore}/100</div>
                                   <div className="text-xs text-muted-foreground">Safety Score</div>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-3 gap-2 text-xs">
+                              <div className="grid grid-cols-3 gap-2 text-xs font-mono">
                                 <div>
                                   <div className="text-muted-foreground">Liquidity</div>
-                                  <div className="font-medium text-black">${pool.reserveInUsd?.toLocaleString() || 'N/A'}</div>
+                                  <div className="font-bold text-foreground">${pool.reserveInUsd?.toLocaleString() || 'N/A'}</div>
                                 </div>
                                 <div>
                                   <div className="text-muted-foreground">24h Volume</div>
-                                  <div className="font-medium text-black">${pool.volume24h?.toLocaleString() || 'N/A'}</div>
+                                  <div className="font-bold text-foreground">${pool.volume24h?.toLocaleString() || 'N/A'}</div>
                                 </div>
                                 <div>
                                   <div className="text-muted-foreground">24h Buys</div>
-                                  <div className="font-medium text-black">{pool.buys24h || 'N/A'}</div>
+                                  <div className="font-bold text-foreground">{pool.buys24h || 'N/A'}</div>
                                 </div>
                               </div>
                               {pool.riskFactors && pool.riskFactors.length > 0 && (
                                 <div className="mt-2">
-                                  <div className="text-xs text-red-600">
+                                  <div className="text-xs text-rose-400 font-medium">
                                     Risks: {pool.riskFactors?.join(', ') || 'None'}
                                   </div>
                                 </div>

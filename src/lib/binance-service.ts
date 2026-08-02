@@ -252,17 +252,52 @@ export const getRecentTrades = async (
     try {
         const binanceExchange = await getBinanceExchange();
         const trades = await binanceExchange.fetchTrades(symbol.toUpperCase(), undefined, limit);
-        // Map CCXT trade format to mimic original Binance REST payload format
-        return trades.map((t: any) => ({
-            id: t.id || t.info?.id || Date.now().toString(),
-            price: t.price?.toString() || '0',
-            qty: t.amount?.toString() || '0',
-            time: t.timestamp,
-            // CCXT translates side directly to 'buy' or 'sell' for taker
-            isBuyerMaker: t.side === 'sell'
-        }));
+        if (trades && trades.length > 0) {
+            return trades.map((t: any) => ({
+                id: t.id || t.info?.id || Date.now().toString(),
+                price: t.price?.toString() || '0',
+                qty: t.amount?.toString() || '0',
+                time: t.timestamp || Date.now(),
+                isBuyerMaker: t.side === 'sell'
+            }));
+        }
     } catch (error) {
-        console.error(`Error fetching recent trades for ${symbol} via CCXT:`, error);
-        return [];
+        console.warn(`CCXT fetchTrades failed for ${symbol}, trying direct REST:`, error);
     }
+
+    // Direct Binance Spot REST fallback
+    try {
+        const res = await fetch(`https://api.binance.com/api/v3/trades?symbol=${symbol.toUpperCase()}&limit=${limit}`);
+        if (res.ok) {
+            const data = await res.json();
+            return data.map((t: any) => ({
+                id: t.id.toString(),
+                price: t.price,
+                qty: t.qty,
+                time: t.time,
+                isBuyerMaker: t.isBuyerMaker
+            }));
+        }
+    } catch (restErr) {
+        console.warn(`Direct Spot REST trades failed for ${symbol}:`, restErr);
+    }
+
+    // Direct Binance Futures REST fallback
+    try {
+        const fRes = await fetch(`https://fapi.binance.com/fapi/v1/trades?symbol=${symbol.toUpperCase()}&limit=${limit}`);
+        if (fRes.ok) {
+            const fData = await fRes.json();
+            return fData.map((t: any) => ({
+                id: t.id.toString(),
+                price: t.price,
+                qty: t.qty,
+                time: t.time,
+                isBuyerMaker: t.isBuyerMaker
+            }));
+        }
+    } catch (fErr) {
+        console.error(`Direct Futures REST trades failed for ${symbol}:`, fErr);
+    }
+
+    return [];
 };

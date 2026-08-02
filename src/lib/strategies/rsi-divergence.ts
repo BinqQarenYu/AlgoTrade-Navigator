@@ -44,14 +44,16 @@ const rsiDivergenceStrategy: Strategy = {
         // Bullish Divergence: Price Lower Low, RSI Higher Low
         let prevLowPriceIdx = -1;
         let minPrice = Infinity;
-        for (let j = i - params.lookback; j < i - 5; j++) {
-            if (data[j].low < minPrice) {
+        const startIdx = Math.max(0, i - params.lookback);
+        const endIdx = Math.max(startIdx, i - 5);
+        for (let j = startIdx; j < endIdx; j++) {
+            if (data[j] && data[j].low < minPrice) {
                 minPrice = data[j].low;
                 prevLowPriceIdx = j;
             }
         }
 
-        if (prevLowPriceIdx !== -1 && rsi[prevLowPriceIdx] !== null) {
+        if (prevLowPriceIdx !== -1 && rsi[prevLowPriceIdx] !== null && rsi[prevLowPriceIdx] !== undefined) {
             const prevLowPrice = data[prevLowPriceIdx].low;
             const prevLowRsi = rsi[prevLowPriceIdx]!;
 
@@ -65,14 +67,14 @@ const rsiDivergenceStrategy: Strategy = {
         const currentHighPrice = data[i].high;
         let prevHighPriceIdx = -1;
         let maxPrice = -Infinity;
-        for (let j = i - params.lookback; j < i - 5; j++) {
-            if (data[j].high > maxPrice) {
+        for (let j = startIdx; j < endIdx; j++) {
+            if (data[j] && data[j].high > maxPrice) {
                 maxPrice = data[j].high;
                 prevHighPriceIdx = j;
             }
         }
 
-        if (prevHighPriceIdx !== -1 && rsi[prevHighPriceIdx] !== null) {
+        if (prevHighPriceIdx !== -1 && rsi[prevHighPriceIdx] !== null && rsi[prevHighPriceIdx] !== undefined) {
             const prevHighPrice = data[prevHighPriceIdx].high;
             const prevHighRsi = rsi[prevHighPriceIdx]!;
 

@@ -18,7 +18,7 @@ type TabsContextType = {
 };
 const TabsContext = createContext<TabsContextType | undefined>(undefined);
 
-export function Tabs({ defaultValue, children, className }: { defaultValue?: string; children: ReactNode; className?: string }) {
+function Tabs({ defaultValue, children, className }: { defaultValue?: string; children: ReactNode; className?: string }) {
   const [value, setValue] = useState<string>(defaultValue || "");
   return (
     <TabsContext.Provider value={{ value, setValue }}>
@@ -27,11 +27,11 @@ export function Tabs({ defaultValue, children, className }: { defaultValue?: str
   );
 }
 
-export function TabsList({ children, className }: { children: ReactNode; className?: string }) {
+function TabsList({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={className}>{children}</div>;
 }
 
-export function TabsTrigger({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
+function TabsTrigger({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
   const ctx = useContext(TabsContext);
   if (!ctx) return null;
   const active = ctx.value === value;
@@ -47,7 +47,7 @@ export function TabsTrigger({ value, children, className }: { value: string; chi
   );
 }
 
-export function TabsContent({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
+function TabsContent({ value, children, className }: { value: string; children: ReactNode; className?: string }) {
   const ctx = useContext(TabsContext);
   if (!ctx) return null;
   return ctx.value === value ? <div className={className}>{children}</div> : null;
@@ -109,14 +109,194 @@ interface PatternAnalysis {
   confidence: number;
 }
 
+function PatternIcon({ name, type }: { name: string; type: 'bullish' | 'bearish' | 'indecision' }) {
+  const isBull = type === 'bullish';
+  const isBear = type === 'bearish';
+  const color = isBull ? '#10b981' : isBear ? '#f43f5e' : '#38bdf8';
+
+  switch (name) {
+    case 'Hammer':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="6" x2="18" y2="30" stroke={color} strokeWidth="2" strokeLinecap="round" />
+          <rect x="12" y="8" width="12" height="8" rx="1.5" fill={color} stroke={color} strokeWidth="1" />
+        </svg>
+      );
+    case 'Bullish Engulfing':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="12" x2="11" y2="24" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="9" y="14" width="4" height="6" fill="#f43f5e" rx="1" />
+          <line x1="23" y1="6" x2="23" y2="30" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="20" y="10" width="6" height="15" fill="#10b981" rx="1" />
+        </svg>
+      );
+    case 'Morning Star':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="8" y1="6" x2="8" y2="24" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="6" y="8" width="4" height="12" fill="#f43f5e" rx="1" />
+          <line x1="18" y1="20" x2="18" y2="30" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="16.5" y="23" width="3" height="3" fill="#38bdf8" rx="0.5" />
+          <line x1="28" y1="8" x2="28" y2="26" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="26" y="10" width="4" height="12" fill="#10b981" rx="1" />
+        </svg>
+      );
+    case 'Piercing Line':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="6" x2="11" y2="26" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="9" y="8" width="4" height="14" fill="#f43f5e" rx="1" />
+          <line x1="23" y1="12" x2="23" y2="32" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="21" y="14" width="4" height="14" fill="#10b981" rx="1" />
+        </svg>
+      );
+    case 'Three White Soldiers':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="8" y1="18" x2="8" y2="32" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="6" y="20" width="4" height="9" fill="#10b981" rx="1" />
+          <line x1="18" y1="12" x2="18" y2="26" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="16" y="14" width="4" height="9" fill="#10b981" rx="1" />
+          <line x1="28" y1="6" x2="28" y2="20" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="26" y="8" width="4" height="9" fill="#10b981" rx="1" />
+        </svg>
+      );
+    case 'Shooting Star':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="6" x2="18" y2="30" stroke={color} strokeWidth="2" strokeLinecap="round" />
+          <rect x="12" y="20" width="12" height="8" rx="1.5" fill={color} stroke={color} strokeWidth="1" />
+        </svg>
+      );
+    case 'Bearish Engulfing':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="12" x2="11" y2="24" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="9" y="14" width="4" height="6" fill="#10b981" rx="1" />
+          <line x1="23" y1="6" x2="23" y2="30" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="20" y="10" width="6" height="15" fill="#f43f5e" rx="1" />
+        </svg>
+      );
+    case 'Evening Star':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="8" y1="8" x2="8" y2="26" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="6" y="10" width="4" height="12" fill="#10b981" rx="1" />
+          <line x1="18" y1="4" x2="18" y2="14" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="16.5" y="7" width="3" height="3" fill="#38bdf8" rx="0.5" />
+          <line x1="28" y1="6" x2="28" y2="24" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="26" y="8" width="4" height="12" fill="#f43f5e" rx="1" />
+        </svg>
+      );
+    case 'Dark Cloud Cover':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="12" x2="11" y2="32" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="9" y="14" width="4" height="14" fill="#10b981" rx="1" />
+          <line x1="23" y1="6" x2="23" y2="26" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="21" y="8" width="4" height="14" fill="#f43f5e" rx="1" />
+        </svg>
+      );
+    case 'Three Black Crows':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="8" y1="6" x2="8" y2="20" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="6" y="8" width="4" height="9" fill="#f43f5e" rx="1" />
+          <line x1="18" y1="12" x2="18" y2="26" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="16" y="14" width="4" height="9" fill="#f43f5e" rx="1" />
+          <line x1="28" y1="18" x2="28" y2="32" stroke="#f43f5e" strokeWidth="1.5" />
+          <rect x="26" y="20" width="4" height="9" fill="#f43f5e" rx="1" />
+        </svg>
+      );
+    case 'Doji':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="6" x2="18" y2="30" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
+          <line x1="10" y1="18" x2="26" y2="18" stroke="#38bdf8" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      );
+    case 'Spinning Top':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="6" x2="18" y2="30" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="14" y="15" width="8" height="6" fill="#38bdf8" rx="1" />
+        </svg>
+      );
+    case 'Harami':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="6" x2="11" y2="30" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="9" y="8" width="4" height="20" fill="#38bdf8" rx="1" />
+          <line x1="23" y1="14" x2="23" y2="22" stroke="#10b981" strokeWidth="1.5" />
+          <rect x="21.5" y="16" width="3" height="5" fill="#10b981" rx="0.5" />
+        </svg>
+      );
+    case 'Inside Bar':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="11" y1="6" x2="11" y2="30" stroke="#94a3b8" strokeWidth="1.5" />
+          <rect x="9" y="9" width="4" height="18" fill="#94a3b8" rx="1" />
+          <line x1="23" y1="12" x2="23" y2="24" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="21.5" y="14" width="3" height="8" fill="#38bdf8" rx="0.5" />
+        </svg>
+      );
+    case 'High Wave':
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="4" x2="18" y2="32" stroke="#38bdf8" strokeWidth="1.5" />
+          <rect x="14" y="16" width="8" height="4" fill="#38bdf8" rx="1" />
+        </svg>
+      );
+    default:
+      return (
+        <svg width="32" height="32" viewBox="0 0 36 36" className="shrink-0">
+          <line x1="18" y1="6" x2="18" y2="30" stroke={color} strokeWidth="1.5" />
+          <rect x="14" y="12" width="8" height="12" fill={color} rx="1" />
+        </svg>
+      );
+  }
+}
+
+const PATTERN_TIMEFRAME_MAP: Record<string, { desc: string; timeframes: string[] }> = {
+  // Bullish Patterns
+  'Hammer': { desc: 'Bullish reversal with long lower wick', timeframes: ['15m', '1h', '4h'] },
+  'Bullish Engulfing': { desc: 'Strong reversal engulfing previous red body', timeframes: ['1h', '4h', '1d'] },
+  'Morning Star': { desc: 'Three-candle bullish reversal bottom', timeframes: ['15m', '4h', '1d'] },
+  'Piercing Line': { desc: 'Bullish candle closing >50% up into red body', timeframes: ['1h', '1d'] },
+  'Three White Soldiers': { desc: 'Three consecutive strong bullish candles', timeframes: ['4h', '1d'] },
+
+  // Bearish Patterns
+  'Shooting Star': { desc: 'Bearish reversal with long upper wick', timeframes: ['15m', '1h', '4h'] },
+  'Bearish Engulfing': { desc: 'Strong reversal engulfing previous green body', timeframes: ['1h', '4h', '1d'] },
+  'Evening Star': { desc: 'Three-candle bearish reversal top', timeframes: ['15m', '4h', '1d'] },
+  'Dark Cloud Cover': { desc: 'Bearish candle closing deep into green body', timeframes: ['1h', '1d'] },
+  'Three Black Crows': { desc: 'Three consecutive strong bearish candles', timeframes: ['4h', '1d'] },
+
+  // Indecision Patterns
+  'Doji': { desc: 'Open and close equal, high uncertainty', timeframes: ['15m', '1h', '4h', '1d'] },
+  'Spinning Top': { desc: 'Small body, long upper/lower wicks', timeframes: ['15m', '1h', '4h'] },
+  'Harami': { desc: 'Small candle inside prior body range', timeframes: ['1h', '4h', '1d'] },
+  'Inside Bar': { desc: 'Candle completely inside prior high/low', timeframes: ['15m', '4h', '1d'] },
+  'High Wave': { desc: 'Tiny body with extreme wick volatility', timeframes: ['1h', '4h', '1d'] },
+};
+
 export default function CandlestickPatternsPage() {
   const { getChartData, isLoading: dataLoading, error: dataError } = useDataManager();
   const [selectedSymbol, setSelectedSymbol] = useState("BTCUSDT");
   const [isConnected, setIsConnected] = useState(true);
   
   const getCurrentPrice = async (symbol: string) => {
-    // Mock implementation or use appropriate API call
-    return 50000; // Placeholder
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
+      if (res.ok) {
+        const data = await res.json();
+        return parseFloat(data.price);
+      }
+    } catch (e) {
+      console.warn("Binance price error", e);
+    }
+    return 67000;
   };
   
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h");
@@ -129,10 +309,10 @@ export default function CandlestickPatternsPage() {
   const [showSupportResistance, setShowSupportResistance] = useState(true);
   const [showVolumeConfirmation, setShowVolumeConfirmation] = useState(true);
 
-  // Generate comprehensive candlestick pattern data for 1-hour timeframe
-  const generatePatternData = (): PatternAnalysis => {
-    const currentPrice = 50000; // Default price since we don't have real-time data
-    const baseVolume = 1250000; // Default volume since we don't have real-time data
+  // Generate comprehensive candlestick pattern data based on live market price and volume
+  const generatePatternData = (livePrice = 67000, liveVolume = 1500000): PatternAnalysis => {
+    const currentPrice = livePrice;
+    const baseVolume = liveVolume;
     
     const patterns: CandlestickPattern[] = [
       {
@@ -395,55 +575,47 @@ export default function CandlestickPatternsPage() {
     };
   };
 
-  // Start pattern analysis
+  // Start pattern analysis with live Binance exchange data
   const startAnalysis = async () => {
     setIsAnalyzing(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setPatternAnalysis(generatePatternData());
-    setIsAnalyzing(false);
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${selectedSymbol}`);
+      let livePrice = 67000;
+      let liveVolume = 1500000;
+      if (res.ok) {
+        const data = await res.json();
+        livePrice = parseFloat(data.lastPrice) || livePrice;
+        liveVolume = parseFloat(data.volume) || liveVolume;
+      }
+      setPatternAnalysis(generatePatternData(livePrice, liveVolume));
+    } catch (e) {
+      console.warn("Live scan failed", e);
+      setPatternAnalysis(generatePatternData(67000, 1500000));
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
-  // Auto-refresh effect
+  // Auto-refresh effect with live Binance market ticks
   useEffect(() => {
     if (autoRefresh) {
-      const interval = setInterval(() => {
-        // Generate dynamic pattern data with time-based variations
-        const newAnalysis = generatePatternData();
-        
-        // Add some randomness to simulate real pattern detection
-        const timeVariation = Math.sin(Date.now() / 60000) * 0.3; // 1-minute cycle
-        newAnalysis.confidence = Math.max(60, Math.min(95, newAnalysis.confidence + timeVariation * 20));
-        
-        // Occasionally add new patterns
-        if (Math.random() > 0.7) {
-          const newPattern: CandlestickPattern = {
-            id: Date.now().toString(),
-            name: ['Hammer', 'Doji', 'Shooting Star', 'Engulfing'][Math.floor(Math.random() * 4)],
-            type: Math.random() > 0.5 ? 'bullish' : 'bearish',
-            reliability: ['high', 'medium'][Math.floor(Math.random() * 2)] as 'high' | 'medium',
-            description: 'Newly detected pattern forming in real-time',
-            formation: ['Pattern forming', 'Confirmation pending'],
-            strength: Math.floor(Math.random() * 40) + 60,
-            detectedAt: Date.now(),
-            price: 67000 + (Math.random() - 0.5) * 1000,
-            volume: Math.floor(Math.random() * 2000000) + 800000,
-            confidence: Math.floor(Math.random() * 30) + 70,
-            timeframe: selectedTimeframe,
-            nextCandles: Math.floor(Math.random() * 5) + 1,
-            signalStrength: ['strong', 'moderate'][Math.floor(Math.random() * 2)] as 'strong' | 'moderate'
-          };
-          
-          newAnalysis.currentPatterns.unshift(newPattern);
-          newAnalysis.currentPatterns = newAnalysis.currentPatterns.slice(0, 3); // Keep only 3 active
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${selectedSymbol}`);
+          if (res.ok) {
+            const data = await res.json();
+            const livePrice = parseFloat(data.lastPrice) || 67000;
+            const liveVolume = parseFloat(data.volume) || 1500000;
+            setPatternAnalysis(generatePatternData(livePrice, liveVolume));
+          }
+        } catch (e) {
+          console.warn("Live refresh error", e);
         }
-        
-        setPatternAnalysis(newAnalysis);
-      }, 30000); // Refresh every 30 seconds
+      }, 15000); // Refresh live ticks every 15 seconds
 
       return () => clearInterval(interval);
     }
-  }, [autoRefresh, selectedTimeframe]);
+  }, [autoRefresh, selectedSymbol, selectedTimeframe]);
 
   // Initialize on mount
   useEffect(() => {
@@ -478,8 +650,8 @@ export default function CandlestickPatternsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">📊 Candlestick Pattern Analysis</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-foreground">📊 Candlestick Pattern Analysis</h1>
+          <p className="text-muted-foreground mt-1 text-sm">
             Real-time detection and analysis of candlestick patterns for enhanced trading decisions
           </p>
         </div>
@@ -655,25 +827,25 @@ export default function CandlestickPatternsPage() {
       </Card>
 
       {/* Pattern Overlay Controls */}
-      <Card>
-        <CardHeader>
+      <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+        <CardHeader className="border-b border-white/5 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className={`h-5 w-5 ${patternOverlayEnabled ? 'text-green-600' : 'text-gray-500'}`} />
-                Pattern Overlay
+              <CardTitle className="flex items-center gap-2 text-base font-bold">
+                <BarChart3 className={`h-5 w-5 ${patternOverlayEnabled ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                Pattern Overlay Controls
                 {patternOverlayEnabled && (
-                  <div className="ml-2 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                  <div className="ml-2 px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs rounded-full font-bold">
                     ACTIVE
                   </div>
                 )}
               </CardTitle>
-              <CardDescription>
-                Configure pattern visualization and overlay settings
+              <CardDescription className="text-xs text-muted-foreground">
+                Configure pattern visualization overlay toggles and chart indicators
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Quick Toggle:</span>
+              <span className="text-xs font-mono text-muted-foreground">Quick Toggle:</span>
               <Switch
                 checked={patternOverlayEnabled}
                 onCheckedChange={setPatternOverlayEnabled}
@@ -681,29 +853,29 @@ export default function CandlestickPatternsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Pattern Overlay Toggle */}
             <div className="space-y-4">
-              <div className={`flex items-center justify-between p-4 rounded-lg border transition-all duration-300 ${
+              <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-300 ${
                 patternOverlayEnabled 
-                  ? 'bg-gradient-to-r from-green-50 to-blue-50 border-green-200' 
-                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200'
+                  ? 'bg-emerald-500/10 border-emerald-500/30' 
+                  : 'bg-secondary/30 border-white/10'
               }`}>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className={`h-4 w-4 ${patternOverlayEnabled ? 'text-green-600' : 'text-gray-500'}`} />
-                    <span className={`font-semibold ${patternOverlayEnabled ? 'text-green-800' : 'text-gray-600'}`}>
+                    <BarChart3 className={`h-4 w-4 ${patternOverlayEnabled ? 'text-emerald-400' : 'text-muted-foreground'}`} />
+                    <span className={`font-bold text-sm ${patternOverlayEnabled ? 'text-emerald-300' : 'text-muted-foreground'}`}>
                       Pattern Detection
                     </span>
                     {patternOverlayEnabled && (
-                      <div className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                      <div className="ml-2 px-2 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] rounded-full font-bold">
                         ON
                       </div>
                     )}
                   </div>
-                  <p className={`text-sm ${patternOverlayEnabled ? 'text-gray-700' : 'text-gray-500'}`}>
-                    Enable real-time pattern detection and overlay on the chart
+                  <p className={`text-xs ${patternOverlayEnabled ? 'text-muted-foreground' : 'text-muted-foreground/60'}`}>
+                    Enable real-time pattern detection and overlay on the live chart
                   </p>
                 </div>
                 <Switch
@@ -713,26 +885,26 @@ export default function CandlestickPatternsPage() {
               </div>
               
               {patternOverlayEnabled && (
-                <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center gap-2 text-sm">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-green-700 font-medium">Pattern Overlay Active</span>
+                <div className="space-y-3 animate-in slide-in-from-top-2 duration-300 p-3 bg-secondary/20 border border-white/5 rounded-xl">
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span className="text-emerald-400 font-bold">Pattern Overlay Active</span>
                   </div>
-                  <div className="text-xs text-gray-600">
+                  <div className="text-xs text-muted-foreground">
                     Automatically detecting and highlighting candlestick patterns as they form
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                      <span>Labels: {showPatternLabels ? 'ON' : 'OFF'}</span>
+                  <div className="grid grid-cols-3 gap-2 text-xs font-mono">
+                    <div className="flex items-center gap-1.5 p-1.5 bg-secondary/50 rounded-lg border border-white/5">
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                      <span className="text-foreground text-[11px]">Labels: {showPatternLabels ? 'ON' : 'OFF'}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                      <span>S/R: {showSupportResistance ? 'ON' : 'OFF'}</span>
+                    <div className="flex items-center gap-1.5 p-1.5 bg-secondary/50 rounded-lg border border-white/5">
+                      <div className="w-2 h-2 bg-sky-400 rounded-full"></div>
+                      <span className="text-foreground text-[11px]">S/R: {showSupportResistance ? 'ON' : 'OFF'}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-                      <span>Volume: {showVolumeConfirmation ? 'ON' : 'OFF'}</span>
+                    <div className="flex items-center gap-1.5 p-1.5 bg-secondary/50 rounded-lg border border-white/5">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                      <span className="text-foreground text-[11px]">Vol: {showVolumeConfirmation ? 'ON' : 'OFF'}</span>
                     </div>
                   </div>
                 </div>
@@ -741,22 +913,22 @@ export default function CandlestickPatternsPage() {
 
             {/* Pattern Display Options */}
             <div className="space-y-4">
-              <div className={`p-4 rounded-lg border transition-all duration-300 ${
+              <div className={`p-4 rounded-xl border transition-all duration-300 ${
                 patternOverlayEnabled 
-                  ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200' 
-                  : 'bg-gradient-to-r from-gray-50 to-gray-100 border-gray-200'
+                  ? 'bg-sky-500/10 border-sky-500/30' 
+                  : 'bg-secondary/30 border-white/10'
               }`}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Target className={`h-4 w-4 ${patternOverlayEnabled ? 'text-blue-600' : 'text-gray-500'}`} />
-                  <span className={`font-semibold ${patternOverlayEnabled ? 'text-blue-800' : 'text-gray-600'}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <Target className={`h-4 w-4 ${patternOverlayEnabled ? 'text-sky-400' : 'text-muted-foreground'}`} />
+                  <span className={`font-bold text-sm ${patternOverlayEnabled ? 'text-sky-300' : 'text-muted-foreground'}`}>
                     Display Options
                   </span>
                 </div>
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between p-2 rounded-md bg-white/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Pattern Labels</span>
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-background/80 border border-white/10 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 bg-emerald-400 rounded-full shadow-sm shadow-emerald-400/50"></div>
+                      <span className="text-sm font-bold text-foreground">Pattern Labels</span>
                     </div>
                     <Switch 
                       checked={showPatternLabels && patternOverlayEnabled} 
@@ -764,10 +936,11 @@ export default function CandlestickPatternsPage() {
                       onCheckedChange={setShowPatternLabels}
                     />
                   </div>
-                  <div className="flex items-center justify-between p-2 rounded-md bg-white/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Support/Resistance Lines</span>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-background/80 border border-white/10 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 bg-sky-400 rounded-full shadow-sm shadow-sky-400/50"></div>
+                      <span className="text-sm font-bold text-foreground">Support/Resistance Lines</span>
                     </div>
                     <Switch 
                       checked={showSupportResistance && patternOverlayEnabled} 
@@ -775,10 +948,11 @@ export default function CandlestickPatternsPage() {
                       onCheckedChange={setShowSupportResistance}
                     />
                   </div>
-                  <div className="flex items-center justify-between p-2 rounded-md bg-white/50">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                      <span className="text-sm font-medium">Volume Confirmation</span>
+
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-background/80 border border-white/10 shadow-sm">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-2.5 h-2.5 bg-purple-400 rounded-full shadow-sm shadow-purple-400/50"></div>
+                      <span className="text-sm font-bold text-foreground">Volume Confirmation</span>
                     </div>
                     <Switch 
                       checked={showVolumeConfirmation && patternOverlayEnabled} 
@@ -789,8 +963,8 @@ export default function CandlestickPatternsPage() {
                 </div>
                 
                 {!patternOverlayEnabled && (
-                  <div className="mt-3 p-2 bg-gray-100 rounded-md">
-                    <p className="text-xs text-gray-500 text-center">
+                  <div className="mt-3 p-2 bg-secondary/50 border border-white/10 rounded-lg">
+                    <p className="text-xs text-muted-foreground text-center">
                       Enable Pattern Detection to configure display options
                     </p>
                   </div>
@@ -800,18 +974,21 @@ export default function CandlestickPatternsPage() {
           </div>
 
           {/* Pattern Overlay Status */}
-          <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border">
-            <h4 className="font-semibold text-gray-800 mb-3">🔍 Pattern Overlay Status</h4>
+          <div className="mt-4 p-4 bg-secondary/40 border border-white/10 rounded-xl backdrop-blur-xl">
+            <h4 className="font-bold text-foreground mb-3 flex items-center gap-2">
+              <Search className="h-4 w-4 text-sky-400" />
+              Pattern Overlay Status
+            </h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-2">Current Status</div>
+                <div className="text-xs font-semibold text-muted-foreground mb-2">Current Status</div>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${patternOverlayEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                  <span className="text-sm">
+                  <div className={`w-2 h-2 rounded-full ${patternOverlayEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-gray-500'}`}></div>
+                  <span className="text-sm font-bold text-foreground">
                     {patternOverlayEnabled ? 'Overlay Enabled' : 'Overlay Disabled'}
                   </span>
                 </div>
-                <div className="text-xs text-gray-600 mt-1">
+                <div className="text-xs text-muted-foreground mt-1 font-mono">
                   {patternOverlayEnabled 
                     ? `${patternAnalysis?.currentPatterns.length || 0} patterns visible`
                     : 'Enable overlay to see patterns'
@@ -819,36 +996,36 @@ export default function CandlestickPatternsPage() {
                 </div>
               </div>
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-2">Pattern Reliability</div>
-                <div className="text-sm space-y-1">
+                <div className="text-xs font-semibold text-muted-foreground mb-2">Pattern Reliability</div>
+                <div className="text-xs font-mono space-y-1">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span>High: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'high').length || 0}</span>
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                    <span className="text-foreground">High: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'high').length || 0}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                    <span>Medium: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'medium').length || 0}</span>
+                    <div className="w-2 h-2 bg-amber-400 rounded-full"></div>
+                    <span className="text-foreground">Medium: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'medium').length || 0}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span>Low: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'low').length || 0}</span>
+                    <div className="w-2 h-2 bg-rose-400 rounded-full"></div>
+                    <span className="text-foreground">Low: {patternAnalysis?.currentPatterns.filter(p => p.reliability === 'low').length || 0}</span>
                   </div>
                 </div>
               </div>
               <div>
-                <div className="text-sm font-medium text-gray-700 mb-2">Pattern Types</div>
-                <div className="text-sm space-y-1">
+                <div className="text-xs font-semibold text-muted-foreground mb-2">Pattern Types</div>
+                <div className="text-xs font-mono space-y-1">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-3 w-3 text-green-500" />
-                    <span>Bullish: {patternAnalysis?.patternStats.bullish || 0}</span>
+                    <TrendingUp className="h-3 w-3 text-emerald-400" />
+                    <span className="text-foreground">Bullish: {patternAnalysis?.patternStats.bullish || 0}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <TrendingDown className="h-3 w-3 text-red-500" />
-                    <span>Bearish: {patternAnalysis?.patternStats.bearish || 0}</span>
+                    <TrendingDown className="h-3 w-3 text-rose-400" />
+                    <span className="text-foreground">Bearish: {patternAnalysis?.patternStats.bearish || 0}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <RefreshCw className="h-3 w-3 text-blue-500" />
-                    <span>Reversal: {patternAnalysis?.currentPatterns.filter(p => p.type === 'reversal').length || 0}</span>
+                    <RefreshCw className="h-3 w-3 text-sky-400" />
+                    <span className="text-foreground">Reversal: {patternAnalysis?.currentPatterns.filter(p => p.type === 'reversal').length || 0}</span>
                   </div>
                 </div>
               </div>
@@ -860,47 +1037,47 @@ export default function CandlestickPatternsPage() {
       {/* Analysis Overview */}
       {patternAnalysis && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total Patterns</p>
-                  <p className="text-2xl font-bold">{patternAnalysis.patternStats.total}</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Total Patterns</p>
+                  <p className="text-2xl font-bold text-foreground font-mono">{patternAnalysis.patternStats.total}</p>
                 </div>
-                <BarChart3 className="h-8 w-8 text-blue-600" />
+                <BarChart3 className="h-8 w-8 text-sky-400 opacity-80" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Bullish Signals</p>
-                  <p className="text-2xl font-bold text-green-600">{patternAnalysis.patternStats.bullish}</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Bullish Signals</p>
+                  <p className="text-2xl font-bold text-emerald-400 font-mono">{patternAnalysis.patternStats.bullish}</p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-green-600" />
+                <TrendingUp className="h-8 w-8 text-emerald-400 opacity-80" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Bearish Signals</p>
-                  <p className="text-2xl font-bold text-red-600">{patternAnalysis.patternStats.bearish}</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Bearish Signals</p>
+                  <p className="text-2xl font-bold text-rose-400 font-mono">{patternAnalysis.patternStats.bearish}</p>
                 </div>
-                <TrendingDown className="h-8 w-8 text-red-600" />
+                <TrendingDown className="h-8 w-8 text-rose-400 opacity-80" />
               </div>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Success Rate</p>
-                  <p className="text-2xl font-bold text-purple-600">{patternAnalysis.patternStats.successRate}%</p>
+                  <p className="text-xs font-semibold text-muted-foreground">Success Rate</p>
+                  <p className="text-2xl font-bold text-purple-400 font-mono">{patternAnalysis.patternStats.successRate}%</p>
                 </div>
-                <Star className="h-8 w-8 text-purple-600" />
+                <Star className="h-8 w-8 text-purple-400 opacity-80" />
               </div>
             </CardContent>
           </Card>
@@ -909,73 +1086,77 @@ export default function CandlestickPatternsPage() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="live-patterns" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="live-patterns">Live Patterns</TabsTrigger>
-          <TabsTrigger value="trading-chart" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-5 bg-secondary/50 p-1 rounded-xl border border-white/10">
+          <TabsTrigger value="live-patterns" className="font-bold">Live Patterns</TabsTrigger>
+          <TabsTrigger value="trading-chart" className="flex items-center gap-2 font-bold">
             <LineChart className="h-4 w-4" />
             Trading Chart
           </TabsTrigger>
-          <TabsTrigger value="pattern-library">Pattern Library</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="education">Education</TabsTrigger>
+          <TabsTrigger value="pattern-library" className="font-bold">Pattern Library</TabsTrigger>
+          <TabsTrigger value="analytics" className="font-bold">Analytics</TabsTrigger>
+          <TabsTrigger value="education" className="font-bold">Education</TabsTrigger>
         </TabsList>
 
         {/* Live Patterns Tab */}
         <TabsContent value="live-patterns" className="space-y-4">
           {/* Current Active Patterns */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-green-600" />
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+            <CardHeader className="border-b border-white/5 pb-3">
+              <CardTitle className="flex items-center gap-2 text-foreground font-bold">
+                <Activity className="h-5 w-5 text-emerald-400" />
                 Active Patterns
                 {autoRefresh && (
-                  <Badge className="bg-green-500 animate-pulse">LIVE</Badge>
+                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse">LIVE</Badge>
                 )}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-muted-foreground">
                 Currently forming or recently completed patterns on {selectedSymbol} ({selectedTimeframe})
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               {patternAnalysis?.currentPatterns.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No active patterns detected</p>
-                  <p className="text-sm">Patterns will appear as they form</p>
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50 text-sky-400" />
+                  <p className="font-bold text-foreground">No active patterns detected</p>
+                  <p className="text-xs text-muted-foreground">Patterns will appear as they form</p>
                 </div>
               ) : (
                 <div className="grid gap-4">
                   {patternAnalysis?.currentPatterns.map((pattern) => (
-                    <div key={pattern.id} className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-green-50">
+                    <div key={pattern.id} className="border border-white/10 rounded-xl p-4 bg-secondary/40 backdrop-blur-xl hover:border-emerald-500/30 transition-all shadow-lg">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2.5 mb-2">
                             {getPatternIcon(pattern.type)}
-                            <h3 className="font-semibold text-lg">{pattern.name}</h3>
-                            <Badge className={getReliabilityColor(pattern.reliability)}>
+                            <h3 className="font-bold text-lg text-foreground">{pattern.name}</h3>
+                            <Badge className={`${getReliabilityColor(pattern.reliability)} text-slate-900 font-bold`}>
                               {pattern.reliability} reliability
                             </Badge>
-                            <Badge variant="outline">{pattern.signalStrength}</Badge>
+                            <Badge variant="outline" className="border-white/20 text-foreground font-mono">{pattern.signalStrength}</Badge>
                           </div>
-                          <p className="text-gray-600 mb-3">{pattern.description}</p>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div>
-                              <span className="font-medium">Price:</span> ${pattern.price.toLocaleString()}
+                          <p className="text-muted-foreground text-xs mb-3">{pattern.description}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono">
+                            <div className="p-2 bg-secondary/60 rounded-lg border border-white/5">
+                              <span className="text-muted-foreground block text-[10px]">Price:</span>
+                              <span className="font-bold text-emerald-400 text-sm">${pattern.price.toLocaleString()}</span>
                             </div>
-                            <div>
-                              <span className="font-medium">Confidence:</span> {pattern.confidence}%
+                            <div className="p-2 bg-secondary/60 rounded-lg border border-white/5">
+                              <span className="text-muted-foreground block text-[10px]">Confidence:</span>
+                              <span className="font-bold text-sky-400 text-sm">{pattern.confidence}%</span>
                             </div>
-                            <div>
-                              <span className="font-medium">Volume:</span> {(pattern.volume / 1000000).toFixed(1)}M
+                            <div className="p-2 bg-secondary/60 rounded-lg border border-white/5">
+                              <span className="text-muted-foreground block text-[10px]">Volume:</span>
+                              <span className="font-bold text-purple-400 text-sm">{(pattern.volume / 1000000).toFixed(1)}M</span>
                             </div>
-                            <div>
-                              <span className="font-medium">Detected:</span> {new Date(pattern.detectedAt).toLocaleTimeString()}
+                            <div className="p-2 bg-secondary/60 rounded-lg border border-white/5">
+                              <span className="text-muted-foreground block text-[10px]">Detected:</span>
+                              <span className="font-bold text-foreground text-sm">{new Date(pattern.detectedAt).toLocaleTimeString()}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-blue-600">{pattern.strength}%</div>
-                          <div className="text-xs text-gray-500">Strength</div>
+                        <div className="text-right pl-4">
+                          <div className="text-3xl font-extrabold text-emerald-400 font-mono">{pattern.strength}%</div>
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Strength</div>
                         </div>
                       </div>
                     </div>
@@ -986,18 +1167,18 @@ export default function CandlestickPatternsPage() {
           </Card>
 
           {/* Detected Patterns Table */}
-          <Card>
-            <CardHeader>
+          <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+            <CardHeader className="border-b border-white/5 pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <RefreshCw className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-foreground font-bold">
+                    <RefreshCw className="h-5 w-5 text-sky-400" />
                     Detected Candlestick Patterns (1 Hour)
-                    <Badge className="bg-blue-600">
+                    <Badge className="bg-sky-500/20 text-sky-400 border border-sky-500/30 font-mono">
                       {filteredPatterns.filter(p => p.timeframe === '1h').length} Patterns
                     </Badge>
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-muted-foreground text-xs">
                     Comprehensive table of all candlestick patterns detected in the 1-hour timeframe for {selectedSymbol}
                   </CardDescription>
                 </div>
@@ -1007,9 +1188,7 @@ export default function CandlestickPatternsPage() {
                     size="sm"
                     onClick={() => {
                       const csvContent = [
-                        // CSV Header
                         ['Pattern', 'Type', 'Reliability', 'Price', 'Volume', 'Confidence %', 'Strength %', 'Signal', 'Detected At', 'Status'].join(','),
-                        // CSV Data
                         ...filteredPatterns.map(pattern => [
                           pattern.name,
                           pattern.type,
@@ -1034,7 +1213,7 @@ export default function CandlestickPatternsPage() {
                       document.body.removeChild(a);
                       window.URL.revokeObjectURL(url);
                     }}
-                    className="flex items-center gap-2"
+                    className="flex items-center gap-2 border-white/10 hover:bg-secondary/60 text-foreground"
                   >
                     <RefreshCw className="h-4 w-4" />
                     Export CSV
@@ -1042,15 +1221,15 @@ export default function CandlestickPatternsPage() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4">
               {/* Table Filters */}
-              <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-secondary/30 border border-white/5 rounded-xl">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-xs font-bold text-foreground mb-2 block font-mono">
                     Filter by Pattern Type
                   </label>
                   <Select value={selectedPatternType} onValueChange={setSelectedPatternType}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-secondary/60 border-white/10 text-foreground">
                       <SelectValue placeholder="All patterns" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1063,11 +1242,11 @@ export default function CandlestickPatternsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-xs font-bold text-foreground mb-2 block font-mono">
                     Minimum Confidence
                   </label>
                   <Select value="all" onValueChange={() => {}}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-secondary/60 border-white/10 text-foreground">
                       <SelectValue placeholder="All confidence levels" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1079,11 +1258,11 @@ export default function CandlestickPatternsPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                  <label className="text-xs font-bold text-foreground mb-2 block font-mono">
                     Sort By
                   </label>
                   <Select value="time" onValueChange={() => {}}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-secondary/60 border-white/10 text-foreground">
                       <SelectValue placeholder="Sort by time" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1098,45 +1277,44 @@ export default function CandlestickPatternsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full table-auto border-collapse">
                   <thead>
-                    <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Pattern</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Reliability</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Price</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Volume</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Confidence</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Strength</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Signal</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Detected At</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
+                    <tr className="border-b border-white/10 bg-secondary/50">
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Pattern</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Type</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Reliability</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Price</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Volume</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Confidence</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Strength</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Signal</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Detected At</th>
+                      <th className="text-left py-3.5 px-4 font-mono font-bold text-xs uppercase tracking-wider text-muted-foreground">Status</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-white/5">
                     {filteredPatterns.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-8 text-gray-500">
-                          <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No patterns detected for 1-hour timeframe</p>
-                          <p className="text-sm">Patterns will appear as they form</p>
+                        <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                          <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50 text-sky-400" />
+                          <p className="font-bold text-foreground">No patterns detected for 1-hour timeframe</p>
+                          <p className="text-xs text-muted-foreground">Patterns will appear as they form</p>
                         </td>
                       </tr>
                     ) : (
                       filteredPatterns.map((pattern) => (
-                        <tr key={pattern.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                        <tr key={pattern.id} className="hover:bg-secondary/30 transition-colors">
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2.5">
                               {getPatternIcon(pattern.type)}
-                              <span className="font-medium text-gray-900">{pattern.name}</span>
+                              <span className="font-bold text-foreground text-sm">{pattern.name}</span>
                             </div>
                           </td>
                           <td className="py-4 px-4">
                             <Badge 
-                              variant="outline" 
                               className={
-                                pattern.type === 'bullish' ? 'border-green-500 text-green-700 bg-green-50' :
-                                pattern.type === 'bearish' ? 'border-red-500 text-red-700 bg-red-50' :
-                                pattern.type === 'reversal' ? 'border-blue-500 text-blue-700 bg-blue-50' :
-                                'border-purple-500 text-purple-700 bg-purple-50'
+                                pattern.type === 'bullish' ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10 font-mono text-xs' :
+                                pattern.type === 'bearish' ? 'border-rose-500/30 text-rose-400 bg-rose-500/10 font-mono text-xs' :
+                                pattern.type === 'reversal' ? 'border-sky-500/30 text-sky-400 bg-sky-500/10 font-mono text-xs' :
+                                'border-purple-500/30 text-purple-400 bg-purple-500/10 font-mono text-xs'
                               }
                             >
                               {pattern.type}
@@ -1145,20 +1323,20 @@ export default function CandlestickPatternsPage() {
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-2">
                               <div 
-                                className={`w-3 h-3 rounded-full ${getReliabilityColor(pattern.reliability)}`}
+                                className={`w-2.5 h-2.5 rounded-full ${getReliabilityColor(pattern.reliability)}`}
                               ></div>
-                              <span className="text-sm font-medium capitalize">{pattern.reliability}</span>
+                              <span className="text-xs font-mono font-bold capitalize text-foreground">{pattern.reliability}</span>
                             </div>
                           </td>
                           <td className="py-4 px-4">
-                            <span className="font-mono text-sm">${pattern.price.toLocaleString()}</span>
+                            <span className="font-mono text-sm font-bold text-emerald-400">${pattern.price.toLocaleString()}</span>
                           </td>
                           <td className="py-4 px-4">
-                            <span className="text-sm">{(pattern.volume / 1000000).toFixed(2)}M</span>
+                            <span className="text-xs font-mono font-semibold text-foreground">{(pattern.volume / 1000000).toFixed(2)}M</span>
                           </td>
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-2">
-                              <div className="w-16 bg-gray-200 rounded-full h-2">
+                              <div className="w-16 bg-secondary/80 rounded-full h-2 overflow-hidden border border-white/5">
                                 <div 
                                   className="bg-blue-600 h-2 rounded-full" 
                                   style={{ width: `${pattern.confidence}%` }}
@@ -1316,40 +1494,43 @@ export default function CandlestickPatternsPage() {
                     <Activity className="h-4 w-4 text-purple-600" />
                     <span className="font-semibold text-purple-800">Volume Analysis</span>
                   </div>
-                  <p className="text-sm text-gray-700">
+                  <p className="text-xs text-muted-foreground">
                     Volume confirmation for pattern validity and strength assessment
                   </p>
                 </div>
               </div>
 
               {/* Pattern Detection Status */}
-              <div className="mt-4 p-4 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border">
-                <h4 className="font-semibold text-black mb-3">🔍 Real-Time Pattern Detection</h4>
+              <div className="mt-4 p-4 bg-secondary/40 border border-white/10 rounded-xl backdrop-blur-xl">
+                <h4 className="font-bold text-foreground mb-3 flex items-center gap-2">
+                  <Search className="h-4 w-4 text-emerald-400" />
+                  Real-Time Pattern Detection
+                </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-sm font-medium text-black mb-2">Detection Status</div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-2">Detection Status</div>
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                      <span className="text-sm text-black">Actively scanning for patterns</span>
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                      <span className="text-sm font-bold text-foreground">Actively scanning for patterns</span>
                     </div>
-                    <div className="text-xs text-black mt-1">
+                    <div className="text-xs text-muted-foreground mt-1 font-mono">
                       {patternAnalysis?.currentPatterns.length || 0} patterns currently active
                     </div>
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-black mb-2">Chart Features</div>
-                    <div className="text-sm space-y-1">
+                    <div className="text-xs font-semibold text-muted-foreground mb-2">Chart Features</div>
+                    <div className="text-xs font-mono space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        <span className="text-black">Real-time price updates</span>
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-foreground">Real-time price updates</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        <span className="text-black">Volume analysis overlay</span>
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-foreground">Volume analysis overlay</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        <span className="text-black">Pattern recognition alerts</span>
+                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                        <span className="text-foreground">Pattern recognition alerts</span>
                       </div>
                     </div>
                   </div>
@@ -1361,58 +1542,145 @@ export default function CandlestickPatternsPage() {
 
         {/* Pattern Library Tab */}
         <TabsContent value="pattern-library" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Bullish Patterns */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-600">
+            <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+              <CardHeader className="border-b border-white/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-emerald-400 font-bold text-base">
                   <TrendingUp className="h-5 w-5" />
                   Bullish Patterns
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {['Hammer', 'Bullish Engulfing', 'Morning Star', 'Piercing Line', 'Three White Soldiers'].map((pattern) => (
-                  <div key={pattern} className="p-3 border rounded-lg hover:bg-green-50">
-                    <div className="font-medium">{pattern}</div>
-                    <div className="text-sm text-gray-500">Bullish reversal signal</div>
-                  </div>
-                ))}
+              <CardContent className="space-y-3 pt-4">
+                {['Hammer', 'Bullish Engulfing', 'Morning Star', 'Piercing Line', 'Three White Soldiers'].map((pattern) => {
+                  const info = PATTERN_TIMEFRAME_MAP[pattern] || { desc: 'Bullish reversal signal', timeframes: ['15m', '1h'] };
+                  return (
+                    <div key={pattern} className="p-3 bg-secondary/30 border border-white/10 rounded-xl hover:border-emerald-500/40 hover:bg-emerald-500/5 transition-all group flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg group-hover:scale-105 transition-transform">
+                            <PatternIcon name={pattern} type="bullish" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-foreground">{pattern}</div>
+                            <div className="text-[11px] text-muted-foreground">{info.desc}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">TIMEFRAMES</span>
+                        <div className="flex items-center gap-1.5">
+                          {['15m', '1h', '4h', '1d'].map(tf => {
+                            const active = info.timeframes.includes(tf);
+                            return (
+                              <span key={tf} className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md border transition-all ${
+                                active 
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm shadow-emerald-500/20' 
+                                  : 'bg-white/5 text-muted-foreground/40 border-white/5'
+                              }`}>
+                                {tf}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
 
             {/* Bearish Patterns */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-red-600">
+            <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+              <CardHeader className="border-b border-white/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-rose-400 font-bold text-base">
                   <TrendingDown className="h-5 w-5" />
                   Bearish Patterns
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {['Shooting Star', 'Bearish Engulfing', 'Evening Star', 'Dark Cloud Cover', 'Three Black Crows'].map((pattern) => (
-                  <div key={pattern} className="p-3 border rounded-lg hover:bg-red-50">
-                    <div className="font-medium">{pattern}</div>
-                    <div className="text-sm text-gray-500">Bearish reversal signal</div>
-                  </div>
-                ))}
+              <CardContent className="space-y-3 pt-4">
+                {['Shooting Star', 'Bearish Engulfing', 'Evening Star', 'Dark Cloud Cover', 'Three Black Crows'].map((pattern) => {
+                  const info = PATTERN_TIMEFRAME_MAP[pattern] || { desc: 'Bearish reversal signal', timeframes: ['15m', '1h'] };
+                  return (
+                    <div key={pattern} className="p-3 bg-secondary/30 border border-white/10 rounded-xl hover:border-rose-500/40 hover:bg-rose-500/5 transition-all group flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 bg-rose-500/10 border border-rose-500/20 rounded-lg group-hover:scale-105 transition-transform">
+                            <PatternIcon name={pattern} type="bearish" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-foreground">{pattern}</div>
+                            <div className="text-[11px] text-muted-foreground">{info.desc}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">TIMEFRAMES</span>
+                        <div className="flex items-center gap-1.5">
+                          {['15m', '1h', '4h', '1d'].map(tf => {
+                            const active = info.timeframes.includes(tf);
+                            return (
+                              <span key={tf} className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md border transition-all ${
+                                active 
+                                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/40 shadow-sm shadow-rose-500/20' 
+                                  : 'bg-white/5 text-muted-foreground/40 border-white/5'
+                              }`}>
+                                {tf}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
 
             {/* Neutral/Indecision Patterns */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-600">
+            <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+              <CardHeader className="border-b border-white/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sky-400 font-bold text-base">
                   <RefreshCw className="h-5 w-5" />
                   Indecision Patterns
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {['Doji', 'Spinning Top', 'Harami', 'Inside Bar', 'High Wave'].map((pattern) => (
-                  <div key={pattern} className="p-3 border rounded-lg hover:bg-blue-50">
-                    <div className="font-medium">{pattern}</div>
-                    <div className="text-sm text-gray-500">Market indecision</div>
-                  </div>
-                ))}
+              <CardContent className="space-y-3 pt-4">
+                {['Doji', 'Spinning Top', 'Harami', 'Inside Bar', 'High Wave'].map((pattern) => {
+                  const info = PATTERN_TIMEFRAME_MAP[pattern] || { desc: 'Market indecision', timeframes: ['15m', '1h'] };
+                  return (
+                    <div key={pattern} className="p-3 bg-secondary/30 border border-white/10 rounded-xl hover:border-sky-500/40 hover:bg-sky-500/5 transition-all group flex flex-col gap-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="p-1.5 bg-sky-500/10 border border-sky-500/20 rounded-lg group-hover:scale-105 transition-transform">
+                            <PatternIcon name={pattern} type="indecision" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm text-foreground">{pattern}</div>
+                            <div className="text-[11px] text-muted-foreground">{info.desc}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                        <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">TIMEFRAMES</span>
+                        <div className="flex items-center gap-1.5">
+                          {['15m', '1h', '4h', '1d'].map(tf => {
+                            const active = info.timeframes.includes(tf);
+                            return (
+                              <span key={tf} className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded-md border transition-all ${
+                                active 
+                                  ? 'bg-sky-500/20 text-sky-400 border-sky-500/40 shadow-sm shadow-sky-500/20' 
+                                  : 'bg-white/5 text-muted-foreground/40 border-white/5'
+                              }`}>
+                                {tf}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
           </div>

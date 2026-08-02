@@ -143,33 +143,33 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
             <div className="grid grid-cols-3 md:grid-cols-4 gap-2 md:gap-4">
                 <SummaryStat 
                     label="Net PNL" 
-                    value={<span className={pnlColor}>${summary.totalPnl.toFixed(2)}</span>}
+                    value={<span className={pnlColor}>${(summary.totalPnl ?? 0).toFixed(2)}</span>}
                     tooltipContent="The total profit or loss from all trades, after deducting all commission fees. Formula: Gross P/L - Total Fees."
                 />
                 <SummaryStat 
                     label="Win Rate" 
-                    value={<span className={winRateColor}>{summary.winRate.toFixed(2)}%</span>}
+                    value={<span className={winRateColor}>{(summary.winRate ?? 0).toFixed(2)}%</span>}
                     tooltipContent="The percentage of trades that were profitable (closed with a positive PNL). Formula: (Winning Trades / Total Trades) * 100."
                 />
                 <SummaryStat 
                     label="Max Drawdown" 
-                    value={<span className="text-red-500">{summary.maxDrawdown !== undefined ? summary.maxDrawdown.toFixed(2) : 0}%</span>}
+                    value={<span className="text-red-500">{(summary.maxDrawdown ?? 0).toFixed(2)}%</span>}
                     tooltipContent="The maximum observed loss from a peak to a trough of a portfolio, before a new peak is attained."
                 />
                 <SummaryStat 
                     label="Profit Factor" 
-                    value={<span className={profitFactorColor}>{isFinite(summary.profitFactor) ? summary.profitFactor.toFixed(2) : '∞'}</span>}
+                    value={<span className={profitFactorColor}>{isFinite(summary.profitFactor ?? 1) ? (summary.profitFactor ?? 1).toFixed(2) : '∞'}</span>}
                     tooltipContent="The ratio of gross profit to gross loss. A value greater than 1 indicates a profitable system. Formula: Gross Profit / Gross Loss."
                 />
                 <SummaryStat 
                     label="Total Return" 
-                    value={<span className={returnColor}>{summary.totalReturnPercent.toFixed(2)}%</span>}
+                    value={<span className={returnColor}>{(summary.totalReturnPercent ?? 0).toFixed(2)}%</span>}
                     tooltipContent="The total percentage return on your initial capital. Formula: (Net PNL / Initial Capital) * 100."
                 />
-                <SummaryStat label="Total Trades" value={summary.totalTrades} />
-                <SummaryStat label="Avg. Win" value={<span className="text-green-500">${summary.averageWin.toFixed(2)}</span>} />
-                <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${summary.averageLoss.toFixed(2)}</span>} />
-                <SummaryStat label="Total Fees" value={<span>${summary.totalFees.toFixed(2)}</span>} />
+                <SummaryStat label="Total Trades" value={summary.totalTrades ?? 0} />
+                <SummaryStat label="Avg. Win" value={<span className="text-green-500">${(summary.averageWin ?? 0).toFixed(2)}</span>} />
+                <SummaryStat label="Avg. Loss" value={<span className="text-red-500">${(summary.averageLoss ?? 0).toFixed(2)}</span>} />
+                <SummaryStat label="Total Fees" value={<span>${(summary.totalFees ?? 0).toFixed(2)}</span>} />
             </div>
 
             <div className="space-y-2 relative">
@@ -224,9 +224,9 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="font-mono text-xs">
-                                        {trade.fee.toFixed(4)}
+                                        {(trade.fee ?? 0).toFixed(4)}
                                     </TableCell>
-                                    <TableCell className={`font-medium ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                    <TableCell className={`font-medium ${(trade.pnl ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                                         <div className="flex items-center gap-1">
                                             {outlierTradeIds.includes(trade.id) && (
                                                 <TooltipProvider>
@@ -240,7 +240,7 @@ export function BacktestResults({ results, summary, onSelectTrade, selectedTrade
                                                     </Tooltip>
                                                 </TooltipProvider>
                                             )}
-                                            {trade.pnl.toFixed(2)}
+                                            {(trade.pnl ?? 0).toFixed(2)}
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right">

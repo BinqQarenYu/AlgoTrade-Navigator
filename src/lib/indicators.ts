@@ -120,8 +120,9 @@ export const calculateEMA = (data: number[], period: number): (number | null)[] 
  * @returns An array of RSI values, with initial values as null.
  */
 export const calculateRSI = (data: number[], period: number = 14): (number | null)[] => {
+  if (data.length <= period || period <= 0) return Array(data.length).fill(null);
+
   const rsi: (number | null)[] = Array(period).fill(null);
-  if (data.length <= period) return Array(data.length).fill(null);
 
   let avgGain = 0;
   let avgLoss = 0;
@@ -135,8 +136,16 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
   avgGain /= period;
   avgLoss /= period;
 
-  const firstRs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-  rsi.push(100 - (100 / (1 + firstRs)));
+  let firstRsi: number;
+  if (avgLoss === 0 && avgGain === 0) {
+    firstRsi = 50;
+  } else if (avgLoss === 0) {
+    firstRsi = 100;
+  } else {
+    const rs = avgGain / avgLoss;
+    firstRsi = 100 - (100 / (1 + rs));
+  }
+  rsi.push(firstRsi);
 
   for (let i = period + 1; i < data.length; i++) {
     const change = data[i] - data[i - 1];
@@ -146,8 +155,16 @@ export const calculateRSI = (data: number[], period: number = 14): (number | nul
     avgGain = (avgGain * (period - 1) + currentGain) / period;
     avgLoss = (avgLoss * (period - 1) + currentLoss) / period;
 
-    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-    rsi.push(100 - (100 / (1 + rs)));
+    let currentRsi: number;
+    if (avgLoss === 0 && avgGain === 0) {
+      currentRsi = 50;
+    } else if (avgLoss === 0) {
+      currentRsi = 100;
+    } else {
+      const rs = avgGain / avgLoss;
+      currentRsi = 100 - (100 / (1 + rs));
+    }
+    rsi.push(currentRsi);
   }
 
   return rsi;
@@ -193,7 +210,7 @@ export const calculateBollingerBands = (data: number[], period: number, stdDevMu
 export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: number, signalPeriod: number): { macd: (number | null)[], signal: (number | null)[], histogram: (number | null)[] } => {
     const emaShort = calculateEMA(data, shortPeriod);
     const emaLong = calculateEMA(data, longPeriod);
-    const macdLine = emaShort.map((shortVal, i) => {
+    const macdLine: (number | null)[] = emaShort.map((shortVal, i) => {
         const longVal = emaLong[i];
         if (shortVal !== null && longVal !== null) {
             return shortVal - longVal;
@@ -201,9 +218,23 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
         return null;
     });
 
-    const validMacd = macdLine.filter((v): v is number => v !== null);
-    const padding = macdLine.length - validMacd.length;
-    const signalLinePadded = [...Array(padding).fill(null), ...calculateEMA(validMacd, signalPeriod)];
+    const validMacdValues: number[] = [];
+    const validIndices: number[] = [];
+    macdLine.forEach((val, idx) => {
+        if (val !== null) {
+            validMacdValues.push(val);
+            validIndices.push(idx);
+        }
+    });
+
+    const signalRaw = calculateEMA(validMacdValues, signalPeriod);
+    const signalLinePadded: (number | null)[] = Array(macdLine.length).fill(null);
+
+    signalRaw.forEach((sigVal, idx) => {
+        if (sigVal !== null && idx < validIndices.length) {
+            signalLinePadded[validIndices[idx]] = sigVal;
+        }
+    });
     
     const histogram = macdLine.map((macdVal, i) => {
         const signalVal = signalLinePadded[i];
@@ -246,15 +277,14 @@ export const calculateATR = (data: HistoricalData[], period: number): (number | 
     return atr;
 };
 
-
 export const calculateSupertrend = (data: HistoricalData[], period: number, multiplier: number): { supertrend: (number | null)[], direction: (number | null)[] } => {
     const atrValues = calculateATR(data, period);
     const supertrend: (number | null)[] = [];
     const direction: (number | null)[] = [];
 
     let trendDirection = 1;
-    let finalUpperBand: number | null = null;
-    let finalLowerBand: number | null = null;
+    let prevFinalUpperBand: number | null = null;
+    let prevFinalLowerBand: number | null = null;
 
     for (let i = 0; i < data.length; i++) {
         if (atrValues[i] === null) {
@@ -264,26 +294,29 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
         }
 
         const atr = atrValues[i]!;
-        const basicUpperBand = (data[i].high + data[i].low) / 2 + multiplier * atr;
-        const basicLowerBand = (data[i].high + data[i].low) / 2 - multiplier * atr;
+        const hl2 = (data[i].high + data[i].low) / 2;
+        const basicUpperBand = hl2 + multiplier * atr;
+        const basicLowerBand = hl2 - multiplier * atr;
 
-        if (i === 0 || finalUpperBand === null || finalLowerBand === null) {
+        let finalUpperBand: number;
+        let finalLowerBand: number;
+
+        if (prevFinalUpperBand === null || prevFinalLowerBand === null) {
             finalUpperBand = basicUpperBand;
             finalLowerBand = basicLowerBand;
         } else {
-            finalUpperBand = (basicUpperBand < finalUpperBand || data[i - 1].close > finalUpperBand) ? basicUpperBand : finalUpperBand;
-            finalLowerBand = (basicLowerBand > finalLowerBand || data[i - 1].close < finalLowerBand) ? basicLowerBand : finalLowerBand;
+            const prevClose = data[i - 1].close;
+            finalUpperBand = (basicUpperBand < prevFinalUpperBand || prevClose > prevFinalUpperBand) ? basicUpperBand : prevFinalUpperBand;
+            finalLowerBand = (basicLowerBand > prevFinalLowerBand || prevClose < prevFinalLowerBand) ? basicLowerBand : prevFinalLowerBand;
         }
 
-        if (supertrend.length > 0 && supertrend[i - 1] !== null) {
+        if (i > 0 && supertrend[i - 1] !== null) {
             const prevSupertrend = supertrend[i - 1]!;
-            if (prevSupertrend === finalUpperBand && data[i].close <= finalUpperBand) {
-                trendDirection = -1;
-            } else if (prevSupertrend === finalUpperBand && data[i].close > finalUpperBand) {
+            const currentClose = data[i].close;
+
+            if (prevSupertrend === prevFinalUpperBand && currentClose > finalUpperBand) {
                 trendDirection = 1;
-            } else if (prevSupertrend === finalLowerBand && data[i].close >= finalLowerBand) {
-                trendDirection = 1;
-            } else if (prevSupertrend === finalLowerBand && data[i].close < finalLowerBand) {
+            } else if (prevSupertrend === prevFinalLowerBand && currentClose < finalLowerBand) {
                 trendDirection = -1;
             }
         }
@@ -291,6 +324,9 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
         const currentSupertrend = trendDirection === 1 ? finalLowerBand : finalUpperBand;
         supertrend.push(currentSupertrend);
         direction.push(trendDirection);
+
+        prevFinalUpperBand = finalUpperBand;
+        prevFinalLowerBand = finalLowerBand;
     }
     return { supertrend, direction };
 };
@@ -360,23 +396,53 @@ export const calculateStochastic = (data: HistoricalData[], period: number, smoo
     const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
     const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
 
-    const stochK: (number | null)[] = [];
+    const rawK: (number | null)[] = [];
     for (let i = 0; i < data.length; i++) {
         const highestHigh = periodHighs[i];
         const lowestLow = periodLows[i];
 
         if (highestHigh === null || lowestLow === null) {
-            stochK.push(null);
+            rawK.push(null);
             continue;
         }
 
-        const k = ((data[i].close - lowestLow) / (highestHigh - lowestLow)) * 100;
-        stochK.push(isNaN(k) ? 50 : k);
+        const range = highestHigh - lowestLow;
+        const k = range > 0 ? ((data[i].close - lowestLow) / range) * 100 : 50;
+        rawK.push(isNaN(k) ? 50 : Math.max(0, Math.min(100, k)));
     }
-    const smoothedK = calculateSMA(stochK.filter((v): v is number => v !== null), smoothK);
-    const kWithPadding = [...Array(data.length - smoothedK.length).fill(null), ...smoothedK];
-    const smoothedD = calculateSMA(smoothedK.filter((v): v is number => v !== null), smoothD);
-    const dWithPadding = [...Array(data.length - smoothedD.length).fill(null), ...smoothedD];
+
+    const validKIndices: number[] = [];
+    const validKValues: number[] = [];
+    rawK.forEach((val, idx) => {
+        if (val !== null) {
+            validKValues.push(val);
+            validKIndices.push(idx);
+        }
+    });
+
+    const smoothedKRaw = calculateSMA(validKValues, smoothK);
+    const kWithPadding: (number | null)[] = Array(data.length).fill(null);
+    const validSmoothedKValues: number[] = [];
+    const validSmoothedKIndices: number[] = [];
+
+    smoothedKRaw.forEach((kVal, idx) => {
+        if (kVal !== null && idx < validKIndices.length) {
+            const originalIndex = validKIndices[idx];
+            kWithPadding[originalIndex] = kVal;
+            validSmoothedKValues.push(kVal);
+            validSmoothedKIndices.push(originalIndex);
+        }
+    });
+
+    const smoothedDRaw = calculateSMA(validSmoothedKValues, smoothD);
+    const dWithPadding: (number | null)[] = Array(data.length).fill(null);
+
+    smoothedDRaw.forEach((dVal, idx) => {
+        if (dVal !== null && idx < validSmoothedKIndices.length) {
+            dWithPadding[validSmoothedKIndices[idx]] = dVal;
+        }
+    });
+
     return { k: kWithPadding, d: dWithPadding };
 };
 

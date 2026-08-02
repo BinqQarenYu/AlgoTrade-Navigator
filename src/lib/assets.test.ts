@@ -1,36 +1,35 @@
-import { test } from 'node:test';
-import assert from 'node:assert/strict';
+import { describe, it, expect } from 'vitest';
 import { parseSymbolString } from './assets';
 
-test('parseSymbolString', async (t) => {
-    await t.test('should correctly parse valid pairs with supported quotes', () => {
-        assert.deepEqual(parseSymbolString('BTCUSDT'), { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' });
-        assert.deepEqual(parseSymbolString('ETHUSDC'), { symbol: 'ETHUSDC', base: 'ETH', quote: 'USDC' });
-        assert.deepEqual(parseSymbolString('SOLBTC'), { symbol: 'SOLBTC', base: 'SOL', quote: 'BTC' });
-        assert.deepEqual(parseSymbolString('BNBETH'), { symbol: 'BNBETH', base: 'BNB', quote: 'ETH' });
-        assert.deepEqual(parseSymbolString('ADAUSDT'), { symbol: 'ADAUSDT', base: 'ADA', quote: 'USDT' });
-        assert.deepEqual(parseSymbolString('DOGEBNB'), { symbol: 'DOGEBNB', base: 'DOGE', quote: 'BNB' });
+describe('parseSymbolString', () => {
+    it('should correctly parse valid pairs with supported quotes', () => {
+        expect(parseSymbolString('BTCUSDT')).toEqual({ symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' });
+        expect(parseSymbolString('ETHUSDC')).toEqual({ symbol: 'ETHUSDC', base: 'ETH', quote: 'USDC' });
+        expect(parseSymbolString('SOLBTC')).toEqual({ symbol: 'SOLBTC', base: 'SOL', quote: 'BTC' });
+        expect(parseSymbolString('BNBETH')).toEqual({ symbol: 'BNBETH', base: 'BNB', quote: 'ETH' });
+        expect(parseSymbolString('ADAUSDT')).toEqual({ symbol: 'ADAUSDT', base: 'ADA', quote: 'USDT' });
+        expect(parseSymbolString('DOGEBNB')).toEqual({ symbol: 'DOGEBNB', base: 'DOGE', quote: 'BNB' });
     });
 
-    await t.test('should return null for unknown or unsupported quotes', () => {
-        assert.equal(parseSymbolString('BTCUSD'), null);
-        assert.equal(parseSymbolString('BTCEUR'), null);
-        assert.equal(parseSymbolString('BTCUNKNOWN'), null);
+    it('should return null for unknown or unsupported quotes', () => {
+        expect(parseSymbolString('BTCUSD')).toBeNull();
+        expect(parseSymbolString('BTCEUR')).toBeNull();
+        expect(parseSymbolString('BTCUNKNOWN')).toBeNull();
     });
 
-    await t.test('should return null when there is no match or no base', () => {
-        assert.equal(parseSymbolString('UNKNOWN'), null);
-        assert.equal(parseSymbolString('USDT'), null); // Missing base
-        assert.equal(parseSymbolString('123'), null);
-        assert.equal(parseSymbolString(''), null);
+    it('should return null when there is no match or no base', () => {
+        expect(parseSymbolString('UNKNOWN')).toBeNull();
+        expect(parseSymbolString('USDT')).toBeNull();
+        expect(parseSymbolString('123')).toBeNull();
+        expect(parseSymbolString('')).toBeNull();
     });
 
-    await t.test('should handle symbols containing / or : by removing them', () => {
-        assert.deepEqual(parseSymbolString('BTC/USDT'), { symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' });
-        assert.deepEqual(parseSymbolString('ETH:USDC'), { symbol: 'ETHUSDC', base: 'ETH', quote: 'USDC' });
+    it('should handle symbols containing / or : by removing them', () => {
+        expect(parseSymbolString('BTC/USDT')).toEqual({ symbol: 'BTCUSDT', base: 'BTC', quote: 'USDT' });
+        expect(parseSymbolString('ETH:USDC')).toEqual({ symbol: 'ETHUSDC', base: 'ETH', quote: 'USDC' });
     });
 
-    await t.test('should correctly parse pairs where base contains numbers', () => {
-        assert.deepEqual(parseSymbolString('1INCHUSDT'), { symbol: '1INCHUSDT', base: '1INCH', quote: 'USDT' });
+    it('should correctly parse pairs where base contains numbers', () => {
+        expect(parseSymbolString('1INCHUSDT')).toEqual({ symbol: '1INCHUSDT', base: '1INCH', quote: 'USDT' });
     });
 });

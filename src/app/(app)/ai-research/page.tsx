@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback, useMemo } from "react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Terminal } from "lucide-react"
 import { useApi } from "@/context/api-context"
@@ -61,23 +61,71 @@ export default function AIResearchPage() {
   const [marketDetails, setMarketDetails] = useState<CoinDetails | null>(aiResearchState.marketDetails || null)
   const [globalContext, setGlobalContext] = useState<FearAndGreedIndex | null>(aiResearchState.globalContext || null)
 
-  const setSelectedAsset = (asset: string) => {
+  const setSelectedAsset = useCallback((asset: string) => {
     setSelectedAssetState(asset)
     setLastSelectedSymbol(asset)
     updateAiResearch({ selectedAsset: asset })
-  }
+  }, [setLastSelectedSymbol, updateAiResearch])
 
-  const setSelectedInterval = (interval: string) => {
+  const setSelectedInterval = useCallback((interval: string) => {
     setSelectedIntervalState(interval)
     updateAiResearch({ selectedInterval: interval })
-  }
+  }, [updateAiResearch])
 
-  const analyzeMarket = async () => {
+  // Memoized Metric & Level Calculations to avoid synchronous recalculation on render
+  const calculateMetrics = useCallback((data: HistoricalData[]): MarketMetrics => {
+    if (!data || data.length === 0) return { trend: 'neutral', strength: 0, volatility: 0, momentum: 50, volume: 0 }
 
+    const prices = data.map(d => d.close)
+    const volumes = data.map(d => d.volume)
+    
+    const recentPrices = prices.slice(-20)
+    const oldPrices = prices.slice(-40, -20)
+    const recentAvg = recentPrices.reduce((a, b) => a + b, 0) / (recentPrices.length || 1)
+    const oldAvg = oldPrices.reduce((a, b) => a + b, 0) / (oldPrices.length || 1)
+    const priceChange = oldAvg > 0 ? ((recentAvg - oldAvg) / oldAvg) * 100 : 0
+    
+    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral'
+    if (priceChange > 1.5) trend = 'bullish'
+    else if (priceChange < -1.5) trend = 'bearish'
+    
+    const volatility = Math.sqrt(prices.slice(1).map((p, i) => Math.pow((p - prices[i]) / (prices[i] || 1), 2)).reduce((a, b) => a + b, 0) / (prices.length || 1)) * 100
+    const rsi = data[data.length - 1]?.rsi || 50
+    const avgVolume = volumes.reduce((a, b) => a + b, 0) / (volumes.length || 1)
+    const recentVolume = volumes.slice(-5).reduce((a, b) => a + b, 0) / (volumes.slice(-5).length || 1)
+    const volumeChange = avgVolume > 0 ? ((recentVolume - avgVolume) / avgVolume) * 100 : 0
+    
+    return {
+      trend,
+      strength: Math.min(Math.round(Math.abs(priceChange) * 20), 100),
+      volatility: Math.round(volatility * 1000),
+      momentum: Math.round(rsi),
+      volume: Math.round(volumeChange)
+    }
+  }, [])
+
+  const identifyKeyLevels = useCallback((data: HistoricalData[]): PriceLevel[] => {
+    if (!data || data.length < 11) return []
+
+    const levels: PriceLevel[] = []
+    for (let i = 5; i < data.length - 5; i++) {
+      const current = data[i]
+      const isSwingHigh = data.slice(i - 5, i).every(d => d.high < current.high) && data.slice(i + 1, i + 6).every(d => d.high < current.high)
+      const isSwingLow = data.slice(i - 5, i).every(d => d.low > current.low) && data.slice(i + 1, i + 6).every(d => d.low > current.low)
+      const avgVol = data.reduce((sum, d) => sum + d.volume, 0) / data.length
+      const volStrength = Math.min(100, 70 + (current.volume / (avgVol || 1)) * 10)
+
+      if (isSwingHigh) levels.push({ price: current.high, type: 'resistance', strength: Math.round(volStrength) })
+      if (isSwingLow) levels.push({ price: current.low, type: 'support', strength: Math.round(volStrength) })
+    }
+    return levels.sort((a, b) => b.strength - a.strength).slice(0, 6).sort((a, b) => b.price - a.price)
+  }, [])
+
+  const analyzeMarket = useCallback(async () => {
     setIsAnalyzing(true)
     
     try {
-      // 1. Fetch Latest K-line Data
+      // 1. Fetch Latest K-line Data concurrently
       const rawData = await getLatestKlinesByLimit(selectedAsset, selectedInterval, 100)
 
       // Augment raw data with indicators
@@ -95,12 +143,13 @@ export default function AIResearchPage() {
       }))
       setChartData(data)
       
-      // 2. Calculate Local Technical Metrics (Immediate Feedback)
+      // 2. Calculate Local Technical Metrics
       const calculatedMetrics = calculateMetrics(data)
+      const calculatedKeyLevels = identifyKeyLevels(data)
       setMetrics(calculatedMetrics)
-      setKeyLevels(identifyKeyLevels(data))
+      setKeyLevels(calculatedKeyLevels)
       
-      // 3. Fetch Institutional Analytics (CMC/CG/FearGreed)
+      // 3. Fetch Institutional Analytics (CMC/CG/FearGreed) in parallel
       const tickerOnly = selectedAsset.replace('USDT', '').toLowerCase()
       const dualApi = createDualApiService(coingeckoApiKey, coinmarketcapApiKey)
       
@@ -113,7 +162,7 @@ export default function AIResearchPage() {
       setGlobalContext(fetchedGlobalContext)
       
       // 4. Parallel AI Model Execution
-      const recentDataJson = JSON.stringify(data.slice(-30)) // Send last 30 candles to AI
+      const recentDataJson = JSON.stringify(data.slice(-30))
       
       const [prediction, manipulation] = await Promise.all([
         predictMarket({
@@ -138,12 +187,11 @@ export default function AIResearchPage() {
             console.error("Manipulation Detect failed:", err);
             return null;
         })
-      ]);
+      ])
       
-      if (prediction) setAiPrediction(prediction);
-      if (manipulation) setManipulationResult(manipulation);
+      if (prediction) setAiPrediction(prediction)
+      if (manipulation) setManipulationResult(manipulation)
 
-      const calculatedKeyLevels = identifyKeyLevels(data);
       updateAiResearch({
         selectedAsset,
         selectedInterval,
@@ -154,11 +202,11 @@ export default function AIResearchPage() {
         manipulationResult: manipulation,
         marketDetails: fetchedMarketDetails,
         globalContext: fetchedGlobalContext,
-      });
+      })
 
       toast({
         title: "AI Analysis Complete",
-        description: `Successfully researched ${selectedAsset} using advanced models.`,
+        description: `Successfully analyzed ${selectedAsset} using quantitative models.`,
       })
     } catch (error: any) {
       console.error(error)
@@ -170,63 +218,16 @@ export default function AIResearchPage() {
     } finally {
       setIsAnalyzing(false)
     }
-  }
-
-  // Helper Logic (Move to Lib later if shared)
-  const calculateMetrics = (data: HistoricalData[]): MarketMetrics => {
-    const prices = data.map(d => d.close)
-    const volumes = data.map(d => d.volume)
-    
-    const recentPrices = prices.slice(-20)
-    const oldPrices = prices.slice(-40, -20)
-    const recentAvg = recentPrices.reduce((a, b) => a + b, 0) / recentPrices.length
-    const oldAvg = oldPrices.reduce((a, b) => a + b, 0) / oldPrices.length
-    const priceChange = ((recentAvg - oldAvg) / oldAvg) * 100
-    
-    let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral'
-    if (priceChange > 1.5) trend = 'bullish'
-    else if (priceChange < -1.5) trend = 'bearish'
-    
-    const volatility = Math.sqrt(prices.slice(1).map((p, i) => Math.pow((p - prices[i]) / prices[i], 2)).reduce((a, b) => a + b) / prices.length) * 100
-    const rsi = data[data.length - 1]?.rsi || 50
-    const avgVolume = volumes.reduce((a, b) => a + b, 0) / volumes.length
-    const recentVolume = volumes.slice(-5).reduce((a, b) => a + b, 0) / 5
-    const volumeChange = ((recentVolume - avgVolume) / avgVolume) * 100
-    
-    return {
-      trend,
-      strength: Math.min(Math.round(Math.abs(priceChange) * 20), 100),
-      volatility: Math.round(volatility * 1000),
-      momentum: Math.round(rsi),
-      volume: Math.round(volumeChange)
-    }
-  }
-
-  const identifyKeyLevels = (data: HistoricalData[]): PriceLevel[] => {
-    const levels: PriceLevel[] = []
-    for (let i = 5; i < data.length - 5; i++) {
-      const current = data[i]
-      const isSwingHigh = data.slice(i - 5, i).every(d => d.high < current.high) && data.slice(i + 1, i + 6).every(d => d.high < current.high)
-      const isSwingLow = data.slice(i - 5, i).every(d => d.low > current.low) && data.slice(i + 1, i + 6).every(d => d.low > current.low)
-      // Calculate strength deterministically based on volume relative to average
-      const avgVol = data.reduce((sum, d) => sum + d.volume, 0) / data.length;
-      const volStrength = Math.min(100, 70 + (current.volume / avgVol) * 10);
-
-      if (isSwingHigh) levels.push({ price: current.high, type: 'resistance', strength: Math.round(volStrength) })
-      if (isSwingLow) levels.push({ price: current.low, type: 'support', strength: Math.round(volStrength) })
-    }
-    return levels.sort((a, b) => b.strength - a.strength).slice(0, 6).sort((a, b) => b.price - a.price)
-  }
+  }, [selectedAsset, selectedInterval, coingeckoApiKey, coinmarketcapApiKey, geminiApiKey, geminiModel, updateAiResearch, toast, calculateMetrics, identifyKeyLevels])
 
   useEffect(() => {
-    // If no chart data was restored, trigger initial analysis
     if (!aiResearchState.chartData || aiResearchState.chartData.length === 0) {
       analyzeMarket()
     }
   }, [])
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-700">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-300">
       <ResearchHeader 
         selectedAsset={selectedAsset}
         setSelectedAsset={setSelectedAsset}
@@ -242,8 +243,6 @@ export default function AIResearchPage() {
           globalContext={globalContext}
         />
       )}
-
-
 
       {(metrics || isAnalyzing) && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

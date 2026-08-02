@@ -1,34 +1,6 @@
-import { describe, it, beforeEach, afterEach, after } from 'node:test';
-import assert from 'node:assert';
+import { describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { BotPersistence } from '../bot-persistence';
 import { logger } from '../logger';
-
-// Many singleton classes in this app use setInterval for maintenance/ping tasks.
-// To prevent the test runner from hanging indefinitely, we intercept these
-// intervals and forcefully clear them at the end of the test.
-const originalSetInterval = global.setInterval;
-const intervals: NodeJS.Timeout[] = [];
-(global as any).setInterval = (...args: any[]) => {
-  const id = originalSetInterval(args[0], args[1], ...args.slice(2));
-  intervals.push(id as any);
-  return id;
-};
-
-// Also clear timeout just in case
-const originalSetTimeout = global.setTimeout;
-const timeouts: NodeJS.Timeout[] = [];
-(global as any).setTimeout = (...args: any[]) => {
-  const id = originalSetTimeout(args[0], args[1], ...args.slice(2));
-  timeouts.push(id as any);
-  return id;
-};
-
-after(() => {
-  intervals.forEach(id => clearInterval(id));
-  timeouts.forEach(id => clearTimeout(id));
-  // Explicitly exit process if it still hangs after a timeout
-  setTimeout(() => process.exit(0), 100);
-});
 
 describe('BotPersistence', () => {
   let originalLocalStorage: any;
@@ -87,7 +59,6 @@ describe('BotPersistence', () => {
 
       logger.error = (msg: string) => {
         loggedErrorCallCount++;
-        // We capture the last error message or concatenate them to check for the specific one
         loggedErrorMessage += msg + ' | ';
       };
 
@@ -103,13 +74,9 @@ describe('BotPersistence', () => {
       const result = await persistence.saveState('test-bot', mockState);
 
       // Assertions
-      assert.strictEqual(result, false, 'saveState should return false when an error occurs');
-      // It might be called more than once (e.g. once in saveAllStates and once in saveState)
-      assert.ok(loggedErrorCallCount >= 1, 'logger.error should be called at least once');
-      assert.ok(
-        loggedErrorMessage.includes(`Failed to save bot state: ${errorMessage}`),
-        `Expected error message to include 'Failed to save bot state: ${errorMessage}', but got '${loggedErrorMessage}'`
-      );
+      expect(result).toBe(false);
+      expect(loggedErrorCallCount).toBeGreaterThanOrEqual(1);
+      expect(loggedErrorMessage).toContain(`Failed to save bot state: ${errorMessage}`);
 
       persistence.destroy();
     });

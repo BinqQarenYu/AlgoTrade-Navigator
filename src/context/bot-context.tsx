@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef, useCallback } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import type { HistoricalData, TradeSignal, RankedTradeSignal, Position, LiveBotStateForAsset, LiveBotConfig, SimulationState, SimulationConfig } from '@/lib/types';
+import type { HistoricalData, TradeSignal, RankedTradeSignal, Position, LiveBotStateForAsset, LiveBotConfig, SimulationState, SimulationConfig, SimulatedPosition } from '@/lib/types';
 import { predictMarket, type PredictMarketOutput } from "@/ai/flows/predict-market-flow";
 import { getLatestKlinesByLimit, placeOrder } from "@/lib/binance-service";
 import { getStrategyById } from "@/lib/strategies";
@@ -476,12 +476,42 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [addLiveLog, toast, activeProfile]);
 
-  // Simulation functions
-  const startSimulation = useCallback((config: SimulationConfig) => {
+  // Simulation state and refs
+  const simWsRef = useRef<WebSocket | null>(null);
+  const simBufferRef = useRef<HistoricalData[]>([]);
+  const simConfigRef = useRef<SimulationConfig | null>(null);
+
+  const stopSimulation = useCallback(() => {
+    if (simWsRef.current) {
+      simWsRef.current.close();
+      simWsRef.current = null;
+    }
+    const timestamp = new Date().toLocaleTimeString();
     setSimulationState(prev => ({
       ...prev,
+      isRunning: false,
+      logs: [`[${timestamp}] Paper trading simulation stopped.`, ...prev.logs].slice(0, 100),
+    }));
+    
+    toast({
+      title: "Simulation Stopped",
+      description: "Paper trading simulation has been stopped.",
+    });
+  }, [toast]);
+
+  const startSimulation = useCallback(async (config: SimulationConfig) => {
+    if (simWsRef.current) {
+      simWsRef.current.close();
+      simWsRef.current = null;
+    }
+
+    simConfigRef.current = config;
+    const timestamp = new Date().toLocaleTimeString();
+    const initialLog = `[${timestamp}] Initializing simulation for ${config.symbol} (${config.interval}) using '${config.strategy}'...`;
+
+    setSimulationState({
       isRunning: true,
-      logs: [...prev.logs, `Starting simulation with ${config.symbol} using ${config.strategy} strategy`],
+      logs: [initialLog],
       portfolio: {
         totalValue: config.initialCapital,
         availableBalance: config.initialCapital,
@@ -497,29 +527,260 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
         maxDrawdown: 0,
       },
       chartData: null,
-    }));
-    
-    toast({
-      title: "Simulation Started",
-      description: `Paper trading simulation started for ${config.symbol}`,
     });
-  }, [toast]);
 
-  const stopSimulation = useCallback(() => {
-    setSimulationState(prev => ({
-      ...prev,
-      isRunning: false,
-      logs: [...prev.logs, "Simulation stopped"],
-    }));
-    
-    toast({
-      title: "Simulation Stopped",
-      description: "Paper trading simulation has been stopped",
-    });
-  }, [toast]);
+    try {
+      const rawKlines = await getLatestKlinesByLimit(config.symbol, config.interval, 500);
+      const strategy = getStrategyById(config.strategy);
+      if (!strategy) {
+        throw new Error(`Strategy '${config.strategy}' not found.`);
+      }
+
+      const calculatedData = await strategy.calculate(rawKlines, config.strategyParams, config.symbol);
+      simBufferRef.current = calculatedData;
+
+      setSimulationState(prev => ({
+        ...prev,
+        chartData: calculatedData,
+        logs: [`[${new Date().toLocaleTimeString()}] Loaded ${calculatedData.length} historical candles. Connecting stream...`, ...prev.logs],
+      }));
+
+      const ws = new WebSocket(`wss://fstream.binance.com/ws/${config.symbol.toLowerCase()}@kline_${config.interval}`);
+      simWsRef.current = ws;
+
+      ws.onopen = () => {
+        const timeStr = new Date().toLocaleTimeString();
+        setSimulationState(prev => ({
+          ...prev,
+          logs: [`[${timeStr}] Live stream connected. Monitoring for signals...`, ...prev.logs],
+        }));
+      };
+
+      ws.onmessage = async (event) => {
+        const data = JSON.parse(event.data);
+        if (data.e !== 'kline') return;
+
+        const newCandle: HistoricalData = {
+          time: data.k.t,
+          open: parseFloat(data.k.o),
+          high: parseFloat(data.k.h),
+          low: parseFloat(data.k.l),
+          close: parseFloat(data.k.c),
+          volume: parseFloat(data.k.v),
+        };
+
+        const buffer = [...simBufferRef.current];
+        if (buffer.length > 0 && buffer[buffer.length - 1].time === newCandle.time) {
+          buffer[buffer.length - 1] = newCandle;
+        } else {
+          buffer.push(newCandle);
+        }
+
+        const updatedData = await strategy.calculate(buffer.slice(-500), config.strategyParams, config.symbol);
+        simBufferRef.current = updatedData;
+        const currentCandle = updatedData[updatedData.length - 1];
+        const currentPrice = newCandle.close;
+
+        setSimulationState(prev => {
+          if (!prev.isRunning) return prev;
+
+          let availableBalance = new Decimal(prev.portfolio.availableBalance);
+          let unrealizedPnl = new Decimal(0);
+          let realizedPnl = new Decimal(prev.portfolio.totalPnl);
+          const currentPositions = [...prev.openPositions];
+          const updatedTradeHistory = [...prev.tradeHistory];
+          const newLogs = [...prev.logs];
+          const isClosedCandle = data.k.x;
+
+          // 1. Process Open Positions with Decimal math
+          const remainingPositions: typeof currentPositions = [];
+
+          for (const pos of currentPositions) {
+            const entryPrice = new Decimal(pos.entryPrice);
+            const size = new Decimal(pos.size);
+            const price = new Decimal(currentPrice);
+            
+            let posPnl = new Decimal(0);
+            if (pos.side === 'LONG') {
+              posPnl = price.minus(entryPrice).mul(size);
+            } else {
+              posPnl = entryPrice.minus(price).mul(size);
+            }
+
+            let shouldClose = false;
+            let closeReason = '';
+
+            if (pos.stopLoss && ((pos.side === 'LONG' && currentCandle.low <= pos.stopLoss) || (pos.side === 'SHORT' && currentCandle.high >= pos.stopLoss))) {
+              shouldClose = true;
+              closeReason = 'Stop Loss';
+            } else if (pos.takeProfit && ((pos.side === 'LONG' && currentCandle.high >= pos.takeProfit) || (pos.side === 'SHORT' && currentCandle.low <= pos.takeProfit))) {
+              shouldClose = true;
+              closeReason = 'Take Profit';
+            }
+
+            if (shouldClose) {
+              const exitPrice = pos.side === 'LONG'
+                ? (closeReason === 'Stop Loss' ? Math.min(currentPrice, pos.stopLoss!) : Math.max(currentPrice, pos.takeProfit!))
+                : (closeReason === 'Stop Loss' ? Math.max(currentPrice, pos.stopLoss!) : Math.min(currentPrice, pos.takeProfit!));
+              
+              const exitPriceDec = new Decimal(exitPrice);
+              const finalPnl = pos.side === 'LONG' ? exitPriceDec.minus(entryPrice).mul(size) : entryPrice.minus(exitPriceDec).mul(size);
+              const feeDec = exitPriceDec.mul(size).mul(new Decimal(config.fee).div(100));
+              const netPnl = finalPnl.minus(feeDec);
+
+              realizedPnl = realizedPnl.plus(netPnl);
+              const returnedCapital = size.mul(entryPrice).div(config.leverage).plus(netPnl);
+              availableBalance = availableBalance.plus(returnedCapital);
+
+              const timeStr = new Date().toLocaleTimeString();
+              newLogs.unshift(`[${timeStr}] Closed ${pos.side} at $${exitPrice.toFixed(2)} (${closeReason}). Net PnL: ${netPnl.gte(0) ? '+' : ''}$${netPnl.toFixed(2)}`);
+
+              updatedTradeHistory.unshift({
+                id: `sim_exit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                symbol: config.symbol,
+                side: pos.side === 'LONG' ? 'SELL' : 'BUY',
+                size: size.toNumber(),
+                price: exitPrice,
+                time: timeStr,
+                timestamp: Date.now(),
+                pnl: netPnl.toNumber(),
+                fee: feeDec.toNumber(),
+                type: 'exit',
+              });
+            } else {
+              unrealizedPnl = unrealizedPnl.plus(posPnl);
+              remainingPositions.push({
+                ...pos,
+                currentPrice: currentPrice,
+                pnl: posPnl.toNumber(),
+                percentage: entryPrice.gt(0) ? posPnl.div(size.mul(entryPrice).div(config.leverage)).mul(100).toNumber() : 0,
+              });
+            }
+          }
+
+          // 2. Check for New Entry Signal on Closed Candle
+          if (isClosedCandle && remainingPositions.length === 0) {
+            let signalType: 'LONG' | 'SHORT' | null = null;
+            if (currentCandle.buySignal) signalType = config.strategyParams?.reverse ? 'SHORT' : 'LONG';
+            else if (currentCandle.sellSignal) signalType = config.strategyParams?.reverse ? 'LONG' : 'SHORT';
+
+            if (signalType) {
+              const entryPriceDec = new Decimal(currentPrice);
+              const allocatedCapital = availableBalance.mul(0.95); // Use 95% of available balance
+              const positionValue = allocatedCapital.mul(config.leverage);
+              const sizeDec = positionValue.div(entryPriceDec);
+
+              if (sizeDec.gt(0)) {
+                const slPercent = new Decimal(config.stopLoss).div(100);
+                const tpPercent = new Decimal(config.takeProfit).div(100);
+                const stopLossPrice = signalType === 'LONG' 
+                  ? entryPriceDec.mul(new Decimal(1).minus(slPercent)).toNumber() 
+                  : entryPriceDec.mul(new Decimal(1).plus(slPercent)).toNumber();
+                const takeProfitPrice = signalType === 'LONG' 
+                  ? entryPriceDec.mul(new Decimal(1).plus(tpPercent)).toNumber() 
+                  : entryPriceDec.mul(new Decimal(1).minus(tpPercent)).toNumber();
+
+                availableBalance = availableBalance.minus(allocatedCapital);
+                const timeStr = new Date().toLocaleTimeString();
+                
+                newLogs.unshift(`[${timeStr}] Opened ${signalType} at $${currentPrice.toFixed(2)} (${config.leverage}x leverage). SL: $${stopLossPrice.toFixed(2)}, TP: $${takeProfitPrice.toFixed(2)}`);
+
+                const newPosition: SimulatedPosition = {
+                  id: `sim_pos_${Date.now()}`,
+                  symbol: config.symbol,
+                  asset: config.symbol,
+                  side: signalType,
+                  size: sizeDec.toNumber(),
+                  entryPrice: currentPrice,
+                  currentPrice: currentPrice,
+                  pnl: 0,
+                  percentage: 0,
+                  entryTime: Date.now(),
+                  leverage: config.leverage,
+                  status: 'open',
+                  stopLoss: stopLossPrice,
+                  takeProfit: takeProfitPrice,
+                };
+
+                remainingPositions.push(newPosition);
+
+                const feeDec = entryPriceDec.mul(sizeDec).mul(new Decimal(config.fee).div(100));
+                updatedTradeHistory.unshift({
+                  id: `sim_entry_${Date.now()}`,
+                  symbol: config.symbol,
+                  side: signalType === 'LONG' ? 'BUY' : 'SELL',
+                  size: sizeDec.toNumber(),
+                  price: currentPrice,
+                  time: timeStr,
+                  timestamp: Date.now(),
+                  fee: feeDec.toNumber(),
+                  type: 'entry',
+                });
+              }
+            }
+          }
+
+          // 3. Compute Summary Statistics using Decimal
+          const totalValueDec = availableBalance.plus(unrealizedPnl);
+          const closedTrades = updatedTradeHistory.filter(t => t.type === 'exit');
+          const winningTrades = closedTrades.filter(t => (t.pnl || 0) > 0);
+          const winRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0;
+
+          return {
+            ...prev,
+            chartData: updatedData,
+            openPositions: remainingPositions,
+            tradeHistory: updatedTradeHistory,
+            logs: newLogs.slice(0, 100),
+            portfolio: {
+              totalValue: totalValueDec.toNumber(),
+              availableBalance: availableBalance.toNumber(),
+              unrealizedPnl: unrealizedPnl.toNumber(),
+              totalPnl: realizedPnl.toNumber(),
+            },
+            summary: {
+              totalTrades: closedTrades.length,
+              winRate: Math.round(winRate * 10) / 10,
+              totalPnl: realizedPnl.toNumber(),
+              maxDrawdown: prev.summary.maxDrawdown,
+            },
+          };
+        });
+      };
+
+      ws.onerror = (err) => {
+        console.error("Simulation WebSocket error:", err);
+        setSimulationState(prev => ({
+          ...prev,
+          logs: [`[${new Date().toLocaleTimeString()}] Live stream error. Reconnecting...`, ...prev.logs],
+        }));
+      };
+
+      ws.onclose = () => {
+        setSimulationState(prev => ({
+          ...prev,
+          logs: [`[${new Date().toLocaleTimeString()}] Stream connection closed.`, ...prev.logs],
+        }));
+      };
+
+      toast({
+        title: "Simulation Active",
+        description: `Live paper trading stream connected for ${config.symbol}.`,
+      });
+    } catch (error: any) {
+      console.error("Simulation start failed:", error);
+      stopSimulation();
+      toast({
+        title: "Simulation Failed",
+        description: error.message || "Failed to initialize simulation stream.",
+        variant: "destructive",
+      });
+    }
+  }, [getStrategyById, toast, stopSimulation]);
 
   useEffect(() => {
     return () => {
+      if (simWsRef.current) simWsRef.current.close();
       Object.values(liveWsRefs.current).forEach(ws => ws?.close());
       Object.values(analysisIntervals.current).forEach(clearInterval);
     }

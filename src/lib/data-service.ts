@@ -2,38 +2,42 @@
 'use client';
 
 import type { SavedReport, StreamedDataPoint, SavedMarketReport, SavedManipulationScan } from './types';
-import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'AlgoTradeDB';
 const DB_VERSION = 1;
 const REPORT_STORE = 'reports';
 
 // --- Database Initialization ---
-let dbPromise: Promise<IDBPDatabase> | null = null;
+let dbPromise: Promise<IDBDatabase> | null = null;
 
-const initDB = () => {
+const initDB = (): Promise<IDBDatabase> => {
     if (dbPromise) return dbPromise;
 
-    dbPromise = openDB(DB_NAME, DB_VERSION, {
-        upgrade(db) {
+    dbPromise = new Promise((resolve, reject) => {
+        if (typeof window === 'undefined' || !window.indexedDB) {
+            reject(new Error('IndexedDB is not supported in this environment'));
+            return;
+        }
+
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+            const db = request.result;
             if (!db.objectStoreNames.contains(REPORT_STORE)) {
                 const store = db.createObjectStore(REPORT_STORE, {
                     keyPath: 'id',
                     autoIncrement: true,
                 });
-                // Create an index on the 'symbol' property for efficient lookups.
                 store.createIndex('by_symbol', 'input.symbol');
                 store.createIndex('by_type_and_symbol', ['type', 'input.symbol']);
             }
-        },
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
     });
+
     return dbPromise;
 };
 
-
-// In a real application, this would interact with a database like Firestore.
-// For now, we will simulate this by storing data in-memory on the server.
-// This data will be lost when the server restarts.
 let savedData: StreamedDataPoint[] = [];
 
 /**
@@ -41,7 +45,6 @@ let savedData: StreamedDataPoint[] = [];
  * @param dataPoint The data point to save.
  */
 export const saveDataPoint = async (dataPoint: StreamedDataPoint): Promise<void> => {
-    // console.log("Saving data point:", dataPoint);
     savedData.push(dataPoint);
 };
 
@@ -51,7 +54,7 @@ export const saveDataPoint = async (dataPoint: StreamedDataPoint): Promise<void>
  */
 export const loadSavedData = async (): Promise<StreamedDataPoint[]> => {
     console.log(`Loading ${savedData.length} saved data points...`);
-    return Promise.resolve([...savedData]); // Return a copy
+    return Promise.resolve([...savedData]);
 };
 
 /**
@@ -66,23 +69,47 @@ export const clearStreamData = async (): Promise<void> => {
 
 export const saveReport = async (report: Omit<SavedReport, 'id'>): Promise<SavedReport> => {
     const db = await initDB();
-    const id = await db.put(REPORT_STORE, report);
-    console.log(`Saving new report: ${report.type} with ID ${id}`);
-    return { ...report, id: String(id) } as SavedReport;
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(REPORT_STORE, 'readwrite');
+        const store = tx.objectStore(REPORT_STORE);
+        const req = store.put(report);
+        req.onsuccess = () => {
+            const id = String(req.result);
+            console.log(`Saving new report: ${report.type} with ID ${id}`);
+            resolve({ ...report, id } as SavedReport);
+        };
+        req.onerror = () => reject(req.error);
+    });
 };
 
 export const loadReports = async (): Promise<SavedReport[]> => {
     const db = await initDB();
-    const reports = await db.getAll(REPORT_STORE);
-    reports.sort((a, b) => b.timestamp - a.timestamp); // Show most recent first
-    console.log(`Loading ${reports.length} saved reports...`);
-    return reports;
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(REPORT_STORE, 'readonly');
+        const store = tx.objectStore(REPORT_STORE);
+        const req = store.getAll();
+        req.onsuccess = () => {
+            const reports: SavedReport[] = req.result || [];
+            reports.sort((a: SavedReport, b: SavedReport) => b.timestamp - a.timestamp);
+            console.log(`Loading ${reports.length} saved reports...`);
+            resolve(reports);
+        };
+        req.onerror = () => reject(req.error);
+    });
 };
 
 export const deleteReport = async (reportId: string): Promise<void> => {
     const db = await initDB();
-    await db.delete(REPORT_STORE, reportId);
-    console.log(`Deleting report with id: ${reportId}`);
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(REPORT_STORE, 'readwrite');
+        const store = tx.objectStore(REPORT_STORE);
+        const req = store.delete(reportId);
+        req.onsuccess = () => {
+            console.log(`Deleting report with id: ${reportId}`);
+            resolve();
+        };
+        req.onerror = () => reject(req.error);
+    });
 };
 
 /**
@@ -96,20 +123,21 @@ export const getLatestReport = async (
     symbol: string
 ): Promise<SavedMarketReport | SavedManipulationScan | null> => {
     const db = await initDB();
-    const tx = db.transaction(REPORT_STORE, 'readonly');
-    const index = tx.store.index('by_type_and_symbol');
-    
-    // The key range finds all reports matching the type and symbol.
-    // 'prev' ensures we get the one with the highest key (most recent).
-    const cursor = await index.openCursor(IDBKeyRange.only([type, symbol]), 'prev');
-    
-    await tx.done;
-
-    if (cursor) {
-        console.log(`Found latest '${type}' report for ${symbol}`);
-        return cursor.value as SavedMarketReport | SavedManipulationScan;
-    } else {
-        console.log(`No '${type}' report found for ${symbol}`);
-        return null;
-    }
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(REPORT_STORE, 'readonly');
+        const store = tx.objectStore(REPORT_STORE);
+        const index = store.index('by_type_and_symbol');
+        const req = index.openCursor(IDBKeyRange.only([type, symbol]), 'prev');
+        req.onsuccess = () => {
+            const cursor = req.result;
+            if (cursor) {
+                console.log(`Found latest '${type}' report for ${symbol}`);
+                resolve(cursor.value as SavedMarketReport | SavedManipulationScan);
+            } else {
+                console.log(`No '${type}' report found for ${symbol}`);
+                resolve(null);
+            }
+        };
+        req.onerror = () => reject(req.error);
+    });
 };

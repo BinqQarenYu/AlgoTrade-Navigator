@@ -146,7 +146,9 @@ const convertSimulationSummaryToBacktestSummary = (simSummary: {
   profitFactor: 1,
   initialCapital: 100,
   finalCapital: 100,
-  maxDrawdown: simSummary.maxDrawdown,
+  totalReturnPercent: simSummary.totalPnl ? (simSummary.totalPnl / 100) * 100 : 0,
+  totalFees: 0,
+  maxDrawdown: simSummary.maxDrawdown || 0,
 });
 
 function SimulationPageContent() {
@@ -357,10 +359,6 @@ function SimulationPageContent() {
             toast({ title: "No Strategy Selected", description: "Please select a strategy to run the simulation.", variant: "destructive"});
             return;
         }
-        if (!isConnected) {
-            toast({ title: "Cannot start simulation", description: "Please connect to the API first.", variant: "destructive"});
-            return;
-        }
         startSimulation({
             symbol, interval, strategy: selectedStrategy,
             strategyParams: { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic },
@@ -382,15 +380,6 @@ function SimulationPageContent() {
           </p>
       </div>
 
-      {!isConnected && (
-        <Alert variant="destructive">
-            <Terminal className="h-4 w-4" />
-            <AlertTitle>API Disconnected</AlertTitle>
-            <AlertDescription>
-                Please <Link href="/settings" className="font-bold underline">connect to the Binance API</Link> to enable the live data feed for simulations.
-            </AlertDescription>
-        </Alert>
-      )}
      {isTradingActive && !isRunning && (
         <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
             <Bot className="h-4 w-4" />
@@ -487,7 +476,7 @@ function SimulationPageContent() {
                   />
                 </CardContent>
                 <CardFooter>
-                  <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || !isConnected || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
+                  <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
                     {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {isFetchingData ? "Fetching Data..." : isRunning ? <><StopCircle /> Stop Simulation</> : <><Play /> Start Simulation</>}
                   </Button>
@@ -541,9 +530,19 @@ export default function SimulationPage() {
         setIsClient(true);
     }, []);
 
-    // Render a loading state or null on the server to avoid hydration errors
     if (!isClient) {
-        return null;
+        return (
+            <div className="space-y-6 animate-pulse p-4">
+                <div className="h-8 w-64 bg-white/5 rounded-lg"></div>
+                <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+                    <div className="xl:col-span-3 h-[600px] bg-white/5 rounded-2xl"></div>
+                    <div className="xl:col-span-2 space-y-6">
+                        <div className="h-[300px] bg-white/5 rounded-2xl"></div>
+                        <div className="h-[200px] bg-white/5 rounded-2xl"></div>
+                    </div>
+                </div>
+            </div>
+        );
     }
 
     return <SimulationPageContent />;

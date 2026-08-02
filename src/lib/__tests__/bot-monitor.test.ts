@@ -1,5 +1,4 @@
-import { describe, it, beforeEach, afterEach, mock, after } from 'node:test';
-import * as assert from 'node:assert';
+import { describe, it, beforeEach, afterEach, afterAll, expect, vi } from 'vitest';
 import { BotMonitor, botMonitor } from '../bot-monitor';
 import { emergencyStop } from '../emergency-stop';
 import type { LiveBotStateForAsset } from '../types';
@@ -17,17 +16,17 @@ describe('BotMonitor.getSystemHealth', () => {
 
   it('should return empty stats when no bots are registered', () => {
     const stats = monitor.getSystemHealth();
-    assert.strictEqual(stats.totalBots, 0);
-    assert.strictEqual(stats.activeBots, 0);
-    assert.strictEqual(stats.healthyBots, 0);
-    assert.strictEqual(stats.warningBots, 0);
-    assert.strictEqual(stats.criticalBots, 0);
-    assert.strictEqual(stats.offlineBots, 0);
-    assert.strictEqual(stats.totalMemoryUsage, 0);
-    assert.strictEqual(stats.totalApiCalls, 0);
+    expect(stats.totalBots).toBe(0);
+    expect(stats.activeBots).toBe(0);
+    expect(stats.healthyBots).toBe(0);
+    expect(stats.warningBots).toBe(0);
+    expect(stats.criticalBots).toBe(0);
+    expect(stats.offlineBots).toBe(0);
+    expect(stats.totalMemoryUsage).toBe(0);
+    expect(stats.totalApiCalls).toBe(0);
 
-    assert.ok(typeof stats.systemUptime === 'number');
-    assert.strictEqual(typeof stats.emergencyStopActive, 'boolean');
+    expect(typeof stats.systemUptime).toBe('number');
+    expect(typeof stats.emergencyStopActive).toBe('boolean');
   });
 
   it('should correctly aggregate bot states', () => {
@@ -37,12 +36,12 @@ describe('BotMonitor.getSystemHealth', () => {
 
     const stats = monitor.getSystemHealth();
 
-    assert.strictEqual(stats.totalBots, 3);
-    assert.strictEqual(stats.healthyBots, 3);
-    assert.strictEqual(stats.activeBots, 3);
-    assert.strictEqual(stats.warningBots, 0);
-    assert.strictEqual(stats.criticalBots, 0);
-    assert.strictEqual(stats.offlineBots, 0);
+    expect(stats.totalBots).toBe(3);
+    expect(stats.healthyBots).toBe(3);
+    expect(stats.activeBots).toBe(3);
+    expect(stats.warningBots).toBe(0);
+    expect(stats.criticalBots).toBe(0);
+    expect(stats.offlineBots).toBe(0);
   });
 
   it('should calculate active bots correctly based on status', () => {
@@ -64,12 +63,12 @@ describe('BotMonitor.getSystemHealth', () => {
 
     const stats = monitor.getSystemHealth();
 
-    assert.strictEqual(stats.totalBots, 4);
-    assert.strictEqual(stats.healthyBots, 1);
-    assert.strictEqual(stats.warningBots, 1);
-    assert.strictEqual(stats.criticalBots, 1);
-    assert.strictEqual(stats.offlineBots, 1);
-    assert.strictEqual(stats.activeBots, 3);
+    expect(stats.totalBots).toBe(4);
+    expect(stats.healthyBots).toBe(1);
+    expect(stats.warningBots).toBe(1);
+    expect(stats.criticalBots).toBe(1);
+    expect(stats.offlineBots).toBe(1);
+    expect(stats.activeBots).toBe(3);
   });
 
   it('should sum total memory usage and api calls', () => {
@@ -92,16 +91,16 @@ describe('BotMonitor.getSystemHealth', () => {
 
     const stats = monitor.getSystemHealth();
 
-    assert.strictEqual(stats.totalMemoryUsage, 400);
-    assert.strictEqual(stats.totalApiCalls, 40);
+    expect(stats.totalMemoryUsage).toBe(400);
+    expect(stats.totalApiCalls).toBe(40);
   });
 
   it('should accurately reflect emergencyStop active state', () => {
     const stats = monitor.getSystemHealth();
-    assert.strictEqual(stats.emergencyStopActive, emergencyStop.isEmergencyActive());
+    expect(stats.emergencyStopActive).toBe(emergencyStop.isEmergencyActive());
   });
 
-  after(() => {
+  afterAll(() => {
     botMonitor.destroy();
     emergencyStop.destroy();
   });
@@ -110,12 +109,12 @@ describe('BotMonitor.getSystemHealth', () => {
 describe('botMonitor.runDiagnostics()', () => {
   beforeEach(() => {
     botMonitor.destroy();
-    mock.restoreAll();
+    vi.restoreAllMocks();
   });
 
   afterEach(() => {
     botMonitor.destroy();
-    mock.restoreAll();
+    vi.restoreAllMocks();
   });
 
   it('should return healthy overallHealth when there are no issues', () => {
@@ -123,25 +122,27 @@ describe('botMonitor.runDiagnostics()', () => {
     botMonitor.updateBotState('bot1', { status: 'running' } as LiveBotStateForAsset);
 
     const metrics = botMonitor.getBotMetrics('bot1');
-    assert.ok(metrics, 'bot1 metrics should exist');
-    metrics.status = 'healthy';
-    metrics.apiCallsPerMinute = 10;
+    expect(metrics).toBeDefined();
+    if (metrics) {
+      metrics.status = 'healthy';
+      metrics.apiCallsPerMinute = 10;
+    }
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'healthy');
-    assert.strictEqual(diagnostics.issues.length, 0);
-    assert.strictEqual(diagnostics.recommendations.length, 0);
+    expect(diagnostics.overallHealth).toBe('healthy');
+    expect(diagnostics.issues.length).toBe(0);
+    expect(diagnostics.recommendations.length).toBe(0);
   });
 
   it('should return critical overallHealth when emergency stop is active', () => {
-    mock.method(emergencyStop, 'isEmergencyActive', () => true);
+    vi.spyOn(emergencyStop, 'isEmergencyActive').mockReturnValue(true);
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'critical');
-    assert.ok(diagnostics.issues.some(i => i.includes('Emergency stop')));
-    assert.ok(diagnostics.recommendations.some(r => r.includes('emergency conditions')));
+    expect(diagnostics.overallHealth).toBe('critical');
+    expect(diagnostics.issues.some(i => i.includes('Emergency stop'))).toBe(true);
+    expect(diagnostics.recommendations.some(r => r.includes('emergency conditions'))).toBe(true);
   });
 
   it('should return critical overallHealth when there are critical bots', () => {
@@ -152,14 +153,16 @@ describe('botMonitor.runDiagnostics()', () => {
     botMonitor.recordError('critical-bot', 'Test error 2', 'critical');
 
     const metrics = botMonitor.getBotMetrics('critical-bot');
-    assert.ok(metrics, 'critical-bot metrics should exist');
-    metrics.status = 'critical';
+    expect(metrics).toBeDefined();
+    if (metrics) {
+      metrics.status = 'critical';
+    }
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'critical');
-    assert.ok(diagnostics.issues.some(i => i.includes('critical state')));
-    assert.ok(diagnostics.recommendations.some(r => r.includes('restart critical bots')));
+    expect(diagnostics.overallHealth).toBe('critical');
+    expect(diagnostics.issues.some(i => i.includes('critical state'))).toBe(true);
+    expect(diagnostics.recommendations.some(r => r.includes('restart critical bots'))).toBe(true);
   });
 
   it('should return warning overallHealth for high API usage', () => {
@@ -167,15 +170,17 @@ describe('botMonitor.runDiagnostics()', () => {
     botMonitor.updateBotState('api-bot', { status: 'running' } as LiveBotStateForAsset);
 
     const metrics = botMonitor.getBotMetrics('api-bot');
-    assert.ok(metrics, 'api-bot metrics should exist');
-    metrics.status = 'healthy';
-    metrics.apiCallsPerMinute = 205;
+    expect(metrics).toBeDefined();
+    if (metrics) {
+      metrics.status = 'healthy';
+      metrics.apiCallsPerMinute = 205;
+    }
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'warning');
-    assert.ok(diagnostics.issues.some(i => i.includes('High API call rate')));
-    assert.ok(diagnostics.recommendations.some(r => r.includes('polling frequency')));
+    expect(diagnostics.overallHealth).toBe('warning');
+    expect(diagnostics.issues.some(i => i.includes('High API call rate'))).toBe(true);
+    expect(diagnostics.recommendations.some(r => r.includes('polling frequency'))).toBe(true);
   });
 
   it('should return warning overallHealth when more than half of bots are offline', () => {
@@ -189,32 +194,34 @@ describe('botMonitor.runDiagnostics()', () => {
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'warning');
-    assert.ok(diagnostics.issues.some(i => i.includes('More than half of bots are offline')));
-    assert.ok(diagnostics.recommendations.some(r => r.includes('network connectivity')));
+    expect(diagnostics.overallHealth).toBe('warning');
+    expect(diagnostics.issues.some(i => i.includes('More than half of bots are offline'))).toBe(true);
+    expect(diagnostics.recommendations.some(r => r.includes('network connectivity'))).toBe(true);
   });
 
   it('should handle combined issues and prioritize critical health status', () => {
-    mock.method(emergencyStop, 'isEmergencyActive', () => true);
+    vi.spyOn(emergencyStop, 'isEmergencyActive').mockReturnValue(true);
 
     botMonitor.registerBot('bot1', {});
     botMonitor.updateBotState('bot1', { status: 'running' } as LiveBotStateForAsset);
 
     const metrics = botMonitor.getBotMetrics('bot1');
-    assert.ok(metrics, 'bot1 metrics should exist');
-    metrics.apiCallsPerMinute = 300;
+    expect(metrics).toBeDefined();
+    if (metrics) {
+      metrics.apiCallsPerMinute = 300;
+    }
 
     const diagnostics = botMonitor.runDiagnostics();
 
-    assert.strictEqual(diagnostics.overallHealth, 'critical');
-    assert.ok(diagnostics.issues.some(i => i.includes('Emergency stop')));
-    assert.ok(diagnostics.issues.some(i => i.includes('High API call rate')));
-    assert.strictEqual(diagnostics.issues.length, 2);
-    assert.strictEqual(diagnostics.recommendations.length, 2);
+    expect(diagnostics.overallHealth).toBe('critical');
+    expect(diagnostics.issues.some(i => i.includes('Emergency stop'))).toBe(true);
+    expect(diagnostics.issues.some(i => i.includes('High API call rate'))).toBe(true);
+    expect(diagnostics.issues.length).toBe(2);
+    expect(diagnostics.recommendations.length).toBe(2);
   });
 });
 
-after(() => {
+afterAll(() => {
   botMonitor.destroy();
   emergencyStop.destroy();
 });

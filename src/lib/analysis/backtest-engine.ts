@@ -1,6 +1,7 @@
 
-import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams, Trade } from '../types';
+import type { HistoricalData, BacktestResult, BacktestSummary, DisciplineParams } from '../types';
 import { RiskGuardian } from '../risk-guardian';
+import Decimal from 'decimal.js';
 
 export interface BacktestEngineConfig {
     initialCapital: number;
@@ -21,10 +22,10 @@ export interface BacktestEngineResult {
 }
 
 /**
- * Optimized Backtest Engine - Senior Architect Implementation
+ * Optimized Backtest Engine - Quantitative Trading Implementation
  * 
  * Performance: O(N) single-pass iteration.
- * Mathematical Accuracy: Handles price gaps, slippage, and fees with 8-decimal precision.
+ * Mathematical Precision: Uses decimal.js for financial balance, trade PnL, fees, and drawdown.
  * Robustness: Integrated Risk Management (RiskGuardian) and Liquidation checks.
  */
 export function executeBacktestEngine(
@@ -51,9 +52,9 @@ export function executeBacktestEngine(
     }, initialCapital);
 
     const trades: BacktestResult[] = [];
-    let currentBalance = initialCapital;
-    let peakBalance = initialCapital;
-    let maxDrawdown = 0;
+    let currentBalance = new Decimal(initialCapital);
+    let peakBalance = new Decimal(initialCapital);
+    let maxDrawdownDec = new Decimal(0);
 
     let positionType: 'long' | 'short' | null = null;
     let entryPrice = 0;
@@ -63,12 +64,11 @@ export function executeBacktestEngine(
     let tradeQuantity = 0;
     let entryPeakPrice: number | undefined;
 
-    // Fixed math helper to avoid floating point drift
-    const f8 = (num: number) => Math.round(num * 1e8) / 1e8;
+    const f8 = (num: number) => new Decimal(num).toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber();
 
     for (let i = 1; i < data.length; i++) {
         // 1. Liquidation Check
-        if (currentBalance <= 0) break;
+        if (currentBalance.lessThanOrEqualTo(0)) break;
 
         const current = data[i];
         const prev = data[i - 1];
@@ -91,7 +91,7 @@ export function executeBacktestEngine(
                 }
                 // Check normal Take Profit hit
                 else if (current.high >= takeProfitLevel) {
-                    exitPrice = f8(takeProfitLevel);
+                    exitPrice = f8(takeProfitLevel * (1 - slippage / 100));
                     closeReason = 'take-profit';
                 }
                 // Check Strategy Exit Signal (Reverse Signal)
@@ -112,7 +112,7 @@ export function executeBacktestEngine(
                 }
                 // Check normal Take Profit hit
                 else if (current.low <= takeProfitLevel) {
-                    exitPrice = f8(takeProfitLevel);
+                    exitPrice = f8(takeProfitLevel * (1 + slippage / 100));
                     closeReason = 'take-profit';
                 }
                 // Check Strategy Exit Signal
@@ -123,22 +123,36 @@ export function executeBacktestEngine(
             }
 
             if (exitPrice !== null) {
-                const entryValue = f8(entryPrice * tradeQuantity);
-                const exitValue = f8(exitPrice * tradeQuantity);
-                const totalFee = f8((entryValue + exitValue) * (fee / 100));
-                
-                const grossPnl = positionType === 'long' 
-                    ? exitValue - entryValue 
-                    : entryValue - exitValue;
-                
-                const netPnl = f8(grossPnl - totalFee);
+                const entryValue = new Decimal(entryPrice).times(tradeQuantity);
+                const exitValue = new Decimal(exitPrice).times(tradeQuantity);
+                const feeRate = new Decimal(fee).dividedBy(100);
+                const totalFee = entryValue.plus(exitValue).times(feeRate);
 
-                riskGuardian.registerTrade(netPnl);
-                currentBalance = f8(currentBalance + netPnl);
-                
-                if (currentBalance > peakBalance) peakBalance = currentBalance;
-                const dd = f8(((peakBalance - currentBalance) / peakBalance) * 100);
-                if (dd > maxDrawdown) maxDrawdown = dd;
+                const grossPnl = positionType === 'long'
+                    ? exitValue.minus(entryValue)
+                    : entryValue.minus(exitValue);
+
+                const netPnl = grossPnl.minus(totalFee);
+                const netPnlNum = netPnl.toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber();
+
+                riskGuardian.registerTrade(netPnlNum);
+                currentBalance = currentBalance.plus(netPnl);
+
+                if (currentBalance.greaterThan(peakBalance)) {
+                    peakBalance = currentBalance;
+                }
+
+                if (peakBalance.greaterThan(0)) {
+                    const currentDd = peakBalance.minus(currentBalance).dividedBy(peakBalance).times(100);
+                    if (currentDd.greaterThan(maxDrawdownDec)) {
+                        maxDrawdownDec = currentDd;
+                    }
+                }
+
+                const positionValue = entryValue.toNumber();
+                const pnlPercent = positionValue > 0 
+                    ? new Decimal(netPnlNum).dividedBy(positionValue).times(100).toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber()
+                    : 0;
 
                 trades.push({
                     id: `t-${trades.length}`,
@@ -147,12 +161,12 @@ export function executeBacktestEngine(
                     entryPrice,
                     exitTime: current.time,
                     exitPrice,
-                    pnl: netPnl,
-                    pnlPercent: f8((netPnl / initialCapital) * 100),
+                    pnl: netPnlNum,
+                    pnlPercent,
                     closeReason,
                     stopLoss: stopLossLevel,
                     takeProfit: takeProfitLevel,
-                    fee: totalFee,
+                    fee: totalFee.toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber(),
                     peakPrice: entryPeakPrice
                 });
 
@@ -169,13 +183,13 @@ export function executeBacktestEngine(
                 const { allowed } = riskGuardian.canTrade(current.time);
                 if (!allowed) continue;
 
-                // Entry Price calculation with slippage
-                entryPrice = f8(current.open * (signal === 'BUY' ? (1 + slippage / 100) : (1 - slippage / 100)));
+                const slipFactor = signal === 'BUY' ? (1 + slippage / 100) : (1 - slippage / 100);
+                entryPrice = f8(current.open * slipFactor);
                 entryTime = current.time;
                 entryPeakPrice = prev.peakPrice;
 
-                const capitalToUse = useCompounding ? currentBalance : initialCapital;
-                tradeQuantity = f8((capitalToUse * leverage) / entryPrice);
+                const capitalToUse = useCompounding ? currentBalance : new Decimal(initialCapital);
+                tradeQuantity = capitalToUse.times(leverage).dividedBy(entryPrice).toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber();
 
                 if (signal === 'BUY') {
                     positionType = 'long';
@@ -194,24 +208,28 @@ export function executeBacktestEngine(
     const totalTrades = trades.length;
     const wins = trades.filter(t => t.pnl > 0);
     const losses = trades.filter(t => t.pnl <= 0);
-    const totalWinsPnl = wins.reduce((sum, t) => sum + t.pnl, 0);
-    const totalLossesPnl = losses.reduce((sum, t) => sum + t.pnl, 0);
-    const totalPnl = f8(currentBalance - initialCapital);
-    const totalFees = trades.reduce((sum, t) => sum + (t.fee || 0), 0);
+    const totalWinsPnl = wins.reduce((sum, t) => sum.plus(t.pnl), new Decimal(0));
+    const totalLossesPnl = losses.reduce((sum, t) => sum.plus(t.pnl), new Decimal(0));
+
+    const totalPnlDec = currentBalance.minus(initialCapital);
+    const totalFeesDec = trades.reduce((sum, t) => sum.plus(t.fee || 0), new Decimal(0));
+
+    const endingBalanceNum = currentBalance.toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber();
+    const totalPnlNum = totalPnlDec.toDecimalPlaces(8, Decimal.ROUND_HALF_UP).toNumber();
 
     const summary: BacktestSummary = {
         totalTrades,
-        winRate: totalTrades > 0 ? f8((wins.length / totalTrades) * 100) : 0,
-        totalPnl,
-        totalFees: f8(totalFees),
-        averageWin: wins.length > 0 ? f8(totalWinsPnl / wins.length) : 0,
-        averageLoss: losses.length > 0 ? f8(Math.abs(totalLossesPnl / losses.length)) : 0,
-        profitFactor: totalLossesPnl !== 0 ? f8(Math.abs(totalWinsPnl / totalLossesPnl)) : (totalWinsPnl > 0 ? Infinity : 0),
+        winRate: totalTrades > 0 ? new Decimal(wins.length).dividedBy(totalTrades).times(100).toDecimalPlaces(4).toNumber() : 0,
+        totalPnl: totalPnlNum,
+        totalFees: totalFeesDec.toDecimalPlaces(8).toNumber(),
+        averageWin: wins.length > 0 ? totalWinsPnl.dividedBy(wins.length).toDecimalPlaces(8).toNumber() : 0,
+        averageLoss: losses.length > 0 ? totalLossesPnl.abs().dividedBy(losses.length).toDecimalPlaces(8).toNumber() : 0,
+        profitFactor: !totalLossesPnl.isZero() ? totalWinsPnl.dividedBy(totalLossesPnl.abs()).toDecimalPlaces(4).toNumber() : (totalWinsPnl.greaterThan(0) ? Infinity : 0),
         initialCapital,
-        endingBalance: f8(currentBalance),
-        totalReturnPercent: f8((totalPnl / initialCapital) * 100),
-        maxDrawdown: f8(maxDrawdown)
+        endingBalance: endingBalanceNum,
+        totalReturnPercent: new Decimal(totalPnlNum).dividedBy(initialCapital).times(100).toDecimalPlaces(4).toNumber(),
+        maxDrawdown: maxDrawdownDec.toDecimalPlaces(4).toNumber()
     };
 
-    return { trades, summary, finalBalance: currentBalance, maxDrawdown };
+    return { trades, summary, finalBalance: endingBalanceNum, maxDrawdown: summary.maxDrawdown };
 }

@@ -22,92 +22,95 @@ export function TradingChartTab({
 }: TradingChartTabProps) {
   return (
     <div className="space-y-4">
-          <div className="mb-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-gray-200">
-            <h3 className="font-semibold text-gray-800 mb-2">📊 Trading Chart Analysis</h3>
-            <p className="text-sm text-gray-700">
-              Comprehensive price action, volume analysis, and order flow correlation for {selectedSymbol}
-            </p>
+      <div className="mb-4 p-4 bg-secondary/40 border border-white/10 rounded-xl backdrop-blur-xl">
+        <h3 className="font-bold text-foreground mb-1 flex items-center gap-2">
+          <Activity className="h-4 w-4 text-sky-400" />
+          Trading Chart Analysis
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          Comprehensive price action, volume analysis, and order flow correlation for {selectedSymbol}
+        </p>
+      </div>
+
+      {/* Chart Controls */}
+      <Card className="p-4 bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-bold text-foreground font-mono">📈 Chart Type:</label>
+            <select 
+              className="px-3 py-1.5 border border-white/10 rounded-lg bg-secondary/60 text-foreground text-xs font-bold shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+            >
+              <option value="candlestick" className="bg-slate-900 text-foreground font-semibold">Candlestick</option>
+              <option value="line" className="bg-slate-900 text-foreground font-semibold">Line Chart</option>
+              <option value="area" className="bg-slate-900 text-foreground font-semibold">Area Chart</option>
+            </select>
           </div>
+          <div className="flex items-center gap-3">
+            <label className="text-xs font-bold text-foreground font-mono">⏰ Timeframe:</label>
+            <select 
+              value={selectedTimeInterval}
+              onChange={(e) => setSelectedTimeInterval(e.target.value)}
+              className="px-3 py-1.5 border border-white/10 rounded-lg bg-secondary/60 text-foreground text-xs font-bold shadow-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all"
+            >
+              <option value="30s" className="bg-slate-900 text-foreground font-semibold">30 Seconds</option>
+              <option value="5m" className="bg-slate-900 text-foreground font-semibold">5 Minutes</option>
+              <option value="1h" className="bg-slate-900 text-foreground font-semibold">1 Hour</option>
+              <option value="4h" className="bg-slate-900 text-foreground font-semibold">4 Hours</option>
+            </select>
+          </div>
+          <span className="text-xs text-sky-400 font-mono font-bold bg-sky-500/10 px-3 py-1 rounded-full border border-sky-500/30">
+            Real-time price action with order flow overlay
+          </span>
+        </div>
+      </Card>
 
-          {/* Chart Controls */}
-          <Card className="p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-200">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-indigo-800">📈 Chart Type:</label>
-                <select 
-                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
-                >
-                  <option value="candlestick" className="text-gray-800 font-semibold bg-white">Candlestick</option>
-                  <option value="line" className="text-gray-800 font-semibold bg-white">Line Chart</option>
-                  <option value="area" className="text-gray-800 font-semibold bg-white">Area Chart</option>
-                </select>
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-indigo-800">⏰ Timeframe:</label>
-                <select 
-                  value={selectedTimeInterval}
-                  onChange={(e) => setSelectedTimeInterval(e.target.value)}
-                  className="px-3 py-2 border-2 border-indigo-400 rounded-md bg-white text-gray-800 text-sm font-bold shadow-lg hover:border-indigo-500 hover:shadow-xl focus:border-indigo-600 focus:ring-2 focus:ring-indigo-200 transition-all duration-200"
-                >
-                  <option value="30s" className="text-gray-800 font-semibold bg-white">30 Seconds</option>
-                  <option value="5m" className="text-gray-800 font-semibold bg-white">5 Minutes</option>
-                  <option value="1h" className="text-gray-800 font-semibold bg-white">1 Hour</option>
-                  <option value="4h" className="text-gray-800 font-semibold bg-white">4 Hours</option>
-                </select>
-              </div>
-              <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
-                Real-time price action with order flow overlay
-              </span>
-            </div>
-          </Card>
-
-          {/* Main Trading Chart */}
-          <Card className="border-2 border-indigo-200">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-indigo-800">
-                📈 {selectedSymbol} Price Chart with Order Flow Analysis
-                {isMonitoring && (
-                  <Badge className="bg-green-500 animate-pulse text-xs">LIVE</Badge>
-                )}
-              </CardTitle>
-              <CardDescription>
-                Candlestick chart with volume, technical indicators, and manipulation risk overlay
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Chart Legend */}
-              <div className="mb-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-green-500 rounded"></div>
-                      <span className="font-semibold">Green Candle ↑</span>
-                    </div>
-                    <span className="text-muted-foreground">Price closed higher than open</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-red-500 rounded"></div>
-                      <span className="font-semibold">Red Candle ↓</span>
-                    </div>
-                    <span className="text-muted-foreground">Price closed lower than open</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-blue-500 rounded"></div>
-                      <span className="font-semibold">Volume Bars</span>
-                    </div>
-                    <span className="text-muted-foreground">Trading volume per timeframe</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-3 h-3 bg-orange-500 rounded"></div>
-                      <span className="font-semibold">Risk Level</span>
-                    </div>
-                    <span className="text-muted-foreground">Order flow manipulation risk</span>
-                  </div>
+      {/* Main Trading Chart */}
+      <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+        <CardHeader className="border-b border-white/5 pb-3">
+          <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            📈 {selectedSymbol} Price Chart with Order Flow Analysis
+            {isMonitoring && (
+              <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 animate-pulse text-xs">LIVE</Badge>
+            )}
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            Candlestick chart with volume, technical indicators, and manipulation risk overlay
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4">
+          {/* Chart Legend */}
+          <div className="mb-4 p-3 bg-secondary/30 rounded-xl border border-white/5">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-emerald-400 rounded-sm"></div>
+                  <span className="font-bold text-foreground">Green Candle ↑</span>
                 </div>
+                <span className="text-muted-foreground">Closed higher</span>
               </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-rose-400 rounded-sm"></div>
+                  <span className="font-bold text-foreground">Red Candle ↓</span>
+                </div>
+                <span className="text-muted-foreground">Closed lower</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-sky-400 rounded-sm"></div>
+                  <span className="font-bold text-foreground">Volume Bars</span>
+                </div>
+                <span className="text-muted-foreground">Trading volume</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-amber-400 rounded-sm"></div>
+                  <span className="font-bold text-foreground">Risk Level</span>
+                </div>
+                <span className="text-muted-foreground">Manipulation risk</span>
+              </div>
+            </div>
+          </div>
 
               {/* Combined Chart */}
               <div className="h-96 w-full">
@@ -237,36 +240,36 @@ export function TradingChartTab({
 
               {/* Current Price Info */}
               {tradingChartData.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-indigo-50 rounded-lg">
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-4 p-4 bg-secondary/30 border border-white/5 rounded-xl">
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-indigo-800">Current Price</div>
-                    <div className="text-lg font-bold text-green-600">
+                    <div className="text-xs font-semibold text-muted-foreground">Current Price</div>
+                    <div className="text-base font-bold text-emerald-400 font-mono">
                       ${tradingChartData[tradingChartData.length - 1]?.close?.toLocaleString()}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-indigo-800">24h High</div>
-                    <div className="text-lg font-bold text-gray-700">
+                    <div className="text-xs font-semibold text-muted-foreground">24h High</div>
+                    <div className="text-base font-bold text-foreground font-mono">
                       ${Math.max(...tradingChartData.map(d => d.high)).toLocaleString()}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-indigo-800">24h Low</div>
-                    <div className="text-lg font-bold text-gray-700">
+                    <div className="text-xs font-semibold text-muted-foreground">24h Low</div>
+                    <div className="text-base font-bold text-foreground font-mono">
                       ${Math.min(...tradingChartData.map(d => d.low)).toLocaleString()}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-indigo-800">Volume</div>
-                    <div className="text-lg font-bold text-blue-600">
+                    <div className="text-xs font-semibold text-muted-foreground">Volume</div>
+                    <div className="text-base font-bold text-sky-400 font-mono">
                       {tradingChartData[tradingChartData.length - 1]?.volume?.toLocaleString()}
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className="text-sm font-semibold text-indigo-800">Risk Level</div>
-                    <div className={`text-lg font-bold ${
-                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 3 ? 'text-green-600' :
-                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 6 ? 'text-yellow-600' : 'text-red-600'
+                    <div className="text-xs font-semibold text-muted-foreground">Risk Level</div>
+                    <div className={`text-base font-bold font-mono ${
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 3 ? 'text-emerald-400' :
+                      tradingChartData[tradingChartData.length - 1]?.manipulationRisk <= 6 ? 'text-amber-400' : 'text-rose-400'
                     }`}>
                       {tradingChartData[tradingChartData.length - 1]?.manipulationRisk?.toFixed(1)}/10
                     </div>
@@ -278,38 +281,38 @@ export function TradingChartTab({
 
           {/* Technical Analysis & Order Flow Correlation */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+              <CardHeader className="border-b border-white/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
                   📊 Technical Indicators
-                  <Badge variant="outline">Real-time</Badge>
+                  <Badge variant="outline" className="text-xs border-sky-500/30 text-sky-400">Real-time</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-4">
+                <div className="space-y-3 font-mono">
                   {tradingChartData.length > 0 && (
                     <>
-                      <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                        <span className="text-sm font-semibold">SMA (20):</span>
-                        <span className="font-bold text-blue-600">
+                      <div className="flex justify-between items-center p-3 bg-secondary/30 border border-white/5 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">SMA (20):</span>
+                        <span className="text-sm font-bold text-sky-400">
                           ${tradingChartData[tradingChartData.length - 1]?.sma20?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-semibold">EMA (12):</span>
-                        <span className="font-bold text-green-600">
+                      <div className="flex justify-between items-center p-3 bg-secondary/30 border border-white/5 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">EMA (12):</span>
+                        <span className="text-sm font-bold text-emerald-400">
                           ${tradingChartData[tradingChartData.length - 1]?.ema12?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                        <span className="text-sm font-semibold">Resistance:</span>
-                        <span className="font-bold text-orange-600">
+                      <div className="flex justify-between items-center p-3 bg-secondary/30 border border-white/5 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">Resistance:</span>
+                        <span className="text-sm font-bold text-amber-400">
                           ${tradingChartData[tradingChartData.length - 1]?.resistance?.toLocaleString()}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
-                        <span className="text-sm font-semibold">Support:</span>
-                        <span className="font-bold text-purple-600">
+                      <div className="flex justify-between items-center p-3 bg-secondary/30 border border-white/5 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">Support:</span>
+                        <span className="text-sm font-bold text-purple-400">
                           ${tradingChartData[tradingChartData.length - 1]?.support?.toLocaleString()}
                         </span>
                       </div>
@@ -319,44 +322,44 @@ export function TradingChartTab({
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <Card className="bg-background/60 backdrop-blur-xl border border-white/10 shadow-xl">
+              <CardHeader className="border-b border-white/5 pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
                   🔄 Order Flow Correlation
-                  <Badge variant="outline">Live Analysis</Badge>
+                  <Badge variant="outline" className="text-xs border-emerald-500/30 text-emerald-400">Live Analysis</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="pt-4">
+                <div className="space-y-3 font-mono">
                   {tradingChartData.length > 0 && (
                     <>
-                      <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                        <span className="text-sm font-semibold">Buy Pressure:</span>
-                        <span className="font-bold text-green-600">
+                      <div className="flex justify-between items-center p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">Buy Pressure:</span>
+                        <span className="text-sm font-bold text-emerald-400">
                           {tradingChartData[tradingChartData.length - 1]?.buyPressure || 0} orders
                         </span>
                       </div>
-                      <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
-                        <span className="text-sm font-semibold">Sell Pressure:</span>
-                        <span className="font-bold text-red-600">
+                      <div className="flex justify-between items-center p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl">
+                        <span className="text-xs font-semibold text-muted-foreground">Sell Pressure:</span>
+                        <span className="text-sm font-bold text-rose-400">
                           {tradingChartData[tradingChartData.length - 1]?.sellPressure || 0} orders
                         </span>
                       </div>
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-2">Order Flow Sentiment:</div>
-                        <div className={`font-bold ${
+                      <div className="p-3 bg-secondary/30 border border-white/5 rounded-xl">
+                        <div className="text-xs font-semibold text-muted-foreground mb-1">Order Flow Sentiment:</div>
+                        <div className={`text-sm font-bold ${
                           (tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
                           (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
-                          'text-green-600' : 'text-red-600'
+                          'text-emerald-400' : 'text-rose-400'
                         }`}>
                           {(tradingChartData[tradingChartData.length - 1]?.buyPressure || 0) > 
                            (tradingChartData[tradingChartData.length - 1]?.sellPressure || 0) ? 
                            '🚀 BULLISH' : '📉 BEARISH'}
                         </div>
                       </div>
-                      <div className="p-3 bg-yellow-50 rounded-lg">
-                        <div className="text-sm font-semibold mb-2">Price Action Signal:</div>
-                        <div className="text-yellow-700 text-sm">
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                        <div className="text-xs font-semibold text-amber-300 mb-1">Price Action Signal:</div>
+                        <div className="text-amber-400 text-xs font-bold">
                           {tradingChartData.length >= 2 &&
                            tradingChartData[tradingChartData.length - 1]?.close > tradingChartData[tradingChartData.length - 2]?.close ?
                            '⬆️ Upward momentum detected' : '⬇️ Downward momentum detected'}
