@@ -178,6 +178,9 @@ export type HistoricalData = {
   aiConfidence?: number;
   isProjected?: boolean;
   debug_info?: any;
+  // For Nano Microscope
+  toxic_features?: number[];
+  spatial_features?: number[];
 };
 
 

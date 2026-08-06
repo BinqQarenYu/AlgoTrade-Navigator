@@ -8,6 +8,34 @@ import Decimal from 'decimal.js';
 // Helper for exponential backoff
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+async function ccxtWithRetry<T>(operation: () => Promise<T>, maxRetries = 3, initialDelay = 1000): Promise<T> {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        try {
+            return await operation();
+        } catch (error: any) {
+            attempt++;
+            if (attempt >= maxRetries) throw error;
+            
+            const isTimeout = error.name === 'RequestTimeout' || error.message?.includes('timed out');
+            const isRateLimit = error.name === 'RateLimitExceeded' || error.message?.includes('429');
+            const isNetworkError = error.name === 'NetworkError' || error.message?.includes('network');
+            
+            if (isTimeout || isRateLimit || isNetworkError) {
+                let waitTime = Math.pow(2, attempt - 1) * initialDelay;
+                if (isRateLimit) waitTime = waitTime * 2;
+                waitTime += Math.random() * 500;
+                
+                console.warn(`[CCXT] Call failed (${error.name || error.message}). Retrying in ${Math.round(waitTime)}ms... (Attempt ${attempt}/${maxRetries})`);
+                await sleep(waitTime);
+            } else {
+                throw error;
+            }
+        }
+    }
+    throw new Error("Exceeded max retries");
+}
+
 // This function is now the single point of contact for all client-side requests to our proxy.
 async function callProxy<T>(
     path: string, 
@@ -85,7 +113,8 @@ const getBinanceExchange = async () => {
         const { binance } = await import('ccxt');
         binanceExchangeInstance = new binance({
             options: { defaultType: 'future' },
-            enableRateLimit: true, 
+            enableRateLimit: true,
+            timeout: 30000,
         });
     }
     return binanceExchangeInstance;
@@ -188,8 +217,8 @@ export const getHistoricalKlines = async (
     
     try {
         const binanceExchange = await getBinanceExchange();
-        // Use CCXT's unified method to fetch OHLCV data
-        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500);
+        // Use CCXT's unified method to fetch OHLCV data with retry
+        const ohlcv = await ccxtWithRetry(() => binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, startTime, 1500));
         
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -213,7 +242,7 @@ export const getLatestKlinesByLimit = async (
     
     try {
         const binanceExchange = await getBinanceExchange();
-        const ohlcv = await binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit);
+        const ohlcv = await ccxtWithRetry(() => binanceExchange.fetchOHLCV(symbol.toUpperCase(), interval, undefined, limit));
         
         if (!Array.isArray(ohlcv)) {
             throw new Error('Unexpected data format from CCXT fetchOHLCV.');
@@ -234,7 +263,7 @@ export const getOrderBook = async (
 ): Promise<{ bids: [string, string][], asks: [string, string][] }> => {
     try {
         const binanceExchange = await getBinanceExchange();
-        const orderbook = await binanceExchange.fetchOrderBook(symbol.toUpperCase(), limit);
+        const orderbook = await ccxtWithRetry(() => binanceExchange.fetchOrderBook(symbol.toUpperCase(), limit));
         return {
             bids: (orderbook.bids || []).map(b => [(b[0] ?? 0).toString(), (b[1] ?? 0).toString()]),
             asks: (orderbook.asks || []).map(a => [(a[0] ?? 0).toString(), (a[1] ?? 0).toString()]),
@@ -251,7 +280,7 @@ export const getRecentTrades = async (
 ): Promise<any[]> => {
     try {
         const binanceExchange = await getBinanceExchange();
-        const trades = await binanceExchange.fetchTrades(symbol.toUpperCase(), undefined, limit);
+        const trades = await ccxtWithRetry(() => binanceExchange.fetchTrades(symbol.toUpperCase(), undefined, limit));
         if (trades && trades.length > 0) {
             return trades.map((t: any) => ({
                 id: t.id || t.info?.id || Date.now().toString(),
