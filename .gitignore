@@ -46,3 +46,4 @@ firestore-debug.logcore
 
 # local data
 /data/
+*.db
