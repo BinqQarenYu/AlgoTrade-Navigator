@@ -43,7 +43,7 @@ import { useSymbolManager } from "@/hooks/use-symbol-manager"
 import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
 import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover" // For default discipline
 import { useDataManager } from "@/context/data-manager-context"
-
+import { SeasonalAnalysis } from "@/components/seasonal-analysis"
 const OpenPositionsCard = ({
     positions,
     onSelectPosition,
@@ -391,8 +391,9 @@ function SimulationPageContent() {
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 relative pb-4">
-          <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
+        <div className="xl:col-span-3 space-y-6">
+          <div className="relative pb-4">
+            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
               <TradingChart 
                 data={chartDataWithIndicators} 
                 symbol={symbol} 
@@ -403,10 +404,18 @@ function SimulationPageContent() {
                 highlightedTrade={highlightedTradeForChart}
               />
           </div>
-          <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
-              <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+            <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
+                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
+            </div>
           </div>
+          
+          <Card>
+             <CardContent className="pt-6">
+               <SeasonalAnalysis symbol={symbol} />
+             </CardContent>
+          </Card>
         </div>
+
         <div className="xl:col-span-2 space-y-6">
           <Card>
             <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>

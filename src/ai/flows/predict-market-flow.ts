@@ -33,16 +33,19 @@ const PredictMarketInputSchema = z.object({
 });
 export type PredictMarketInput = z.infer<typeof PredictMarketInputSchema>;
 
-const PredictionDetailSchema = z.object({
-  prediction: z.enum(['UP', 'DOWN', 'NEUTRAL']),
-  confidence: z.number().min(0).max(1),
-  reasoning: z.string(),
-  recommendation: z.string(),
-});
-
 const PredictMarketOutputSchema = z.object({
-  aggressive: PredictionDetailSchema.describe('High-risk, short-term scalping strategy (1-5 periods). Focus on momentum and liquidity traps.'),
-  conservative: PredictionDetailSchema.describe('Lower-risk, mid-to-long term trend following (12-48 periods). Focus on fundamentals and established levels.'),
+  aggressive: z.object({
+    prediction: z.enum(['UP', 'DOWN', 'NEUTRAL']),
+    confidence: z.number().min(0).max(1),
+    reasoning: z.string(),
+    recommendation: z.string(),
+  }).describe('High-risk, short-term scalping strategy (1-5 periods). Focus on momentum and liquidity traps.'),
+  conservative: z.object({
+    prediction: z.enum(['UP', 'DOWN', 'NEUTRAL']),
+    confidence: z.number().min(0).max(1),
+    reasoning: z.string(),
+    recommendation: z.string(),
+  }).describe('Lower-risk, mid-to-long term trend following (12-48 periods). Focus on fundamentals and established levels.'),
   institutionalBias: z.string().describe('A single-sentence summary of where the "Big Money" is likely leaning based on MC/Volume.'),
 });
 export type PredictMarketOutput = z.infer<typeof PredictMarketOutputSchema>;

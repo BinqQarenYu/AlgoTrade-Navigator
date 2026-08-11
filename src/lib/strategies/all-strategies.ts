@@ -32,6 +32,8 @@ import mtfEngulfingStrategy from './mtf-engulfing';
 import smiMfiSupertrendStrategy from './smi-mfi-supertrend';
 import aiHybridStrategy from './ai-hybrid';
 import nanoMicroscopeStrategy from './nano-microscope';
+import semaforSmoothedHAStrategy from './semafor-smoothed-ha';
+import seasonalAnalysisStrategy from './seasonal-analysis';
 
 export const strategies: Strategy[] = [
   codeBasedConsensusStrategy,
@@ -66,6 +68,8 @@ export const strategies: Strategy[] = [
   smiMfiSupertrendStrategy,
   aiHybridStrategy,
   nanoMicroscopeStrategy,
+  semaforSmoothedHAStrategy,
+  seasonalAnalysisStrategy,
 ].sort((a,b) => a.name.localeCompare(b.name));
 
 export const getStrategyById = (id: string): Strategy | undefined => {

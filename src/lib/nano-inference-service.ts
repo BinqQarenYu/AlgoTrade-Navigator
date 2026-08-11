@@ -112,4 +112,98 @@ export class NanoInferenceEngine {
       };
     }
   }
+
+  async processBatch(toxicFeaturesList: number[][], spatialFeaturesList: number[][]): Promise<NanoInferenceResult[]> {
+    if (!this.session) {
+      return toxicFeaturesList.map(() => ({
+        signal: 'WAIT', confidence: 1.0, prob_long: 0.0, prob_short: 0.0, prob_wait: 1.0
+      }));
+    }
+
+    try {
+      const batchSize = toxicFeaturesList.length;
+      if (batchSize === 0) return [];
+
+      // Flatten arrays for batch tensor
+      const toxicFlat = new Float32Array(batchSize * 13);
+      const spatialFlat = new Float32Array(batchSize * 60);
+
+      for (let i = 0; i < batchSize; i++) {
+        toxicFlat.set(toxicFeaturesList[i], i * 13);
+        spatialFlat.set(spatialFeaturesList[i], i * 60);
+      }
+
+      const toxicTensor = new ort.Tensor('float32', toxicFlat, [batchSize, 13]);
+      const spatialTensor = new ort.Tensor('float32', spatialFlat, [batchSize, 60]);
+
+      const feeds: Record<string, ort.Tensor> = {
+        toxic_input: toxicTensor,
+        spatial_input: spatialTensor
+      };
+
+      const results = await this.session.run(feeds);
+      
+      const outputKey = this.session.outputNames[0];
+      const logits = results[outputKey].data as Float32Array;
+
+      const outputResults: NanoInferenceResult[] = [];
+
+      for (let i = 0; i < batchSize; i++) {
+        const offset = i * 3;
+        const maxLogit = Math.max(logits[offset], logits[offset+1], logits[offset+2]);
+        const exp = [
+          Math.exp(logits[offset] - maxLogit),
+          Math.exp(logits[offset+1] - maxLogit),
+          Math.exp(logits[offset+2] - maxLogit)
+        ];
+        const sumExp = exp[0] + exp[1] + exp[2];
+        const probs = exp.map(e => e / sumExp);
+
+        const long_p = probs[0];
+        const short_p = probs[1];
+        const wait_p = probs[2];
+
+        let signal: 'LONG' | 'SHORT' | 'WAIT' = 'WAIT';
+        let confidence = wait_p;
+
+        if (long_p >= LONG_THRESHOLD) {
+          signal = 'LONG';
+          confidence = long_p;
+        } else if (short_p >= SHORT_THRESHOLD) {
+          signal = 'SHORT';
+          confidence = short_p;
+        } else {
+          signal = 'WAIT';
+          confidence = wait_p;
+        }
+
+        outputResults.push({
+          signal,
+          confidence,
+          prob_long: long_p,
+          prob_short: short_p,
+          prob_wait: wait_p
+        });
+      }
+
+      return outputResults;
+    } catch (error) {
+      console.warn("[NanoEngine] Batch inference failed, falling back to concurrent single inferences:", error);
+      
+      const results: NanoInferenceResult[] = [];
+      const chunkSize = 50; 
+      for (let i = 0; i < toxicFeaturesList.length; i += chunkSize) {
+        const chunkToxic = toxicFeaturesList.slice(i, i + chunkSize);
+        const chunkSpatial = spatialFeaturesList.slice(i, i + chunkSize);
+        
+        const chunkPromises = chunkToxic.map((toxic, idx) => 
+          this.processTick(toxic, chunkSpatial[idx])
+        );
+        
+        const chunkResults = await Promise.all(chunkPromises);
+        results.push(...chunkResults);
+      }
+      return results;
+    }
+  }
 }

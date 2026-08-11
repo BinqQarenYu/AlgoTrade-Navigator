@@ -253,11 +253,10 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
     const data = dataBufferRef.current[botId];
 
     if (!botState || !data || (botState.status !== 'running' && botState.status !== 'analyzing' && botState.status !== 'position_open')) return;
-    if (!activeProfile) return;
-    
     const config = botState.config as LiveBotConfig;
-    let currentPosition = botState.activePosition;
+    if (!activeProfile && config.executionMode !== 'PAPER') return;
     
+    let currentPosition = botState.activePosition;
     const riskGuardian = riskGuardianRefs.current[botId];
     const { allowed, reason } = riskGuardian?.canTrade(Date.now()) ?? { allowed: true, reason: '', mode: 'none' as const };
     if (!allowed) {
@@ -284,8 +283,14 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
                 } else {
                     const side = currentPosition.action === 'UP' ? 'SELL' : 'BUY';
                     const quantity = new Decimal(config.capital).mul(config.leverage).div(currentPosition.entryPrice).toNumber();
-                    const orderResult = await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey }, true);
-                    toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
+                    let orderResult;
+                    if (config.executionMode === 'PAPER') {
+                        orderResult = { orderId: `paper-close-${Date.now()}`, quantity, price: latestCandle.close };
+                        toast({ title: "Position Closed (Paper)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} logged.` });
+                    } else {
+                        orderResult = await placeOrder(config.asset, side, quantity, { apiKey: activeProfile!.apiKey, secretKey: activeProfile!.secretKey }, true);
+                        toast({ title: "Position Closed (Live)", description: `${side} order for ${orderResult.quantity.toFixed(5)} ${config.asset} placed.` });
+                    }
                     const pnl = side === 'SELL' 
                         ? new Decimal(orderResult.price).minus(currentPosition.entryPrice).mul(orderResult.quantity).toNumber()
                         : new Decimal(currentPosition.entryPrice).minus(orderResult.price).mul(orderResult.quantity).toNumber();
@@ -316,8 +321,12 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
               } else {
                   const side = signal.action === 'UP' ? 'BUY' : 'SELL';
                   const quantity = new Decimal(config.capital).mul(config.leverage).div(signal.entryPrice).toNumber();
-                  await placeOrder(config.asset, side, quantity, { apiKey: activeProfile.apiKey, secretKey: activeProfile.secretKey });
-                  toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+                  if (config.executionMode === 'PAPER') {
+                      toast({ title: "Position Opened (Paper)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} logged.` });
+                  } else {
+                      await placeOrder(config.asset, side, quantity, { apiKey: activeProfile!.apiKey, secretKey: activeProfile!.secretKey });
+                      toast({ title: "Position Opened (Live)", description: `${side} order for ${quantity.toFixed(5)} ${config.asset} placed.` });
+                  }
               }
               setLiveBotState(prev => ({...prev, bots: {...prev.bots, [botId]: {...prev.bots[botId], activePosition: signal, status: 'position_open'}}}));
           } else {

@@ -15,6 +15,10 @@ interface DataManagerContextType {
     interval: string, 
     dateRange?: { from?: Date, to?: Date }
   ) => Promise<HistoricalData[] | null>;
+  getSeasonalData: (
+    symbol: string,
+    years?: number
+  ) => Promise<HistoricalData[] | null>;
   isLoading: boolean;
   isLastFetchCached: boolean;
   error: string | null;
@@ -89,8 +93,78 @@ export const DataManagerProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  const getSeasonalData = useCallback(async (
+    symbol: string,
+    years: number = 7
+  ): Promise<HistoricalData[] | null> => {
+    const cacheKey = `SEASONAL-${symbol}-${years}Y`;
+
+    // 1. In-Memory Cache Check
+    if (cacheRef.current[cacheKey]) {
+      console.log(`[Cache] Memory HIT for ${cacheKey}`);
+      return cacheRef.current[cacheKey];
+    }
+
+    // 2. Persistent IndexedDB Cache Check
+    const persistentData = await getCachedKlines(cacheKey);
+    if (persistentData && persistentData.length > 0) {
+      console.log(`[Cache] IndexedDB HIT for ${cacheKey} (${persistentData.length} candles)`);
+      cacheRef.current[cacheKey] = persistentData;
+      return persistentData;
+    }
+
+    // 3. Network Fetch (Public Binance API) with Pagination
+    console.log(`[Cache] MISS for ${cacheKey}. Fetching ${years} years of daily data...`);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let allData: HistoricalData[] = [];
+      const now = Date.now();
+      let startTime = now - (years * 365 * 24 * 60 * 60 * 1000);
+      
+      while (startTime < now) {
+        const chunk = await getHistoricalKlines(symbol, '1d', startTime, now);
+        
+        if (!chunk || chunk.length === 0) {
+          break;
+        }
+
+        allData = [...allData, ...chunk];
+        
+        const lastCandleTime = chunk[chunk.length - 1].time;
+        
+        // If CCXT returned less than 500, we probably reached the end of available data
+        if (lastCandleTime >= now - (24 * 60 * 60 * 1000) || chunk.length < 500) {
+           break;
+        }
+        
+        startTime = lastCandleTime + 1; // Start right after the last candle
+
+        // Wait a bit to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      if (allData.length > 0) {
+        // Sort just in case
+        allData.sort((a, b) => a.time - b.time);
+        
+        cacheRef.current[cacheKey] = allData;
+        await saveCachedKlines(cacheKey, allData);
+      }
+      
+      setIsLoading(false);
+      return allData.length > 0 ? allData : null;
+    } catch (e: any) {
+      console.error(`Failed to fetch seasonal data for ${symbol}:`, e);
+      setError(e.message || "An unknown error occurred while fetching seasonal data.");
+      setIsLoading(false);
+      return null;
+    }
+  }, []);
+
   return (
-    <DataManagerContext.Provider value={{ getChartData, isLoading, isLastFetchCached, error, clearPersistentCache }}>
+    <DataManagerContext.Provider value={{ getChartData, getSeasonalData, isLoading, isLastFetchCached, error, clearPersistentCache }}>
       {children}
     </DataManagerContext.Provider>
   );

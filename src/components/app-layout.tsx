@@ -14,7 +14,8 @@ import {
   Activity, 
   Flame, 
   Layers,
-  Sparkles
+  Sparkles,
+  Bug
 } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -40,6 +41,7 @@ const menuItems = [
   { href: "/order-flow", label: "Order Flow", icon: Activity },
   { href: "/candlestick-patterns", label: "Pattern Screener", icon: Flame },
   { href: "/manual", label: "Manual Execution", icon: UserCheck },
+  { href: "/debug", label: "Visual Debugger", icon: Bug },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 

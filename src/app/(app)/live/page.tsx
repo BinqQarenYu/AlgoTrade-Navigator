@@ -402,7 +402,7 @@ export default function LiveTradingPage() {
             return;
         }
 
-        if (activeProfile?.permissions !== 'FuturesTrading') {
+        if (activeProfile?.permissions !== 'FuturesTrading' && botConfig.executionMode !== 'PAPER') {
             toast({ title: "Permission Denied", description: "The active API key must have 'FuturesTrading' permissions enabled to start a live bot.", variant: "destructive"});
             return;
         }
@@ -508,7 +508,7 @@ export default function LiveTradingPage() {
                                 <div className="space-y-4 py-4">
                                     <SystemCheckItem label="Binance API Connected" passed={isConnected} />
                                     <Separator />
-                                    <SystemCheckItem label="Active Profile has Trading Permissions" passed={activeProfile?.permissions === 'FuturesTrading'} />
+                                    <SystemCheckItem label="Trading Permissions (Live Bots Only)" passed={!botInstances.some(b => b.executionMode !== 'PAPER') || activeProfile?.permissions === 'FuturesTrading'} />
                                     <Separator />
                                     <SystemCheckItem label="Telegram Notifications Configured" passed={!!(telegramBotToken && telegramChatId)} />
                                     <Separator />
@@ -526,7 +526,7 @@ export default function LiveTradingPage() {
                     {/** Update this if you add/remove columns in the table header/body */}
                     {/** This ensures colSpan always matches the number of columns */}
                     {(() => {
-                        const TABLE_COLUMN_COUNT = 11;
+                        const TABLE_COLUMN_COUNT = 12;
                         return (
                             <div className="border rounded-md overflow-x-auto">
                                 <Table>
@@ -534,6 +534,7 @@ export default function LiveTradingPage() {
                                         <TableRow>
                                             <TableHead className="w-[50px]">#</TableHead>
                                             <TableHead>Status</TableHead>
+                                            <TableHead>Mode</TableHead>
                                             <TableHead>Asset</TableHead>
                                             <TableHead>Price</TableHead>
                                             <TableHead>Capital ($)</TableHead>
@@ -633,6 +634,19 @@ const BotInstanceRow = ({
                 <TableCell><StatusBadge status={botState?.status}/></TableCell>
                 <TableCell>
                     <Select
+                        value={bot.executionMode || 'LIVE'}
+                        onValueChange={(val) => onConfigChange(bot.id, 'executionMode', val as 'LIVE' | 'PAPER')}
+                        disabled={isBotRunning}
+                    >
+                        <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="LIVE">Live</SelectItem>
+                            <SelectItem value="PAPER">Paper</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </TableCell>
+                <TableCell>
+                    <Select
                         value={bot.asset}
                         onValueChange={(val) => onConfigChange(bot.id, 'asset', val)}
                         disabled={isBotRunning}
@@ -728,14 +742,14 @@ const BotInstanceRow = ({
                                             variant={isBotRunning ? "destructive" : "default"}
                                             size="sm"
                                             onClick={() => onToggleBot(bot.id)}
-                                            disabled={!isConnected}
+                                            disabled={!isConnected && bot.executionMode !== 'PAPER'}
                                         >
                                             {isBotRunning ? <StopCircle className="mr-2 h-4 w-4"/> : <Play className="mr-2 h-4 w-4"/>}
                                             {isBotRunning ? 'Stop' : 'Start'}
                                         </Button>
                                     </div>
                                 </TooltipTrigger>
-                                {!canTrade && !isBotRunning && (
+                                {!canTrade && !isBotRunning && bot.executionMode !== 'PAPER' && (
                                     <TooltipContent>
                                         <p>A key with Futures Trading permission is required.</p>
                                     </TooltipContent>

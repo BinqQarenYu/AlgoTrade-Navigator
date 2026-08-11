@@ -269,6 +269,7 @@ export type LiveBotConfig = {
     isManual?: boolean;
     useAIPrediction?: boolean;
     reverse?: boolean;
+    executionMode?: 'LIVE' | 'PAPER';
 };
 
 export type LiveBotStateForAsset = {

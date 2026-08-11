@@ -12,7 +12,7 @@ export const defaultNanoMicroscopeParams: NanoMicroscopeParams = {
   useAiValidation: true,
 };
 
-let engine: NanoInferenceEngine | null = null;
+const engineCache = new Map<string, NanoInferenceEngine>();
 
 const nanoMicroscopeStrategy: Strategy = {
   id: 'nano-microscope',
@@ -21,32 +21,51 @@ const nanoMicroscopeStrategy: Strategy = {
   async calculate(data: HistoricalData[], params: NanoMicroscopeParams = defaultNanoMicroscopeParams): Promise<HistoricalData[]> {
     const dataWithIndicators = data.map(d => ({ ...d }));
 
-    // Initialize engine singleton if not initialized
-    if (params.useAiValidation && !engine) {
-      engine = new NanoInferenceEngine(params.modelPath);
-      await engine.init();
+    let engine: NanoInferenceEngine | null = null;
+
+    if (params.useAiValidation) {
+      if (!engineCache.has(params.modelPath)) {
+        const newEngine = new NanoInferenceEngine(params.modelPath);
+        await newEngine.init();
+        engineCache.set(params.modelPath, newEngine);
+      }
+      engine = engineCache.get(params.modelPath)!;
     }
 
-    for (let i = 0; i < dataWithIndicators.length; i++) {
-      const current = dataWithIndicators[i];
-      
-      // If we don't have order flow data, we can't run this strategy on this candle
-      if (!current.toxic_features || !current.spatial_features || current.toxic_features.length !== 13 || current.spatial_features.length !== 60) {
-        continue;
+    if (params.useAiValidation && engine) {
+      const validIndices: number[] = [];
+      const toxicBatch: number[][] = [];
+      const spatialBatch: number[][] = [];
+
+      for (let i = 0; i < dataWithIndicators.length; i++) {
+        const current = dataWithIndicators[i];
+        
+        // If we don't have order flow data, we can't run this strategy on this candle
+        if (current.toxic_features && current.spatial_features && current.toxic_features.length === 13 && current.spatial_features.length === 60) {
+          validIndices.push(i);
+          toxicBatch.push(current.toxic_features);
+          spatialBatch.push(current.spatial_features);
+        }
       }
 
-      if (params.useAiValidation && engine) {
+      if (toxicBatch.length > 0) {
         try {
-          const result = await engine.processTick(current.toxic_features, current.spatial_features);
+          const results = await engine.processBatch(toxicBatch, spatialBatch);
           
-          if (result.signal === 'LONG') {
-            current.buySignal = current.low; // or close, depending on preference
-            current.aiConfidence = result.confidence;
-            current.aiReasoning = `ONNX inference returned LONG with ${Math.round(result.confidence * 100)}% confidence`;
-          } else if (result.signal === 'SHORT') {
-            current.sellSignal = current.high;
-            current.aiConfidence = result.confidence;
-            current.aiReasoning = `ONNX inference returned SHORT with ${Math.round(result.confidence * 100)}% confidence`;
+          for (let j = 0; j < validIndices.length; j++) {
+            const i = validIndices[j];
+            const current = dataWithIndicators[i];
+            const result = results[j];
+            
+            if (result.signal === 'LONG') {
+              current.buySignal = current.low; 
+              current.aiConfidence = result.confidence;
+              current.aiReasoning = `ONNX inference returned LONG with ${Math.round(result.confidence * 100)}% confidence`;
+            } else if (result.signal === 'SHORT') {
+              current.sellSignal = current.high;
+              current.aiConfidence = result.confidence;
+              current.aiReasoning = `ONNX inference returned SHORT with ${Math.round(result.confidence * 100)}% confidence`;
+            }
           }
         } catch (error) {
           console.error("Nano Microscope inference failed:", error);
@@ -59,3 +78,4 @@ const nanoMicroscopeStrategy: Strategy = {
 };
 
 export default nanoMicroscopeStrategy;
+

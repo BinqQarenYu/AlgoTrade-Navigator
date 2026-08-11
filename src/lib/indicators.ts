@@ -600,6 +600,60 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
     return haData;
 };
 
+export const calculateSmoothedHeikinAshi = (data: HistoricalData[], period: number): HistoricalData[] => {
+    if (data.length < period) return data;
+    
+    // Smooth the OHLC components using EMA
+    const opens = data.map(d => d.open);
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+    const closes = data.map(d => d.close);
+    
+    const emaOpen = calculateEMA(opens, period);
+    const emaHigh = calculateEMA(highs, period);
+    const emaLow = calculateEMA(lows, period);
+    const emaClose = calculateEMA(closes, period);
+    
+    const smoothedData: HistoricalData[] = [];
+    for (let i = 0; i < data.length; i++) {
+        if (emaOpen[i] === null || emaHigh[i] === null || emaLow[i] === null || emaClose[i] === null) {
+            smoothedData.push({ ...data[i], ha_open: null, ha_high: null, ha_low: null, ha_close: null } as any);
+            continue;
+        }
+        
+        const sOpen = emaOpen[i]!;
+        const sHigh = emaHigh[i]!;
+        const sLow = emaLow[i]!;
+        const sClose = emaClose[i]!;
+        
+        const haClose = (sOpen + sHigh + sLow + sClose) / 4;
+        // Find previous valid smoothed HA data for haOpen calculation
+        const prevIdx = i - 1;
+        let prevHaOpen = sOpen;
+        let prevHaClose = sClose;
+        if (prevIdx >= 0 && smoothedData[prevIdx].ha_open !== null && smoothedData[prevIdx].ha_open !== undefined) {
+            prevHaOpen = smoothedData[prevIdx].ha_open!;
+            prevHaClose = smoothedData[prevIdx].ha_close!;
+        } else {
+            prevHaOpen = (sOpen + sClose) / 2;
+            prevHaClose = haClose;
+        }
+
+        const haOpen = (prevHaOpen + prevHaClose) / 2;
+        const haHigh = Math.max(sHigh, haOpen, haClose);
+        const haLow = Math.min(sLow, haOpen, haClose);
+        
+        smoothedData.push({
+            ...data[i],
+            ha_open: haOpen,
+            ha_high: haHigh,
+            ha_low: haLow,
+            ha_close: haClose
+        });
+    }
+    return smoothedData;
+};
+
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
     const pp: (number | null)[] = [];
     const s1: (number | null)[] = [];
@@ -830,4 +884,30 @@ export const calculateSMI = (
         smi: finalSmi,
         signal: [...Array(finalSmi.length - signalLine.length).fill(null), ...signalLine]
     };
+};
+export const calculateSemafor = (data: HistoricalData[], period1: number = 5, period2: number = 13, period3: number = 34) => {
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
+
+    const high1 = calculateSlidingWindowExtreme(highs, period1, 'max');
+    const low1 = calculateSlidingWindowExtreme(lows, period1, 'min');
+    
+    const high2 = calculateSlidingWindowExtreme(highs, period2, 'max');
+    const low2 = calculateSlidingWindowExtreme(lows, period2, 'min');
+    
+    const high3 = calculateSlidingWindowExtreme(highs, period3, 'max');
+    const low3 = calculateSlidingWindowExtreme(lows, period3, 'min');
+
+    const result = [];
+    for (let i = 0; i < data.length; i++) {
+        result.push({
+            level1Top: high1[i] !== null && data[i].high === high1[i],
+            level1Bottom: low1[i] !== null && data[i].low === low1[i],
+            level2Top: high2[i] !== null && data[i].high === high2[i],
+            level2Bottom: low2[i] !== null && data[i].low === low2[i],
+            level3Top: high3[i] !== null && data[i].high === high3[i],
+            level3Bottom: low3[i] !== null && data[i].low === low3[i],
+        });
+    }
+    return result;
 };
