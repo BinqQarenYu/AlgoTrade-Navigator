@@ -57,14 +57,15 @@ const nanoMicroscopeStrategy: Strategy = {
             const current = dataWithIndicators[i];
             const result = results[j];
             
+            current.aiConfidence = result.confidence;
             if (result.signal === 'LONG') {
               current.buySignal = current.low; 
-              current.aiConfidence = result.confidence;
               current.aiReasoning = `ONNX inference returned LONG with ${Math.round(result.confidence * 100)}% confidence`;
             } else if (result.signal === 'SHORT') {
               current.sellSignal = current.high;
-              current.aiConfidence = result.confidence;
               current.aiReasoning = `ONNX inference returned SHORT with ${Math.round(result.confidence * 100)}% confidence`;
+            } else {
+              current.aiReasoning = `ONNX inference returned WAIT with ${Math.round(result.confidence * 100)}% confidence`;
             }
           }
         } catch (error) {

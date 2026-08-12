@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints } from '../indicators';
 import type { HistoricalData } from '../types';
 
-describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve)', () => {
+describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
     it('calculates SMA correctly', () => {
         const data = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19];
         const sma = calculateSMA(data, 3);
@@ -36,5 +36,36 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve)', () => {
         const coppock = calculateCoppockCurve(prices, 10, 14, 10);
         expect(coppock.length).toBe(prices.length);
         expect(coppock.some(v => v !== null && isNaN(v))).toBe(false);
+    });
+
+    it('calculates Pivot Points correctly', () => {
+        const data: HistoricalData[] = Array.from({ length: 15 }, (_, i) => ({
+            time: i * 60,
+            timestamp: i * 60000,
+            open: 100 + i,
+            high: 105 + i,
+            low: 95 + i,
+            close: 101 + i,
+            volume: 1000
+        }));
+
+        const period = 5;
+        const result = calculatePivotPoints(data, period);
+        expect(result.pp.length).toBe(15);
+        expect(result.pp[0]).toBeNull();
+        expect(result.pp[4]).toBeNull();
+
+        // At index 5, the slice of previous candles is indices 0, 1, 2, 3, 4
+        // Highs: 105, 106, 107, 108, 109 -> Max high = 109
+        // Lows: 95, 96, 97, 98, 99 -> Min low = 95
+        // Close of previous candle (index 4): 101 + 4 = 105
+        // PP = (109 + 95 + 105) / 3 = 309 / 3 = 103
+        expect(result.pp[5]).toBeCloseTo(103, 5);
+
+        // R1 = 2 * PP - Low = 2 * 103 - 95 = 206 - 95 = 111
+        expect(result.r1[5]).toBeCloseTo(111, 5);
+
+        // S1 = 2 * PP - High = 2 * 103 - 109 = 206 - 109 = 97
+        expect(result.s1[5]).toBeCloseTo(97, 5);
     });
 });

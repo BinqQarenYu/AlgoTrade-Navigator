@@ -655,56 +655,52 @@ export const calculateSmoothedHeikinAshi = (data: HistoricalData[], period: numb
 };
 
 export const calculatePivotPoints = (data: HistoricalData[], period: number): { pp: (number|null)[], s1: (number|null)[], s2: (number|null)[], s3: (number|null)[], r1: (number|null)[], r2: (number|null)[], r3: (number|null)[] } => {
-    const pp: (number | null)[] = [];
-    const s1: (number | null)[] = [];
-    const s2: (number | null)[] = [];
-    const s3: (number | null)[] = [];
-    const r1: (number | null)[] = [];
-    const r2: (number | null)[] = [];
-    const r3: (number | null)[] = [];
+    const pp: (number | null)[] = Array(data.length).fill(null);
+    const s1: (number | null)[] = Array(data.length).fill(null);
+    const s2: (number | null)[] = Array(data.length).fill(null);
+    const s3: (number | null)[] = Array(data.length).fill(null);
+    const r1: (number | null)[] = Array(data.length).fill(null);
+    const r2: (number | null)[] = Array(data.length).fill(null);
+    const r3: (number | null)[] = Array(data.length).fill(null);
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period) {
-            pp.push(null);
-            s1.push(null);
-            s2.push(null);
-            s3.push(null);
-            r1.push(null);
-            r2.push(null);
-            r3.push(null);
-        } else {
-            const slice = data.slice(i - period, i);
-            if (slice.length === 0 || !slice[slice.length - 1]) {
-                 pp.push(null);
-                 s1.push(null);
-                 s2.push(null);
-                 s3.push(null);
-                 r1.push(null);
-                 r2.push(null);
-                 r3.push(null);
-                 continue;
-            }
+    if (data.length < period) {
+        return { pp, s1, s2, s3, r1, r2, r3 };
+    }
 
-            const high = Math.max(...slice.map(d => d.high));
-            const low = Math.min(...slice.map(d => d.low));
-            const close = slice[slice.length - 1].close;
+    const highs = data.map(d => d.high);
+    const lows = data.map(d => d.low);
 
-            const ppVal = (high + low + close) / 3;
-            const r1Val = (2 * ppVal) - low;
-            const s1Val = (2 * ppVal) - high;
-            const r2Val = ppVal + (high - low);
-            const s2Val = ppVal - (high - low);
-            const r3Val = high + 2 * (ppVal - low);
-            const s3Val = low - 2 * (high - ppVal);
+    // Get rolling extremes of previous period using O(N) sliding window extreme calculation
+    const rollingHighs = calculateSlidingWindowExtreme(highs, period, 'max');
+    const rollingLows = calculateSlidingWindowExtreme(lows, period, 'min');
 
-            pp.push(ppVal);
-            r1.push(r1Val);
-            s1.push(s1Val);
-            r2.push(r2Val);
-            s2.push(s2Val);
-            r3.push(r3Val);
-            s3.push(s3Val);
+    for (let i = period; i < data.length; i++) {
+        // Pivot points for candle i use high/low from previous period (i - period to i - 1)
+        const high = rollingHighs[i - 1];
+        const low = rollingLows[i - 1];
+        const prevCandle = data[i - 1];
+
+        if (high === null || low === null || !prevCandle) {
+            continue;
         }
+
+        const close = prevCandle.close;
+
+        const ppVal = (high + low + close) / 3;
+        const r1Val = (2 * ppVal) - low;
+        const s1Val = (2 * ppVal) - high;
+        const r2Val = ppVal + (high - low);
+        const s2Val = ppVal - (high - low);
+        const r3Val = high + 2 * (ppVal - low);
+        const s3Val = low - 2 * (high - ppVal);
+
+        pp[i] = ppVal;
+        r1[i] = r1Val;
+        s1[i] = s1Val;
+        r2[i] = r2Val;
+        s2[i] = s2Val;
+        r3[i] = r3Val;
+        s3[i] = s3Val;
     }
     return { pp, s1, s2, s3, r1, r2, r3 };
 };
@@ -771,12 +767,17 @@ export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC:
     }
     wma.push(den > 0 ? num / den : null);
 
+    // Optimize WMA loop to O(N) complexity using a sliding window calculation
+    let S_val = 0;
+    for (let j = 0; j < wmaPeriod; j++) {
+        S_val += validSumRoc[j];
+    }
+
     for (let i = wmaPeriod; i < validSumRoc.length; i++) {
-        num = 0;
-        for (let j = 0; j < wmaPeriod; j++) {
-            num += validSumRoc[i - wmaPeriod + 1 + j] * (j + 1);
-        }
+        num = num + wmaPeriod * validSumRoc[i] - S_val;
         wma.push(den > 0 ? num / den : null);
+
+        S_val = S_val - validSumRoc[i - wmaPeriod] + validSumRoc[i];
     }
     
     return [...Array(data.length - wma.length).fill(null), ...wma];
