@@ -5,3 +5,7 @@
 ## 2024-03-15 - $O(N \times P)$ Anti-pattern in Technical Indicators
 **Learning:** Several technical indicators (Donchian, Ichimoku, Stochastic, WilliamsR, SMI) were implemented using `slice()` and `Math.max/min(...slice)` inside loops, leading to $O(N \times P)$ time complexity. This causes significant performance degradation as the data size or period increases.
 **Action:** Use a monotonic deque algorithm for rolling maximum/minimum calculations to achieve $O(N)$ complexity. Implemented a centralized `calculateSlidingWindowExtreme` helper with a `head` pointer to avoid $O(P)$ `shift()` operations, ensuring true $O(1)$ amortized time per element.
+
+## 2026-03-25 - $O(N \times W)$ Weighted Moving Average (WMA) Optimization in Coppock Curve
+**Learning:** The WMA step in `calculateCoppockCurve` used nested loops, resulting in $O(N \times W)$ time complexity. A sliding window weighted sum recurrence relation ($Sum_i = Sum_{i-1} + W \cdot x_i - S_{window}$) can reduce this to $O(N)$ with $O(1)$ updates per element.
+**Action:** Implemented sliding window WMA calculation using a running sum $S_{window}$ of window elements and rolling numerator updates. This achieves $O(N)$ complexity, speeding up Coppock Curve calculations significantly for long backtests.
