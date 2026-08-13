@@ -572,8 +572,16 @@ export const calculateCCI = (data: HistoricalData[], period: number): (number | 
             cci.push(null);
             continue;
         }
-        const slice = typicalPrices.slice(i - period + 1, i + 1);
-        const meanDeviation = slice.reduce((sum, val) => sum + Math.abs(val - smaTp[i]!), 0) / period;
+        // Optimize CCI calculation by replacing slice() and reduce() with a direct index loop.
+        // This eliminates garbage collection / heap allocation overhead and speeds up the calculation significantly.
+        let sumAbsoluteDeviations = 0;
+        const start = i - period + 1;
+        const end = i + 1;
+        const smaVal = smaTp[i]!;
+        for (let j = start; j < end; j++) {
+            sumAbsoluteDeviations += Math.abs(typicalPrices[j] - smaVal);
+        }
+        const meanDeviation = sumAbsoluteDeviations / period;
         const val = (typicalPrices[i] - smaTp[i]!) / (0.015 * meanDeviation);
         cci.push(meanDeviation > 0 ? val : 0);
     }

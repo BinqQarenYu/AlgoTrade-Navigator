@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -67,5 +67,21 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
 
         // S1 = 2 * PP - High = 2 * 103 - 109 = 206 - 109 = 97
         expect(result.s1[5]).toBeCloseTo(97, 5);
+    });
+
+    it('calculates CCI correctly with optimized logic', () => {
+        const data: HistoricalData[] = [
+            { time: 1, open: 10, high: 24, low: 10, close: 14, volume: 100 }, // TP = 16
+            { time: 2, open: 10, high: 28, low: 12, close: 14, volume: 100 }, // TP = 18
+            { time: 3, open: 10, high: 32, low: 14, close: 14, volume: 100 }, // TP = 20
+        ];
+        // SMA of typical prices for period 3 = (16 + 18 + 20) / 3 = 18
+        // Mean deviation at index 2 = (|16 - 18| + |18 - 18| + |20 - 18|) / 3 = (2 + 0 + 2) / 3 = 4/3 = 1.333333333
+        // CCI = (20 - 18) / (0.015 * 4/3) = 2 / 0.02 = 100
+        const result = calculateCCI(data, 3);
+        expect(result.length).toBe(3);
+        expect(result[0]).toBeNull();
+        expect(result[1]).toBeNull();
+        expect(result[2]).toBeCloseTo(100, 5);
     });
 });
