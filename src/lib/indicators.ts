@@ -563,18 +563,33 @@ export const calculateWilliamsR = (data: HistoricalData[], period: number): (num
 };
 
 export const calculateCCI = (data: HistoricalData[], period: number): (number | null)[] => {
-    const cci: (number | null)[] = [];
+    if (period <= 0 || !Number.isInteger(period)) {
+        console.error(`Invalid period (${period}) provided to calculateCCI.`);
+        return Array(data.length).fill(null);
+    }
+    if (data.length < period) return Array(data.length).fill(null);
+
+    // Pre-fill the initial period - 1 elements with null
+    const cci: (number | null)[] = Array(period - 1).fill(null);
     const typicalPrices = data.map(d => (d.high + d.low + d.close) / 3);
     const smaTp = calculateSMA(typicalPrices, period);
 
-    for (let i = 0; i < data.length; i++) {
-        if (i < period - 1 || smaTp[i] === null) {
+    // Optimize by avoiding slice() and reduce() to prevent GC/allocation overhead
+    for (let i = period - 1; i < data.length; i++) {
+        const smaVal = smaTp[i];
+        if (smaVal === null) {
             cci.push(null);
             continue;
         }
-        const slice = typicalPrices.slice(i - period + 1, i + 1);
-        const meanDeviation = slice.reduce((sum, val) => sum + Math.abs(val - smaTp[i]!), 0) / period;
-        const val = (typicalPrices[i] - smaTp[i]!) / (0.015 * meanDeviation);
+
+        let sumAbsoluteDeviation = 0;
+        const startIdx = i - period + 1;
+        for (let j = 0; j < period; j++) {
+            sumAbsoluteDeviation += Math.abs(typicalPrices[startIdx + j] - smaVal);
+        }
+        const meanDeviation = sumAbsoluteDeviation / period;
+
+        const val = (typicalPrices[i] - smaVal) / (0.015 * meanDeviation);
         cci.push(meanDeviation > 0 ? val : 0);
     }
     return cci;

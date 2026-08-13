@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -67,5 +67,52 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
 
         // S1 = 2 * PP - High = 2 * 103 - 109 = 206 - 109 = 97
         expect(result.s1[5]).toBeCloseTo(97, 5);
+    });
+
+    it('calculates CCI correctly and handles edge cases', () => {
+        // Construct small dummy data
+        const data: HistoricalData[] = Array.from({ length: 6 }, (_, i) => ({
+            time: i * 60,
+            timestamp: i * 60000,
+            open: 10 + i,
+            high: 12 + i,
+            low: 8 + i,
+            close: 10 + i,
+            volume: 1000
+        }));
+
+        // Typical prices should be: (high + low + close) / 3
+        // index 0: (12+8+10)/3 = 10
+        // index 1: (13+9+11)/3 = 11
+        // index 2: (14+10+12)/3 = 12
+        // index 3: (15+11+13)/3 = 13
+        // index 4: (16+12+14)/3 = 14
+        // index 5: (17+13+15)/3 = 15
+
+        // Period 3
+        // SMA of Typical prices:
+        // index 2: (10+11+12)/3 = 11
+        // index 3: (11+12+13)/3 = 12
+        // index 4: (12+13+14)/3 = 13
+        // index 5: (13+14+15)/3 = 14
+
+        // Mean deviation for index 2 (window: 10, 11, 12, SMA=11):
+        // (|10-11| + |11-11| + |12-11|)/3 = (1 + 0 + 1)/3 = 2/3
+        // CCI = (typicalPrice - SMA) / (0.015 * meanDeviation)
+        // CCI = (12 - 11) / (0.015 * (2/3)) = 1 / 0.01 = 100
+
+        const cci3 = calculateCCI(data, 3);
+        expect(cci3.length).toBe(6);
+        expect(cci3[0]).toBeNull();
+        expect(cci3[1]).toBeNull();
+        expect(cci3[2]).toBeCloseTo(100, 5);
+
+        // Edge case: period > data.length
+        const cciEmpty = calculateCCI(data, 10);
+        expect(cciEmpty).toEqual([null, null, null, null, null, null]);
+
+        // Edge case: period is invalid
+        const cciInvalid = calculateCCI(data, -1);
+        expect(cciInvalid).toEqual([null, null, null, null, null, null]);
     });
 });
