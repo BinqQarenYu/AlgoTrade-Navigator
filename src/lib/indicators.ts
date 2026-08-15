@@ -823,12 +823,16 @@ export const calculateMFI = (data: HistoricalData[], period: number): (number | 
     let posFlow = 0;
     let negFlow = 0;
 
-    const typicalPrices = data.map(d => (d.high + d.low + d.close) / 3);
-    const rawMoneyFlows = data.map((d, i) => typicalPrices[i] * d.volume);
+    // Helper to calculate typical price without allocating intermediate arrays
+    const getTP = (d: HistoricalData) => (d.high + d.low + d.close) / 3;
 
     for (let i = 1; i <= period; i++) {
-        if (typicalPrices[i] > typicalPrices[i - 1]) posFlow += rawMoneyFlows[i];
-        else if (typicalPrices[i] < typicalPrices[i - 1]) negFlow += rawMoneyFlows[i];
+        const tpCurr = getTP(data[i]);
+        const tpPrev = getTP(data[i - 1]);
+        const mf = tpCurr * data[i].volume;
+
+        if (tpCurr > tpPrev) posFlow += mf;
+        else if (tpCurr < tpPrev) negFlow += mf;
     }
 
     const calcMfiValue = (pos: number, neg: number) => {
@@ -840,13 +844,23 @@ export const calculateMFI = (data: HistoricalData[], period: number): (number | 
 
     mfi.push(calcMfiValue(posFlow, negFlow));
 
+    // Sliding window loop: calculate flow changes on demand to eliminate O(N) array allocation overhead
     for (let i = period + 1; i < data.length; i++) {
         const outIdx = i - period;
-        if (typicalPrices[outIdx] > typicalPrices[outIdx - 1]) posFlow -= rawMoneyFlows[outIdx];
-        else if (typicalPrices[outIdx] < typicalPrices[outIdx - 1]) negFlow -= rawMoneyFlows[outIdx];
 
-        if (typicalPrices[i] > typicalPrices[i - 1]) posFlow += rawMoneyFlows[i];
-        else if (typicalPrices[i] < typicalPrices[i - 1]) negFlow += rawMoneyFlows[i];
+        const tpOut = getTP(data[outIdx]);
+        const tpOutPrev = getTP(data[outIdx - 1]);
+        const mfOut = tpOut * data[outIdx].volume;
+
+        if (tpOut > tpOutPrev) posFlow -= mfOut;
+        else if (tpOut < tpOutPrev) negFlow -= mfOut;
+
+        const tpIn = getTP(data[i]);
+        const tpInPrev = getTP(data[i - 1]);
+        const mfIn = tpIn * data[i].volume;
+
+        if (tpIn > tpInPrev) posFlow += mfIn;
+        else if (tpIn < tpInPrev) negFlow += mfIn;
 
         mfi.push(calcMfiValue(posFlow, negFlow));
     }

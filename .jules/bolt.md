@@ -13,3 +13,7 @@
 ## 2026-03-26 - $O(N \times P)$ Allocation and Callback Overhead in Commodity Channel Index (CCI)
 **Learning:** Identified that `calculateCCI` fell into the same slice/reduce loop anti-pattern as previous indicators. Inside the main loop, it allocated an intermediate array via `.slice()` and invoked a callback via `.reduce()` on every single candle. For large datasets, this creates significant GC pressure and slows execution.
 **Action:** Replaced the `.slice().reduce()` pattern inside `calculateCCI` with a direct, pointer-based index loop. This achieved a 3.0x speedup (reducing execution time from ~33ms to ~11ms for 20k elements) and resulted in a completely allocation-free calculation loop.
+
+## 2026-03-27 - Elimination of Array Map Pre-allocations in Money Flow Index (MFI)
+**Learning:** `calculateMFI` pre-allocated two full $O(N)$ arrays (`typicalPrices` and `rawMoneyFlows`) using `data.map()`. Evaluating typical prices and raw money flow on-demand inside the sliding window loop eliminates $O(N)$ array allocations and heap churn.
+**Action:** Replace `data.map()` calls in `calculateMFI` with a lightweight helper function called inside the sliding window loop. This resulted in an ~1.81x speedup (~9.28ms to ~5.13ms for 50,000 candles) and reduced GC overhead.
