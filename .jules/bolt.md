@@ -13,3 +13,7 @@
 ## 2026-03-26 - $O(N \times P)$ Allocation and Callback Overhead in Commodity Channel Index (CCI)
 **Learning:** Identified that `calculateCCI` fell into the same slice/reduce loop anti-pattern as previous indicators. Inside the main loop, it allocated an intermediate array via `.slice()` and invoked a callback via `.reduce()` on every single candle. For large datasets, this creates significant GC pressure and slows execution.
 **Action:** Replaced the `.slice().reduce()` pattern inside `calculateCCI` with a direct, pointer-based index loop. This achieved a 3.0x speedup (reducing execution time from ~33ms to ~11ms for 20k elements) and resulted in a completely allocation-free calculation loop.
+
+## 2026-03-27 - Inline Slice/Map Heap Allocations in Hyper Peak Formation Strategy
+**Learning:** `Math.min(...data.slice().map())` inside strategy iteration loops creates huge heap allocation spikes and GC overhead by allocating temporary subarray clones and mapped number arrays on every candle iteration.
+**Action:** Replace `data.slice(start, end).map()` inside strategy calculation loops with direct, pointer-based `for` loops to eliminate intermediate array allocations and improve execution time by ~1.45x on large candle datasets.
