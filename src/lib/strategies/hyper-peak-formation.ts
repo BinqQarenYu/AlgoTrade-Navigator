@@ -160,7 +160,11 @@ const hyperPeakFormationStrategy: Strategy = {
             }
             if (!isEmaBearish) continue;
 
-            const lowSinceBos = Math.min(...data.slice(bosIndex, i + 1).map(c => c.low));
+            // Optimize low since BOS finding using direct loop to avoid slice() & map() heap allocations
+            let lowSinceBos = data[bosIndex].low;
+            for (let idx = bosIndex + 1; idx <= i; idx++) {
+                if (data[idx].low < lowSinceBos) lowSinceBos = data[idx].low;
+            }
             const fibRange = peakHigh - lowSinceBos;
             const fib50 = lowSinceBos + fibRange * fibLevel1;
             if (debug) {
@@ -246,7 +250,11 @@ const hyperPeakFormationStrategy: Strategy = {
             }
             if (!isEmaBullish) continue;
 
-            const highSinceBos = Math.max(...data.slice(bosIndexLong, i + 1).map(c => c.high));
+            // Optimize high since BOS finding using direct loop to avoid slice() & map() heap allocations
+            let highSinceBos = data[bosIndexLong].high;
+            for (let idx = bosIndexLong + 1; idx <= i; idx++) {
+                if (data[idx].high > highSinceBos) highSinceBos = data[idx].high;
+            }
             const fibRangeLong = highSinceBos - peakLow;
             const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
             if (debug) {
