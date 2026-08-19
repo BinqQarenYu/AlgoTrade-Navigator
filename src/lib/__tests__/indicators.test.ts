@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateATR, calculateCMF } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,41 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates ATR correctly with on-demand TR logic', () => {
+        const data: HistoricalData[] = [
+            { time: 1, open: 10, high: 15, low: 9, close: 12, volume: 100 }, // TR = 15 - 9 = 6
+            { time: 2, open: 12, high: 16, low: 11, close: 14, volume: 100 }, // TR = max(16-11, |16-12|, |11-12|) = max(5, 4, 1) = 5
+            { time: 3, open: 14, high: 18, low: 13, close: 15, volume: 100 }, // TR = max(18-13, |18-14|, |13-14|) = max(5, 4, 1) = 5
+        ];
+        // Period = 3, sum TR = 6 + 5 + 5 = 16. ATR[2] = 16 / 3 = 5.333333
+        const atr = calculateATR(data, 3);
+        expect(atr.length).toBe(3);
+        expect(atr[0]).toBeNull();
+        expect(atr[1]).toBeNull();
+        expect(atr[2]).toBeCloseTo(16 / 3, 5);
+
+        // Insufficient data return
+        const shortAtr = calculateATR(data, 5);
+        expect(shortAtr).toEqual([null, null, null]);
+    });
+
+    it('calculates CMF correctly with on-demand MFV logic', () => {
+        const data: HistoricalData[] = [
+            { time: 1, open: 10, high: 20, low: 10, close: 15, volume: 1000 }, // Close = mid -> multiplier = 0 -> MFV = 0
+            { time: 2, open: 10, high: 20, low: 10, close: 20, volume: 1000 }, // Close = high -> multiplier = 1 -> MFV = 1000
+            { time: 3, open: 10, high: 20, low: 10, close: 10, volume: 1000 }, // Close = low -> multiplier = -1 -> MFV = -1000
+        ];
+        // Sum MFV = 0 + 1000 - 1000 = 0. Sum Vol = 3000. CMF = 0
+        const cmf = calculateCMF(data, 3);
+        expect(cmf.length).toBe(3);
+        expect(cmf[0]).toBeNull();
+        expect(cmf[1]).toBeNull();
+        expect(cmf[2]).toBeCloseTo(0, 5);
+
+        // Insufficient data return
+        const shortCmf = calculateCMF(data, 5);
+        expect(shortCmf).toEqual([null, null, null]);
     });
 });

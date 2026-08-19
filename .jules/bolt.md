@@ -17,3 +17,7 @@
 ## 2026-03-27 - Elimination of Array Map Pre-allocations in Money Flow Index (MFI)
 **Learning:** `calculateMFI` pre-allocated two full $O(N)$ arrays (`typicalPrices` and `rawMoneyFlows`) using `data.map()`. Evaluating typical prices and raw money flow on-demand inside the sliding window loop eliminates $O(N)$ array allocations and heap churn.
 **Action:** Replace `data.map()` calls in `calculateMFI` with a lightweight helper function called inside the sliding window loop. This resulted in an ~1.81x speedup (~9.28ms to ~5.13ms for 50,000 candles) and reduced GC overhead.
+
+## 2026-03-28 - Elimination of $O(N)$ Intermediate Array Allocations in ATR and CMF
+**Learning:** `calculateATR` allocated an intermediate `trValues: number[]` array of size $N$, and `calculateCMF` used `data.map()` to pre-allocate an $O(N)$ `mfv: number[]` array. Calculating True Range and Money Flow Volume on-demand within the sliding window loops eliminates heap allocations and GC pressure.
+**Action:** Compute TR and MFV on-demand during iterations. This yielded a ~33% speedup for ATR (~75.5ms down to ~50.9ms for 50,000 candles) and a ~28% speedup for CMF (~171ms down to ~123ms), while eliminating $2 \times N$ numbers allocated on the heap per backtest run.
