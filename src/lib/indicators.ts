@@ -250,28 +250,26 @@ export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: n
 export const calculateATR = (data: HistoricalData[], period: number): (number | null)[] => {
     if (data.length < period) return Array(data.length).fill(null);
 
-    const trValues: number[] = [];
-    for (let i = 0; i < data.length; i++) {
-        const high = data[i].high;
-        const low = data[i].low;
-        if (i === 0) {
-            trValues.push(high - low);
-        } else {
-            const prevClose = data[i - 1].close;
-            trValues.push(Math.max(high - low, Math.abs(high - prevClose), Math.abs(low - prevClose)));
-        }
-    }
-
     const atr: (number | null)[] = Array(period - 1).fill(null);
     let sumTr = 0;
     for (let i = 0; i < period; i++) {
-        sumTr += trValues[i];
+        const d = data[i];
+        if (i === 0) {
+            sumTr += d.high - d.low;
+        } else {
+            const prevClose = data[i - 1].close;
+            sumTr += Math.max(d.high - d.low, Math.abs(d.high - prevClose), Math.abs(d.low - prevClose));
+        }
     }
     let currentAtr = sumTr / period;
     atr.push(currentAtr);
 
+    // Calculate True Range on demand to eliminate intermediate O(N) array allocation overhead
     for (let i = period; i < data.length; i++) {
-        currentAtr = (currentAtr * (period - 1) + trValues[i]) / period;
+        const d = data[i];
+        const prevClose = data[i - 1].close;
+        const tr = Math.max(d.high - d.low, Math.abs(d.high - prevClose), Math.abs(d.low - prevClose));
+        currentAtr = (currentAtr * (period - 1) + tr) / period;
         atr.push(currentAtr);
     }
     return atr;
@@ -728,24 +726,27 @@ export const calculateOBV = (data: HistoricalData[]): (number | null)[] => {
 };
 
 export const calculateCMF = (data: HistoricalData[], period: number): (number | null)[] => {
+    if (data.length < period) return Array(data.length).fill(null);
+
     const cmf: (number | null)[] = Array(period - 1).fill(null);
-    const mfv: number[] = data.map(d => {
+
+    // Helper to calculate Money Flow Volume on demand to eliminate intermediate O(N) array allocation overhead
+    const getMfv = (d: HistoricalData) => {
         const range = d.high - d.low;
-        const multiplier = range > 0 ? ((d.close - d.low) - (d.high - d.close)) / range : 0;
-        return multiplier * d.volume;
-    });
+        return range > 0 ? (((d.close - d.low) - (d.high - d.close)) / range) * d.volume : 0;
+    };
 
     let sumMfv = 0;
     let sumVol = 0;
 
     for (let i = 0; i < period; i++) {
-        sumMfv += mfv[i];
+        sumMfv += getMfv(data[i]);
         sumVol += data[i].volume;
     }
     cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
 
     for (let i = period; i < data.length; i++) {
-        sumMfv = sumMfv - mfv[i - period] + mfv[i];
+        sumMfv = sumMfv - getMfv(data[i - period]) + getMfv(data[i]);
         sumVol = sumVol - data[i - period].volume + data[i].volume;
         cmf.push(sumVol > 0 ? sumMfv / sumVol : null);
     }
