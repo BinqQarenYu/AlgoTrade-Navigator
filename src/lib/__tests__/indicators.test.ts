@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateSmoothedHeikinAshi } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,31 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates Smoothed Heikin Ashi correctly and handles short data', () => {
+        const shortData: HistoricalData[] = [
+            { time: 1, open: 10, high: 12, low: 8, close: 11, volume: 100 },
+            { time: 2, open: 11, high: 13, low: 9, close: 12, volume: 100 },
+        ];
+        expect(calculateSmoothedHeikinAshi(shortData, 3)).toEqual(shortData);
+
+        const data: HistoricalData[] = Array.from({ length: 5 }, (_, i) => ({
+            time: i + 1,
+            open: 100 + i,
+            high: 105 + i,
+            low: 95 + i,
+            close: 102 + i,
+            volume: 1000
+        }));
+
+        const result = calculateSmoothedHeikinAshi(data, 3);
+        expect(result.length).toBe(5);
+        expect(result[0].ha_open).toBeNull();
+        expect(result[1].ha_open).toBeNull();
+        expect(result[2].ha_open).not.toBeNull();
+        expect(result[2].ha_high).not.toBeNull();
+        expect(result[2].ha_low).not.toBeNull();
+        expect(result[2].ha_close).not.toBeNull();
     });
 });

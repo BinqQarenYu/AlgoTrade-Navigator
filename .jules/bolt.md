@@ -17,3 +17,7 @@
 ## 2026-03-27 - Elimination of Array Map Pre-allocations in Money Flow Index (MFI)
 **Learning:** `calculateMFI` pre-allocated two full $O(N)$ arrays (`typicalPrices` and `rawMoneyFlows`) using `data.map()`. Evaluating typical prices and raw money flow on-demand inside the sliding window loop eliminates $O(N)$ array allocations and heap churn.
 **Action:** Replace `data.map()` calls in `calculateMFI` with a lightweight helper function called inside the sliding window loop. This resulted in an ~1.81x speedup (~9.28ms to ~5.13ms for 50,000 candles) and reduced GC overhead.
+
+## 2026-03-28 - Multi-component Fused EMA in Smoothed Heikin-Ashi
+**Learning:** `calculateSmoothedHeikinAshi` extracted 4 component arrays using `data.map()` and made 4 separate calls to `calculateEMA()`, allocating 8 intermediate arrays and making 4 passes over data. Fusing the 4 EMA computations into a single-pass loop reduces execution time by >2x (~46.5ms down to ~21.8ms for 50,000 candles) and drastically cuts heap allocations.
+**Action:** Fuse multi-component EMA calculations into a single loop pass and pre-allocate fixed-length output arrays whenever indicators require smoothing multiple OHLC series simultaneously.
