@@ -609,33 +609,74 @@ export const calculateHeikinAshi = (data: HistoricalData[]): HistoricalData[] =>
 };
 
 export const calculateSmoothedHeikinAshi = (data: HistoricalData[], period: number): HistoricalData[] => {
-    if (data.length < period) return data;
+    const len = data.length;
+    if (len < period) return data;
     
-    // Smooth the OHLC components using EMA
-    const opens = data.map(d => d.open);
-    const highs = data.map(d => d.high);
-    const lows = data.map(d => d.low);
-    const closes = data.map(d => d.close);
+    // Optimize calculateSmoothedHeikinAshi by calculating the 4 component EMAs (Open, High, Low, Close)
+    // in a single single-pass loop over the dataset. This eliminates allocating 4 intermediate component arrays via data.map()
+    // as well as multiple separate array allocations and passes inside calculateEMA.
+    const multiplier = 2 / (period + 1);
+
+    const emaOpenArr = new Array<number | null>(len);
+    const emaHighArr = new Array<number | null>(len);
+    const emaLowArr = new Array<number | null>(len);
+    const emaCloseArr = new Array<number | null>(len);
+
+    let prevEmaOpen: number | null = null;
+    let prevEmaHigh: number | null = null;
+    let prevEmaLow: number | null = null;
+    let prevEmaClose: number | null = null;
+
+    for (let i = 0; i < len; i++) {
+        if (i < period - 1) {
+            emaOpenArr[i] = null;
+            emaHighArr[i] = null;
+            emaLowArr[i] = null;
+            emaCloseArr[i] = null;
+            continue;
+        }
+        if (i === period - 1) {
+            let sO = 0, sH = 0, sL = 0, sC = 0;
+            for (let j = 0; j < period; j++) {
+                sO += data[j].open;
+                sH += data[j].high;
+                sL += data[j].low;
+                sC += data[j].close;
+            }
+            prevEmaOpen = sO / period;
+            prevEmaHigh = sH / period;
+            prevEmaLow = sL / period;
+            prevEmaClose = sC / period;
+            emaOpenArr[i] = prevEmaOpen;
+            emaHighArr[i] = prevEmaHigh;
+            emaLowArr[i] = prevEmaLow;
+            emaCloseArr[i] = prevEmaClose;
+        } else {
+            const d = data[i];
+            prevEmaOpen = (d.open - prevEmaOpen!) * multiplier + prevEmaOpen!;
+            prevEmaHigh = (d.high - prevEmaHigh!) * multiplier + prevEmaHigh!;
+            prevEmaLow = (d.low - prevEmaLow!) * multiplier + prevEmaLow!;
+            prevEmaClose = (d.close - prevEmaClose!) * multiplier + prevEmaClose!;
+            emaOpenArr[i] = prevEmaOpen;
+            emaHighArr[i] = prevEmaHigh;
+            emaLowArr[i] = prevEmaLow;
+            emaCloseArr[i] = prevEmaClose;
+        }
+    }
     
-    const emaOpen = calculateEMA(opens, period);
-    const emaHigh = calculateEMA(highs, period);
-    const emaLow = calculateEMA(lows, period);
-    const emaClose = calculateEMA(closes, period);
-    
-    const smoothedData: HistoricalData[] = [];
-    for (let i = 0; i < data.length; i++) {
-        if (emaOpen[i] === null || emaHigh[i] === null || emaLow[i] === null || emaClose[i] === null) {
-            smoothedData.push({ ...data[i], ha_open: null, ha_high: null, ha_low: null, ha_close: null } as any);
+    const smoothedData = new Array<HistoricalData>(len);
+    for (let i = 0; i < len; i++) {
+        const sOpen = emaOpenArr[i];
+        const sHigh = emaHighArr[i];
+        const sLow = emaLowArr[i];
+        const sClose = emaCloseArr[i];
+
+        if (sOpen === null || sHigh === null || sLow === null || sClose === null) {
+            smoothedData[i] = { ...data[i], ha_open: null, ha_high: null, ha_low: null, ha_close: null } as any;
             continue;
         }
         
-        const sOpen = emaOpen[i]!;
-        const sHigh = emaHigh[i]!;
-        const sLow = emaLow[i]!;
-        const sClose = emaClose[i]!;
-        
         const haClose = (sOpen + sHigh + sLow + sClose) / 4;
-        // Find previous valid smoothed HA data for haOpen calculation
         const prevIdx = i - 1;
         let prevHaOpen = sOpen;
         let prevHaClose = sClose;
@@ -651,13 +692,13 @@ export const calculateSmoothedHeikinAshi = (data: HistoricalData[], period: numb
         const haHigh = Math.max(sHigh, haOpen, haClose);
         const haLow = Math.min(sLow, haOpen, haClose);
         
-        smoothedData.push({
+        smoothedData[i] = {
             ...data[i],
             ha_open: haOpen,
             ha_high: haHigh,
             ha_low: haLow,
             ha_close: haClose
-        });
+        };
     }
     return smoothedData;
 };
