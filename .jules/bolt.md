@@ -17,3 +17,7 @@
 ## 2026-03-27 - Elimination of Array Map Pre-allocations in Money Flow Index (MFI)
 **Learning:** `calculateMFI` pre-allocated two full $O(N)$ arrays (`typicalPrices` and `rawMoneyFlows`) using `data.map()`. Evaluating typical prices and raw money flow on-demand inside the sliding window loop eliminates $O(N)$ array allocations and heap churn.
 **Action:** Replace `data.map()` calls in `calculateMFI` with a lightweight helper function called inside the sliding window loop. This resulted in an ~1.81x speedup (~9.28ms to ~5.13ms for 50,000 candles) and reduced GC overhead.
+
+## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
+**Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
+**Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
