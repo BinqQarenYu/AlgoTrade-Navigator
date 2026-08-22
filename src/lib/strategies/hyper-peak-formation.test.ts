@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import hyperPeakFormationStrategy from './hyper-peak-formation';
+import hyperPeakFormationStrategy, { defaultHyperPFFParams } from './hyper-peak-formation';
 import type { HistoricalData } from '../types';
 
 describe('Hyper Peak Formation Strategy', () => {
@@ -19,7 +19,7 @@ describe('Hyper Peak Formation Strategy', () => {
         }));
 
         const result = await hyperPeakFormationStrategy.calculate(mockData, {
-            ...hyperPeakFormationStrategy.defaultHyperPFFParams,
+            ...defaultHyperPFFParams,
             debug: false,
         });
 

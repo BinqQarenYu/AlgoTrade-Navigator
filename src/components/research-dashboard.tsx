@@ -290,10 +290,10 @@ export function ResearchDashboard({ selectedSymbol = 'BTCUSDT', onSymbolChange }
           {researchData.lastUpdated && (
             <div className="text-xs text-muted-foreground mt-2 space-y-1">
               <p>Last updated: {researchData.lastUpdated.toLocaleTimeString()}</p>
-              <p className="flex items-center gap-1">
+              <div className="flex items-center gap-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 Live data from CoinGecko • Market prices update every 5 minutes
-              </p>
+              </div>
             </div>
           )}
         </CardContent>

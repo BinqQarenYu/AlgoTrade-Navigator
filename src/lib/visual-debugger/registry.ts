@@ -404,7 +404,11 @@ strategies.forEach((strategy) => {
     outputs: [{ name: 'strategyOutput', type: 'any' }],
     execute: async (inputs) => {
       // Execute the strategy, handling async operations (e.g. AI-Hybrid)
-      const output = await strategy.calculate(inputs.data, inputs.params, inputs.symbol);
+      let paramsToPass = inputs.params;
+      if (paramsToPass && Object.keys(paramsToPass).length === 0) {
+        paramsToPass = undefined;
+      }
+      const output = await strategy.calculate(inputs.data, paramsToPass, inputs.symbol);
       return { strategyOutput: output };
     }
   };

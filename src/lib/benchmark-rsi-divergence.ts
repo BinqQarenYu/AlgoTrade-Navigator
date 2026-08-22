@@ -11,7 +11,7 @@ function generateMockCandles(count: number): HistoricalData[] {
     const low = Math.max(1, price - Math.random() * 2);
     const close = low + Math.random() * (high - low);
     candles.push({
-      timestamp: Date.now() - (count - i) * 60000,
+      time: Date.now() - (count - i) * 60000,
       open: price,
       high,
       low,

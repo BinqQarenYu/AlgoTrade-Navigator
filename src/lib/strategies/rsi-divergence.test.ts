@@ -5,7 +5,7 @@ import type { HistoricalData } from '../types';
 describe('RSI Divergence Strategy Optimization Tests', () => {
   it('should return empty array or un-modified output on insufficient data', async () => {
     const data: HistoricalData[] = [
-      { timestamp: 1, open: 10, high: 12, low: 8, close: 11, volume: 100 }
+      { time: 1, open: 10, high: 12, low: 8, close: 11, volume: 100 }
     ];
     const result = await rsiDivergenceStrategy.calculate(data, defaultRsiDivergenceParams);
     expect(result.length).toBe(1);
@@ -18,7 +18,7 @@ describe('RSI Divergence Strategy Optimization Tests', () => {
       // Create some oscillatory movement to generate RSI signals
       price = 100 + Math.sin(i / 5) * 10;
       candles.push({
-        timestamp: 1000 + i * 60,
+        time: 1000 + i * 60,
         open: price,
         high: price + 2,
         low: price - 2,

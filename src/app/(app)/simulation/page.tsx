@@ -1,558 +1,401 @@
+"use client";
 
-"use client"
-
-import React, { useState, useEffect, useMemo, useCallback } from "react"
-import Link from "next/link"
-import { useToast } from "@/hooks/use-toast"
-import { TradingChart } from "@/components/trading-chart"
-import { useApi } from "@/context/api-context"
-import { useBot } from "@/context/bot-context"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Terminal, Bot, Play, StopCircle, Loader2, BrainCircuit, Activity, ChevronDown, RotateCcw, GripHorizontal, TestTube, ShieldCheck } from "lucide-react"
-import { cn } from "@/lib/utils"
-import type { HistoricalData, SimulatedPosition, LiquidityEvent, LiquidityTarget, SimulatedTrade, BacktestResult, DisciplineParams } from "@/lib/types"
-import { Switch } from "@/components/ui/switch"
-import { topAssets } from "@/lib/assets"
-import { strategyMetadatas, getStrategyById } from "@/lib/strategies"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { BacktestResults } from "@/components/backtest-results"
-import { formatPrice } from "@/lib/utils"
-import { findLiquidityGrabs, findLiquidityTargets } from "@/lib/analysis/liquidity-analysis"
-import { usePersistentState } from "@/hooks/use-persistent-state"
-import { useSymbolManager } from "@/hooks/use-symbol-manager"
-import { DisciplineSettings } from "@/components/trading-discipline/DisciplineSettings"
-import { defaultSmaCrossoverParams } from "@/lib/strategies/sma-crossover" // For default discipline
-import { useDataManager } from "@/context/data-manager-context"
-import { SeasonalAnalysis } from "@/components/seasonal-analysis"
-const OpenPositionsCard = ({
-    positions,
-    onSelectPosition,
-    selectedPositionId
-}: {
-    positions: SimulatedPosition[],
-    onSelectPosition: (pos: SimulatedPosition) => void,
-    selectedPositionId?: string | null,
-}) => {
-    const [isOpen, setIsOpen] = usePersistentState('sim-positions-open', true);
-
-    return (
-        <Card>
-            <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-                <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                        <CardTitle>Open Simulated Positions</CardTitle>
-                        <CardDescription>Positions currently active in the simulation. Click to view on chart.</CardDescription>
-                    </div>
-                    <CollapsibleTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <ChevronDown className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")} />
-                            <span className="sr-only">Toggle</span>
-                        </Button>
-                    </CollapsibleTrigger>
-                </CardHeader>
-                <CollapsibleContent>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Symbol</TableHead>
-                                    <TableHead>Side</TableHead>
-                                    <TableHead>Entry Price</TableHead>
-                                    <TableHead className="text-right">Size</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {positions.length > 0 ? (
-                                    positions.map((pos) => (
-                                        <TableRow
-                                            key={pos.id}
-                                            onClick={() => onSelectPosition(pos)}
-                                            className={cn(
-                                                "cursor-pointer hover:bg-muted/80",
-                                                selectedPositionId === pos.id && "bg-primary/20 hover:bg-primary/20"
-                                            )}
-                                        >
-                                            <TableCell>{pos.asset}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={pos.side === 'LONG' ? "default" : "destructive"}>
-                                                    {pos.side}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>${formatPrice(pos.entryPrice)}</TableCell>
-                                            <TableCell className="text-right">{pos.size.toFixed(5)}</TableCell>
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                            No open positions.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </CollapsibleContent>
-            </Collapsible>
-        </Card>
-    );
-};
-
-// Conversion functions for BacktestResults component compatibility
-const convertSimulatedTradeToBacktestResult = (trade: SimulatedTrade): BacktestResult => ({
-  id: trade.id,
-  entryTime: trade.timestamp,
-  entryPrice: trade.price,
-  exitTime: trade.timestamp, // For simulation, entry and exit are the same trade record
-  exitPrice: trade.price,
-  pnl: trade.pnl || 0,
-  pnlPercent: 0, // Could calculate this if needed
-  closeReason: 'signal' as const,
-  type: trade.side === 'BUY' ? 'long' : 'short',
-  stopLoss: 0, // Would need to track this in simulation
-  takeProfit: 0, // Would need to track this in simulation
-  fee: trade.fee,
-});
-
-const convertSimulationSummaryToBacktestSummary = (simSummary: {
-  totalTrades: number;
-  winRate: number;
-  totalPnl: number;
-  maxDrawdown: number;
-}): any => ({
-  ...simSummary,
-  averageWin: 0,
-  averageLoss: 0,
-  profitFactor: 1,
-  initialCapital: 100,
-  finalCapital: 100,
-  totalReturnPercent: simSummary.totalPnl ? (simSummary.totalPnl / 100) * 100 : 0,
-  totalFees: 0,
-  maxDrawdown: simSummary.maxDrawdown || 0,
-});
-
-function SimulationPageContent() {
-  const { toast } = useToast()
-  const { isConnected } = useApi();
-  const { getChartData, isLoading: isFetchingData, error: dataError } = useDataManager();
-  const { 
-    simulationState, 
-    startSimulation, 
-    stopSimulation,
-    isTradingActive,
-    strategyParams,
-    setStrategyParams,
-  } = useBot();
-
-  const { isRunning, logs, portfolio, openPositions, tradeHistory, summary } = simulationState;
-  const botChartData = simulationState.chartData;
-  
-  const { symbol, baseAsset, quoteAsset, availableQuotes, handleBaseAssetChange, handleQuoteAssetChange } = useSymbolManager('sim', 'BTC', 'USDT');
-  const [selectedStrategy, setSelectedStrategy] = usePersistentState<string>('sim-strategy', strategyMetadatas[0].id);
-  const [interval, setInterval] = usePersistentState<string>('sim-interval', "1m");
-  const [initialCapital, setInitialCapital] = usePersistentState<number>('sim-initial-capital', 100);
-  const [leverage, setLeverage] = usePersistentState<number>('sim-leverage', 10);
-  const [takeProfit, setTakeProfit] = usePersistentState<number>('sim-tp', 1.5);
-  const [stopLoss, setStopLoss] = usePersistentState<number>('sim-sl', 1);
-  const [fee] = usePersistentState<number>('sim-fee', 0.04);
-  const [useReverseLogic, setUseReverseLogic] = usePersistentState<boolean>('sim-reverse-logic', false);
-  const [chartHeight, setChartHeight] = usePersistentState<number>('sim-chart-height', 600);
-
-  // Local chart data management
-  const [rawChartData, setRawChartData] = useState<HistoricalData[]>([]);
-  const [chartDataWithIndicators, setChartDataWithIndicators] = useState<HistoricalData[]>([]);
-
-  // Analysis State
-  const [showAnalysis, setShowAnalysis] = usePersistentState<boolean>('sim-show-analysis', true);
-  const [liquidityEvents, setLiquidityEvents] = useState<LiquidityEvent[]>([]);
-  const [liquidityTargets, setLiquidityTargets] = useState<LiquidityTarget[]>([]);
-  
-  // State for selections
-  const [selectedTrade, setSelectedTrade] = useState<SimulatedTrade | null>(null);
-  const [selectedPosition, setSelectedPosition] = useState<SimulatedPosition | null>(null);
-
-  // Collapsible states
-  const [isControlsOpen, setControlsOpen] = usePersistentState<boolean>('sim-controls-open', true);
-  
-  const handleSelectTrade = (trade: SimulatedTrade) => {
-    setSelectedTrade(trade);
-    setSelectedPosition(null);
-  };
-
-  const handleSelectPosition = (position: SimulatedPosition) => {
-    setSelectedPosition(position);
-    setSelectedTrade(null);
-  };
-  
-  const highlightedTradeForChart = useMemo<BacktestResult | null>(() => {
-    if (selectedTrade) {
-      return convertSimulatedTradeToBacktestResult(selectedTrade);
-    }
-    if (selectedPosition) {
-      // Convert SimulatedPosition to a BacktestResult-like object for the chart
-      const lastTime = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].time : selectedPosition.entryTime;
-      const lastClose = chartDataWithIndicators.length > 0 ? chartDataWithIndicators[chartDataWithIndicators.length - 1].close : selectedPosition.entryPrice;
-      const pnl = selectedPosition.side === 'LONG' 
-        ? (lastClose - selectedPosition.entryPrice) * selectedPosition.size
-        : (selectedPosition.entryPrice - lastClose) * selectedPosition.size;
-      
-      return {
-        id: selectedPosition.id,
-        type: selectedPosition.side === 'LONG' ? 'long' : 'short',
-        entryTime: selectedPosition.entryTime,
-        entryPrice: selectedPosition.entryPrice,
-        exitTime: lastTime, // Highlight up to the latest candle
-        exitPrice: lastClose,
-        pnl: pnl,
-        pnlPercent: 0, // Not relevant for this temporary object
-        closeReason: 'signal' as const, // placeholder
-        stopLoss: selectedPosition.stopLoss || 0,
-        takeProfit: selectedPosition.takeProfit || 0,
-        fee: 0,
-      };
-    }
-    return null;
-  }, [selectedTrade, selectedPosition, chartDataWithIndicators]);
-
-  const startChartResize = useCallback((mouseDownEvent: React.MouseEvent<HTMLDivElement>) => {
-    mouseDownEvent.preventDefault();
-    const startHeight = chartHeight;
-    const startPosition = mouseDownEvent.clientY;
-    const onMouseMove = (mouseMoveEvent: MouseEvent) => {
-      const newHeight = startHeight + mouseMoveEvent.clientY - startPosition;
-      if (newHeight >= 400 && newHeight <= 800) setChartHeight(newHeight);
-    };
-    const onMouseUp = () => {
-      document.body.style.cursor = 'default';
-      document.body.style.userSelect = 'auto';
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-    document.body.style.cursor = 'ns-resize';
-    document.body.style.userSelect = 'none';
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp, { once: true });
-  }, [chartHeight, setChartHeight]);
-  
-  const refreshChartAnalysis = useCallback(async (currentChartData: HistoricalData[]) => {
-    if (!showAnalysis || currentChartData.length < 20) {
-      setLiquidityEvents([]);
-      setLiquidityTargets([]);
-      return;
-    }
-
-    const getDynamicParams = () => {
-        switch(interval) {
-            case '1m': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 50 };
-            case '5m': return { lookaround: 15, confirmationCandles: 3, maxLookahead: 60 };
-            case '15m': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 75 };
-            case '1h': return { lookaround: 10, confirmationCandles: 3, maxLookahead: 90 };
-            case '4h': return { lookaround: 12, confirmationCandles: 2, maxLookahead: 120 };
-            case '1d': return { lookaround: 15, confirmationCandles: 2, maxLookahead: 150 };
-            default: return { lookaround: 8, confirmationCandles: 3, maxLookahead: 75 };
-        }
-    }
-    try {
-        const dynamicParams = getDynamicParams();
-        const [resultEvents, targetEvents] = await Promise.all([
-            findLiquidityGrabs(currentChartData, dynamicParams),
-            findLiquidityTargets(currentChartData, dynamicParams.lookaround)
-        ]);
-        setLiquidityEvents(resultEvents);
-        setLiquidityTargets(targetEvents);
-    } catch (error: any) {
-        console.error("Error analyzing liquidity automatically:", error);
-    }
-  }, [interval, showAnalysis]);
-
-  useEffect(() => {
-    if (chartDataWithIndicators.length > 0) {
-      refreshChartAnalysis(chartDataWithIndicators);
-    }
-  }, [chartDataWithIndicators, refreshChartAnalysis]);
-
-  // Effect to calculate and display indicators when data or strategy changes
-  useEffect(() => {
-    if (isRunning) {
-        setChartDataWithIndicators(botChartData || []);
-        return;
-    }
-    const calculateAndSetIndicators = async () => {
-      if (rawChartData.length === 0) {
-        setChartDataWithIndicators([]);
-        return;
-      }
-      
-      const strategy = getStrategyById(selectedStrategy);
-      if (strategy) {
-          const paramsForStrategy = strategyParams[selectedStrategy] || {};
-          const calculatedData = await strategy.calculate(rawChartData, paramsForStrategy, symbol);
-          setChartDataWithIndicators(calculatedData);
-      } else {
-          setChartDataWithIndicators(rawChartData);
-      }
-    };
-    calculateAndSetIndicators();
-  }, [rawChartData, selectedStrategy, strategyParams, isRunning, botChartData, symbol]);
-
-  const handleDisciplineParamChange = (paramName: keyof DisciplineParams, value: any) => {
-    setStrategyParams(prev => ({
-      ...prev,
-      [selectedStrategy]: {
-        ...(prev[selectedStrategy] || {}),
-        discipline: {
-          ...(prev[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline),
-          [paramName]: value
-        }
-      }
-    }));
-  };
-
-  useEffect(() => {
-    if (isRunning) return;
-
-    const fetchData = async () => {
-        const data = await getChartData(symbol, interval);
-        if (data) {
-            setRawChartData(data);
-        }
-    };
-
-    fetchData();
-  }, [symbol, interval, isRunning, getChartData]);
-  
-  useEffect(() => {
-    if (dataError) {
-        toast({
-            title: "Failed to Load Data",
-            description: dataError,
-            variant: "destructive"
-        });
-    }
-  }, [dataError, toast]);
-
-  const handleBotToggle = async () => {
-    if (isRunning) {
-        stopSimulation();
-    } else {
-        if (selectedStrategy === 'none') {
-            toast({ title: "No Strategy Selected", description: "Please select a strategy to run the simulation.", variant: "destructive"});
-            return;
-        }
-        startSimulation({
-            symbol, interval, strategy: selectedStrategy,
-            strategyParams: { ...(strategyParams[selectedStrategy] || {}), reverse: useReverseLogic },
-            initialCapital, leverage, takeProfit, stopLoss, useAIPrediction: false, fee
-        });
-    }
-  }
-
-  const anyLoading = isFetchingData;
-
-  return (
-    <div className="space-y-6">
-      <div className="text-left">
-          <h1 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-              <TestTube size={32}/> Paper Trading Simulation
-          </h1>
-          <p className="text-muted-foreground mt-2">
-              Forward-test your strategies against a live market data feed using simulated funds.
-          </p>
-      </div>
-
-     {isTradingActive && !isRunning && (
-        <Alert variant="default" className="bg-primary/10 border-primary/20 text-primary">
-            <Bot className="h-4 w-4" />
-            <AlertTitle>Trading Session Active</AlertTitle>
-            <AlertDescription>
-                Paper Trading is disabled to prioritize an active trading session.
-            </AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-        <div className="xl:col-span-3 space-y-6">
-          <div className="relative pb-4">
-            <div className="flex flex-col" style={{ height: `${chartHeight}px` }}>
-              <TradingChart 
-                data={chartDataWithIndicators} 
-                symbol={symbol} 
-                interval={interval} 
-                liquidityEvents={liquidityEvents}
-                liquidityTargets={liquidityTargets}
-                showAnalysis={showAnalysis}
-                highlightedTrade={highlightedTradeForChart}
-              />
-          </div>
-            <div onMouseDown={startChartResize} className="absolute bottom-0 left-0 w-full h-4 flex items-center justify-center cursor-ns-resize group">
-                <GripHorizontal className="h-5 w-5 text-muted-foreground/30 transition-colors group-hover:text-primary" />
-            </div>
-          </div>
-          
-          <Card>
-             <CardContent className="pt-6">
-               <SeasonalAnalysis symbol={symbol} />
-             </CardContent>
-          </Card>
-        </div>
-
-        <div className="xl:col-span-2 space-y-6">
-          <Card>
-            <Collapsible open={isControlsOpen} onOpenChange={setControlsOpen}>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2"><Bot/> Simulation Controls</CardTitle>
-                  <CardDescription>Configure and manage your simulation.</CardDescription>
-                </div>
-                <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ChevronDown className={cn("h-4 w-4 transition-transform", isControlsOpen && "rotate-180")} />
-                    </Button>
-                </CollapsibleTrigger>
-              </CardHeader>
-              <CollapsibleContent>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="base-asset">Base</Label>
-                      <Select onValueChange={handleBaseAssetChange} value={baseAsset} disabled={isRunning}><SelectTrigger id="base-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>{topAssets.map(asset => (<SelectItem key={asset.ticker} value={asset.ticker}>{asset.ticker}</SelectItem>))}</SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="quote-asset">Quote</Label>
-                      <Select onValueChange={handleQuoteAssetChange} value={quoteAsset} disabled={isRunning}><SelectTrigger id="quote-asset"><SelectValue /></SelectTrigger>
-                        <SelectContent>{availableQuotes.map(asset => (<SelectItem key={asset} value={asset}>{asset}</SelectItem>))}</SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="strategy">Strategy</Label>
-                    <Select onValueChange={setSelectedStrategy} value={selectedStrategy} disabled={isRunning}><SelectTrigger id="strategy"><SelectValue /></SelectTrigger>
-                      <SelectContent>{strategyMetadatas.map(s => (<SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>))}</SelectContent>
-                    </Select>
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor="interval">Interval</Label>
-                    <Select onValueChange={setInterval} value={interval} disabled={isRunning}>
-                      <SelectTrigger id="interval"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="1m">1 Minute</SelectItem>
-                          <SelectItem value="5m">5 Minutes</SelectItem>
-                          <SelectItem value="15m">15 Minutes</SelectItem>
-                          <SelectItem value="1h">1 Hour</SelectItem>
-                          <SelectItem value="4h">4 Hours</SelectItem>
-                          <SelectItem value="1d">1 Day</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div><Label htmlFor="initial-capital">Initial Capital ($)</Label><Input id="initial-capital" type="number" value={initialCapital} onChange={(e) => setInitialCapital(parseFloat(e.target.value) || 0)} disabled={isRunning}/></div>
-                    <div><Label htmlFor="leverage">Leverage (x)</Label><Input id="leverage" type="number" min="1" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value, 10) || 1)} disabled={isRunning}/></div>
-                    <div><Label htmlFor="fee">Fee (%)</Label><Input id="fee" type="number" value={fee} disabled={true}/></div>
-                    <div><Label htmlFor="take-profit">Take Profit (%)</Label><Input id="take-profit" type="number" value={takeProfit} onChange={(e) => setTakeProfit(parseFloat(e.target.value) || 0)} disabled={isRunning}/></div>
-                    <div><Label htmlFor="stop-loss">Stop Loss (%)</Label><Input id="stop-loss" type="number" value={stopLoss} onChange={(e) => setStopLoss(parseFloat(e.target.value) || 0)} disabled={isRunning}/></div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 pt-2"><Switch id="reverse-logic" checked={useReverseLogic} onCheckedChange={setUseReverseLogic} disabled={isRunning} /><Label htmlFor="reverse-logic">Reverse Logic (Contrarian Mode)</Label></div>
-                  <div className="flex items-center space-x-2 pt-2"><Switch id="show-analysis" checked={showAnalysis} onCheckedChange={setShowAnalysis} /><Label htmlFor="show-analysis">Show Liquidity Analysis</Label></div>
-                  
-                  <DisciplineSettings
-                    params={strategyParams[selectedStrategy]?.discipline || defaultSmaCrossoverParams.discipline}
-                    onParamChange={handleDisciplineParamChange}
-                    isDisabled={isRunning}
-                  />
-                </CardContent>
-                <CardFooter>
-                  <Button className="w-full" onClick={handleBotToggle} disabled={anyLoading || (isTradingActive && !isRunning)} variant={isRunning ? "destructive" : "default"}>
-                    {anyLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isFetchingData ? "Fetching Data..." : isRunning ? <><StopCircle /> Stop Simulation</> : <><Play /> Start Simulation</>}
-                  </Button>
-                </CardFooter>
-              </CollapsibleContent>
-            </Collapsible>
-          </Card>
-          
-          <BacktestResults 
-            results={tradeHistory.map(convertSimulatedTradeToBacktestResult)} 
-            summary={convertSimulationSummaryToBacktestSummary(summary)} 
-            onSelectTrade={(trade: BacktestResult) => {
-              // Find the original SimulatedTrade for compatibility
-              const originalTrade = tradeHistory.find(t => t.id === trade.id);
-              if (originalTrade) handleSelectTrade(originalTrade);
-            }}
-            selectedTradeId={selectedTrade?.id}
-          />
-          <OpenPositionsCard 
-            positions={openPositions} 
-            onSelectPosition={handleSelectPosition} 
-            selectedPositionId={selectedPosition?.id}
-          />
-          
-          <Card>
-             <CardHeader>
-                <CardTitle>Simulation Logs</CardTitle>
-                <CardDescription>Status: {isRunning ? "Running" : "Idle"}</CardDescription>
-             </CardHeader>
-             <CardContent>
-                <div className="bg-muted/50 p-3 rounded-md h-48 overflow-y-auto">
-                    {logs.length > 0 ? (
-                        <pre className="text-xs whitespace-pre-wrap font-mono">{logs.join('\n')}</pre>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-muted-foreground"><p>Logs will appear here.</p></div>
-                    )}
-                </div>
-             </CardContent>
-          </Card>
-
-        </div>
-      </div>
-    </div>
-  )
-}
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Decimal } from "decimal.js";
+import { useToast } from "@/hooks/use-toast";
+import { DeepDomHeader } from "@/components/simulation/deepdom-header";
+import { DeepDomBottomToolbar, DeepDomToolbarState } from "@/components/simulation/deepdom-bottom-toolbar";
+import { DeepDomOrderEntry } from "@/components/simulation/deepdom-order-entry";
+import { DeepDomReplayModal } from "@/components/simulation/deepdom-replay-modal";
+import { DeepDomCanvasChart } from "@/components/simulation/deepdom-canvas-chart";
+import { SeasonalAnalysis } from "@/components/seasonal-analysis";
+import { TVLeftSidebar } from "@/components/simulation/tv-left-sidebar";
+import { TVRightSidebar } from "@/components/simulation/tv-right-sidebar";
+import { OrderFlowReplayEngine, ReplayFrameData } from "@/lib/orderflow/orderflow-replay-engine";
+import { MBOBookEngine } from "@/lib/orderflow/mbo-book-engine";
+import { ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import type {
+  DOMOrderEntryState,
+  ReplayConfig,
+  FootprintBubble,
+  OHLCVCandle,
+  CVDPoint,
+  VolumeProfileData,
+  LiquidationEvent,
+  CumulativeLiquidation,
+  MarketProfileData,
+} from "@/lib/orderflow/types";
 
 export default function SimulationPage() {
-    const [isClient, setIsClient] = useState(false);
+  const { toast } = useToast();
 
-    useEffect(() => {
-        setIsClient(true);
-    }, []);
+  // Engine instance reference
+  const replayEngineRef = useRef<OrderFlowReplayEngine | null>(null);
 
-    if (!isClient) {
-        return (
-            <div className="space-y-6 animate-pulse p-4">
-                <div className="h-8 w-64 bg-white/5 rounded-lg"></div>
-                <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
-                    <div className="xl:col-span-3 h-[600px] bg-white/5 rounded-2xl"></div>
-                    <div className="xl:col-span-2 space-y-6">
-                        <div className="h-[300px] bg-white/5 rounded-2xl"></div>
-                        <div className="h-[200px] bg-white/5 rounded-2xl"></div>
-                    </div>
-                </div>
-            </div>
-        );
+  // Core OrderFlow State
+  const [currentPrice, setCurrentPrice] = useState<number>(96500.0);
+  const [bestBid, setBestBid] = useState<number>(96499.0);
+  const [bestAsk, setBestAsk] = useState<number>(96501.0);
+  const [bubbles, setBubbles] = useState<FootprintBubble[]>([]);
+  const [candles, setCandles] = useState<OHLCVCandle[]>([]);
+  const [cvdHistory, setCvdHistory] = useState<CVDPoint[]>([]);
+  const [volumeProfile, setVolumeProfile] = useState<VolumeProfileData>({
+    levels: [],
+    pocPrice: 96500.0,
+    pocVolume: 0,
+    vahPrice: 96600.0,
+    valPrice: 96400.0,
+    totalVolume: 0,
+    totalDelta: 0,
+  });
+  const [heatmapSlices, setHeatmapSlices] = useState<Array<{ timestamp: number; levels: Map<number, number> }>>([]);
+  const [liquidations, setLiquidations] = useState<LiquidationEvent[]>([]);
+  const [cumulativeLiquidations, setCumulativeLiquidations] = useState<CumulativeLiquidation[]>([]);
+  const [marketProfile, setMarketProfile] = useState<MarketProfileData>({
+    levels: [], pocPrice: 0, pocVolume: 0, vahPrice: 0, valPrice: 0,
+    ibHigh: 0, ibLow: 0, openPrice: 0, closePrice: 0,
+    currentLetter: 'a', sessionStart: Date.now(), totalTPOCount: 0,
+  });
+  const [mboBook, setMboBook] = useState<MBOBookEngine>(() => new MBOBookEngine(1.0));
+
+  // Replay State
+  const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [replayConfig, setReplayConfig] = useState<ReplayConfig>({
+    symbol: "BTCUSDT",
+    startDate: new Date().toISOString().slice(0, 16).replace("T", " "),
+    speedMultiplier: 100,
+    includeMBO: true,
+    isPlaying: true,
+    currentTime: Date.now(),
+    startTime: Date.now() - 3600 * 1000,
+    endTime: Date.now(),
+  });
+
+  // Timeframe State
+  const [selectedTimeframe, setSelectedTimeframe] = useState<string>("15m");
+  const [chartMode, setChartMode] = useState<"CANDLES" | "LINE">("CANDLES");
+  const [activeRange, setActiveRange] = useState<string>("1D");
+
+  // DOM Order Entry State
+  const [orderEntryState, setOrderEntryState] = useState<DOMOrderEntryState>({
+    symbol: "BTCUSDT",
+    openQty: 0,
+    openPnl: 0.0,
+    dailyPnl: 33524.45,
+    quantity: 1,
+    broker: "SIM",
+    account: "test",
+    ticksDiff: 1,
+    ocoEnabled: true,
+    ocoMode: "SL/TP",
+    slEnabled: true,
+    tpEnabled: true,
+    ocoUnit: "MONEY",
+    ocoValue: 5000,
+    beTicks: 0,
+    executionLocation: "CLIENT",
+    linkPendingOrders: false,
+  });
+
+  // Bottom Toolbar Toggles State
+  const [toolbarState, setToolbarState] = useState<DeepDomToolbarState>({
+    showCandles: true,
+    showBubbles: true,
+    showVolume: true,
+    showVwap: true,
+    showCvd: true,
+    showImpLiquidity: true,
+    showVolumeProfile: true,
+    showRsProfile: true,
+    showDeltaSpeed: true,
+    showDom: true,
+    showTradePanel: true,
+    showTbs: true,
+    showSeasonal: false,
+    showLiquidations: false,
+    showMarketProfile: false,
+  });
+
+  // Simulated Trading Positions
+  const simulatedPositionsRef = useRef<Array<{
+    id: string;
+    side: 'BUY' | 'SELL';
+    price: number;
+    qty: number;
+  }>>([]);
+
+  // Initialize Replay Engine on Mount with Live Real Feed
+  useEffect(() => {
+    const engine = new OrderFlowReplayEngine("BTCUSDT", 1.0);
+    replayEngineRef.current = engine;
+    setMboBook(engine.getBookEngine());
+
+    const unsubscribe = engine.subscribe((frame: ReplayFrameData) => {
+      setCurrentPrice(frame.currentPrice);
+      setBestBid(frame.bestBid);
+      setBestAsk(frame.bestAsk);
+      setBubbles([...frame.bubbles]);
+      setCandles([...(frame.candles || [])]);
+      setCvdHistory([...frame.cvdHistory]);
+      setVolumeProfile(frame.volumeProfile);
+      setHeatmapSlices([...frame.heatmapSlices]);
+      setLiquidations([...(frame.liquidations || [])]);
+      setCumulativeLiquidations([...(frame.cumulativeLiquidations || [])]);
+      setMarketProfile(frame.marketProfile);
+
+      // Calculate Open PnL on every frame tick using Decimal
+      if (simulatedPositionsRef.current.length > 0) {
+        let totalPnl = new Decimal(0);
+        let netQty = 0;
+        const currentP = new Decimal(frame.currentPrice);
+
+        for (const pos of simulatedPositionsRef.current) {
+          const entryP = new Decimal(pos.price);
+          const posQty = new Decimal(pos.qty);
+
+          if (pos.side === 'BUY') {
+            const pnl = currentP.minus(entryP).times(posQty);
+            totalPnl = totalPnl.plus(pnl);
+            netQty += pos.qty;
+          } else {
+            const pnl = entryP.minus(currentP).times(posQty);
+            totalPnl = totalPnl.plus(pnl);
+            netQty -= pos.qty;
+          }
+        }
+
+        setOrderEntryState((prev) => ({
+          ...prev,
+          openQty: netQty,
+          openPnl: totalPnl.toNumber(),
+        }));
+      }
+    });
+
+    setIsPlaying(true);
+
+    return () => {
+      unsubscribe();
+      engine.disconnectLiveFeed();
+    };
+  }, []);
+
+  // Toolbar Toggle Handler
+  const handleToggleFeature = (key: keyof DeepDomToolbarState) => {
+    setToolbarState((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Replay Control Handlers
+  const handlePlay = () => {
+    replayEngineRef.current?.play();
+    setIsPlaying(true);
+  };
+
+  const handlePause = () => {
+    replayEngineRef.current?.pause();
+    setIsPlaying(false);
+  };
+
+  const handleReset = () => {
+    replayEngineRef.current?.reset();
+    setIsPlaying(false);
+  };
+
+  const handleSpeedChange = (speed: number) => {
+    setReplayConfig((prev) => ({ ...prev, speedMultiplier: speed }));
+    replayEngineRef.current?.setSpeed(speed);
+  };
+
+  const handleSymbolChange = (symbol: string) => {
+    setReplayConfig((prev) => ({ ...prev, symbol }));
+    setOrderEntryState((prev) => ({ ...prev, symbol }));
+    replayEngineRef.current?.setSymbol(symbol);
+    simulatedPositionsRef.current = [];
+    setOrderEntryState((prev) => ({ ...prev, openQty: 0, openPnl: 0 }));
+  };
+
+  const handleIncludeMboChange = (include: boolean) => {
+    setReplayConfig((prev) => ({ ...prev, includeMBO: include }));
+    replayEngineRef.current?.setIncludeMBO(include);
+  };
+
+  // Simulated Order Execution Handler
+  const handleExecuteOrder = (
+    side: 'BUY' | 'SELL',
+    orderType: 'MKT' | 'BID' | 'ASK' | 'LMT' | 'STP' | 'STP_LMT'
+  ) => {
+    const qty = orderEntryState.quantity;
+    let execPrice = currentPrice;
+
+    if (orderType === 'MKT') {
+      execPrice = side === 'BUY' ? bestAsk : bestBid;
+      simulatedPositionsRef.current.push({
+        id: `pos-${Date.now()}`,
+        side,
+        price: execPrice,
+        qty,
+      });
+
+      toast({
+        title: `⚡ ${side} MKT Filled`,
+        description: `Executed ${qty} @ ${execPrice.toFixed(2)} (${orderEntryState.broker})`,
+      });
+    } else {
+      const offsetTicks = orderType === 'BID' ? 0 : orderType === 'ASK' ? 0 : orderEntryState.ticksDiff;
+      const tick = replayConfig.symbol.includes('BTC') ? 1.0 : replayConfig.symbol.includes('ETH') ? 0.1 : 0.25;
+      const targetPrice = side === 'BUY'
+        ? (orderType === 'BID' ? bestBid : currentPrice - offsetTicks * tick)
+        : (orderType === 'ASK' ? bestAsk : currentPrice + offsetTicks * tick);
+
+      const userOrderId = `user-ord-${Date.now()}`;
+      mboBook.registerUserOrder(userOrderId, side === 'BUY' ? 'BID' : 'ASK', targetPrice, qty);
+
+      toast({
+        title: `📋 ${side} ${orderType} Placed`,
+        description: `${qty} @ ${targetPrice.toFixed(2)} — Tracking Queue Position in MBO Book`,
+      });
     }
+  };
 
-    return <SimulationPageContent />;
+  // Liquidation / Cancel Actions
+  const handleCancelAll = () => {
+    mboBook.clear();
+    toast({
+      title: "Orders Cancelled",
+      description: "All pending limit orders removed from book.",
+    });
+  };
+
+  const handleBreakeven = () => {
+    toast({
+      title: "Breakeven Applied",
+      description: "Stop-Loss moved to average entry price.",
+    });
+  };
+
+  const handleCancelAndFlat = () => {
+    const currentPnl = orderEntryState.openPnl;
+    simulatedPositionsRef.current = [];
+    mboBook.clear();
+
+    setOrderEntryState((prev) => ({
+      ...prev,
+      openQty: 0,
+      openPnl: 0,
+      dailyPnl: new Decimal(prev.dailyPnl).plus(currentPnl).toNumber(),
+    }));
+
+    toast({
+      title: "🚨 Position Flattened & Cancelled",
+      description: `Closed all open positions. Realized P/L: ${currentPnl >= 0 ? '+' : ''}${currentPnl.toFixed(2)} $`,
+      variant: currentPnl >= 0 ? "default" : "destructive",
+    });
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-4rem)] w-full bg-[#121212] overflow-hidden select-none border border-[#222222] rounded-md shadow-2xl">
+      {/* Top Header */}
+      <DeepDomHeader
+        isReplayOpen={isReplayOpen}
+        onToggleReplayModal={() => setIsReplayOpen(!isReplayOpen)}
+        selectedTimeframe={selectedTimeframe}
+        onSelectTimeframe={setSelectedTimeframe}
+        chartMode={chartMode}
+        onSelectChartMode={(mode) => setChartMode(mode as any)}
+      />
+
+      {/* Main Workspace Area: Order Entry (Left) + Canvas Chart & Seasonal Dock (Center) */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* TV Drawing Tools Sidebar (Left) */}
+        <TVLeftSidebar />
+
+        {/* Center Area: Chart on Top + Seasonal Analysis at the Bottom */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {/* Main Canvas Chart Area */}
+          <div className="flex-1 w-full min-h-[300px] relative">
+            <DeepDomCanvasChart
+              currentPrice={currentPrice}
+              bestBid={bestBid}
+              bestAsk={bestAsk}
+              bubbles={bubbles}
+              candles={candles}
+              cvdHistory={cvdHistory}
+              volumeProfile={volumeProfile}
+              heatmapSlices={heatmapSlices}
+              liquidations={liquidations}
+              cumulativeLiquidations={cumulativeLiquidations}
+              marketProfile={marketProfile}
+              mboBook={mboBook}
+              toolbarState={toolbarState}
+              onToggleFeature={handleToggleFeature}
+              orderEntryState={orderEntryState}
+              tickSize={replayConfig.symbol.includes('BTC') ? 1.0 : replayConfig.symbol.includes('ETH') ? 0.1 : 0.25}
+              selectedTimeframe={selectedTimeframe}
+              onSelectTimeframe={setSelectedTimeframe}
+              chartMode={chartMode}
+              activeRange={activeRange}
+            />
+
+            {/* Floating Draggable Replay Manager Modal */}
+            <DeepDomReplayModal
+              isOpen={isReplayOpen}
+              onClose={() => setIsReplayOpen(false)}
+              config={replayConfig}
+              onSpeedChange={handleSpeedChange}
+              onSymbolChange={handleSymbolChange}
+              onIncludeMboChange={handleIncludeMboChange}
+              onPlay={handlePlay}
+              onPause={handlePause}
+              onReset={handleReset}
+              isPlaying={isPlaying}
+            />
+          </div>
+
+          {/* Seasonal Analysis Section Anchored at the Bottom of the Graph */}
+          {toolbarState.showSeasonal && (
+            <div className="h-[260px] border-t border-[#262626] bg-[#141414] flex flex-col overflow-hidden">
+              <div className="h-7 bg-[#1A1A1A] border-b border-[#2A2A2A] px-3 flex items-center justify-between text-xs font-mono text-gray-300 select-none">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Seasonal Analysis ({orderEntryState.symbol}) — Live 7-Year Multi-Period Cycle</span>
+                </div>
+                <button
+                  onClick={() => handleToggleFeature('showSeasonal')}
+                  className="text-gray-400 hover:text-gray-200 p-0.5"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex-1 p-2 overflow-y-auto no-scrollbar">
+                <SeasonalAnalysis symbol={orderEntryState.symbol.replace(/[^a-zA-Z0-9]/g, '')} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* TV Right Sidebar (Watchlist & Details & Order Panel) */}
+        <TVRightSidebar>
+          <DeepDomOrderEntry
+            state={orderEntryState}
+            onStateChange={setOrderEntryState}
+            onExecuteOrder={handleExecuteOrder}
+            onCancelAll={handleCancelAll}
+            onBreakeven={handleBreakeven}
+            onCancelAndFlat={handleCancelAndFlat}
+            onSelectSymbol={handleSymbolChange}
+            symbols={["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "ES-232606"]}
+          />
+        </TVRightSidebar>
+      </div>
+
+      {/* Bottom Control Toolbar */}
+      <DeepDomBottomToolbar
+        toolbarState={toolbarState}
+        onToggleFeature={handleToggleFeature}
+        activeRange={activeRange}
+        onSelectRange={setActiveRange}
+      />
+    </div>
+  );
 }

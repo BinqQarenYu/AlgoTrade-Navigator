@@ -68,29 +68,44 @@ export function OrderFlowCharts({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => {
-                    console.log('🔄 Manual data generation triggered');
-                    const newOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 25);
-                    const analyzed = newOrders.map(order => {
-                      const flags = orderFlowAnalyzer.analyzeOrder(order);
-                      return {
-                        symbol: order.symbol,
-                        timestamp: order.timestamp,
-                        orderType: order.side,
-                        size: order.size,
-                        price: order.price,
-                        suspiciousFlags: flags.reasons || [],
-                        riskScore: flags.riskScore || 0,
-                        flags,
-                        marketSource: { coinApi: 'manual', priceApi: 'manual' }
-                      };
-                    });
-                    setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
-                    updateChartData(analyzed);
+                  onClick={async () => {
+                    const cleanSym = selectedSymbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                    try {
+                      const res = await fetch(`https://api.binance.com/api/v3/trades?symbol=${cleanSym}&limit=50`);
+                      if (res.ok) {
+                        const liveTrades = await res.json();
+                        const analyzed = liveTrades.map((t: any) => {
+                          const order = {
+                            id: t.id.toString(),
+                            symbol: selectedSymbol,
+                            timestamp: t.time,
+                            side: t.isBuyerMaker ? 'sell' : 'buy',
+                            size: parseFloat(t.qty),
+                            price: parseFloat(t.price),
+                          };
+                          const flags = orderFlowAnalyzer.analyzeOrder(order as any);
+                          return {
+                            symbol: order.symbol,
+                            timestamp: order.timestamp,
+                            orderType: order.side,
+                            size: order.size,
+                            price: order.price,
+                            suspiciousFlags: flags.reasons || [],
+                            riskScore: flags.riskScore || 0,
+                            flags,
+                            marketSource: { coinApi: 'binance-live', priceApi: 'binance-live' }
+                          };
+                        });
+                        setOrderFlowData(prev => [...analyzed, ...prev].slice(0, 100));
+                        updateChartData(analyzed);
+                      }
+                    } catch (err) {
+                      console.error('Error fetching live trades:', err);
+                    }
                   }}
                   className="px-3 py-1 bg-green-600 text-white rounded text-xs font-semibold hover:bg-green-700 transition-colors"
                 >
-                  🔄 Generate Data
+                  🔄 Live Feed Refresh
                 </button>
                 <span className="text-xs text-indigo-700 font-bold bg-indigo-100 px-3 py-1 rounded-full border border-indigo-300">
                   Updates every 1 minute

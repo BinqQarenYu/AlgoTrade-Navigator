@@ -292,12 +292,13 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
   }, [selectedSymbol, dualApiService]);
 
   const loadInitialOrderData = useCallback(async () => {
-    let mockOrders: OrderData[] = [];
+    let realOrders: OrderData[] = [];
+    const cleanSym = selectedSymbol.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     
     try {
-      const trades = await getRecentTrades(selectedSymbol, 100);
+      const trades = await getRecentTrades(cleanSym, 100);
       if (trades && trades.length > 0) {
-        mockOrders = trades.map((t: any) => ({
+        realOrders = trades.map((t: any) => ({
           id: t.id.toString(),
           symbol: selectedSymbol,
           timestamp: t.time,
@@ -309,14 +310,46 @@ export function useOrderFlow(selectedSymbol: string, selectedTimeInterval: strin
           venue: 'binance-rest'
         }));
       } else {
-        mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
+        const res = await fetch(`https://api.binance.com/api/v3/trades?symbol=${cleanSym}&limit=100`);
+        if (res.ok) {
+          const raw = await res.json();
+          realOrders = raw.map((t: any) => ({
+            id: t.id.toString(),
+            symbol: selectedSymbol,
+            timestamp: t.time,
+            side: t.isBuyerMaker ? 'sell' : 'buy',
+            size: parseFloat(t.qty),
+            quantity: parseFloat(t.qty),
+            price: parseFloat(t.price),
+            orderId: t.id.toString(),
+            venue: 'binance-rest-direct'
+          }));
+        }
       }
     } catch (error) {
-      console.warn("Failed to fetch initial real trades, falling back to mock", error);
-      mockOrders = orderFlowAnalyzer.generateMockOrders(selectedSymbol, 100);
+      console.warn("Failed to fetch initial real trades via primary path, trying direct public endpoint:", error);
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/trades?symbol=${cleanSym}&limit=100`);
+        if (res.ok) {
+          const raw = await res.json();
+          realOrders = raw.map((t: any) => ({
+            id: t.id.toString(),
+            symbol: selectedSymbol,
+            timestamp: t.time,
+            side: t.isBuyerMaker ? 'sell' : 'buy',
+            size: parseFloat(t.qty),
+            quantity: parseFloat(t.qty),
+            price: parseFloat(t.price),
+            orderId: t.id.toString(),
+            venue: 'binance-rest-direct'
+          }));
+        }
+      } catch (innerErr) {
+        console.error("Critical error fetching live trades:", innerErr);
+      }
     }
     
-    const analyzedOrders: OrderFlowData[] = mockOrders.map(order => {
+    const analyzedOrders: OrderFlowData[] = realOrders.map(order => {
       const flags = orderFlowAnalyzer.analyzeOrder(order);
       return {
         symbol: order.symbol,
