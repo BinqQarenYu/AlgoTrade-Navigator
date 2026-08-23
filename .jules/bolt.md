@@ -21,3 +21,7 @@
 ## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
 **Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
 **Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
+
+## 2026-03-29 - Single-Pass Dual-SMA Sliding Window for Awesome Oscillator
+**Learning:** `calculateAwesomeOscillator` created an intermediate array (`medianPrices`) via `data.map()` and executed two independent `calculateSMA()` passes before combining them with another `map()`. Combining short and long period running sums into a single-pass $O(N)$ loop on median prices on-the-fly eliminates all intermediate array allocations and reduces computation time by ~5.6x (~20.7ms to ~3.7ms for 100k candles).
+**Action:** Compute median price on-the-fly inside a single loop while maintaining running sums for both `shortPeriod` and `longPeriod`, updating output directly when `i >= maxPeriod - 1`.
