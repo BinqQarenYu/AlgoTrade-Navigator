@@ -534,10 +534,38 @@ export const calculateMomentum = (data: number[], period: number): (number | nul
 };
 
 export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: number, longPeriod: number): (number | null)[] => {
-    const medianPrices = data.map(d => (d.high + d.low) / 2);
-    const smaShort = calculateSMA(medianPrices, shortPeriod);
-    const smaLong = calculateSMA(medianPrices, longPeriod);
-    return smaShort.map((val, i) => val !== null && smaLong[i] !== null ? val - smaLong[i]! : null);
+    const n = data.length;
+    const maxPeriod = Math.max(shortPeriod, longPeriod);
+    if (n < maxPeriod || shortPeriod <= 0 || longPeriod <= 0) {
+        return Array(n).fill(null);
+    }
+
+    // Single-pass sliding window optimization:
+    // Calculates Awesome Oscillator in O(N) time with zero intermediate array allocations
+    // (eliminating medianPrices array mapping and dual calculateSMA passes).
+    const result: (number | null)[] = Array(n).fill(null);
+    let sumShort = 0;
+    let sumLong = 0;
+
+    for (let i = 0; i < n; i++) {
+        const mp = (data[i].high + data[i].low) / 2;
+        sumShort += mp;
+        sumLong += mp;
+
+        if (i >= shortPeriod) {
+            sumShort -= (data[i - shortPeriod].high + data[i - shortPeriod].low) / 2;
+        }
+
+        if (i >= longPeriod) {
+            sumLong -= (data[i - longPeriod].high + data[i - longPeriod].low) / 2;
+        }
+
+        if (i >= maxPeriod - 1) {
+            result[i] = (sumShort / shortPeriod) - (sumLong / longPeriod);
+        }
+    }
+
+    return result;
 };
 
 export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
