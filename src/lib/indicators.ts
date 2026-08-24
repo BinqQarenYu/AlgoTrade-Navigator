@@ -5,16 +5,23 @@ import type { HistoricalData } from './types';
 /**
  * Internal helper to calculate sliding window maximum or minimum using a monotonic deque.
  * This achieves O(N) complexity for the entire dataset, compared to O(N * period).
+ * Supports optional `getValue` accessor to avoid upfront O(N) array pre-allocations when operating on objects.
  *
- * @param data Array of numbers to process
+ * @param data Array of items to process
  * @param period The sliding window size
  * @param type 'max' for rolling maximum, 'min' for rolling minimum
+ * @param getValue Optional function to extract numerical value from item
  * @returns Array of (number | null) where null represents initial periods
  */
-const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
+const calculateSlidingWindowExtreme = <T = number>(
+  data: T[],
+  period: number,
+  type: 'max' | 'min',
+  getValue?: (item: T) => number
+): (number | null)[] => {
   if (data.length < period) return Array(data.length).fill(null);
 
-  const results: (number | null)[] = Array(data.length).fill(null);
+  const results: (number | null)[] = new Array(data.length).fill(null);
   const deque: number[] = []; // Stores indices
   let head = 0; // Use a head pointer to avoid O(P) shift() operations
 
@@ -24,12 +31,15 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
       head++;
     }
 
+    const val = getValue ? getValue(data[i]) : (data[i] as unknown as number);
+
     // Maintain monotonic property
     while (deque.length > head) {
       const lastIdx = deque[deque.length - 1];
+      const lastVal = getValue ? getValue(data[lastIdx]) : (data[lastIdx] as unknown as number);
       const shouldPop = type === 'max'
-        ? data[i] >= data[lastIdx]
-        : data[i] <= data[lastIdx];
+        ? val >= lastVal
+        : val <= lastVal;
 
       if (shouldPop) {
         deque.pop();
@@ -42,7 +52,8 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
 
     // If window is full, the element at the head of deque is the extreme
     if (i >= period - 1) {
-      results[i] = data[deque[head]];
+      const headIdx = deque[head];
+      results[i] = getValue ? getValue(data[headIdx]) : (data[headIdx] as unknown as number);
     }
   }
 
@@ -331,13 +342,21 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
     return { supertrend, direction };
 };
 
+/**
+ * Calculates Donchian Channels for a given set of data.
+ * Optimized to pass property accessors directly to calculateSlidingWindowExtreme,
+ * eliminating intermediate array allocations (highs, lows) and .map() calls for middle channel.
+ */
 export const calculateDonchianChannels = (data: HistoricalData[], period: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
+  const upper = calculateSlidingWindowExtreme(data, period, 'max', d => d.high);
+  const lower = calculateSlidingWindowExtreme(data, period, 'min', d => d.low);
+  const middle: (number | null)[] = new Array(data.length);
 
-  const upper = calculateSlidingWindowExtreme(highs, period, 'max');
-  const lower = calculateSlidingWindowExtreme(lows, period, 'min');
-  const middle = upper.map((u, i) => (u !== null && lower[i] !== null) ? (u + lower[i]!) / 2 : null);
+  for (let i = 0; i < data.length; i++) {
+    const u = upper[i];
+    const l = lower[i];
+    middle[i] = u !== null && l !== null ? (u + l) / 2 : null;
+  }
 
   return { upper, middle, lower };
 };
@@ -540,24 +559,29 @@ export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: 
     return smaShort.map((val, i) => val !== null && smaLong[i] !== null ? val - smaLong[i]! : null);
 };
 
+/**
+ * Calculates Williams %R for a given set of data.
+ * Optimized to pass property accessors directly to calculateSlidingWindowExtreme,
+ * eliminating intermediate array allocations (highs, lows), pre-allocating output array,
+ * and avoiding array push overhead.
+ */
 export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
-    const highs = data.map(d => d.high);
-    const lows = data.map(d => d.low);
-    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
-    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+    const periodHighs = calculateSlidingWindowExtreme(data, period, 'max', d => d.high);
+    const periodLows = calculateSlidingWindowExtreme(data, period, 'min', d => d.low);
 
-    const williamsR: (number | null)[] = [];
+    const williamsR: (number | null)[] = new Array(data.length);
     for (let i = 0; i < data.length; i++) {
         const highestHigh = periodHighs[i];
         const lowestLow = periodLows[i];
 
         if (highestHigh === null || lowestLow === null) {
-            williamsR.push(null);
+            williamsR[i] = null;
             continue;
         }
 
-        const r = ((highestHigh - data[i].close) / (highestHigh - lowestLow)) * -100;
-        williamsR.push(isNaN(r) ? -50 : r);
+        const range = highestHigh - lowestLow;
+        const r = range > 0 ? ((highestHigh - data[i].close) / range) * -100 : -50;
+        williamsR[i] = isNaN(r) ? -50 : r;
     }
     return williamsR;
 };
