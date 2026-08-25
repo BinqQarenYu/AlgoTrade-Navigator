@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateAwesomeOscillator } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,25 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates Awesome Oscillator correctly with single-pass logic', () => {
+        const data: HistoricalData[] = [
+            { time: 1, open: 5, high: 10, low: 0, close: 5, volume: 10 },  // Median = 5
+            { time: 2, open: 10, high: 20, low: 0, close: 10, volume: 10 }, // Median = 10
+            { time: 3, open: 15, high: 30, low: 0, close: 15, volume: 10 }, // Median = 15
+            { time: 4, open: 20, high: 40, low: 0, close: 20, volume: 10 }, // Median = 20
+            { time: 5, open: 25, high: 50, low: 0, close: 25, volume: 10 }  // Median = 25
+        ];
+        // shortPeriod = 2, longPeriod = 4
+        // At index 3: SMA short (2) = (15+20)/2 = 17.5, SMA long (4) = (5+10+15+20)/4 = 12.5 -> AO = 5.0
+        // At index 4: SMA short (2) = (20+25)/2 = 22.5, SMA long (4) = (10+15+20+25)/4 = 17.5 -> AO = 5.0
+        const ao = calculateAwesomeOscillator(data, 2, 4);
+        expect(ao.length).toBe(5);
+        expect(ao[0]).toBeNull();
+        expect(ao[1]).toBeNull();
+        expect(ao[2]).toBeNull();
+        expect(ao[3]).toBeCloseTo(5.0, 5);
+        expect(ao[4]).toBeCloseTo(5.0, 5);
     });
 });
