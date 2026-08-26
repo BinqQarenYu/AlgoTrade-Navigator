@@ -791,11 +791,49 @@ export const calculateCoppockCurve = (data: number[], longRoC: number, shortRoC:
     return [...Array(data.length - wma.length).fill(null), ...wma];
 };
 
-export const calculateElderRay = (data: HistoricalData[], period: number): { bullPower: (number | null)[], bearPower: (number | null)[] } => {
-    const closePrices = data.map(d => d.close);
-    const ema = calculateEMA(closePrices, period);
-    const bullPower = data.map((d, i) => ema[i] !== null ? d.high - ema[i]! : null);
-    const bearPower = data.map((d, i) => ema[i] !== null ? d.low - ema[i]! : null);
+/**
+ * Calculates Elder-Ray Index (Bull Power and Bear Power).
+ * @param data Array of HistoricalData candles.
+ * @param period EMA period for calculations.
+ * @param precalculatedEma Optional precalculated EMA array to prevent duplicate EMA calculations.
+ * @returns Object containing bullPower and bearPower arrays.
+ */
+export const calculateElderRay = (
+    data: HistoricalData[],
+    period: number,
+    precalculatedEma?: (number | null)[]
+): { bullPower: (number | null)[], bearPower: (number | null)[] } => {
+    const len = data.length;
+    const bullPower: (number | null)[] = new Array(len);
+    const bearPower: (number | null)[] = new Array(len);
+
+    if (len < period) {
+        bullPower.fill(null);
+        bearPower.fill(null);
+        return { bullPower, bearPower };
+    }
+
+    // Reuse precalculated EMA if provided; otherwise compute EMA from close prices without array mapping overhead
+    const ema = precalculatedEma ?? (() => {
+        const closePrices = new Array(len);
+        for (let i = 0; i < len; i++) {
+            closePrices[i] = data[i].close;
+        }
+        return calculateEMA(closePrices, period);
+    })();
+
+    // Optimize power calculations with a single loop, avoiding multiple data.map() array allocations
+    for (let i = 0; i < len; i++) {
+        const emaVal = ema[i];
+        if (emaVal !== null) {
+            bullPower[i] = data[i].high - emaVal;
+            bearPower[i] = data[i].low - emaVal;
+        } else {
+            bullPower[i] = null;
+            bearPower[i] = null;
+        }
+    }
+
     return { bullPower, bearPower };
 };
 

@@ -27,11 +27,18 @@ const elderRayStrategy: Strategy = {
   async calculate(data: HistoricalData[], params: ElderRayIndexParams = defaultElderRayIndexParams): Promise<HistoricalData[]> {
     const dataWithIndicators = data.map(d => ({ ...d }));
 
-    if (data.length < params.period) return dataWithIndicators;
+    const len = data.length;
+    if (len < params.period) return dataWithIndicators;
 
-    const closePrices = data.map(d => d.close);
+    // Use a direct for-loop for closePrices extraction to reduce allocation overhead
+    const closePrices = new Array(len);
+    for (let i = 0; i < len; i++) {
+      closePrices[i] = data[i].close;
+    }
+
     const ema = calculateEMA(closePrices, params.period);
-    const { bullPower, bearPower } = calculateElderRay(data, params.period);
+    // Pass precalculated EMA to calculateElderRay to avoid redundant EMA recalculation
+    const { bullPower, bearPower } = calculateElderRay(data, params.period, ema);
 
     dataWithIndicators.forEach((d: HistoricalData, i: number) => {
       d.ema_short = ema[i];

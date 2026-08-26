@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateElderRay } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,27 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates Elder-Ray Index correctly with and without precalculated EMA', () => {
+        const data: HistoricalData[] = Array.from({ length: 20 }, (_, i) => ({
+            time: i * 60,
+            open: 100 + i,
+            high: 105 + i,
+            low: 95 + i,
+            close: 100 + (i % 2 === 0 ? i : -i),
+            volume: 1000,
+        }));
+
+        const resultDefault = calculateElderRay(data, 13);
+        const closePrices = data.map(d => d.close);
+        const ema = calculateEMA(closePrices, 13);
+        const resultPrecalc = calculateElderRay(data, 13, ema);
+
+        expect(resultDefault).toEqual(resultPrecalc);
+        expect(resultDefault.bullPower.length).toBe(20);
+        expect(resultDefault.bullPower[12]).not.toBeNull();
+        expect(resultDefault.bullPower[12]).toBeCloseTo(data[12].high - ema[12]!, 5);
+        expect(resultDefault.bearPower[12]).toBeCloseTo(data[12].low - ema[12]!, 5);
     });
 });
