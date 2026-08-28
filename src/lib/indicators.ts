@@ -199,11 +199,51 @@ export const calculateStandardDeviation = (data: number[], period: number): (num
     return stdDev;
 };
 
+/**
+ * Calculates Bollinger Bands (upper, middle/SMA, lower) in a single O(N) sliding window pass.
+ * Optimized to eliminate redundant array allocations and multiple array scans.
+ */
 export const calculateBollingerBands = (data: number[], period: number, stdDevMultiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-    const middle = calculateSMA(data, period);
-    const stdDev = calculateStandardDeviation(data, period);
-    const upper = middle.map((val, i) => val !== null && stdDev[i] !== null ? val + (stdDev[i]! * stdDevMultiplier) : null);
-    const lower = middle.map((val, i) => val !== null && stdDev[i] !== null ? val - (stdDev[i]! * stdDevMultiplier) : null);
+    const n = data.length;
+    const upper: (number | null)[] = Array(n).fill(null);
+    const middle: (number | null)[] = Array(n).fill(null);
+    const lower: (number | null)[] = Array(n).fill(null);
+
+    if (n < period || period <= 0 || !Number.isInteger(period)) {
+        return { upper, middle, lower };
+    }
+
+    let sum = 0;
+    let sumSq = 0;
+
+    for (let i = 0; i < period; i++) {
+        const val = data[i];
+        sum += val;
+        sumSq += val * val;
+    }
+
+    const calcBandsAtIndex = (idx: number, s: number, sSq: number) => {
+        const mean = s / period;
+        const variance = (sSq / period) - (mean * mean);
+        const std = Math.sqrt(Math.max(0, variance));
+        const bandOffset = std * stdDevMultiplier;
+
+        middle[idx] = mean;
+        upper[idx] = mean + bandOffset;
+        lower[idx] = mean - bandOffset;
+    };
+
+    calcBandsAtIndex(period - 1, sum, sumSq);
+
+    for (let i = period; i < n; i++) {
+        const prevVal = data[i - period];
+        const currVal = data[i];
+        sum = sum - prevVal + currVal;
+        sumSq = sumSq - (prevVal * prevVal) + (currVal * currVal);
+
+        calcBandsAtIndex(i, sum, sumSq);
+    }
+
     return { upper, middle, lower };
 };
 

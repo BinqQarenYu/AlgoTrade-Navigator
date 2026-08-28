@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateBollingerBands } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,38 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates Bollinger Bands correctly and handles edge cases', () => {
+        const data = [10, 12, 11, 15, 14, 16, 18, 20, 22, 21, 25, 24, 26, 28, 30];
+        const res = calculateBollingerBands(data, 5, 2);
+
+        expect(res.upper.length).toBe(15);
+        expect(res.middle.length).toBe(15);
+        expect(res.lower.length).toBe(15);
+
+        // First period - 1 elements should be null
+        for (let i = 0; i < 4; i++) {
+            expect(res.upper[i]).toBeNull();
+            expect(res.middle[i]).toBeNull();
+            expect(res.lower[i]).toBeNull();
+        }
+
+        // Check values at index 4 (first window: [10, 12, 11, 15, 14])
+        // Mean = (10+12+11+15+14)/5 = 62/5 = 12.4
+        // StdDev = sqrt(((100+144+121+225+196)/5) - (12.4)^2) = sqrt(157.2 - 153.76) = sqrt(3.44) ~= 1.854723646
+        // Upper = 12.4 + 2 * 1.854723646 = 16.109447
+        // Lower = 12.4 - 2 * 1.854723646 = 8.6905526
+        expect(res.middle[4]).toBeCloseTo(12.4, 5);
+        expect(res.upper[4]!).toBeCloseTo(16.109447, 5);
+        expect(res.lower[4]!).toBeCloseTo(8.6905526, 5);
+
+        // Edge case: data length < period
+        const shortRes = calculateBollingerBands([10, 12], 5, 2);
+        expect(shortRes.upper).toEqual([null, null]);
+
+        // Edge case: invalid period (0 or negative)
+        const invalidRes = calculateBollingerBands(data, 0, 2);
+        expect(invalidRes.upper).toEqual(Array(15).fill(null));
     });
 });
