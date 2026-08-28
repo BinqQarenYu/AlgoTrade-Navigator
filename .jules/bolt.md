@@ -21,3 +21,7 @@
 ## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
 **Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
 **Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
+
+## 2026-03-29 - Single-Pass Sliding Window Optimization for Bollinger Bands
+**Learning:** `calculateBollingerBands` performed multiple array allocations and passes: running `calculateSMA`, running `calculateStandardDeviation` (which re-calculated rolling sum and sum of squares), and mapping across both arrays twice.
+**Action:** Combine moving average and variance calculations into a single-pass $O(N)$ sliding window loop with running sums (`sum`, `sumSq`). Pre-allocate `upper`, `middle`, and `lower` arrays to eliminate intermediate $O(N)$ array creation and GC overhead, achieving ~1.66x speedup.
