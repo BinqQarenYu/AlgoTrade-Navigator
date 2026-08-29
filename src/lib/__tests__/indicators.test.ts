@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateMACD } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,23 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates MACD correctly with optimized single-pass logic', () => {
+        const data = Array.from({ length: 30 }, (_, i) => 10 + i);
+        const { macd, signal, histogram } = calculateMACD(data, 3, 6, 3);
+        expect(macd.length).toBe(30);
+        expect(signal.length).toBe(30);
+        expect(histogram.length).toBe(30);
+
+        // MACD line should be null before max(shortPeriod - 1, longPeriod - 1) = index 5
+        expect(macd[0]).toBeNull();
+        expect(macd[4]).toBeNull();
+        expect(macd[5]).not.toBeNull();
+
+        // Signal line should be null before index 5 + 3 - 1 = index 7
+        expect(signal[6]).toBeNull();
+        expect(signal[7]).not.toBeNull();
+        expect(histogram[7]).toBeCloseTo(macd[7]! - signal[7]!, 5);
     });
 });

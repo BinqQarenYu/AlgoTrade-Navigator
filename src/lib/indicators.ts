@@ -84,32 +84,25 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
  * @returns An array of EMA values, with initial values as null.
  */
 export const calculateEMA = (data: number[], period: number): (number | null)[] => {
-  if (data.length < period) return Array(data.length).fill(null);
+  const len = data.length;
+  if (period <= 0 || len < period) return Array(len).fill(null);
 
-  const ema: (number | null)[] = [];
+  const ema: (number | null)[] = Array(len).fill(null);
   const multiplier = 2 / (period + 1);
-  let prevEma: number | null = null;
-  let sum = 0;
 
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      sum += data[i];
-      ema.push(null);
-      continue;
-    }
-    if (i === period - 1) {
-      let sum = 0;
-      for (let j = 0; j < period; j++) {
-        sum += data[j];
-      }
-      prevEma = sum / period;
-      ema.push(prevEma);
-    } else {
-      const currentEma: number = (data[i] - prevEma!) * multiplier + prevEma!;
-      ema.push(currentEma);
-      prevEma = currentEma;
-    }
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += data[i];
   }
+
+  let prevEma = sum / period;
+  ema[period - 1] = prevEma;
+
+  for (let i = period; i < len; i++) {
+    prevEma = (data[i] - prevEma) * multiplier + prevEma;
+    ema[i] = prevEma;
+  }
+
   return ema;
 };
 
@@ -208,43 +201,58 @@ export const calculateBollingerBands = (data: number[], period: number, stdDevMu
 };
 
 export const calculateMACD = (data: number[], shortPeriod: number, longPeriod: number, signalPeriod: number): { macd: (number | null)[], signal: (number | null)[], histogram: (number | null)[] } => {
+    const len = data.length;
+    if (len === 0) {
+        return { macd: [], signal: [], histogram: [] };
+    }
+
+    const macd: (number | null)[] = Array(len).fill(null);
+    const signal: (number | null)[] = Array(len).fill(null);
+    const histogram: (number | null)[] = Array(len).fill(null);
+
+    if (shortPeriod <= 0 || longPeriod <= 0 || signalPeriod <= 0 || len < Math.max(shortPeriod, longPeriod)) {
+        return { macd, signal, histogram };
+    }
+
     const emaShort = calculateEMA(data, shortPeriod);
     const emaLong = calculateEMA(data, longPeriod);
-    const macdLine: (number | null)[] = emaShort.map((shortVal, i) => {
-        const longVal = emaLong[i];
-        if (shortVal !== null && longVal !== null) {
-            return shortVal - longVal;
-        }
-        return null;
-    });
 
-    const validMacdValues: number[] = [];
-    const validIndices: number[] = [];
-    macdLine.forEach((val, idx) => {
-        if (val !== null) {
-            validMacdValues.push(val);
-            validIndices.push(idx);
-        }
-    });
+    const startIdx = Math.max(shortPeriod - 1, longPeriod - 1);
+    const validMacdCount = len - startIdx;
 
-    const signalRaw = calculateEMA(validMacdValues, signalPeriod);
-    const signalLinePadded: (number | null)[] = Array(macdLine.length).fill(null);
+    if (validMacdCount < 1) {
+        return { macd, signal, histogram };
+    }
 
-    signalRaw.forEach((sigVal, idx) => {
-        if (sigVal !== null && idx < validIndices.length) {
-            signalLinePadded[validIndices[idx]] = sigVal;
-        }
-    });
-    
-    const histogram = macdLine.map((macdVal, i) => {
-        const signalVal = signalLinePadded[i];
-        if (macdVal !== null && signalVal !== null) {
-            return macdVal - signalVal;
-        }
-        return null;
-    });
+    // Single-pass computation of MACD line
+    for (let i = startIdx; i < len; i++) {
+        macd[i] = emaShort[i]! - emaLong[i]!;
+    }
 
-    return { macd: macdLine, signal: signalLinePadded, histogram };
+    // Direct calculation of signal line EMA and histogram without intermediate array filtering/padding
+    if (validMacdCount >= signalPeriod) {
+        const signalMultiplier = 2 / (signalPeriod + 1);
+        let sum = 0;
+        const signalStartIdx = startIdx + signalPeriod - 1;
+
+        for (let i = startIdx; i <= signalStartIdx; i++) {
+            sum += macd[i]!;
+        }
+
+        let prevSignal = sum / signalPeriod;
+        signal[signalStartIdx] = prevSignal;
+        histogram[signalStartIdx] = macd[signalStartIdx]! - prevSignal;
+
+        for (let i = signalStartIdx + 1; i < len; i++) {
+            const macdVal = macd[i]!;
+            const currentSignal = (macdVal - prevSignal) * signalMultiplier + prevSignal;
+            signal[i] = currentSignal;
+            histogram[i] = macdVal - currentSignal;
+            prevSignal = currentSignal;
+        }
+    }
+
+    return { macd, signal, histogram };
 };
 
 export const calculateATR = (data: HistoricalData[], period: number): (number | null)[] => {
