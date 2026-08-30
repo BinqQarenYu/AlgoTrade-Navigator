@@ -21,3 +21,7 @@
 ## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
 **Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
 **Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
+
+## 2026-03-29 - Elimination of Map Allocations & Padded SMA Passes in Stochastic Oscillator
+**Learning:** `calculateStochastic` allocated intermediate `highs` and `lows` arrays via `data.map()` and constructed multiple `validKValues` / `validSmoothedKValues` arrays with padding indices to compute smooth %K and %D using `calculateSMA()`. This caused excessive garbage collection overhead and multi-pass array iterations.
+**Action:** Enhanced `calculateSlidingWindowExtreme` with a property accessor parameter `getValue?: (item: T) => number` to operate directly on `HistoricalData[]`, eliminating `data.map()` allocations. Replaced `calculateSMA` calls on intermediate arrays with single-pass sliding window SMAs operating directly on typed `Float64Array` buffers. This yielded a ~1.45x execution speedup (~22.6ms down to ~15.6ms for 50k candles) and eliminated intermediate array allocations.
