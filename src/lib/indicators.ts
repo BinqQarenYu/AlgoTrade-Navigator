@@ -11,9 +11,15 @@ import type { HistoricalData } from './types';
  * @param type 'max' for rolling maximum, 'min' for rolling minimum
  * @returns Array of (number | null) where null represents initial periods
  */
-const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
+const calculateSlidingWindowExtreme = <T = number>(
+  data: T[],
+  period: number,
+  type: 'max' | 'min',
+  getValue?: (item: T) => number
+): (number | null)[] => {
   if (data.length < period) return Array(data.length).fill(null);
 
+  const getVal = getValue || ((item: unknown) => item as number);
   const results: (number | null)[] = Array(data.length).fill(null);
   const deque: number[] = []; // Stores indices
   let head = 0; // Use a head pointer to avoid O(P) shift() operations
@@ -24,12 +30,15 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
       head++;
     }
 
+    const valI = getVal(data[i]);
+
     // Maintain monotonic property
     while (deque.length > head) {
       const lastIdx = deque[deque.length - 1];
+      const valLast = getVal(data[lastIdx]);
       const shouldPop = type === 'max'
-        ? data[i] >= data[lastIdx]
-        : data[i] <= data[lastIdx];
+        ? valI >= valLast
+        : valI <= valLast;
 
       if (shouldPop) {
         deque.pop();
@@ -42,7 +51,7 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
 
     // If window is full, the element at the head of deque is the extreme
     if (i >= period - 1) {
-      results[i] = data[deque[head]];
+      results[i] = getVal(data[deque[head]]);
     }
   }
 
@@ -390,60 +399,83 @@ export const calculateIchimokuCloud = (
   return { tenkan, kijun, senkouA, senkouB, chikou };
 };
 
-export const calculateStochastic = (data: HistoricalData[], period: number, smoothK: number, smoothD: number): { k: (number | null)[], d: (number | null)[] } => {
-    const highs = data.map(d => d.high);
-    const lows = data.map(d => d.low);
-    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
-    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+/**
+ * Calculates the Stochastic Oscillator (%K and %D lines).
+ * Optimized to eliminate O(N) intermediate array allocations (highs, lows, validKValues, padding maps)
+ * and perform single-pass sliding window SMAs on typed buffers.
+ */
+export const calculateStochastic = (
+  data: HistoricalData[],
+  period: number,
+  smoothK: number,
+  smoothD: number
+): { k: (number | null)[]; d: (number | null)[] } => {
+  const n = data.length;
+  if (n < period || period <= 0) {
+    return { k: Array(n).fill(null), d: Array(n).fill(null) };
+  }
 
-    const rawK: (number | null)[] = [];
-    for (let i = 0; i < data.length; i++) {
-        const highestHigh = periodHighs[i];
-        const lowestLow = periodLows[i];
+  // Calculate rolling extremes directly using property accessors, avoiding intermediate array allocations
+  const periodHighs = calculateSlidingWindowExtreme(data, period, 'max', d => d.high);
+  const periodLows = calculateSlidingWindowExtreme(data, period, 'min', d => d.low);
 
-        if (highestHigh === null || lowestLow === null) {
-            rawK.push(null);
-            continue;
-        }
+  const k: (number | null)[] = Array(n).fill(null);
+  const d: (number | null)[] = Array(n).fill(null);
 
-        const range = highestHigh - lowestLow;
-        const k = range > 0 ? ((data[i].close - lowestLow) / range) * 100 : 50;
-        rawK.push(isNaN(k) ? 50 : Math.max(0, Math.min(100, k)));
-    }
+  const kStartIndex = period - 1;
+  const kLength = n - kStartIndex;
+  if (kLength < smoothK) return { k, d };
 
-    const validKIndices: number[] = [];
-    const validKValues: number[] = [];
-    rawK.forEach((val, idx) => {
-        if (val !== null) {
-            validKValues.push(val);
-            validKIndices.push(idx);
-        }
-    });
+  const smoothedKStartIndex = kStartIndex + smoothK - 1;
+  const smoothedKLength = n - smoothedKStartIndex;
+  if (smoothedKLength <= 0) return { k, d };
 
-    const smoothedKRaw = calculateSMA(validKValues, smoothK);
-    const kWithPadding: (number | null)[] = Array(data.length).fill(null);
-    const validSmoothedKValues: number[] = [];
-    const validSmoothedKIndices: number[] = [];
+  // Calculate raw %K in a contiguous float buffer
+  const rawK = new Float64Array(kLength);
+  for (let i = 0; i < kLength; i++) {
+    const dataIdx = kStartIndex + i;
+    const highestHigh = periodHighs[dataIdx]!;
+    const lowestLow = periodLows[dataIdx]!;
+    const range = highestHigh - lowestLow;
+    const val = range > 0 ? ((data[dataIdx].close - lowestLow) / range) * 100 : 50;
+    rawK[i] = Number.isNaN(val) ? 50 : Math.max(0, Math.min(100, val));
+  }
 
-    smoothedKRaw.forEach((kVal, idx) => {
-        if (kVal !== null && idx < validKIndices.length) {
-            const originalIndex = validKIndices[idx];
-            kWithPadding[originalIndex] = kVal;
-            validSmoothedKValues.push(kVal);
-            validSmoothedKIndices.push(originalIndex);
-        }
-    });
+  // Calculate smoothed %K using sliding window SMA directly
+  const smoothedK = new Float64Array(smoothedKLength);
+  let kSum = 0;
+  for (let i = 0; i < smoothK; i++) {
+    kSum += rawK[i];
+  }
+  const invSmoothK = 1 / smoothK;
+  smoothedK[0] = kSum * invSmoothK;
+  k[smoothedKStartIndex] = smoothedK[0];
 
-    const smoothedDRaw = calculateSMA(validSmoothedKValues, smoothD);
-    const dWithPadding: (number | null)[] = Array(data.length).fill(null);
+  for (let i = 1; i < smoothedKLength; i++) {
+    kSum += rawK[i + smoothK - 1] - rawK[i - 1];
+    const val = kSum * invSmoothK;
+    smoothedK[i] = val;
+    k[smoothedKStartIndex + i] = val;
+  }
 
-    smoothedDRaw.forEach((dVal, idx) => {
-        if (dVal !== null && idx < validSmoothedKIndices.length) {
-            dWithPadding[validSmoothedKIndices[idx]] = dVal;
-        }
-    });
+  // Calculate smoothed %D using sliding window SMA on smoothedK directly
+  const dStartIndex = smoothedKStartIndex + smoothD - 1;
+  const dLength = n - dStartIndex;
+  if (dLength <= 0) return { k, d };
 
-    return { k: kWithPadding, d: dWithPadding };
+  let dSum = 0;
+  for (let i = 0; i < smoothD; i++) {
+    dSum += smoothedK[i];
+  }
+  const invSmoothD = 1 / smoothD;
+  d[dStartIndex] = dSum * invSmoothD;
+
+  for (let i = 1; i < dLength; i++) {
+    dSum += smoothedK[i + smoothD - 1] - smoothedK[i - 1];
+    d[dStartIndex + i] = dSum * invSmoothD;
+  }
+
+  return { k, d };
 };
 
 export const calculateKeltnerChannels = (data: HistoricalData[], period: number, multiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
