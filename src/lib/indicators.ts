@@ -79,36 +79,38 @@ export const calculateSMA = (data: number[], period: number): (number | null)[] 
 
 /**
  * Calculates the Exponential Moving Average (EMA) for a given set of data.
- * @param data An array of numbers (e.g., closing prices).
+ * Optimized with pre-allocated result array and optional getValue accessor for object arrays.
+ *
+ * @param data An array of numbers or objects to process.
  * @param period The number of periods for the EMA.
+ * @param getValue Optional accessor function to extract numeric value from object items.
  * @returns An array of EMA values, with initial values as null.
  */
-export const calculateEMA = (data: number[], period: number): (number | null)[] => {
+export const calculateEMA = <T = number>(
+  data: T[],
+  period: number,
+  getValue?: (d: T) => number
+): (number | null)[] => {
   if (data.length < period) return Array(data.length).fill(null);
 
-  const ema: (number | null)[] = [];
-  const multiplier = 2 / (period + 1);
-  let prevEma: number | null = null;
-  let sum = 0;
+  const ema: (number | null)[] = Array(data.length);
+  for (let i = 0; i < period - 1; i++) {
+    ema[i] = null;
+  }
 
-  for (let i = 0; i < data.length; i++) {
-    if (i < period - 1) {
-      sum += data[i];
-      ema.push(null);
-      continue;
-    }
-    if (i === period - 1) {
-      let sum = 0;
-      for (let j = 0; j < period; j++) {
-        sum += data[j];
-      }
-      prevEma = sum / period;
-      ema.push(prevEma);
-    } else {
-      const currentEma: number = (data[i] - prevEma!) * multiplier + prevEma!;
-      ema.push(currentEma);
-      prevEma = currentEma;
-    }
+  const multiplier = 2 / (period + 1);
+  let sum = 0;
+  for (let i = 0; i < period; i++) {
+    sum += getValue ? getValue(data[i]) : (data[i] as unknown as number);
+  }
+  let prevEma = sum / period;
+  ema[period - 1] = prevEma;
+
+  for (let i = period; i < data.length; i++) {
+    const val = getValue ? getValue(data[i]) : (data[i] as unknown as number);
+    const currentEma = (val - prevEma) * multiplier + prevEma;
+    ema[i] = currentEma;
+    prevEma = currentEma;
   }
   return ema;
 };
@@ -447,11 +449,27 @@ export const calculateStochastic = (data: HistoricalData[], period: number, smoo
 };
 
 export const calculateKeltnerChannels = (data: HistoricalData[], period: number, multiplier: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-    const closePrices = data.map(d => d.close);
-    const middle = calculateEMA(closePrices, period);
+    // Optimize EMA calculation by passing accessor (d => d.close) directly to avoid closePrices array allocation.
+    const middle = calculateEMA(data, period, d => d.close);
     const atr = calculateATR(data, period);
-    const upper = middle.map((val, i) => val !== null && atr[i] !== null ? val + (atr[i]! * multiplier) : null);
-    const lower = middle.map((val, i) => val !== null && atr[i] !== null ? val - (atr[i]! * multiplier) : null);
+    const len = data.length;
+
+    // Optimize upper and lower channel calculations by pre-allocating result arrays and operating in a single pass.
+    const upper: (number | null)[] = Array(len);
+    const lower: (number | null)[] = Array(len);
+
+    for (let i = 0; i < len; i++) {
+        const m = middle[i];
+        const a = atr[i];
+        if (m !== null && a !== null) {
+            const bandWidth = a * multiplier;
+            upper[i] = m + bandWidth;
+            lower[i] = m - bandWidth;
+        } else {
+            upper[i] = null;
+            lower[i] = null;
+        }
+    }
     return { upper, middle, lower };
 };
 
