@@ -534,10 +534,35 @@ export const calculateMomentum = (data: number[], period: number): (number | nul
 };
 
 export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: number, longPeriod: number): (number | null)[] => {
-    const medianPrices = data.map(d => (d.high + d.low) / 2);
-    const smaShort = calculateSMA(medianPrices, shortPeriod);
-    const smaLong = calculateSMA(medianPrices, longPeriod);
-    return smaShort.map((val, i) => val !== null && smaLong[i] !== null ? val - smaLong[i]! : null);
+    const minPeriod = Math.max(shortPeriod, longPeriod);
+    if (!data || data.length < minPeriod || shortPeriod <= 0 || longPeriod <= 0) {
+        return Array(data ? data.length : 0).fill(null);
+    }
+
+    // Single-pass O(N) calculation to compute short and long SMAs of median price (HL/2)
+    // and subtract them directly. Eliminates 3 intermediate array allocations and GC overhead.
+    const result: (number | null)[] = Array(data.length).fill(null);
+    let sumShort = 0;
+    let sumLong = 0;
+
+    for (let i = 0; i < data.length; i++) {
+        const median = (data[i].high + data[i].low) / 2;
+        sumShort += median;
+        sumLong += median;
+
+        if (i >= shortPeriod) {
+            sumShort -= (data[i - shortPeriod].high + data[i - shortPeriod].low) / 2;
+        }
+        if (i >= longPeriod) {
+            sumLong -= (data[i - longPeriod].high + data[i - longPeriod].low) / 2;
+        }
+
+        if (i >= minPeriod - 1) {
+            result[i] = (sumShort / shortPeriod) - (sumLong / longPeriod);
+        }
+    }
+
+    return result;
 };
 
 export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
