@@ -5,20 +5,30 @@ import type { HistoricalData } from './types';
 /**
  * Internal helper to calculate sliding window maximum or minimum using a monotonic deque.
  * This achieves O(N) complexity for the entire dataset, compared to O(N * period).
+ * Supports optional `getValue` accessor to avoid copying/mapping array properties.
  *
- * @param data Array of numbers to process
+ * @param data Array of items (numbers or objects) to process
  * @param period The sliding window size
  * @param type 'max' for rolling maximum, 'min' for rolling minimum
+ * @param getValue Optional accessor function to extract numeric value from items
  * @returns Array of (number | null) where null represents initial periods
  */
-const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'max' | 'min'): (number | null)[] => {
-  if (data.length < period) return Array(data.length).fill(null);
+export const calculateSlidingWindowExtreme = <T = number>(
+  data: T[],
+  period: number,
+  type: 'max' | 'min',
+  getValue?: (item: T) => number
+): (number | null)[] => {
+  const len = data.length;
+  if (len < period) return Array(len).fill(null);
 
-  const results: (number | null)[] = Array(data.length).fill(null);
+  const results: (number | null)[] = Array(len).fill(null);
   const deque: number[] = []; // Stores indices
   let head = 0; // Use a head pointer to avoid O(P) shift() operations
 
-  for (let i = 0; i < data.length; i++) {
+  for (let i = 0; i < len; i++) {
+    const val = getValue ? getValue(data[i]) : (data[i] as unknown as number);
+
     // Remove indices that are out of the current window
     if (deque.length > head && deque[head] <= i - period) {
       head++;
@@ -27,9 +37,10 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
     // Maintain monotonic property
     while (deque.length > head) {
       const lastIdx = deque[deque.length - 1];
+      const lastVal = getValue ? getValue(data[lastIdx]) : (data[lastIdx] as unknown as number);
       const shouldPop = type === 'max'
-        ? data[i] >= data[lastIdx]
-        : data[i] <= data[lastIdx];
+        ? val >= lastVal
+        : val <= lastVal;
 
       if (shouldPop) {
         deque.pop();
@@ -42,7 +53,8 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
 
     // If window is full, the element at the head of deque is the extreme
     if (i >= period - 1) {
-      results[i] = data[deque[head]];
+      const extremeIdx = deque[head];
+      results[i] = getValue ? getValue(data[extremeIdx]) : (data[extremeIdx] as unknown as number);
     }
   }
 
@@ -332,12 +344,16 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
 };
 
 export const calculateDonchianChannels = (data: HistoricalData[], period: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
+  const len = data.length;
+  const upper = calculateSlidingWindowExtreme(data, period, 'max', (d) => d.high);
+  const lower = calculateSlidingWindowExtreme(data, period, 'min', (d) => d.low);
+  const middle: (number | null)[] = Array(len);
 
-  const upper = calculateSlidingWindowExtreme(highs, period, 'max');
-  const lower = calculateSlidingWindowExtreme(lows, period, 'min');
-  const middle = upper.map((u, i) => (u !== null && lower[i] !== null) ? (u + lower[i]!) / 2 : null);
+  for (let i = 0; i < len; i++) {
+    const u = upper[i];
+    const l = lower[i];
+    middle[i] = u !== null && l !== null ? (u + l) / 2 : null;
+  }
 
   return { upper, middle, lower };
 };
@@ -541,23 +557,23 @@ export const calculateAwesomeOscillator = (data: HistoricalData[], shortPeriod: 
 };
 
 export const calculateWilliamsR = (data: HistoricalData[], period: number): (number | null)[] => {
-    const highs = data.map(d => d.high);
-    const lows = data.map(d => d.low);
-    const periodHighs = calculateSlidingWindowExtreme(highs, period, 'max');
-    const periodLows = calculateSlidingWindowExtreme(lows, period, 'min');
+    const len = data.length;
+    const periodHighs = calculateSlidingWindowExtreme(data, period, 'max', (d) => d.high);
+    const periodLows = calculateSlidingWindowExtreme(data, period, 'min', (d) => d.low);
 
-    const williamsR: (number | null)[] = [];
-    for (let i = 0; i < data.length; i++) {
+    const williamsR: (number | null)[] = Array(len);
+    for (let i = 0; i < len; i++) {
         const highestHigh = periodHighs[i];
         const lowestLow = periodLows[i];
 
         if (highestHigh === null || lowestLow === null) {
-            williamsR.push(null);
+            williamsR[i] = null;
             continue;
         }
 
-        const r = ((highestHigh - data[i].close) / (highestHigh - lowestLow)) * -100;
-        williamsR.push(isNaN(r) ? -50 : r);
+        const range = highestHigh - lowestLow;
+        const r = range > 0 ? ((highestHigh - data[i].close) / range) * -100 : -50;
+        williamsR[i] = isNaN(r) ? -50 : r;
     }
     return williamsR;
 };
