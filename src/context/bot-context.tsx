@@ -117,7 +117,7 @@ export const BotProvider = ({ children }: { children: ReactNode }) => {
   const [strategyRecommendation, setStrategyRecommendation] = useState<RankedTradeSignal | null>(null);
 
   const dismissRecommendation = () => { setShowRecommendation(false); setStrategyRecommendation(null); };
-  const activateRecommendedStrategy = (strategyId: string) => { console.log(`Activating recommended strategy: ${strategyId}`); dismissRecommendation(); };
+  const activateRecommendedStrategy = (strategyId: string) => { dismissRecommendation(); };
   
   const [strategyParams, setStrategyParams] = useState<Record<string, any>>(DEFAULT_STRATEGY_PARAMS);
   const [isTradingActive, setIsTradingActive] = useState(false);
