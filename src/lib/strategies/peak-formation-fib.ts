@@ -114,116 +114,129 @@ async function calculate(
 
     let anySignal = false;
 
-    for (let i = peakLookaround + swingLookaround; i < data.length; i++) {
-        // --- PREPARE RUNNING INDICES ---
-        // Find the most recent PFH strictly before (i - peakLookaround) to avoid lookahead repainting
-        let pfhIndex = -1;
-        for (let j = i - peakLookaround; j > peakLookaround; j--) {
-            if (isPfHigh[j]) {
-                pfhIndex = j;
-                break;
-            }
-        }
+    // Track running state across candles to avoid O(N^2) backward/forward searches
+    let currentPfhIndex = -1;
+    let currentSwingLowIndex = -1;
+    let currentShortBosIndex = -1;
+    let currentLowSinceBos = Infinity;
 
-        // Find the most recent PFL
-        let pflIndex = -1;
-        for (let j = i - peakLookaround; j > peakLookaround; j--) {
-            if (isPfLow[j]) {
-                pflIndex = j;
-                break;
-            }
-        }
+    let currentPflIndex = -1;
+    let currentSwingHighIndex = -1;
+    let currentLongBosIndex = -1;
+    let currentHighSinceBos = -Infinity;
+
+    for (let i = peakLookaround + swingLookaround; i < data.length; i++) {
+        const candidatePeakIdx = i - peakLookaround;
 
         // --- NON-REPAINTING SHORT SETUP ---
-        if (pfhIndex !== -1) {
-            const peakHigh = data[pfhIndex].high;
-
-            let swingLowIndex = -1;
-            for (let j = pfhIndex - 1; j > swingLookaround; j--) {
+        // Ensure candidatePeakIdx > peakLookaround to match exact boundary condition j > peakLookaround
+        if (candidatePeakIdx > peakLookaround && isPfHigh[candidatePeakIdx]) {
+            currentPfhIndex = candidatePeakIdx;
+            currentSwingLowIndex = -1;
+            for (let j = currentPfhIndex - 1; j > swingLookaround; j--) {
                 if (isSwingLow[j]) {
-                    swingLowIndex = j;
+                    currentSwingLowIndex = j;
                     break;
                 }
             }
+            currentShortBosIndex = -1;
+            currentLowSinceBos = Infinity;
+        }
 
-            if (swingLowIndex !== -1) {
-                const breakLevel = data[swingLowIndex].low;
+        if (currentPfhIndex !== -1 && currentSwingLowIndex !== -1) {
+            const breakLevel = data[currentSwingLowIndex].low;
 
-                let bosIndex = -1;
-                for (let k = pfhIndex + 1; k < i; k++) {
+            if (currentShortBosIndex === -1) {
+                for (let k = currentPfhIndex + 1; k < i; k++) {
                     if (data[k].close < breakLevel) {
-                        bosIndex = k;
+                        currentShortBosIndex = k;
                         break;
                     }
                 }
-
-                if (bosIndex !== -1 && emaShort[bosIndex] !== null && emaLong[bosIndex] !== null && emaShort[bosIndex]! < emaLong[bosIndex]!) {
-                    // Find lowest low since BOS
-                    let lowSinceBos = data[bosIndex].low;
-                    for (let k = bosIndex; k <= i; k++) {
-                        if (data[k].low < lowSinceBos) lowSinceBos = data[k].low;
-                    }
-
-                    const fibRange = peakHigh - lowSinceBos;
-                    const fib50 = lowSinceBos + fibRange * fibLevel1;
-
-                    if (i <= bosIndex + signalStaleness && data[i].high >= fib50 && data[i - 1].high < fib50) {
-                        anySignal = true;
-                        if (reverse) {
-                            dataWithIndicators[i].buySignal = fib50;
-                        } else {
-                            dataWithIndicators[i].sellSignal = fib50;
+                if (currentShortBosIndex !== -1) {
+                    currentLowSinceBos = data[currentShortBosIndex].low;
+                    for (let k = currentShortBosIndex + 1; k <= i; k++) {
+                        if (data[k].low < currentLowSinceBos) {
+                            currentLowSinceBos = data[k].low;
                         }
-                        dataWithIndicators[i].stopLossLevel = peakHigh * 1.001;
-                        dataWithIndicators[i].peakPrice = peakHigh;
                     }
+                }
+            } else {
+                if (data[i].low < currentLowSinceBos) {
+                    currentLowSinceBos = data[i].low;
+                }
+            }
+
+            if (currentShortBosIndex !== -1 && emaShort[currentShortBosIndex] !== null && emaLong[currentShortBosIndex] !== null && emaShort[currentShortBosIndex]! < emaLong[currentShortBosIndex]!) {
+                const peakHigh = data[currentPfhIndex].high;
+                const fibRange = peakHigh - currentLowSinceBos;
+                const fib50 = currentLowSinceBos + fibRange * fibLevel1;
+
+                if (i <= currentShortBosIndex + signalStaleness && data[i].high >= fib50 && data[i - 1].high < fib50) {
+                    anySignal = true;
+                    if (reverse) {
+                        dataWithIndicators[i].buySignal = fib50;
+                    } else {
+                        dataWithIndicators[i].sellSignal = fib50;
+                    }
+                    dataWithIndicators[i].stopLossLevel = peakHigh * 1.001;
+                    dataWithIndicators[i].peakPrice = peakHigh;
                 }
             }
         }
 
         // --- NON-REPAINTING LONG SETUP ---
-        if (pflIndex !== -1) {
-            const peakLow = data[pflIndex].low;
-
-            let swingHighIndex = -1;
-            for (let j = pflIndex - 1; j > swingLookaround; j--) {
+        if (candidatePeakIdx > peakLookaround && isPfLow[candidatePeakIdx]) {
+            currentPflIndex = candidatePeakIdx;
+            currentSwingHighIndex = -1;
+            for (let j = currentPflIndex - 1; j > swingLookaround; j--) {
                 if (isSwingHigh[j]) {
-                    swingHighIndex = j;
+                    currentSwingHighIndex = j;
                     break;
                 }
             }
+            currentLongBosIndex = -1;
+            currentHighSinceBos = -Infinity;
+        }
 
-            if (swingHighIndex !== -1) {
-                const breakLevelLong = data[swingHighIndex].high;
+        if (currentPflIndex !== -1 && currentSwingHighIndex !== -1) {
+            const breakLevelLong = data[currentSwingHighIndex].high;
 
-                let bosIndexLong = -1;
-                for (let k = pflIndex + 1; k < i; k++) {
+            if (currentLongBosIndex === -1) {
+                for (let k = currentPflIndex + 1; k < i; k++) {
                     if (data[k].close > breakLevelLong) {
-                        bosIndexLong = k;
+                        currentLongBosIndex = k;
                         break;
                     }
                 }
-
-                if (bosIndexLong !== -1 && emaShort[bosIndexLong] !== null && emaLong[bosIndexLong] !== null && emaShort[bosIndexLong]! > emaLong[bosIndexLong]!) {
-                    // Find highest high since BOS
-                    let highSinceBos = data[bosIndexLong].high;
-                    for (let k = bosIndexLong; k <= i; k++) {
-                        if (data[k].high > highSinceBos) highSinceBos = data[k].high;
-                    }
-
-                    const fibRangeLong = highSinceBos - peakLow;
-                    const fib50Long = highSinceBos - fibRangeLong * fibLevel1;
-
-                    if (i <= bosIndexLong + signalStaleness && data[i].low <= fib50Long && data[i - 1].low > fib50Long) {
-                        anySignal = true;
-                        if (reverse) {
-                            dataWithIndicators[i].sellSignal = fib50Long;
-                        } else {
-                            dataWithIndicators[i].buySignal = fib50Long;
+                if (currentLongBosIndex !== -1) {
+                    currentHighSinceBos = data[currentLongBosIndex].high;
+                    for (let k = currentLongBosIndex + 1; k <= i; k++) {
+                        if (data[k].high > currentHighSinceBos) {
+                            currentHighSinceBos = data[k].high;
                         }
-                        dataWithIndicators[i].stopLossLevel = peakLow * 0.999;
-                        dataWithIndicators[i].peakPrice = peakLow;
                     }
+                }
+            } else {
+                if (data[i].high > currentHighSinceBos) {
+                    currentHighSinceBos = data[i].high;
+                }
+            }
+
+            if (currentLongBosIndex !== -1 && emaShort[currentLongBosIndex] !== null && emaLong[currentLongBosIndex] !== null && emaShort[currentLongBosIndex]! > emaLong[currentLongBosIndex]!) {
+                const peakLow = data[currentPflIndex].low;
+                const fibRangeLong = currentHighSinceBos - peakLow;
+                const fib50Long = currentHighSinceBos - fibRangeLong * fibLevel1;
+
+                if (i <= currentLongBosIndex + signalStaleness && data[i].low <= fib50Long && data[i - 1].low > fib50Long) {
+                    anySignal = true;
+                    if (reverse) {
+                        dataWithIndicators[i].sellSignal = fib50Long;
+                    } else {
+                        dataWithIndicators[i].buySignal = fib50Long;
+                    }
+                    dataWithIndicators[i].stopLossLevel = peakLow * 0.999;
+                    dataWithIndicators[i].peakPrice = peakLow;
                 }
             }
         }

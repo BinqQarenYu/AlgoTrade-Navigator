@@ -21,3 +21,7 @@
 ## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
 **Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
 **Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
+
+## 2026-03-29 - Running State Cache for Peak Formation Fib Strategy Loops
+**Learning:** The Peak Formation Fib strategy repeatedly executed backward linear scans for peak formation indices (PFH/PFL), swing levels, and BOS triggers on every candle iteration, causing $O(N^2)$ execution times.
+**Action:** Cached active PFH/PFL indices, swing levels, BOS indices, and running low/high since BOS as state variables updated incrementally on each candle, reducing calculation complexity to $O(N)$ and eliminating redundant scans.
