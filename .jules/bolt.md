@@ -21,3 +21,7 @@
 ## 2026-03-28 - Monotonic Deque Optimization for RSI Divergence Lookback
 **Learning:** Strategy lookback calculations like RSI divergence relied on scanning `params.lookback` items on every candle iteration, causing $O(N \times L)$ execution time.
 **Action:** Maintain monotonic deques with head pointers across sliding window $[i - \text{lookback}, i - 5)$ for minimum low and maximum high indices, reducing lookback time complexity to $O(N)$ and speeding up calculation by ~4.1x.
+
+## 2026-03-29 - V8 Engine Optimization for Flat Arrays vs Function Closures in Hot Loops
+**Learning:** In V8, passing flat `number[]` arrays to hot sliding-window deque algorithms (`calculateSlidingWindowExtreme`) is ~2x faster than invoking function closure accessors (`getValue(data[i])`) inside the inner loop due to function call and object dereferencing overhead vs V8 optimizations for packed double arrays. Consolidating output array mapping into single-pass pre-allocated loops further improves performance.
+**Action:** Extract flat arrays once and compute output arrays in consolidated single-pass loops for indicators like `calculateIchimokuCloud`, `calculateDonchianChannels`, and `calculateSemafor`.

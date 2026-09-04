@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateIchimokuCloud, calculateDonchianChannels, calculateSemafor } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,50 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates Ichimoku Cloud correctly including chikou span', () => {
+        const data: HistoricalData[] = Array.from({ length: 30 }, (_, i) => ({
+            time: i * 60,
+            timestamp: i * 60000,
+            open: 100 + i,
+            high: 110 + i,
+            low: 90 + i,
+            close: 105 + i,
+            volume: 1000
+        }));
+
+        const result = calculateIchimokuCloud(data, 9, 26, 52, 5);
+        expect(result.tenkan.length).toBe(30);
+        expect(result.kijun.length).toBe(30);
+        expect(result.senkouA.length).toBe(30);
+        expect(result.senkouB.length).toBe(30);
+        expect(result.chikou.length).toBe(30);
+
+        // Chikou span displaced backward by 5 periods: chikou[i - 5] = data[i].close
+        expect(result.chikou[0]).toBe(data[5].close); // index 0 has close of index 5
+        expect(result.chikou[10]).toBe(data[15].close);
+    });
+
+    it('calculates Donchian Channels and Semafor correctly', () => {
+        const data: HistoricalData[] = Array.from({ length: 10 }, (_, i) => ({
+            time: i * 60,
+            timestamp: i * 60000,
+            open: 100 + i,
+            high: 105 + i,
+            low: 95 + i,
+            close: 100 + i,
+            volume: 1000
+        }));
+
+        const donchian = calculateDonchianChannels(data, 5);
+        expect(donchian.upper.length).toBe(10);
+        expect(donchian.upper[4]).toBe(109); // max high of first 5 candles (105..109)
+        expect(donchian.lower[4]).toBe(95);  // min low of first 5 candles (95..99)
+        expect(donchian.middle[4]).toBe((109 + 95) / 2);
+
+        const semafor = calculateSemafor(data, 3, 5, 7);
+        expect(semafor.length).toBe(10);
+        expect(semafor[2].level1Top).toBe(true);
     });
 });

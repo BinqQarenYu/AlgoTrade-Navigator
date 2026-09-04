@@ -19,6 +19,8 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
   let head = 0; // Use a head pointer to avoid O(P) shift() operations
 
   for (let i = 0; i < data.length; i++) {
+    const currentVal = data[i];
+
     // Remove indices that are out of the current window
     if (deque.length > head && deque[head] <= i - period) {
       head++;
@@ -27,9 +29,10 @@ const calculateSlidingWindowExtreme = (data: number[], period: number, type: 'ma
     // Maintain monotonic property
     while (deque.length > head) {
       const lastIdx = deque[deque.length - 1];
+      const lastVal = data[lastIdx];
       const shouldPop = type === 'max'
-        ? data[i] >= data[lastIdx]
-        : data[i] <= data[lastIdx];
+        ? currentVal >= lastVal
+        : currentVal <= lastVal;
 
       if (shouldPop) {
         deque.pop();
@@ -332,12 +335,22 @@ export const calculateSupertrend = (data: HistoricalData[], period: number, mult
 };
 
 export const calculateDonchianChannels = (data: HistoricalData[], period: number): { upper: (number | null)[], middle: (number | null)[], lower: (number | null)[] } => {
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
+  const len = data.length;
+  const highs = new Array(len);
+  const lows = new Array(len);
+  for (let i = 0; i < len; i++) {
+    highs[i] = data[i].high;
+    lows[i] = data[i].low;
+  }
 
   const upper = calculateSlidingWindowExtreme(highs, period, 'max');
   const lower = calculateSlidingWindowExtreme(lows, period, 'min');
-  const middle = upper.map((u, i) => (u !== null && lower[i] !== null) ? (u + lower[i]!) / 2 : null);
+  const middle: (number | null)[] = new Array(len);
+  for (let i = 0; i < len; i++) {
+    const u = upper[i];
+    const l = lower[i];
+    middle[i] = (u !== null && l !== null) ? (u + l) / 2 : null;
+  }
 
   return { upper, middle, lower };
 };
@@ -349,36 +362,51 @@ export const calculateIchimokuCloud = (
   senkouBPeriod: number,
   displacement: number
 ): { tenkan: (number | null)[]; kijun: (number | null)[]; senkouA: (number | null)[]; senkouB: (number | null)[]; chikou: (number | null)[] } => {
-  const highs = data.map(d => d.high);
-  const lows = data.map(d => d.low);
+  const len = data.length;
+  const highs = new Array(len);
+  const lows = new Array(len);
+  for (let i = 0; i < len; i++) {
+    highs[i] = data[i].high;
+    lows[i] = data[i].low;
+  }
 
   const tenkanHigh = calculateSlidingWindowExtreme(highs, tenkanPeriod, 'max');
   const tenkanLow = calculateSlidingWindowExtreme(lows, tenkanPeriod, 'min');
-  const tenkan = tenkanHigh.map((h, i) => (h !== null && tenkanLow[i] !== null) ? (h + tenkanLow[i]!) / 2 : null);
 
   const kijunHigh = calculateSlidingWindowExtreme(highs, kijunPeriod, 'max');
   const kijunLow = calculateSlidingWindowExtreme(lows, kijunPeriod, 'min');
-  const kijun = kijunHigh.map((h, i) => (h !== null && kijunLow[i] !== null) ? (h + kijunLow[i]!) / 2 : null);
 
   const senkouBHigh = calculateSlidingWindowExtreme(highs, senkouBPeriod, 'max');
   const senkouBLow = calculateSlidingWindowExtreme(lows, senkouBPeriod, 'min');
-  const senkouBBase = senkouBHigh.map((h, i) => (h !== null && senkouBLow[i] !== null) ? (h + senkouBLow[i]!) / 2 : null);
 
-  const senkouA = Array(data.length).fill(null);
-  const senkouB = Array(data.length).fill(null);
-  const chikou = Array(data.length).fill(null);
+  const tenkan: (number | null)[] = new Array(len);
+  const kijun: (number | null)[] = new Array(len);
+  const senkouA: (number | null)[] = Array(len).fill(null);
+  const senkouB: (number | null)[] = Array(len).fill(null);
+  const chikou: (number | null)[] = Array(len).fill(null);
 
-  for (let i = 0; i < data.length; i++) {
-    if (tenkan[i] !== null && kijun[i] !== null) {
-      const val = (tenkan[i]! + kijun[i]!) / 2;
-      if (i + displacement < data.length) {
-        senkouA[i + displacement] = val;
+  for (let i = 0; i < len; i++) {
+    const tH = tenkanHigh[i];
+    const tL = tenkanLow[i];
+    const tVal = (tH !== null && tL !== null) ? (tH + tL) / 2 : null;
+    tenkan[i] = tVal;
+
+    const kH = kijunHigh[i];
+    const kL = kijunLow[i];
+    const kVal = (kH !== null && kL !== null) ? (kH + kL) / 2 : null;
+    kijun[i] = kVal;
+
+    if (tVal !== null && kVal !== null) {
+      if (i + displacement < len) {
+        senkouA[i + displacement] = (tVal + kVal) / 2;
       }
     }
 
-    if (senkouBBase[i] !== null) {
-      if (i + displacement < data.length) {
-        senkouB[i + displacement] = senkouBBase[i];
+    const sbH = senkouBHigh[i];
+    const sbL = senkouBLow[i];
+    if (sbH !== null && sbL !== null) {
+      if (i + displacement < len) {
+        senkouB[i + displacement] = (sbH + sbL) / 2;
       }
     }
 
