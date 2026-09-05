@@ -872,41 +872,66 @@ export const calculateSMI = (
     smiPeriod: number, 
     emaPeriod: number
 ): { smi: (number | null)[], signal: (number | null)[] } => {
-    const validData = data.filter((d): d is number => d !== null);
-    if (validData.length < smiPeriod) return { smi: Array(data.length).fill(null), signal: Array(data.length).fill(null) };
-    
-    const padding = data.length - validData.length;
+    const len = data.length;
+    let padding = 0;
+    const validData: number[] = [];
+    for (let i = 0; i < len; i++) {
+        const val = data[i];
+        if (val !== null && val !== undefined) {
+            validData.push(val);
+        } else {
+            padding++;
+        }
+    }
+
+    const validLen = validData.length;
+    if (validLen < smiPeriod) return { smi: Array(len).fill(null), signal: Array(len).fill(null) };
 
     const highs = calculateSlidingWindowExtreme(validData, smiPeriod, 'max');
     const lows = calculateSlidingWindowExtreme(validData, smiPeriod, 'min');
 
-    let smiValues: (number|null)[] = [];
-    for (let i = 0; i < validData.length; i++) {
-        const highest = highs[i];
-        const lowest = lows[i];
-
-        if (highest === null || lowest === null) {
-            continue;
-        }
-
+    const smiValues: number[] = [];
+    for (let i = smiPeriod - 1; i < validLen; i++) {
+        const highest = highs[i]!;
+        const lowest = lows[i]!;
         const range = highest - lowest;
         const smi = range > 0 ? ((validData[i] - (highest + lowest) / 2) / (range / 2)) * 100 : 0;
         smiValues.push(smi);
     }
-    
-    const validSmiValues = smiValues.filter((v): v is number => v !== null);
-    const smiPadding = smiValues.length - validSmiValues.length;
 
-    const emaOfSmi = calculateEMA(validSmiValues, emaPeriod);
-    const emaOfEma = calculateEMA(emaOfSmi.filter((v): v is number => v !== null), emaPeriod);
+    const emaOfSmi = calculateEMA(smiValues, emaPeriod);
+    const validEmaOfSmi: number[] = [];
+    for (let i = 0; i < emaOfSmi.length; i++) {
+        if (emaOfSmi[i] !== null) validEmaOfSmi.push(emaOfSmi[i]!);
+    }
 
-    const finalSmi = [...Array(padding + smiPadding).fill(null), ...emaOfEma];
-    const signalLine = calculateSMA(finalSmi.filter((v): v is number => v !== null), 4);
-    
-    return {
-        smi: finalSmi,
-        signal: [...Array(finalSmi.length - signalLine.length).fill(null), ...signalLine]
-    };
+    const emaOfEma = calculateEMA(validEmaOfSmi, emaPeriod);
+
+    const finalSmi = new Array<number | null>(padding + emaOfEma.length);
+    for (let i = 0; i < padding; i++) {
+        finalSmi[i] = null;
+    }
+    for (let i = 0; i < emaOfEma.length; i++) {
+        finalSmi[padding + i] = emaOfEma[i];
+    }
+
+    const validFinalSmi: number[] = [];
+    for (let i = 0; i < finalSmi.length; i++) {
+        if (finalSmi[i] !== null) validFinalSmi.push(finalSmi[i]!);
+    }
+
+    const signalLine = calculateSMA(validFinalSmi, 4);
+
+    const signalPadding = finalSmi.length - signalLine.length;
+    const finalSignal = new Array<number | null>(finalSmi.length);
+    for (let i = 0; i < signalPadding; i++) {
+        finalSignal[i] = null;
+    }
+    for (let i = 0; i < signalLine.length; i++) {
+        finalSignal[signalPadding + i] = signalLine[i];
+    }
+
+    return { smi: finalSmi, signal: finalSignal };
 };
 export const calculateSemafor = (data: HistoricalData[], period1: number = 5, period2: number = 13, period3: number = 34) => {
     const highs = data.map(d => d.high);
