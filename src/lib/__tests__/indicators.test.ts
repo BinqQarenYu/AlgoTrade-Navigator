@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI } from '../indicators';
+import { calculateSMA, calculateEMA, calculateMFI, calculateCoppockCurve, calculatePivotPoints, calculateCCI, calculateSMI } from '../indicators';
 import type { HistoricalData } from '../types';
 
 describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', () => {
@@ -83,5 +83,16 @@ describe('Technical Indicators (SMA, EMA, MFI, Coppock Curve, Pivot Points)', ()
         expect(result[0]).toBeNull();
         expect(result[1]).toBeNull();
         expect(result[2]).toBeCloseTo(100, 5);
+    });
+
+    it('calculates SMI correctly with optimized logic', () => {
+        const testData = [null, null, 10, 12, 11, 15, 14, 16, 18, 20, 22, 21, 25, 24, 26, 28, 30, 32, 31, 35];
+        const result = calculateSMI(testData, 3, 3);
+        expect(result.smi.length).toBe(testData.length);
+        expect(result.signal.length).toBe(testData.length);
+        expect(result.smi[0]).toBeNull();
+        expect(result.smi[7]).toBeNull();
+        expect(result.smi[8]).toBeCloseTo(70.833, 3);
+        expect(result.signal[11]).toBeCloseTo(77.930, 2);
     });
 });
